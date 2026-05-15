@@ -569,8 +569,10 @@ function LeadsPage({leads,setLeads,t,mgr,search,onOpen}){
               {["ID",t.date,t.name,t.phone,t.score,t.qualification,t.period,t.action,t.manager,t.source,""].map((h,i)=><th key={i} style={{padding:"9px 10px",color:C.muted,fontWeight:600,textAlign:"left",whiteSpace:"nowrap",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>)}
             </tr></thead>
             <tbody>{fl.map(l=>{const isSel=selected.has(l.id);return(
-              <tr key={l.id} onClick={()=>onOpen(l)} style={{borderBottom:`1px solid ${C.border}`,background:isSel?"rgba(191,164,126,0.1)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent",cursor:"pointer"}}
-                onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=C.surface)} onMouseLeave={e=>e.currentTarget.style.background=isSel?"rgba(191,164,126,0.1)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent"}>
+              <tr key={l.id} onClick={()=>onOpen(l)}
+                style={{borderBottom:`1px solid ${C.border}`,background:isSel?"rgba(191,164,126,0.1)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent",cursor:"pointer"}}
+                onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=C.surface)}
+                onMouseLeave={e=>{e.currentTarget.style.background=isSel?"rgba(191,164,126,0.1)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent";}}>
                 <td style={{padding:"8px 10px"}} onClick={e=>toggleOne(l.id,e)}><input type="checkbox" checked={isSel} onChange={()=>{}} onClick={e=>toggleOne(l.id,e)} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></td>
                 <td style={{padding:"8px 10px"}}><span style={{fontSize:10,color:C.accent,fontFamily:"monospace",fontWeight:600}}>{l.leadId||l.id}</span></td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
@@ -584,7 +586,7 @@ function LeadsPage({leads,setLeads,t,mgr,search,onOpen}){
                 <td style={{padding:"8px 10px"}}><SrcBadge source={l.source}/></td>
                 <td style={{padding:"8px 10px"}}><button onClick={e=>{e.stopPropagation();onOpen(l);}} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:6,padding:"3px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>→</button></td>
               </tr>
-            );}}</tbody>
+            );})}</tbody>
           </table>
           {fl.length===0&&<div style={{padding:40,textAlign:"center",color:C.muted}}>Нет лидов</div>}
         </div>
