@@ -1,5 +1,30 @@
 import { useState, useRef, useEffect } from "react";
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import React from "react";
+
+class ErrorBoundary extends React.Component{
+  constructor(p){super(p);this.state={error:null};}
+  static getDerivedStateFromError(e){return{error:e};}
+  componentDidCatch(e,info){console.error("GarnoCRM crash:",e,info);}
+  render(){
+    if(this.state.error){
+      return(
+        <div style={{display:"flex",height:"100vh",background:"#00132f",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:"sans-serif",padding:24}}>
+          <div style={{fontSize:32}}>⚠️</div>
+          <div style={{color:"#fff",fontWeight:700,fontSize:18}}>Ошибка загрузки</div>
+          <div style={{color:"rgba(255,255,255,0.6)",fontSize:13,maxWidth:500,textAlign:"center",background:"rgba(255,255,255,0.05)",padding:16,borderRadius:8,fontFamily:"monospace"}}>
+            {this.state.error.toString()}
+          </div>
+          <button onClick={()=>{localStorage.clear();window.location.reload();}}
+            style={{background:"#bfa47e",color:"#00132f",border:"none",borderRadius:8,padding:"10px 24px",fontWeight:800,cursor:"pointer",fontSize:14}}>
+            🔄 Сбросить и перезапустить
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ─── BRAND COLORS ─────────────────────────────────────────────────────────────
 const C = {
@@ -141,19 +166,27 @@ function lsGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return n
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 
 async function binRead(binId,apiKey){
-  const r=await fetch(`${BIN_BASE}/${binId}/latest`,{headers:{"X-Master-Key":apiKey,"X-Bin-Meta":"false"}});
+  const r=await fetch(`${BIN_BASE}/${binId}/latest`,{
+    headers:{"X-Master-Key":apiKey,"X-Bin-Meta":"false"},
+    cache:"no-store"
+  });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
-  return (await r.json()).record;
+  const j=await r.json();
+  // JSONBin v3: response is { record: {...} } or directly the data
+  return j?.record ?? j;
 }
 async function binWrite(binId,apiKey,data){
   const r=await fetch(`${BIN_BASE}/${binId}`,{method:"PUT",headers:{"Content-Type":"application/json","X-Master-Key":apiKey},body:JSON.stringify(data)});
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
 }
 async function binCreate(apiKey,data){
-  const r=await fetch(BIN_BASE,{method:"POST",headers:{"Content-Type":"application/json","X-Master-Key":apiKey,"X-Bin-Name":"GarnoCRM"},body:JSON.stringify(data)});
-  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  const r=await fetch(BIN_BASE,{method:"POST",headers:{"Content-Type":"application/json","X-Master-Key":apiKey,"X-Bin-Name":"GarnoCRM","X-Bin-Private":"false"},body:JSON.stringify(data)});
+  if(!r.ok){const txt=await r.text();throw new Error(`HTTP ${r.status}: ${txt.slice(0,100)}`);}
   const j=await r.json();
-  return j.metadata?.id;
+  // JSONBin v3 returns { record: {...}, metadata: { id: "..." } }
+  const id = j?.metadata?.id || j?.id || j?._id;
+  if(!id) throw new Error("JSONBin не вернул Bin ID. Ответ: "+JSON.stringify(j).slice(0,200));
+  return id;
 }
 
 const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
@@ -811,6 +844,10 @@ function SalesPage({sales,setSales,t,lang}){
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App(){
+  return <ErrorBoundary><GarnoCRM/></ErrorBoundary>;
+}
+
+function GarnoCRM(){
   const {db,status,syncLabel,updateDb,configure}=useDatabase();
   const [page,setPage]=useState("dashboard");
   const [selLead,setSelLead]=useState(null);
