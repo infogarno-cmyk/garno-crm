@@ -27,7 +27,7 @@ class ErrorBoundary extends React.Component{
 }
 
 // ─── BRAND COLORS ─────────────────────────────────────────────────────────────
-const C = {
+const DARK = {
   bg:"#00132f", surface:"#001840", card:"#001f4e",
   accent:"#bfa47e", accentDim:"rgba(191,164,126,0.15)", accentBorder:"rgba(191,164,126,0.35)",
   text:"#fff", muted:"rgba(255,255,255,0.55)", dim:"rgba(255,255,255,0.3)",
@@ -35,6 +35,15 @@ const C = {
   green:"#4ade80", red:"#f87171", blue:"#60a5fa",
   yellow:"#fbbf24", purple:"#a78bfa", cyan:"#22d3ee",
 };
+const LIGHT = {
+  bg:"#f0f4f8", surface:"#ffffff", card:"#f8fafc",
+  accent:"#9a7d5a", accentDim:"rgba(154,125,90,0.12)", accentBorder:"rgba(154,125,90,0.35)",
+  text:"#1a2744", muted:"rgba(26,39,68,0.55)", dim:"rgba(26,39,68,0.35)",
+  border:"rgba(26,39,68,0.1)", borderMd:"rgba(26,39,68,0.2)",
+  green:"#16a34a", red:"#dc2626", blue:"#2563eb",
+  yellow:"#d97706", purple:"#7c3aed", cyan:"#0891b2",
+};
+let C = DARK; // mutable — updated by theme
 const TIP={contentStyle:{background:"#001840",border:"1px solid rgba(255,255,255,0.14)",borderRadius:8,color:"#fff",fontSize:11},labelStyle:{color:"#fff"},itemStyle:{color:"#fff"}};
 const MONTHS_RU=["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 const MONTHS_PL=["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec","Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"];
@@ -53,7 +62,7 @@ const T = {
     convRate:"Конверсия",revenue:"Выручка",many:"Продаж",totalSales:"Выручка",salesCount:"Продаж",
     podium:"Пьедестал",visits:"Визиты",source_label:"Источник",
     unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",salon:"Визит в салон",sale:"Продажа",
-    thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",
+    thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",undefined:"Не определено",
     withinMonth:"В теч. месяца",within3m:"В теч. 3 мес.",within6m:"В теч. полугода",year:"Год",
     justPrice:"Только цена",unconfirmed:"Срок не подтвержден",
     evVisit:"Визит",evMeasure:"Замер",evContract:"Договор",evPhone:"Телефон",evDelivery:"Доставка",
@@ -76,7 +85,7 @@ const T = {
     convRate:"Konwersja",revenue:"Przychód",many:"Sprzedaży",totalSales:"Przychód",salesCount:"Sprzedaży",
     podium:"Podium",visits:"Wizyty",source_label:"Źródło",
     unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",salon:"Wizyta w salonie",sale:"Sprzedaż",
-    thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",
+    thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",undefined:"Nieokreślone",
     withinMonth:"W ciągu miesiąca",within3m:"W ciągu 3 mies.",within6m:"W ciągu pół roku",year:"Rok",
     justPrice:"Chce tylko cenę",unconfirmed:"Termin niepotwierdzony",
     evVisit:"Wizyta",evMeasure:"Pomiar",evContract:"Umowa",evPhone:"Telefon",evDelivery:"Dostawa",
@@ -95,8 +104,8 @@ const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Patryk:C.purple,Danya:C.cyan};
 function scoreToQual(s){const n=parseInt(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===5)return"salon";return"sale";}
 const QUALS=["unqualified","prequalified","qualified","salon","sale"];
 const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,salon:C.blue,sale:C.accent};
-const ACTIONS=["thinking","missedCall","cancelled","callback"];
-const ACT_COLOR={thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green};
+const ACTIONS=["undefined","thinking","missedCall","cancelled","callback"];
+const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green};
 const BUDGETS=["withinMonth","within3m","within6m","year","justPrice","unconfirmed"];
 const BUD_COLOR={withinMonth:C.green,within3m:C.cyan,within6m:C.yellow,year:C.purple,justPrice:C.muted,unconfirmed:"rgba(255,255,255,0.2)"};
 const SOURCES=["pl.calculatorkuchni.online","roda.calculatorkuchni.online","fast.calculatorkuchni.online","us.calculatorkuchni.online","1.designkitchen.online","fillout","garnofurniture.ukr","garnofurniture.com","Instagram","Mail"];
@@ -507,32 +516,49 @@ function SaleModal({lead,t,onConfirm,onCancel}){
 
 // ─── ADD LEAD MODAL ───────────────────────────────────────────────────────────
 function AddLeadModal({onClose,onAdd,t,lang,nextNum,currentUser}){
-  const [form,setForm]=useState({name:"",phone:"",action:"thinking",source:SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed"});
+  const todayIso=new Date().toISOString().slice(0,10);
+  const [form,setForm]=useState({name:"",phone:"",action:"undefined",source:SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed",dateOverride:todayIso});
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
-  const previewId=makeLeadId(nextNum,dAgo(0));
+
+  const buildCreatedAt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("ru-RU");}catch{return new Date().toLocaleDateString("ru-RU");}};
+
+  const submit=()=>{
+    const createdAt=buildCreatedAt(form.dateOverride);
+    onAdd({...form,id:nextNum,leadId:makeLeadId(nextNum,createdAt),score:0,qualification:"unqualified",createdAt,isDone:false,quoteAmt:null,
+      history:[{date:nowStr(),action:lang==="ru"?"Лид добавлен":"Lead dodany",by:currentUser||"Admin"}]});
+    onClose();
+  };
+
+  const handleKey=(e)=>{if(e.key==="Enter"&&!e.shiftKey&&e.target.tagName!=="TEXTAREA"){e.preventDefault();submit();}};
   const ins={background:C.surface,border:`1px solid ${C.borderMd}`,color:"#fff",borderRadius:7,padding:"8px 11px",fontSize:13,width:"100%",boxSizing:"border-box",outline:"none"};
-  const submit=()=>{if(!form.name.trim())return;const createdAt=dAgo(0);onAdd({...form,id:nextNum,leadId:makeLeadId(nextNum,createdAt),score:0,qualification:"unqualified",createdAt,isDone:false,quoteAmt:null,history:[{date:nowStr(),action:lang==="ru"?"Лид добавлен":"Lead dodany",by:currentUser||"Admin"}]});onClose();};
+  const previewId=makeLeadId(nextNum,buildCreatedAt(form.dateOverride));
+
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,border:`1px solid ${C.accentBorder}`,width:"min(480px,95vw)",padding:28}}>
+      <div onClick={e=>e.stopPropagation()} onKeyDown={handleKey}
+        style={{background:C.surface,borderRadius:16,border:`1px solid ${C.accentBorder}`,width:"min(480px,95vw)",padding:28,maxHeight:"90vh",overflowY:"auto"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
           <div><div style={{fontSize:18,fontWeight:800,color:C.accent}}>+ {t.addLead}</div><div style={{fontSize:11,color:C.muted,marginTop:3}}>ID: <b style={{color:C.accent,fontFamily:"monospace"}}>{previewId}</b></div></div>
           <button onClick={onClose} style={{background:"transparent",border:"none",color:C.muted,fontSize:18,cursor:"pointer"}}>✕</button>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:11}}>
-          <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.name} *</div><input value={form.name} onChange={e=>set("name",e.target.value)} style={ins}/></div>
+          <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.name} <span style={{color:C.dim,fontWeight:400,fontSize:9}}>(необязательно)</span></div><input value={form.name} onChange={e=>set("name",e.target.value)} autoFocus placeholder={lang==="ru"?"Имя клиента...":"Imię klienta..."} style={ins}/></div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.phone}</div><input value={form.phone} onChange={e=>set("phone",e.target.value)} placeholder="48 500 000 000" style={ins}/></div>
+          <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.date}</div><input type="date" value={form.dateOverride} onChange={e=>set("dateOverride",e.target.value)} style={{...ins,colorScheme:"dark"}}/></div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.source}</div><select value={form.source} onChange={e=>set("source",e.target.value)} style={ins}>{SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-            <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.action}</div><select value={form.action} onChange={e=>set("action",e.target.value)} style={ins}>{ACTIONS.map(a=><option key={a} value={a}>{t[a]||a}</option>)}</select></div>
+            <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.action}</div><select value={form.action} onChange={e=>set("action",e.target.value)} style={{...ins,color:ACT_COLOR[form.action]||"#fff",borderColor:ACT_COLOR[form.action]||C.borderMd}}>{ACTIONS.map(a=><option key={a} value={a}>{t[a]||a}</option>)}</select></div>
           </div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.manager}</div><select value={form.manager} onChange={e=>set("manager",e.target.value)} style={ins}><option value="">{lang==="ru"?"— не назначен —":"— nieprzypisany —"}</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select></div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.period}</div><select value={form.budgetTimeline} onChange={e=>set("budgetTimeline",e.target.value)} style={{...ins,borderColor:BUD_COLOR[form.budgetTimeline]||C.borderMd}}>{BUDGETS.map(b=><option key={b} value={b}>{t[b]||b}</option>)}</select></div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.notes}</div><textarea value={form.notes} onChange={e=>set("notes",e.target.value)} rows={2} style={{...ins,resize:"vertical"}}/></div>
         </div>
-        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:18,paddingTop:14,borderTop:`1px solid ${C.border}`}}>
-          <Btn onClick={onClose} variant="ghost">{t.cancel}</Btn>
-          <button onClick={submit} style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:9,padding:"10px 22px",fontSize:14,fontWeight:800,cursor:"pointer"}}>✓ {lang==="ru"?"Добавить":"Dodaj"}</button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginTop:18,paddingTop:14,borderTop:`1px solid ${C.border}`}}>
+          <div style={{fontSize:10,color:C.dim}}>↵ Enter — {lang==="ru"?"быстрое добавление":"szybkie dodanie"}</div>
+          <div style={{display:"flex",gap:8}}>
+            <Btn onClick={onClose} variant="ghost">{t.cancel}</Btn>
+            <button onClick={submit} style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:9,padding:"10px 22px",fontSize:14,fontWeight:800,cursor:"pointer"}}>✓ {lang==="ru"?"Добавить":"Dodaj"}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -557,10 +583,11 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr}){
 }
 
 // ─── TOPBAR ───────────────────────────────────────────────────────────────────
-function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,binId,onRefresh}){
+function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,binId,onRefresh,theme,toggleTheme}){
   const [showUsers,setShowUsers]=useState(false);
   const [showBinId,setShowBinId]=useState(false);
   const syncColor=syncLabel==="✓"?C.green:syncLabel==="!"?C.red:syncLabel==="⟳"?C.yellow:C.green;
+  const isDark=theme==="dark";
   return(
     <div style={{height:56,background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10,padding:"0 14px",flexShrink:0}}>
       <button onClick={()=>setCollapsed(p=>!p)} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4}}>☰</button>
@@ -605,6 +632,11 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
       </div>
       <button onClick={onAddLead} style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",gap:8,boxShadow:`0 2px 14px rgba(191,164,126,0.4)`}}><span style={{fontSize:16,fontWeight:900}}>+</span> {t.addLead}</button>
       <div style={{display:"flex",gap:2,background:C.card,borderRadius:8,padding:3,border:`1px solid ${C.border}`}}>{["ru","pl"].map(l=><button key={l} onClick={()=>setLang(l)} style={{padding:"4px 10px",borderRadius:6,border:"none",background:lang===l?C.accentDim:"transparent",color:lang===l?C.accent:C.muted,cursor:"pointer",fontSize:11,fontWeight:700}}>{l.toUpperCase()}</button>)}</div>
+      {/* Theme toggle */}
+      <button onClick={toggleTheme} title={isDark?"Светлая тема":"Тёмная тема"}
+        style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 10px",cursor:"pointer",fontSize:15,lineHeight:1,color:C.muted}}>
+        {isDark?"☀️":"🌙"}
+      </button>
       {/* User switcher */}
       <div style={{position:"relative"}}>
         <button onClick={()=>setShowUsers(p=>!p)} style={{display:"flex",alignItems:"center",gap:8,background:C.card,border:`1px solid ${MGR_COLOR[currentUser]||C.accentBorder}`,borderRadius:10,padding:"6px 12px",cursor:"pointer",color:"#fff"}}>
@@ -1078,6 +1110,11 @@ function GarnoCRM(){
   const [collapsed,setCollapsed]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
   const [currentUser,setCurrentUser]=useState(()=>localStorage.getItem("garno_user")||null);
+  const [theme,setTheme]=useState(()=>localStorage.getItem("garno_theme")||"dark");
+
+  // Apply theme globally
+  C = theme==="light" ? LIGHT : DARK;
+  const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);localStorage.setItem("garno_theme",t);};
   const t=T[lang];
 
   const saveUser=(u)=>{localStorage.setItem("garno_user",u);setCurrentUser(u);};
@@ -1125,11 +1162,11 @@ function GarnoCRM(){
   const addSale=(s)=>setSales(p=>[s,...p]);
 
   return(
-    <div style={{display:"flex",height:"100vh",background:C.bg,color:"#fff",fontFamily:"'DM Sans','Segoe UI',sans-serif",overflow:"hidden",fontSize:13}}>
+    <div style={{display:"flex",height:"100vh",background:C.bg,color:C.text,fontFamily:"'DM Sans','Segoe UI',sans-serif",overflow:"hidden",fontSize:13,transition:"background 0.2s,color 0.2s"}}>
       <style>{`*{box-sizing:border-box;}::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(191,164,126,0.25);border-radius:3px;}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.25);}select option{background:#001840;color:#fff;}input[type=checkbox]{accent-color:#bfa47e;}@media print{.no-print{display:none!important;}#kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;}}`}</style>
       <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} binId={db?._binId||lsGet(LS_KEY)?.binId||""} onRefresh={refresh}/>
+        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} binId={db?._binId||lsGet(LS_KEY)?.binId||""} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
           {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
