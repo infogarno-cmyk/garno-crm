@@ -577,7 +577,37 @@ function KPModal({lead,amount,onClose}){
 // ─── SALE MODAL ───────────────────────────────────────────────────────────────
 function SaleModal({lead,t,onConfirm,onCancel}){
   const [amt,setAmt]=useState("");
-  return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.87)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000}}><div style={{background:C.surface,borderRadius:16,border:`2px solid ${C.accent}`,width:"min(380px,94vw)",padding:32}}><div style={{fontSize:20,fontWeight:800,color:C.accent,marginBottom:4}}>🎉 {t.saleAmountTitle}</div><div style={{fontSize:13,color:C.muted,marginBottom:20}}>{lead?.name||lead?.phone}</div><input type="number" value={amt} onChange={e=>setAmt(e.target.value)} autoFocus onKeyDown={e=>e.key==="Enter"&&amt&&onConfirm(parseInt(amt)||0)} style={{background:C.card,border:`2px solid ${C.accentBorder}`,color:C.text,borderRadius:9,padding:"12px 16px",fontSize:18,width:"100%",boxSizing:"border-box",outline:"none",fontWeight:700}} placeholder="0"/><div style={{display:"flex",gap:10,marginTop:16}}><Btn onClick={onCancel} variant="ghost">{t.cancel}</Btn><button onClick={()=>onConfirm(parseInt(amt)||0)} disabled={!amt} style={{flex:1,background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:9,padding:"11px 0",fontSize:14,fontWeight:800,cursor:amt?"pointer":"not-allowed",opacity:amt?1:0.5}}>✓ {t.saleAmountConfirm}</button></div></div></div>);
+  const [saleDate,setSaleDate]=useState(new Date().toISOString().slice(0,10));
+  const ins={background:C.card,border:`2px solid ${C.accentBorder}`,color:C.text,borderRadius:9,padding:"12px 16px",fontSize:15,width:"100%",boxSizing:"border-box",outline:"none"};
+  const confirm=()=>{if(!amt)return;onConfirm(parseInt(amt)||0,saleDate);};
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.87)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000}}>
+      <div style={{background:C.surface,borderRadius:16,border:`2px solid ${C.accent}`,width:"min(420px,95vw)",padding:32}}>
+        <div style={{fontSize:20,fontWeight:800,color:C.accent,marginBottom:4}}>🎉 {t.saleAmountTitle}</div>
+        <div style={{fontSize:13,color:C.muted,marginBottom:20}}>{lead?.name||lead?.phone}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Сумма (zł)</div>
+            <input type="number" value={amt} onChange={e=>setAmt(e.target.value)} autoFocus
+              onKeyDown={e=>e.key==="Enter"&&amt&&confirm()}
+              style={{...ins,fontSize:22,fontWeight:700}} placeholder="0"/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Дата продажи</div>
+            <input type="date" value={saleDate} onChange={e=>setSaleDate(e.target.value)}
+              style={{...ins,colorScheme:"dark",fontSize:14}}/>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:10,marginTop:20}}>
+          <Btn onClick={onCancel} variant="ghost">{t.cancel}</Btn>
+          <button onClick={confirm} disabled={!amt}
+            style={{flex:1,background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:9,padding:"12px 0",fontSize:14,fontWeight:800,cursor:amt?"pointer":"not-allowed",opacity:amt?1:0.5}}>
+            ✓ {t.saleAmountConfirm}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── ADD LEAD MODAL ───────────────────────────────────────────────────────────
@@ -851,7 +881,15 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
   const [showSale,setShowSale]=useState(false);
   const set=(k,v)=>setForm(p=>{const u={...p,[k]:v};if(k==="score"){u.qualification=scoreToQual(v);if(parseInt(v)===6&&parseInt(p.score)!==6)setShowSale(true);}return u;});
   const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
-  const confirmSale=(amt)=>{const upd={...form,saleAmount:amt,isDone:true};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...upd}:l));onAddSale({id:Date.now(),leadId:lead.leadId||lead.id,name:form.name,phone:form.phone,manager:form.manager||"—",source:form.source,createdAt:new Date().toLocaleDateString("ru-RU"),saleAmount:amt,notes:form.notes});setShowSale(false);onClose();};
+  const confirmSale=(amt,saleDate)=>{
+    const upd={...form,saleAmount:amt,isDone:true};
+    setLeads(p=>p.map(l=>l.id===lead.id?{...l,...upd}:l));
+    // Format ISO date → DD.MM.YYYY for display and filtering
+    let createdAt=new Date().toLocaleDateString("ru-RU");
+    if(saleDate){try{const d=new Date(saleDate);createdAt=d.toLocaleDateString("ru-RU");}catch{}}
+    onAddSale({id:Date.now(),leadId:lead.leadId||lead.id,name:form.name,phone:form.phone,manager:form.manager||"—",source:form.source,createdAt,saleAmount:amt,notes:form.notes});
+    setShowSale(false);onClose();
+  };
   const inp=(field,label)=>(<div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{label}</div>{editing?<input value={form[field]||""} onChange={e=>set(field,e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",boxSizing:"border-box"}}/>:<div style={{fontSize:13,color:form[field]?C.text:C.dim}}>{form[field]||"—"}</div>}</div>);
   return(<>
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:1000}} onClick={onClose}>
