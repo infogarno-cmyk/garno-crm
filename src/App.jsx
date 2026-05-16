@@ -36,10 +36,10 @@ const DARK = {
   yellow:"#fbbf24", purple:"#a78bfa", cyan:"#22d3ee",
 };
 const LIGHT = {
-  bg:"#f0f4f8", surface:"#ffffff", card:"#ffffff",
+  bg:"#eef1f5", surface:"#ffffff", card:"#ffffff",
   accent:"#8b6914", accentDim:"rgba(139,105,20,0.1)", accentBorder:"rgba(139,105,20,0.4)",
-  text:"#0a0a0a", muted:"#333333", dim:"#555555",
-  border:"rgba(0,0,0,0.1)", borderMd:"rgba(0,0,0,0.18)",
+  text:"#000000", muted:"#222222", dim:"#444444",
+  border:"rgba(0,0,0,0.12)", borderMd:"rgba(0,0,0,0.22)",
   green:"#15803d", red:"#b91c1c", blue:"#1d4ed8",
   yellow:"#b45309", purple:"#6d28d9", cyan:"#0e7490",
 };
@@ -109,8 +109,8 @@ const ACTIONS=["undefined","thinking","missedCall","cancelled","callback"];
 const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green};
 const BUDGETS=["withinMonth","within3m","within6m","year","justPrice","unconfirmed"];
 const BUD_COLOR={withinMonth:C.green,within3m:C.cyan,within6m:C.yellow,year:C.purple,justPrice:C.muted,unconfirmed:"rgba(255,255,255,0.2)"};
-const SOURCES=["pl.calculatorkuchni.online","roda.calculatorkuchni.online","fast.calculatorkuchni.online","us.calculatorkuchni.online","1.designkitchen.online","fillout","garnofurniture.ukr","garnofurniture.com","Instagram","Mail"];
-const SRC_COLOR={"pl.calculatorkuchni.online":"#3b82f6","roda.calculatorkuchni.online":"#8b5cf6","fast.calculatorkuchni.online":"#06b6d4","us.calculatorkuchni.online":"#10b981","1.designkitchen.online":"#f59e0b","fillout":"#ec4899","garnofurniture.ukr":"#a78bfa","garnofurniture.com":"#60a5fa","Instagram":"#E1306C","Mail":"#bfa47e"};
+const SOURCES=["pl.calculatorkuchni.online","roda.calculatorkuchni.online","fast.calculatorkuchni.online","ua.calculatorkuchni.online","1.designkitchen.online","fillout","garnofurniture.ukr","garnofurniture.com","Instagram","Mail"];
+const SRC_COLOR={"pl.calculatorkuchni.online":"#3b82f6","roda.calculatorkuchni.online":"#8b5cf6","fast.calculatorkuchni.online":"#06b6d4","ua.calculatorkuchni.online":"#10b981","1.designkitchen.online":"#f59e0b","fillout":"#ec4899","garnofurniture.ukr":"#a78bfa","garnofurniture.com":"#60a5fa","Instagram":"#E1306C","Mail":"#bfa47e"};
 function srcShort(s){return s.replace(".calculatorkuchni.online","…").replace(".designkitchen.online","…des").replace("garnofurniture","garno");}
 const EVENT_TYPES=["visit","measure","contract","phone","delivery"];
 const EVENT_COLOR={visit:C.blue,measure:C.accent,contract:C.green,phone:C.purple,delivery:C.cyan};
@@ -133,7 +133,7 @@ const RAW=[
   [2,"garnofurniture.com",false,"01.05","48 510 496 018",2,"Kamilla","within6m","Dmytro","thinking",""],
   [3,"fast.calculatorkuchni.online",true,"02.05","48 530 399 395",6,"Grzegorz","within3m","Dmytro","thinking","kuchnia 23250 zł z blatem standardowym lub 28 822 z blatem promocyjnym"],
   [4,"garnofurniture.com",false,"02.05","48 505 913 889",1,"Paweł","within6m","Patryk","cancelled","Tak sobie wtajemnie nie potrzeba"],
-  [5,"us.calculatorkuchni.online",true,"03.05","38 025 725 6843",0,"Ольга","justPrice","Patryk","cancelled","napisan"],
+  [5,"ua.calculatorkuchni.online",true,"03.05","38 025 725 6843",0,"Ольга","justPrice","Patryk","cancelled","napisan"],
   [6,"pl.calculatorkuchni.online",true,"03.05","48 531 004 060",2,"","within6m","Patryk","thinking","kuchnia na listopad / grudzień"],
   [7,"pl.calculatorkuchni.online",true,"03.05","48 604 059 427",4,"","within3m","Patryk","thinking","półwysep 120cm, złobenie na półwyspie"],
   [8,"pl.calculatorkuchni.online",true,"03.05","48 501 688 076",4,"Marcin","withinMonth","Patryk","thinking","Kontakt pod koniec tygodnia"],
@@ -143,21 +143,21 @@ const RAW=[
   [12,"garnofurniture.com",true,"06.05","48 787 963 326",3,"Gerry Weber","within3m","Dmytro","thinking",""],
   [13,"fast.calculatorkuchni.online",false,"07.05","48 531 620 510",0,"","within6m","Patryk","missedCall","wysłana wiadomość"],
   [14,"fast.calculatorkuchni.online",false,"07.05","48 509 496 057",0,"","justPrice","Patryk","thinking","Przesłan dw awairanty, laminat i lakier"],
-  [15,"us.calculatorkuchni.online",true,"08.05","48 788 914 268",2,"Катерина","justPrice","Oleh","thinking","dom, срока нет, вiцениш метрами 18430, дорого"],
-  [16,"us.calculatorkuchni.online",true,"08.05","48 721 858 642",1,"Мария","within3m","Oleh","thinking","ВРОЦЛАВ, ждем проект после 16.05"],
-  [17,"us.calculatorkuchni.online",true,"08.05","38 099 642 1443",2,"Оля","year","Dmytro","thinking","571 231 171 стоимость 18320зл"],
+  [15,"ua.calculatorkuchni.online",true,"08.05","48 788 914 268",2,"Катерина","justPrice","Oleh","thinking","dom, срока нет, вiцениш метрами 18430, дорого"],
+  [16,"ua.calculatorkuchni.online",true,"08.05","48 721 858 642",1,"Мария","within3m","Oleh","thinking","ВРОЦЛАВ, ждем проект после 16.05"],
+  [17,"ua.calculatorkuchni.online",true,"08.05","38 099 642 1443",2,"Оля","year","Dmytro","thinking","571 231 171 стоимость 18320зл"],
   [18,"garnofurniture.com",true,"08.05","48 725 599 991",4,"natalia","within6m","Patryk","thinking","Ma podesłać rzut"],
   [19,"garnofurniture.ukr",true,"09.05","48 722 727 466",4,"Анна","withinMonth","Dmytro","thinking","Za Wrocławiem, вартість кухні в плити Крона"],
-  [20,"us.calculatorkuchni.online",true,"09.05","48 730 376 626",2,"Tomasz","within6m","Dmytro","thinking","wysłana wycena na maila, za drogo"],
+  [20,"ua.calculatorkuchni.online",true,"09.05","48 730 376 626",2,"Tomasz","within6m","Dmytro","thinking","wysłana wycena na maila, za drogo"],
   [21,"garnofurniture.ukr",true,"12.05","48 575 088 950",5,"Дарья","withinMonth","Dmytro","callback","25 615 + 8480 blat + 4200 witryna"],
   [22,"garnofurniture.ukr",true,"12.05","48 733 414 135",3,"Аліна","withinMonth","Dmytro","thinking","старе мешкання, будуть переносити стіни"],
-  [23,"us.calculatorkuchni.online",true,"12.05","48 798 502 663",5,"Василь","within3m","Oleh","callback","Wizyta w salonie - umówiona"],
+  [23,"ua.calculatorkuchni.online",true,"12.05","48 798 502 663",5,"Василь","within3m","Oleh","callback","Wizyta w salonie - umówiona"],
   [24,"fast.calculatorkuchni.online",false,"12.05","48 793 992 121",4,"","withinMonth","Patryk","thinking","Za drogo wycena z metra / szuka czegoś taniego"],
   [25,"garnofurniture.com",false,"14.05","48 535 473 859",0,"","within3m",null,"missedCall","Wysłana wiadomość"],
-  [26,"us.calculatorkuchni.online",true,"14.05","48 664 329 099",2,"","year","Dmytro","cancelled","2,5 km od niemców - кухня 2 метра"],
-  [27,"us.calculatorkuchni.online",true,"14.05","48 733 861 064",2,"Monika","within6m","Dmytro","thinking","cjna 25 655 + 3850 witryna + 6500 stop promocyjna"],
+  [26,"ua.calculatorkuchni.online",true,"14.05","48 664 329 099",2,"","year","Dmytro","cancelled","2,5 km od niemców - кухня 2 метра"],
+  [27,"ua.calculatorkuchni.online",true,"14.05","48 733 861 064",2,"Monika","within6m","Dmytro","thinking","cjna 25 655 + 3850 witryna + 6500 stop promocyjna"],
   [28,"garnofurniture.com",true,"14.05","48 691 402 443",2,"Iwona","within6m","Dmytro","thinking","wycena na karteczce 22795 zł + blat promo 7650 zł"],
-  [29,"us.calculatorkuchni.online",false,"14.05","48 664 764 578",2,"Ирина","within6m","Oleh","missedCall","Ma podesłać preferencje kuchnia wrzesień/październik"],
+  [29,"ua.calculatorkuchni.online",false,"14.05","48 664 764 578",2,"Ирина","within6m","Oleh","missedCall","Ma podesłać preferencje kuchnia wrzesień/październik"],
 ];
 function buildSeedLeads(){return RAW.map(([id,src,done,ddmm,phone,score,name,budget,mgr,action,notes])=>{const createdAt=`${ddmm}.2026`;return{id,leadId:makeLeadId(id,createdAt),name:name||"",phone,source:src,createdAt,qualification:scoreToQual(score),action,manager:mgr||null,score,notes:notes||"",budgetTimeline:budget,quoteAmt:score===6?23250:null,isDone:done,history:[]};});}
 const SEED_LEADS=buildSeedLeads();
@@ -714,7 +714,13 @@ function LeadsPage({leads,setLeads,t,mgr,search,onOpen}){
   const [fQ,setFQ]=useState("all");const [fA,setFA]=useState("all");const [fS,setFS]=useState("all");const [sort,setSort]=useState("date");
   const [selected,setSelected]=useState(new Set());
   const ss={background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
-  const fl=filterByRange(leads,range).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||l.name.toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).filter(l=>fQ==="all"||l.qualification===fQ).filter(l=>fA==="all"||l.action===fA).filter(l=>fS==="all"||l.source===fS).sort((a,b)=>sort==="score"?b.score-a.score:sort==="date"?b.id-a.id:a.id-b.id);
+  const fl=filterByRange(leads,range).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||l.name.toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).filter(l=>fQ==="all"||l.qualification===fQ).filter(l=>fA==="all"||l.action===fA).filter(l=>fS==="all"||l.source===fS).sort((a,b)=>{
+    if(sort==="score") return b.score-a.score;
+    // Parse DD.MM.YYYY date for proper sorting
+    const parseDate=(s)=>{if(!s)return 0;const p=s.split(".");if(p.length===3)return new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0;return 0;};
+    if(sort==="date") return parseDate(b.createdAt)-parseDate(a.createdAt);
+    return parseDate(b.createdAt)-parseDate(a.createdAt); // default also by date desc
+  });
   const toggleOne=(id,e)=>{e.stopPropagation();setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});};
   const toggleAll=()=>setSelected(selected.size===fl.length&&fl.length>0?new Set():new Set(fl.map(l=>l.id)));
   const deleteSelected=()=>{setLeads(p=>p.filter(l=>!selected.has(l.id)));setSelected(new Set());};
@@ -1184,6 +1190,13 @@ function GarnoCRM(){
         select option{background:${C.surface};color:${C.text};}
         input[type=checkbox]{accent-color:${C.accent};}
         input,select,textarea{color:${C.text} !important;}
+        ${theme==="light" ? `
+          body, div, span, td, th, button, input, select, textarea, label {
+            -webkit-font-smoothing: antialiased;
+          }
+          td, th { font-weight: 600 !important; }
+          .crm-muted { font-weight: 600; }
+        ` : ""}
         @media print{.no-print{display:none!important;}#kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;}}
       `}</style>
       <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr}/>
