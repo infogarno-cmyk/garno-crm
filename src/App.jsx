@@ -193,12 +193,13 @@ const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum
 
 function useDatabase(){
   const [db,setDbState]=useState(null);
-  const [status,setStatus]=useState("loading"); // loading|setup|ready|error
+  const [status,setStatus]=useState("loading");
   const [syncLabel,setSyncLabel]=useState("●");
   const cfgRef=useRef(null);
   const localRef=useRef(null);
   const savingRef=useRef(false);
   const saveTimer=useRef(null);
+  const lastWriteTime=useRef(0); // timestamp of last successful write
 
   useEffect(()=>{
     (async()=>{
@@ -219,11 +220,18 @@ function useDatabase(){
   useEffect(()=>{
     if(status!=="ready")return;
     const iv=setInterval(async()=>{
-      if(savingRef.current)return;
+      // Block poll if: currently saving OR within 10 sec of last write (propagation delay)
+      if(savingRef.current) return;
+      if(Date.now()-lastWriteTime.current < 10000) return;
       try{
         const data=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
         const json=JSON.stringify(data);
-        if(json!==localRef.current){localRef.current=json;setDbState(data);setSyncLabel("✓");setTimeout(()=>setSyncLabel("●"),2000);}
+        if(json!==localRef.current){
+          localRef.current=json;
+          setDbState(data);
+          setSyncLabel("✓");
+          setTimeout(()=>setSyncLabel("●"),2000);
+        }
       }catch{}
     },5000);
     return()=>clearInterval(iv);
@@ -240,8 +248,15 @@ function useDatabase(){
       saveTimer.current=setTimeout(async()=>{
         try{
           await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,next);
-          setSyncLabel("✓");setTimeout(()=>setSyncLabel("●"),2000);
-        }catch(e){console.error(e);setSyncLabel("!");}
+          lastWriteTime.current=Date.now(); // record write time
+          setSyncLabel("✓");
+          setTimeout(()=>setSyncLabel("●"),2000);
+        }catch(e){
+          console.error("Write failed:",e);
+          setSyncLabel("!");
+          // If write failed — show error but keep local state
+          alert("❌ Ошибка сохранения: "+e.message+"\n\nВозможно неверный Master Key. Проверьте настройки.");
+        }
         finally{savingRef.current=false;}
       },400);
       return next;
@@ -251,6 +266,7 @@ function useDatabase(){
   const configure=async(cfg,initData)=>{
     lsSet(LS_KEY,cfg);cfgRef.current=cfg;
     localRef.current=JSON.stringify(initData);
+    lastWriteTime.current=Date.now();
     setDbState(initData);setStatus("ready");
   };
 
@@ -364,16 +380,18 @@ function SetupScreen({onSave}){
           {/* ── JOIN MODE ── */}
           {mode==="join"&&(<>
             <button onClick={()=>{setMode(null);setErr("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:12,textAlign:"left",padding:0}}>← Назад</button>
-            <div style={{background:"rgba(96,165,250,0.08)",border:"1px solid rgba(96,165,250,0.2)",borderRadius:10,padding:"12px 14px",fontSize:12,color:"rgba(255,255,255,0.65)",lineHeight:1.6}}>
-              💡 Попросите создателя базы прислать вам <b style={{color:"#60a5fa"}}>Bin ID</b>.<br/>
-              Он виден в правом верхнем углу CRM после входа → кнопка <b style={{color:"#fff"}}>⚙ Bin ID</b>.
+            <div style={{background:"rgba(96,165,250,0.1)",border:"1px solid rgba(96,165,250,0.3)",borderRadius:10,padding:"12px 14px",fontSize:12,color:"rgba(255,255,255,0.8)",lineHeight:1.7}}>
+              ⚠️ Для синхронизации <b style={{color:"#fff"}}>все менеджеры должны использовать один и тот же Master Key</b> — тот что у администратора (создателя базы).<br/><br/>
+              Попросите администратора прислать вам:<br/>
+              1. <b style={{color:"#60a5fa"}}>Bin ID</b> (из кнопки ⚙ в шапке CRM)<br/>
+              2. <b style={{color:"#bfa47e"}}>Master Key</b> (его ключ с jsonbin.io)
             </div>
             <div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Bin ID (от создателя базы)</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Bin ID (от администратора)</div>
               <input value={binId} onChange={e=>{setBinId(e.target.value);setErr("");}} placeholder="6847abcdef1234567890abcd" style={ins}/>
             </div>
             <div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Master Key (ваш, с jsonbin.io)</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Master Key администратора (с его jsonbin.io)</div>
               <input value={apiKey} onChange={e=>{setApiKey(e.target.value);setErr("");}} placeholder="$2a$10$..." type="password" style={ins} onKeyDown={e=>e.key==="Enter"&&handleJoin()}/>
             </div>
             {err&&<div style={{fontSize:12,color:"#f87171",background:"rgba(248,113,113,0.1)",borderRadius:8,padding:"10px 14px"}}>{err}</div>}
@@ -569,16 +587,19 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
         {showBinId&&(
           <>
             <div onClick={()=>setShowBinId(false)} style={{position:"fixed",inset:0,zIndex:1999}}/>
-            <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:C.surface,border:`1px solid ${C.accentBorder}`,borderRadius:12,padding:16,zIndex:2000,minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
-              <div style={{fontSize:12,color:C.muted,marginBottom:8}}>📋 Отправьте этот Bin ID другим менеджерам чтобы они подключились к общей базе:</div>
-              <div style={{background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:8,padding:"10px 12px",fontFamily:"monospace",fontSize:13,color:C.accent,wordBreak:"break-all",marginBottom:10}}>
+            <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:C.surface,border:`1px solid ${C.accentBorder}`,borderRadius:12,padding:16,zIndex:2000,minWidth:340,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:10}}>📋 Данные для подключения команды</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:6}}>1. Bin ID (отправьте всем менеджерам):</div>
+              <div style={{background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:8,padding:"10px 12px",fontFamily:"monospace",fontSize:12,color:C.accent,wordBreak:"break-all",marginBottom:12}}>
                 {binId||"—"}
+              </div>
+              <div style={{fontSize:11,color:C.yellow,marginBottom:10,background:"rgba(251,191,36,0.08)",borderRadius:8,padding:"8px 10px",lineHeight:1.6}}>
+                ⚠️ <b style={{color:"#fff"}}>Важно:</b> менеджеры должны использовать <b style={{color:C.yellow}}>ваш Master Key</b> (с вашего аккаунта jsonbin.io), а не свой. Иначе записи не сохранятся.
               </div>
               <button onClick={()=>{navigator.clipboard?.writeText(binId||"");setShowBinId(false);}}
                 style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",width:"100%"}}>
                 📋 Скопировать Bin ID
               </button>
-              <div style={{fontSize:10,color:C.dim,marginTop:8,lineHeight:1.5}}>Каждый менеджер при входе выбирает «Подключиться к базе команды» и вводит этот ID.</div>
             </div>
           </>
         )}
