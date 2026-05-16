@@ -36,15 +36,16 @@ const DARK = {
   yellow:"#fbbf24", purple:"#a78bfa", cyan:"#22d3ee",
 };
 const LIGHT = {
-  bg:"#f0f4f8", surface:"#ffffff", card:"#f8fafc",
-  accent:"#9a7d5a", accentDim:"rgba(154,125,90,0.12)", accentBorder:"rgba(154,125,90,0.35)",
-  text:"#1a2744", muted:"rgba(26,39,68,0.55)", dim:"rgba(26,39,68,0.35)",
-  border:"rgba(26,39,68,0.1)", borderMd:"rgba(26,39,68,0.2)",
-  green:"#16a34a", red:"#dc2626", blue:"#2563eb",
-  yellow:"#d97706", purple:"#7c3aed", cyan:"#0891b2",
+  bg:"#f0f4f8", surface:"#ffffff", card:"#ffffff",
+  accent:"#8b6914", accentDim:"rgba(139,105,20,0.1)", accentBorder:"rgba(139,105,20,0.4)",
+  text:"#0a0a0a", muted:"#333333", dim:"#555555",
+  border:"rgba(0,0,0,0.1)", borderMd:"rgba(0,0,0,0.18)",
+  green:"#15803d", red:"#b91c1c", blue:"#1d4ed8",
+  yellow:"#b45309", purple:"#6d28d9", cyan:"#0e7490",
 };
 let C = DARK; // mutable — updated by theme
-const TIP={contentStyle:{background:"#001840",border:"1px solid rgba(255,255,255,0.14)",borderRadius:8,color:"#fff",fontSize:11},labelStyle:{color:"#fff"},itemStyle:{color:"#fff"}};
+// TIP is computed dynamically in components using C
+const getTIP=()=>({contentStyle:{background:C.surface,border:`1px solid ${C.borderMd}`,borderRadius:8,color:C.text,fontSize:11},labelStyle:{color:C.text},itemStyle:{color:C.text}});
 const MONTHS_RU=["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 const MONTHS_PL=["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec","Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"];
 
@@ -511,7 +512,7 @@ function KPModal({lead,amount,onClose}){
 // ─── SALE MODAL ───────────────────────────────────────────────────────────────
 function SaleModal({lead,t,onConfirm,onCancel}){
   const [amt,setAmt]=useState("");
-  return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.87)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000}}><div style={{background:C.surface,borderRadius:16,border:`2px solid ${C.accent}`,width:"min(380px,94vw)",padding:32}}><div style={{fontSize:20,fontWeight:800,color:C.accent,marginBottom:4}}>🎉 {t.saleAmountTitle}</div><div style={{fontSize:13,color:C.muted,marginBottom:20}}>{lead?.name||lead?.phone}</div><input type="number" value={amt} onChange={e=>setAmt(e.target.value)} autoFocus onKeyDown={e=>e.key==="Enter"&&amt&&onConfirm(parseInt(amt)||0)} style={{background:C.card,border:`2px solid ${C.accentBorder}`,color:"#fff",borderRadius:9,padding:"12px 16px",fontSize:18,width:"100%",boxSizing:"border-box",outline:"none",fontWeight:700}} placeholder="0"/><div style={{display:"flex",gap:10,marginTop:16}}><Btn onClick={onCancel} variant="ghost">{t.cancel}</Btn><button onClick={()=>onConfirm(parseInt(amt)||0)} disabled={!amt} style={{flex:1,background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:9,padding:"11px 0",fontSize:14,fontWeight:800,cursor:amt?"pointer":"not-allowed",opacity:amt?1:0.5}}>✓ {t.saleAmountConfirm}</button></div></div></div>);
+  return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.87)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000}}><div style={{background:C.surface,borderRadius:16,border:`2px solid ${C.accent}`,width:"min(380px,94vw)",padding:32}}><div style={{fontSize:20,fontWeight:800,color:C.accent,marginBottom:4}}>🎉 {t.saleAmountTitle}</div><div style={{fontSize:13,color:C.muted,marginBottom:20}}>{lead?.name||lead?.phone}</div><input type="number" value={amt} onChange={e=>setAmt(e.target.value)} autoFocus onKeyDown={e=>e.key==="Enter"&&amt&&onConfirm(parseInt(amt)||0)} style={{background:C.card,border:`2px solid ${C.accentBorder}`,color:C.text,borderRadius:9,padding:"12px 16px",fontSize:18,width:"100%",boxSizing:"border-box",outline:"none",fontWeight:700}} placeholder="0"/><div style={{display:"flex",gap:10,marginTop:16}}><Btn onClick={onCancel} variant="ghost">{t.cancel}</Btn><button onClick={()=>onConfirm(parseInt(amt)||0)} disabled={!amt} style={{flex:1,background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:9,padding:"11px 0",fontSize:14,fontWeight:800,cursor:amt?"pointer":"not-allowed",opacity:amt?1:0.5}}>✓ {t.saleAmountConfirm}</button></div></div></div>);
 }
 
 // ─── ADD LEAD MODAL ───────────────────────────────────────────────────────────
@@ -639,7 +640,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
       </button>
       {/* User switcher */}
       <div style={{position:"relative"}}>
-        <button onClick={()=>setShowUsers(p=>!p)} style={{display:"flex",alignItems:"center",gap:8,background:C.card,border:`1px solid ${MGR_COLOR[currentUser]||C.accentBorder}`,borderRadius:10,padding:"6px 12px",cursor:"pointer",color:"#fff"}}>
+        <button onClick={()=>setShowUsers(p=>!p)} style={{display:"flex",alignItems:"center",gap:8,background:C.card,border:`1px solid ${MGR_COLOR[currentUser]||C.accentBorder}`,borderRadius:10,padding:"6px 12px",cursor:"pointer",color:C.text}}>
           <div style={{width:24,height:24,borderRadius:"50%",background:`${MGR_COLOR[currentUser]||C.accent}25`,border:`2px solid ${MGR_COLOR[currentUser]||C.accent}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:MGR_COLOR[currentUser]||C.accent}}>{(currentUser||"?")[0].toUpperCase()}</div>
           <span style={{fontSize:12,fontWeight:600,color:MGR_COLOR[currentUser]||C.accent}}>{currentUser||"Выбрать"}</span>
           <span style={{fontSize:10,color:C.muted}}>▾</span>
@@ -674,14 +675,14 @@ function Dashboard({leads,events,t,lang}){
   const upcoming=[...events].filter(e=>e.date>=TODAY).sort((a,b)=>a.date===b.date?a.time.localeCompare(b.time):a.date.localeCompare(b.date));
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{t.dashboard} <span style={{fontSize:11,color:C.muted}}>({fl.length})</span></div><DateRangeBar range={range} setRange={setRange} t={t}/></div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>{t.dashboard} <span style={{fontSize:11,color:C.muted}}>({fl.length})</span></div><DateRangeBar range={range} setRange={setRange} t={t}/></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
         {[{label:t.newLeads,val:fl.filter(l=>!l.manager).length,color:C.yellow},{label:t.processed,val:fl.filter(l=>l.isDone).length,color:C.green},{label:t.todayMeetings,val:todayEvs.length,color:C.blue},{label:t.convRate,val:`${fl.length?Math.round(qual.length/fl.length*100):0}%`,color:C.accent}].map(s=>(<div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:9,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{s.label}</div><div style={{fontSize:28,fontWeight:800,color:s.color}}>{s.val}</div></div>))}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
           <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>{t.funnel}</div>
-          {funnelData.map(d=>(<div key={d.name} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontSize:11,color:"#fff"}}>{d.name}</span><span style={{fontSize:12,color:d.color,fontWeight:700}}>{d.val}</span></div><div style={{background:"rgba(255,255,255,0.07)",borderRadius:4,height:6}}><div style={{background:d.color,borderRadius:4,height:6,width:`${fl.length?Math.round(d.val/fl.length*100):0}%`,transition:"width 0.8s"}}/></div></div>))}
+          {funnelData.map(d=>(<div key={d.name} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontSize:11,color:C.text}}>{d.name}</span><span style={{fontSize:12,color:d.color,fontWeight:700}}>{d.val}</span></div><div style={{background:C.border,borderRadius:4,height:6}}><div style={{background:d.color,borderRadius:4,height:6,width:`${fl.length?Math.round(d.val/fl.length*100):0}%`,transition:"width 0.8s"}}/></div></div>))}
         </div>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
           <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>{t.kpi}</div>
@@ -689,7 +690,7 @@ function Dashboard({leads,events,t,lang}){
         </div>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
           <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{t.source_label}</div>
-          <ResponsiveContainer width="100%" height={150}><BarChart data={srcData.slice(0,7)} margin={{top:0,right:0,bottom:22,left:-20}}><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)"/><XAxis dataKey="name" tick={{fill:C.muted,fontSize:8}} axisLine={false} tickLine={false} angle={-28} textAnchor="end"/><YAxis tick={{fill:C.muted,fontSize:9}} axisLine={false} tickLine={false}/><Tooltip {...TIP}/><Bar dataKey="value" radius={[4,4,0,0]}>{srcData.slice(0,7).map((d,i)=><Cell key={i} fill={d.fill||C.accent}/>)}</Bar></BarChart></ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={150}><BarChart data={srcData.slice(0,7)} margin={{top:0,right:0,bottom:22,left:-20}}><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)"/><XAxis dataKey="name" tick={{fill:C.muted,fontSize:8}} axisLine={false} tickLine={false} angle={-28} textAnchor="end"/><YAxis tick={{fill:C.muted,fontSize:9}} axisLine={false} tickLine={false}/><Tooltip {...getTIP()}/><Bar dataKey="value" radius={[4,4,0,0]}>{srcData.slice(0,7).map((d,i)=><Cell key={i} fill={d.fill||C.accent}/>)}</Bar></BarChart></ResponsiveContainer>
         </div>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
           <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{t.upcoming}</div>
@@ -976,7 +977,7 @@ function AnalyticsPage({leads,sales,t}){
   const PL=({cx,cy,midAngle,outerRadius,name,value})=>{if(!value)return null;const R=Math.PI/180;const r=outerRadius+22;const x=cx+r*Math.cos(-midAngle*R);const y=cy+r*Math.sin(-midAngle*R);return <text x={x} y={y} fill="#fff" textAnchor={x>cx?"start":"end"} dominantBaseline="central" fontSize={9}>{(name||"").slice(0,10)}: {value}</text>;};
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{t.analytics} <span style={{fontSize:11,color:C.muted}}>({fl.length})</span></div><DateRangeBar range={range} setRange={setRange} t={t}/></div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>{t.analytics} <span style={{fontSize:11,color:C.muted}}>({fl.length})</span></div><DateRangeBar range={range} setRange={setRange} t={t}/></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
         {[{label:t.avgScore,val:avgAll,color:C.accent},{label:`${t.qualityLeads} (4+)`,val:allKwaly,color:C.green},{label:t.qualityPct,val:`${fl.length?Math.round(allKwaly/fl.length*100):0}%`,color:C.blue},{label:t.totalSales,val:fmtM(allRev),color:C.yellow},{label:t.salesCount,val:fs.length,color:C.purple}].map(s=>(<div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:9,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5,lineHeight:1.3}}>{s.label}</div><div style={{fontSize:typeof s.val==="string"&&s.val.length>8?16:24,fontWeight:800,color:s.color}}>{s.val}</div></div>))}
       </div>
@@ -995,7 +996,7 @@ function AnalyticsPage({leads,sales,t}){
         </table>
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
-        <ResponsiveContainer width="100%" height={190}><PieChart><Pie data={qData} cx="50%" cy="50%" innerRadius={44} outerRadius={68} dataKey="value" labelLine={false} label={<PL/>}>{qData.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Pie><Tooltip {...TIP}/></PieChart></ResponsiveContainer>
+        <ResponsiveContainer width="100%" height={190}><PieChart><Pie data={qData} cx="50%" cy="50%" innerRadius={44} outerRadius={68} dataKey="value" labelLine={false} label={<PL/>}>{qData.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Pie><Tooltip {...getTIP()}/></PieChart></ResponsiveContainer>
         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:6}}>{qData.map(d=><div key={d.name} style={{display:"flex",alignItems:"center",gap:4}}><Dot color={d.fill}/><span style={{fontSize:10,color:C.muted}}>{d.name}: <b style={{color:d.fill}}>{d.value}</b></span></div>)}</div>
       </div>
     </div>
@@ -1039,13 +1040,13 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
           {!apiOk&&<button onClick={()=>setApiOk(true)} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:6,padding:"2px 8px",fontSize:10,cursor:"pointer",marginLeft:"auto"}}>↻ API</button>}
         </div>
         <div style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
-          {chatHistory.map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}><div style={{maxWidth:"82%",padding:"10px 14px",background:m.role==="user"?C.accentDim:C.surface,border:`1px solid ${m.role==="user"?C.accentBorder:C.border}`,borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",fontSize:12,color:"#fff",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{m.content}</div></div>))}
+          {chatHistory.map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}><div style={{maxWidth:"82%",padding:"10px 14px",background:m.role==="user"?C.accentDim:C.surface,border:`1px solid ${m.role==="user"?C.accentBorder:C.border}`,borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",fontSize:12,color:C.text,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{m.content}</div></div>))}
           {loading&&<div style={{display:"flex",gap:5,padding:"10px 14px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px 14px 14px 4px",width:"fit-content"}}>{[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:C.accent,animation:"pulse 1s infinite",animationDelay:`${i*0.2}s`}}/>)}</div>}
           <div ref={ref}/>
         </div>
         <div style={{padding:10,borderTop:`1px solid ${C.border}`,display:"flex",gap:8}}>
           <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder={t.aiPlaceholder} style={{flex:1,background:C.surface,border:`1px solid ${C.borderMd}`,color:"#fff",borderRadius:8,padding:"9px 12px",fontSize:12,outline:"none"}}/>
-          <button onClick={()=>setChatHistory([{role:"assistant",content:"GarnoAI готов."}])} style={{background:"rgba(255,255,255,0.08)",border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,padding:"9px 10px",cursor:"pointer",fontSize:12}} title="Очистить">🗑</button>
+          <button onClick={()=>setChatHistory([{role:"assistant",content:"GarnoAI готов."}])} style={{background:C.accentDim,border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,padding:"9px 10px",cursor:"pointer",fontSize:12}} title="Очистить">🗑</button>
           <button onClick={()=>send()} disabled={loading||!input.trim()} style={{background:C.accent,border:"none",color:"#00132f",borderRadius:8,padding:"9px 16px",fontSize:12,fontWeight:700,cursor:"pointer",opacity:(!input.trim()||loading)?0.5:1}}>{t.send}</button>
         </div>
       </div>
@@ -1070,7 +1071,7 @@ function SalesPage({sales,setSales,t,lang}){
   const deleteSale=(id)=>{setSales(p=>p.filter(s=>s.id!==id));setConfirmId(null);};
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div><DateRangeBar range={range} setRange={setRange} t={t}/></div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div><DateRangeBar range={range} setRange={setRange} t={t}/></div>
       <div style={{display:"grid",gridTemplateColumns:`1fr repeat(${MANAGERS.length},1fr)`,gap:10}}>
         <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:12,padding:"14px 16px"}}><div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{lang==="ru"?"Общая выручка":"Łączny przychód"}</div><div style={{fontSize:22,fontWeight:800,color:C.accent}}>{fmtM(totalRev)}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{fs.length} {t.many}</div></div>
         {mRev.map(m=>(<div key={m.name} style={{background:C.card,border:`1px solid ${MGR_COLOR[m.name]}33`,borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><Avatar name={m.name} color={MGR_COLOR[m.name]} size={22}/><span style={{fontSize:11,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</span></div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m.name]}}>{fmtM(m.rev)}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{m.count} {t.many}</div></div>))}
@@ -1143,7 +1144,7 @@ function GarnoCRM(){
       <style>{`*{box-sizing:border-box;}`}</style>
       <div style={{textAlign:"center",marginBottom:8}}><div style={{fontSize:34,fontWeight:900,color:C.accent,letterSpacing:3,marginBottom:6}}>GARNO<span style={{color:"#fff"}}>CRM</span></div><div style={{color:C.muted,fontSize:14}}>Выберите свой аккаунт</div></div>
       <div style={{display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center"}}>
-        {MANAGERS.map(m=>(<button key={m} onClick={()=>saveUser(m)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,padding:"28px 36px",background:C.card,border:`2px solid ${MGR_COLOR[m]}44`,borderRadius:16,cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=MGR_COLOR[m];e.currentTarget.style.background=`${MGR_COLOR[m]}15`;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=`${MGR_COLOR[m]}44`;e.currentTarget.style.background=C.card;}}><div style={{width:64,height:64,borderRadius:"50%",background:`${MGR_COLOR[m]}25`,border:`3px solid ${MGR_COLOR[m]}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:900,color:MGR_COLOR[m]}}>{m[0]}</div><div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:4}}>{m}</div><div style={{fontSize:11,color:C.muted}}>{m==="Danya"?"Администратор":"Менеджер"}</div></button>))}
+        {MANAGERS.map(m=>(<button key={m} onClick={()=>saveUser(m)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,padding:"28px 36px",background:C.card,border:`2px solid ${MGR_COLOR[m]}44`,borderRadius:16,cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=MGR_COLOR[m];e.currentTarget.style.background=`${MGR_COLOR[m]}15`;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=`${MGR_COLOR[m]}44`;e.currentTarget.style.background=C.card;}}><div style={{width:64,height:64,borderRadius:"50%",background:`${MGR_COLOR[m]}25`,border:`3px solid ${MGR_COLOR[m]}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:900,color:MGR_COLOR[m]}}>{m[0]}</div><div style={{fontSize:16,fontWeight:800,color:C.text,marginBottom:4}}>{m}</div><div style={{fontSize:11,color:C.muted}}>{m==="Danya"?"Администратор":"Менеджер"}</div></button>))}
       </div>
     </div>
   );
@@ -1163,7 +1164,19 @@ function GarnoCRM(){
 
   return(
     <div style={{display:"flex",height:"100vh",background:C.bg,color:C.text,fontFamily:"'DM Sans','Segoe UI',sans-serif",overflow:"hidden",fontSize:13,transition:"background 0.2s,color 0.2s"}}>
-      <style>{`*{box-sizing:border-box;}::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(191,164,126,0.25);border-radius:3px;}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.25);}select option{background:#001840;color:#fff;}input[type=checkbox]{accent-color:#bfa47e;}@media print{.no-print{display:none!important;}#kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;}}`}</style>
+      <style>{`
+        *{box-sizing:border-box;}
+        ::-webkit-scrollbar{width:5px;height:5px;}
+        ::-webkit-scrollbar-track{background:transparent;}
+        ::-webkit-scrollbar-thumb{background:rgba(191,164,126,0.35);border-radius:3px;}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        input::placeholder,textarea::placeholder{color:${C.dim};}
+        select option{background:${C.surface};color:${C.text};}
+        input[type=checkbox]{accent-color:${C.accent};}
+        input,select,textarea{color:${C.text} !important;}
+        @media print{.no-print{display:none!important;}#kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;}}
+      `}</style>
       <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} binId={db?._binId||lsGet(LS_KEY)?.binId||""} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
