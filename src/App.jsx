@@ -209,6 +209,52 @@ function useDatabase(){
   const localRef=useRef(null);
   const savingRef=useRef(false);
   const saveTimer=useRef(null);
+  const pendingRef=useRef(null); // stores latest data waiting to be written
+
+  // ── Migrate existing data ──────────────────────────────────────────────────
+  const migrateData=(data)=>{
+    let changed=false;
+    // Fix us. → ua. in all leads
+    const leads=(data.leads||[]).map(l=>{
+      if(l.source==="us.calculatorkuchni.online"){
+        changed=true;
+        return {...l,source:"ua.calculatorkuchni.online"};
+      }
+      return l;
+    });
+    if(changed) return {...data,leads};
+    return data;
+  };
+
+  // ── Immediate write (for critical ops like delete) ─────────────────────────
+  const writeNow=async(data)=>{
+    if(!cfgRef.current) return;
+    savingRef.current=true;
+    setSyncLabel("⟳");
+    try{
+      await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,data);
+      localRef.current=JSON.stringify(data);
+      setSyncLabel("✓");
+      setTimeout(()=>setSyncLabel("●"),2000);
+    }catch(e){
+      console.error("Write failed:",e);
+      setSyncLabel("!");
+    }finally{savingRef.current=false;}
+  };
+
+  // ── Warn before unload if unsaved ─────────────────────────────────────────
+  useEffect(()=>{
+    const handler=(e)=>{
+      if(pendingRef.current){
+        e.preventDefault();
+        e.returnValue="Есть несохранённые изменения. Подождите...";
+        // Try to flush
+        if(cfgRef.current) binWrite(cfgRef.current.binId,cfgRef.current.apiKey,pendingRef.current).catch(()=>{});
+      }
+    };
+    window.addEventListener("beforeunload",handler);
+    return()=>window.removeEventListener("beforeunload",handler);
+  },[]);
 
   // ── Load on mount ─────────────────────────────────────────────────────────
   useEffect(()=>{
@@ -218,16 +264,23 @@ function useDatabase(){
       cfgRef.current=cfg;
       try{
         setSyncLabel("⟳");
-        const data=await binRead(cfg.binId,cfg.apiKey);
+        let data=await binRead(cfg.binId,cfg.apiKey);
+        // Auto-migrate old data
+        const migrated=migrateData(data);
+        if(migrated!==data){
+          data=migrated;
+          // Save migrated data silently
+          binWrite(cfg.binId,cfg.apiKey,data).catch(()=>{});
+        }
         localRef.current=JSON.stringify(data);
         setDbState(data);
         setStatus("ready");
         setSyncLabel("●");
       }catch(e){console.error(e);setStatus("error");}
     })();
-  },[]);
+  },[]); // eslint-disable-line
 
-  // ── Manual refresh — called by pressing 🔄 ────────────────────────────────
+  // ── Manual refresh ────────────────────────────────────────────────────────
   const refresh=async()=>{
     if(!cfgRef.current||savingRef.current)return;
     setSyncLabel("⟳");
@@ -235,6 +288,7 @@ function useDatabase(){
       const data=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
       const json=JSON.stringify(data);
       localRef.current=json;
+      pendingRef.current=null;
       setDbState(data);
       setSyncLabel("✓");
       setTimeout(()=>setSyncLabel("●"),1500);
@@ -245,27 +299,37 @@ function useDatabase(){
     }
   };
 
-  // ── Save with debounce 400ms ───────────────────────────────────────────────
-  const updateDb=(upd)=>{
+  // ── Update — debounced 400ms for edits, immediate for deletes ─────────────
+  const updateDb=(upd,immediate=false)=>{
     setDbState(prev=>{
       const next=typeof upd==="function"?upd(prev):upd;
-      const json=JSON.stringify(next);
-      localRef.current=json;
-      savingRef.current=true;
-      setSyncLabel("⟳");
-      if(saveTimer.current)clearTimeout(saveTimer.current);
-      saveTimer.current=setTimeout(async()=>{
-        try{
-          await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,next);
-          setSyncLabel("✓");
-          setTimeout(()=>setSyncLabel("●"),2000);
-        }catch(e){
-          console.error("Write failed:",e);
-          setSyncLabel("!");
-          alert("❌ Ошибка сохранения: "+e.message+"\n\nВозможно неверный Master Key.");
-        }
-        finally{savingRef.current=false;}
-      },400);
+      pendingRef.current=next;
+      if(immediate){
+        // Write immediately — no debounce (for deletes)
+        if(saveTimer.current) clearTimeout(saveTimer.current);
+        saveTimer.current=null;
+        writeNow(next).then(()=>{pendingRef.current=null;});
+      } else {
+        // Debounced write for edits/adds
+        localRef.current=JSON.stringify(next);
+        savingRef.current=true;
+        setSyncLabel("⟳");
+        if(saveTimer.current) clearTimeout(saveTimer.current);
+        saveTimer.current=setTimeout(async()=>{
+          try{
+            await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,next);
+            localRef.current=JSON.stringify(next);
+            pendingRef.current=null;
+            setSyncLabel("✓");
+            setTimeout(()=>setSyncLabel("●"),2000);
+          }catch(e){
+            console.error("Write failed:",e);
+            setSyncLabel("!");
+            alert("❌ Ошибка сохранения: "+e.message);
+          }
+          finally{savingRef.current=false;}
+        },400);
+      }
       return next;
     });
   };
@@ -273,6 +337,7 @@ function useDatabase(){
   const configure=async(cfg,initData)=>{
     lsSet(LS_KEY,cfg);cfgRef.current=cfg;
     localRef.current=JSON.stringify(initData);
+    pendingRef.current=null;
     setDbState(initData);setStatus("ready");
   };
 
@@ -709,7 +774,7 @@ function Dashboard({leads,events,t,lang}){
 }
 
 // ─── LEADS PAGE ───────────────────────────────────────────────────────────────
-function LeadsPage({leads,setLeads,t,mgr,search,onOpen}){
+function LeadsPage({leads,setLeads,setLeadsNow,t,mgr,search,onOpen}){
   const [range,setRange]=useState("all");
   const [fQ,setFQ]=useState("all");const [fA,setFA]=useState("all");const [fS,setFS]=useState("all");const [sort,setSort]=useState("date");
   const [selected,setSelected]=useState(new Set());
@@ -723,7 +788,7 @@ function LeadsPage({leads,setLeads,t,mgr,search,onOpen}){
   });
   const toggleOne=(id,e)=>{e.stopPropagation();setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});};
   const toggleAll=()=>setSelected(selected.size===fl.length&&fl.length>0?new Set():new Set(fl.map(l=>l.id)));
-  const deleteSelected=()=>{setLeads(p=>p.filter(l=>!selected.has(l.id)));setSelected(new Set());};
+  const deleteSelected=()=>{setLeadsNow(p=>p.filter(l=>!selected.has(l.id)));setSelected(new Set());};
   const allChecked=fl.length>0&&selected.size===fl.length;
   const someChecked=selected.size>0&&selected.size<fl.length;
   return(
@@ -826,7 +891,7 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
 }
 
 // ─── CALENDAR PAGE ────────────────────────────────────────────────────────────
-function CalendarPage({events,setEvents,t,lang}){
+function CalendarPage({events,setEvents,setEventsNow,t,lang}){
   const [calDate,setCalDate]=useState(()=>{const d=new Date();return{year:d.getFullYear(),month:d.getMonth()};});
   const [popup,setPopup]=useState(null);
   const [dayModal,setDayModal]=useState(null); // {date, events[]}
@@ -839,9 +904,8 @@ function CalendarPage({events,setEvents,t,lang}){
   const days=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
   const handleSave=(form)=>{if(form.id&&events.find(e=>e.id===form.id))setEvents(p=>p.map(e=>e.id===form.id?{...form}:e));else setEvents(p=>[...p,{...form,id:Date.now()}]);setPopup(null);};
   const handleDelete=(id)=>{
-    setEvents(p=>p.filter(e=>e.id!==id));
+    setEventsNow(p=>p.filter(e=>e.id!==id));
     setPopup(null);
-    // Update dayModal evs instead of closing — close only if empty
     setDayModal(prev=>{
       if(!prev) return null;
       const remaining=prev.evs.filter(x=>x.id!==id);
@@ -1079,11 +1143,11 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
 }
 
 // ─── SALES PAGE ───────────────────────────────────────────────────────────────
-function SalesPage({sales,setSales,t,lang}){
+function SalesPage({sales,setSales,setSalesNow,t,lang}){
   const [range,setRange]=useState("all");const [confirmId,setConfirmId]=useState(null);
   const fs=filterByRange(sales,range);const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
   const mRev=MANAGERS.map(m=>({name:m,rev:fs.filter(s=>s.manager===m).reduce((a,s)=>a+s.saleAmount,0),count:fs.filter(s=>s.manager===m).length}));
-  const deleteSale=(id)=>{setSales(p=>p.filter(s=>s.id!==id));setConfirmId(null);};
+  const deleteSale=(id)=>{setSalesNow(p=>p.filter(s=>s.id!==id));setConfirmId(null);};
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div><DateRangeBar range={range} setRange={setRange} t={t}/></div>
@@ -1170,12 +1234,15 @@ function GarnoCRM(){
   const nextNum = db.nextNum ?? (leads.length+1);
   const chatHist= db.chat    ?? [];
 
-  const setLeads  = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}));
-  const setEvents = upd => updateDb(p=>({...p,events: typeof upd==="function"?upd(p.events ??[]):upd}));
-  const setSales  = upd => updateDb(p=>({...p,sales:  typeof upd==="function"?upd(p.sales  ??[]):upd}));
-  const setChatHistory = upd => updateDb(p=>({...p,chat: typeof upd==="function"?upd(p.chat??[]):upd}));
-  const addLead=(l)=>{updateDb(p=>({...p,leads:[l,...(p.leads??[])],nextNum:(p.nextNum??leads.length+1)+1}));};
-  const addSale=(s)=>setSales(p=>[s,...p]);
+  const setLeads      = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}));
+  const setLeadsNow   = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}),true);
+  const setEvents     = upd => updateDb(p=>({...p,events: typeof upd==="function"?upd(p.events ??[]):upd}));
+  const setEventsNow  = upd => updateDb(p=>({...p,events: typeof upd==="function"?upd(p.events ??[]):upd}),true);
+  const setSales      = upd => updateDb(p=>({...p,sales:  typeof upd==="function"?upd(p.sales  ??[]):upd}));
+  const setSalesNow   = upd => updateDb(p=>({...p,sales:  typeof upd==="function"?upd(p.sales  ??[]):upd}),true);
+  const setChatHistory= upd => updateDb(p=>({...p,chat:   typeof upd==="function"?upd(p.chat   ??[]):upd}));
+  const addLead=(l)=>{updateDb(p=>({...p,leads:[l,...(p.leads??[])],nextNum:(p.nextNum??leads.length+1)+1}),true);};
+  const addSale=(s)=>setSalesNow(p=>[s,...p]);
 
   return(
     <div style={{display:"flex",height:"100vh",background:C.bg,color:C.text,fontFamily:"'DM Sans','Segoe UI',sans-serif",overflow:"hidden",fontSize:13,transition:"background 0.2s,color 0.2s"}}>
@@ -1204,11 +1271,11 @@ function GarnoCRM(){
         <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} binId={db?._binId||lsGet(LS_KEY)?.binId||""} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
-          {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
-          {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} t={t} lang={lang}/>}
+          {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
+          {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} t={t} lang={lang}/>}
           {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} t={t} lang={lang}/>}
           {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory}/>}
-          {page==="sales"      && <SalesPage sales={sales} setSales={setSales} t={t} lang={lang}/>}
+          {page==="sales"      && <SalesPage sales={sales} setSales={setSales} setSalesNow={setSalesNow} t={t} lang={lang}/>}
         </div>
       </div>
       {selLead  && <LeadDetail lead={selLead} setLeads={setLeads} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser}/>}
