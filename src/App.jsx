@@ -531,7 +531,7 @@ function AddLeadModal({onClose,onAdd,t,lang,nextNum,currentUser}){
   };
 
   const handleKey=(e)=>{if(e.key==="Enter"&&!e.shiftKey&&e.target.tagName!=="TEXTAREA"){e.preventDefault();submit();}};
-  const ins={background:C.surface,border:`1px solid ${C.borderMd}`,color:"#fff",borderRadius:7,padding:"8px 11px",fontSize:13,width:"100%",boxSizing:"border-box",outline:"none"};
+  const ins={background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"8px 11px",fontSize:13,width:"100%",boxSizing:"border-box",outline:"none"};
   const previewId=makeLeadId(nextNum,buildCreatedAt(form.dateOverride));
 
   return(
@@ -615,7 +615,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
           <>
             <div onClick={()=>setShowBinId(false)} style={{position:"fixed",inset:0,zIndex:1999}}/>
             <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:C.surface,border:`1px solid ${C.accentBorder}`,borderRadius:12,padding:16,zIndex:2000,minWidth:340,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:10}}>📋 Данные для подключения команды</div>
+              <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:10}}>📋 Данные для подключения команды</div>
               <div style={{fontSize:11,color:C.muted,marginBottom:6}}>1. Bin ID (отправьте всем менеджерам):</div>
               <div style={{background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:8,padding:"10px 12px",fontFamily:"monospace",fontSize:12,color:C.accent,wordBreak:"break-all",marginBottom:12}}>
                 {binId||"—"}
@@ -652,7 +652,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
             {MANAGERS.map(m=>{const active=currentUser===m;return(
               <button key={m} onClick={()=>{setCurrentUser(m);setShowUsers(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"8px 12px",borderRadius:8,border:"none",background:active?`${MGR_COLOR[m]}20`:"transparent",cursor:"pointer",marginBottom:2}}>
                 <div style={{width:30,height:30,borderRadius:"50%",background:`${MGR_COLOR[m]}25`,border:`2px solid ${MGR_COLOR[m]}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:MGR_COLOR[m]}}>{m[0]}</div>
-                <div style={{textAlign:"left"}}><div style={{fontSize:13,fontWeight:700,color:active?MGR_COLOR[m]:"#fff"}}>{m}</div><div style={{fontSize:10,color:C.muted}}>{m==="Danya"?"Администратор":"Менеджер"}</div></div>
+                <div style={{textAlign:"left"}}><div style={{fontSize:13,fontWeight:700,color:active?MGR_COLOR[m]:C.text}}>{m}</div><div style={{fontSize:10,color:C.muted}}>{m==="Danya"?"Администратор":"Менеджер"}</div></div>
                 {active&&<div style={{marginLeft:"auto",width:8,height:8,borderRadius:"50%",background:MGR_COLOR[m]}}/>}
               </button>
             );})}
@@ -694,14 +694,14 @@ function Dashboard({leads,events,t,lang}){
         </div>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
           <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{t.upcoming}</div>
-          {upcoming.slice(0,5).map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(<div key={ev.id} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:`1px solid ${C.border}`}}><div style={{width:3,background:c,borderRadius:2,flexShrink:0}}/><div style={{flex:1}}><div style={{fontSize:11,color:"#fff"}}>{ev.title}</div><div style={{fontSize:10,color:C.muted}}>{ev.time}{ev.timeEnd?`–${ev.timeEnd}`:""} · <span style={{color:MGR_COLOR[ev.manager]}}>{ev.manager}</span></div></div><Badge label={ev.date.slice(5)} color={c} small/></div>);})}
+          {upcoming.slice(0,5).map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(<div key={ev.id} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:`1px solid ${C.border}`}}><div style={{width:3,background:c,borderRadius:2,flexShrink:0}}/><div style={{flex:1}}><div style={{fontSize:11,color:C.text}}>{ev.title}</div><div style={{fontSize:10,color:C.muted}}>{ev.time}{ev.timeEnd?`–${ev.timeEnd}`:""} · <span style={{color:MGR_COLOR[ev.manager]}}>{ev.manager}</span></div></div><Badge label={ev.date.slice(5)} color={c} small/></div>);})}
         </div>
       </div>
       <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:14,padding:18}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><span style={{fontSize:16}}>📅</span><div style={{fontSize:14,fontWeight:700,color:C.accent}}>{t.todaySection} — {TODAY}</div><span style={{fontSize:11,color:C.muted}}>({todayEvs.length} {lang==="ru"?"событий":"zdarzeń"})</span></div>
         {todayEvs.length===0?<div style={{color:C.dim,fontSize:13}}>{t.noToday}</div>:
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:8,marginBottom:12}}>
-            {todayEvs.map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(<div key={ev.id} style={{background:C.surface,borderRadius:9,padding:"10px 12px",border:`1px solid ${c}44`,borderLeft:`4px solid ${c}`}}><div style={{fontSize:12,color:"#fff",fontWeight:600,marginBottom:3}}>{ev.title}</div><div style={{fontSize:10,color:C.muted}}>{ev.time}{ev.timeEnd?`–${ev.timeEnd}`:""} · <span style={{color:MGR_COLOR[ev.manager]}}>{ev.manager}</span></div>{ev.description&&<div style={{fontSize:10,color:C.dim,marginTop:3}}>{ev.description}</div>}<div style={{marginTop:6}}><Badge label={evLabel(ev.type,lang)} color={c} small/></div></div>);})}
+            {todayEvs.map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(<div key={ev.id} style={{background:C.surface,borderRadius:9,padding:"10px 12px",border:`1px solid ${c}44`,borderLeft:`4px solid ${c}`}}><div style={{fontSize:12,color:C.text,fontWeight:600,marginBottom:3}}>{ev.title}</div><div style={{fontSize:10,color:C.muted}}>{ev.time}{ev.timeEnd?`–${ev.timeEnd}`:""} · <span style={{color:MGR_COLOR[ev.manager]}}>{ev.manager}</span></div>{ev.description&&<div style={{fontSize:10,color:C.dim,marginTop:3}}>{ev.description}</div>}<div style={{marginTop:6}}><Badge label={evLabel(ev.type,lang)} color={c} small/></div></div>);})}
           </div>}
       </div>
     </div>
@@ -713,7 +713,7 @@ function LeadsPage({leads,setLeads,t,mgr,search,onOpen}){
   const [range,setRange]=useState("all");
   const [fQ,setFQ]=useState("all");const [fA,setFA]=useState("all");const [fS,setFS]=useState("all");const [sort,setSort]=useState("date");
   const [selected,setSelected]=useState(new Set());
-  const ss={background:C.card,border:`1px solid ${C.border}`,color:"#fff",borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
+  const ss={background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
   const fl=filterByRange(leads,range).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||l.name.toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).filter(l=>fQ==="all"||l.qualification===fQ).filter(l=>fA==="all"||l.action===fA).filter(l=>fS==="all"||l.source===fS).sort((a,b)=>sort==="score"?b.score-a.score:sort==="date"?b.id-a.id:a.id-b.id);
   const toggleOne=(id,e)=>{e.stopPropagation();setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});};
   const toggleAll=()=>setSelected(selected.size===fl.length&&fl.length>0?new Set():new Set(fl.map(l=>l.id)));
@@ -724,7 +724,7 @@ function LeadsPage({leads,setLeads,t,mgr,search,onOpen}){
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{mgr==="all"?t.allLeads:`${t.leads} — ${mgr}`} <span style={{fontSize:12,color:C.muted}}>({fl.length})</span></div>
+          <div style={{fontSize:16,fontWeight:700,color:C.text}}>{mgr==="all"?t.allLeads:`${t.leads} — ${mgr}`} <span style={{fontSize:12,color:C.muted}}>({fl.length})</span></div>
           {selected.size>0&&(<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(248,113,113,0.12)",border:`1px solid ${C.red}44`,borderRadius:9,padding:"6px 14px"}}>
             <span style={{fontSize:12,color:C.red,fontWeight:600}}>✓ {selected.size}</span>
             <button onClick={deleteSelected} style={{background:C.red,border:"none",color:"#fff",borderRadius:7,padding:"5px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🗑 {t.deleteSelected}</button>
@@ -754,7 +754,7 @@ function LeadsPage({leads,setLeads,t,mgr,search,onOpen}){
                 <td style={{padding:"8px 10px"}} onClick={e=>toggleOne(l.id,e)}><input type="checkbox" checked={isSel} onChange={()=>{}} onClick={e=>toggleOne(l.id,e)} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></td>
                 <td style={{padding:"8px 10px"}}><span style={{fontSize:10,color:C.accent,fontFamily:"monospace",fontWeight:600}}>{l.leadId||l.id}</span></td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
-                <td style={{padding:"8px 10px"}}><span style={{color:"#fff",fontWeight:500}}>{l.name||<span style={{color:C.dim}}>—</span>}</span></td>
+                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.name||<span style={{color:C.dim}}>—</span>}</span></td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
                 <td style={{padding:"8px 10px"}}><ScoreBar score={l.score}/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.qualification]} color={QUAL_COLOR[l.qualification]} small/></td>
@@ -781,36 +781,36 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
   const set=(k,v)=>setForm(p=>{const u={...p,[k]:v};if(k==="score"){u.qualification=scoreToQual(v);if(parseInt(v)===6&&parseInt(p.score)!==6)setShowSale(true);}return u;});
   const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
   const confirmSale=(amt)=>{const upd={...form,saleAmount:amt,isDone:true};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...upd}:l));onAddSale({id:Date.now(),leadId:lead.leadId||lead.id,name:form.name,phone:form.phone,manager:form.manager||"—",source:form.source,createdAt:new Date().toLocaleDateString("ru-RU"),saleAmount:amt,notes:form.notes});setShowSale(false);onClose();};
-  const inp=(field,label)=>(<div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{label}</div>{editing?<input value={form[field]||""} onChange={e=>set(field,e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:"#fff",borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",boxSizing:"border-box"}}/>:<div style={{fontSize:13,color:form[field]?"#fff":C.dim}}>{form[field]||"—"}</div>}</div>);
+  const inp=(field,label)=>(<div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{label}</div>{editing?<input value={form[field]||""} onChange={e=>set(field,e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",boxSizing:"border-box"}}/>:<div style={{fontSize:13,color:form[field]?C.text:C.dim}}>{form[field]||"—"}</div>}</div>);
   return(<>
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:1000}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:"16px 16px 0 0",border:`1px solid ${C.border}`,width:"100%",maxWidth:820,maxHeight:"90vh",overflow:"auto",padding:22}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44}/><div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{lead.name||lead.phone}</div><div style={{fontSize:11,color:C.muted}}>ID: <b style={{color:C.accent,fontFamily:"monospace"}}>{lead.leadId||lead.id}</b> · {lead.phone}</div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
+          <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44}/><div><div style={{fontSize:16,fontWeight:700,color:C.text}}>{lead.name||lead.phone}</div><div style={{fontSize:11,color:C.muted}}>ID: <b style={{color:C.accent,fontFamily:"monospace"}}>{lead.leadId||lead.id}</b> · {lead.phone}</div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
           <div style={{display:"flex",gap:8}}>{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(false);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}<Btn onClick={onClose} variant="ghost" small>✕</Btn></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📞 Контакт</div>
             {inp("name",t.name)}{inp("phone",t.phone)}
-            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:"#fff",borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} small/>}</div>
-            <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:"#fff",borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>:form.manager?<div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></div>:<span style={{color:C.dim}}>—</span>}</div>
+            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} small/>}</div>
+            <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>:form.manager?<div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></div>:<span style={{color:C.dim}}>—</span>}</div>
           </div>
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>◈ Оценка 0–6</div>
-            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{[0,1,2,3,4,5,6].map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} style={{width:34,height:34,borderRadius:8,border:`2px solid ${active?c:"rgba(255,255,255,0.15)"}`,background:active?`${c}30`:"transparent",color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{[0,1,2,3,4,5,6].map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} style={{width:34,height:34,borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
             <div style={{background:`${QUAL_COLOR[form.qualification]}18`,border:`1px solid ${QUAL_COLOR[form.qualification]}44`,borderRadius:8,padding:"7px 12px",marginBottom:10}}><div style={{fontSize:11,color:QUAL_COLOR[form.qualification],fontWeight:700}}>→ {t[form.qualification]}</div></div>
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginTop:14}}>
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📝 {t.notes}</div>
-            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.period}</div>{editing?<select value={form.budgetTimeline||"unconfirmed"} onChange={e=>set("budgetTimeline",e.target.value)} style={{background:C.surface,border:`1px solid ${BUD_COLOR[form.budgetTimeline]||C.borderMd}`,color:BUD_COLOR[form.budgetTimeline]||"#fff",borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{BUDGETS.map(b=><option key={b} value={b}>{t[b]||b}</option>)}</select>:<Badge label={t[form.budgetTimeline]||"—"} color={BUD_COLOR[form.budgetTimeline]||C.muted} small/>}</div>
-            {editing?<textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:"#fff",borderRadius:6,padding:"8px 10px",fontSize:12,width:"100%",minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>:<div style={{fontSize:12,color:form.notes?"#fff":C.dim,lineHeight:1.6}}>{form.notes||"—"}</div>}
+            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.period}</div>{editing?<select value={form.budgetTimeline||"unconfirmed"} onChange={e=>set("budgetTimeline",e.target.value)} style={{background:C.surface,border:`1px solid ${BUD_COLOR[form.budgetTimeline]||C.borderMd}`,color:BUD_COLOR[form.budgetTimeline]||C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{BUDGETS.map(b=><option key={b} value={b}>{t[b]||b}</option>)}</select>:<Badge label={t[form.budgetTimeline]||"—"} color={BUD_COLOR[form.budgetTimeline]||C.muted} small/>}</div>
+            {editing?<textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"8px 10px",fontSize:12,width:"100%",minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>:<div style={{fontSize:12,color:form.notes?C.text:C.dim,lineHeight:1.6}}>{form.notes||"—"}</div>}
           </div>
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>◷ {t.history}</div>
-            {(form.history||[]).length===0?<div style={{color:C.dim,fontSize:12}}>—</div>:[...(form.history||[])].reverse().map((h,i)=>(<div key={i} style={{display:"flex",gap:8,marginBottom:8}}><div style={{width:2,background:C.accentBorder,borderRadius:1}}/><div><div style={{fontSize:11,color:"#fff"}}>{h.action}</div><div style={{fontSize:10,color:C.muted}}>{h.date} · <span style={{color:MGR_COLOR[h.by]||C.accent,fontWeight:600}}>{h.by}</span></div></div></div>))}
+            {(form.history||[]).length===0?<div style={{color:C.dim,fontSize:12}}>—</div>:[...(form.history||[])].reverse().map((h,i)=>(<div key={i} style={{display:"flex",gap:8,marginBottom:8}}><div style={{width:2,background:C.accentBorder,borderRadius:1}}/><div><div style={{fontSize:11,color:C.text}}>{h.action}</div><div style={{fontSize:10,color:C.muted}}>{h.date} · <span style={{color:MGR_COLOR[h.by]||C.accent,fontWeight:600}}>{h.by}</span></div></div></div>))}
           </div>
         </div>
       </div>
@@ -832,7 +832,16 @@ function CalendarPage({events,setEvents,t,lang}){
   const mName=lang==="ru"?MONTHS_RU[calDate.month]:MONTHS_PL[calDate.month];
   const days=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
   const handleSave=(form)=>{if(form.id&&events.find(e=>e.id===form.id))setEvents(p=>p.map(e=>e.id===form.id?{...form}:e));else setEvents(p=>[...p,{...form,id:Date.now()}]);setPopup(null);};
-  const handleDelete=(id)=>{setEvents(p=>p.filter(e=>e.id!==id));setPopup(null);setDayModal(null);};
+  const handleDelete=(id)=>{
+    setEvents(p=>p.filter(e=>e.id!==id));
+    setPopup(null);
+    // Update dayModal evs instead of closing — close only if empty
+    setDayModal(prev=>{
+      if(!prev) return null;
+      const remaining=prev.evs.filter(x=>x.id!==id);
+      return remaining.length>0 ? {...prev,evs:remaining} : null;
+    });
+  };
   const sorted=[...events].filter(e=>e.date.startsWith(mStr)).sort((a,b)=>a.date===b.date?a.time.localeCompare(b.time):a.date.localeCompare(b.date));
 
   const MAX_VISIBLE=3; // max events shown in cell before "еще N"
@@ -840,9 +849,9 @@ function CalendarPage({events,setEvents,t,lang}){
   return(
     <div style={{padding:18}}>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-        <button onClick={prevM} style={{background:C.card,border:`1px solid ${C.border}`,color:"#fff",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:16,fontWeight:700}}>‹</button>
-        <div style={{fontSize:18,fontWeight:700,color:"#fff",minWidth:180,textAlign:"center"}}>{mName} {calDate.year}</div>
-        <button onClick={nextM} style={{background:C.card,border:`1px solid ${C.border}`,color:"#fff",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:16,fontWeight:700}}>›</button>
+        <button onClick={prevM} style={{background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:16,fontWeight:700}}>‹</button>
+        <div style={{fontSize:18,fontWeight:700,color:C.text,minWidth:180,textAlign:"center"}}>{mName} {calDate.year}</div>
+        <button onClick={nextM} style={{background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:16,fontWeight:700}}>›</button>
         <div style={{flex:1}}/>
         <button onClick={()=>setPopup({initDate:TODAY,initEvent:null})} style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ {t.addEvent}</button>
       </div>
@@ -906,7 +915,7 @@ function CalendarPage({events,setEvents,t,lang}){
             onMouseEnter={e=>e.currentTarget.style.background=C.surface}
             onMouseLeave={e=>e.currentTarget.style.background=C.card}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <span style={{fontSize:12,color:"#fff",fontWeight:600}}>{ev.title}</span>
+              <span style={{fontSize:12,color:C.text,fontWeight:600}}>{ev.title}</span>
               <button onClick={e=>{e.stopPropagation();handleDelete(ev.id);}} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:12,padding:0}}>✕</button>
             </div>
             <div style={{fontSize:10,color:C.muted,marginBottom:6}}>{ev.date} · {ev.time}{ev.timeEnd?`–${ev.timeEnd}`:""} · <span style={{color:MGR_COLOR[ev.manager]}}>{ev.manager}</span></div>
@@ -926,7 +935,7 @@ function CalendarPage({events,setEvents,t,lang}){
                 <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:2}}>
                   {new Date(dayModal.date).toLocaleDateString(lang==="ru"?"ru-RU":"pl-PL",{weekday:"long"}).toUpperCase()}
                 </div>
-                <div style={{fontSize:24,fontWeight:900,color:"#fff"}}>{dayModal.date.split("-")[2]}</div>
+                <div style={{fontSize:24,fontWeight:900,color:C.text}}>{dayModal.date.split("-")[2]}</div>
               </div>
               <button onClick={()=>setDayModal(null)} style={{background:"transparent",border:"none",color:C.muted,fontSize:20,cursor:"pointer",lineHeight:1}}>✕</button>
             </div>
@@ -940,14 +949,14 @@ function CalendarPage({events,setEvents,t,lang}){
                     {ev.timeEnd&&<div style={{fontSize:10,color:C.muted}}>{ev.timeEnd}</div>}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</div>
                     <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                       <Badge label={evLabel(ev.type,lang)} color={c} small/>
                       {ev.manager&&<span style={{fontSize:10,color:MGR_COLOR[ev.manager],fontWeight:600}}>{ev.manager}</span>}
                     </div>
                     {ev.description&&<div style={{fontSize:11,color:C.muted,marginTop:4,lineHeight:1.4}}>{ev.description}</div>}
                   </div>
-                  <button onClick={e=>{e.stopPropagation();handleDelete(ev.id);setDayModal(p=>({...p,evs:p.evs.filter(x=>x.id!==ev.id)}));}}
+                  <button onClick={e=>{e.stopPropagation();handleDelete(ev.id);}}
                     style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:13,padding:"2px 4px",flexShrink:0}}>✕</button>
                 </div>
               );})}
@@ -971,7 +980,7 @@ function AnalyticsPage({leads,sales,t}){
   const [range,setRange]=useState("all");
   const fl=filterByRange(leads,range);const fs=filterByRange(sales,range);
   const mData=MANAGERS.map(m=>{const ml=fl.filter(l=>l.manager===m);const ms=fs.filter(s=>s.manager===m);const total=ml.length;const kwaly=ml.filter(l=>l.score>=4).length;const s4=ml.filter(l=>l.score===4).length;const s5=ml.filter(l=>l.score===5).length;const avg=total?(ml.reduce((a,l)=>a+l.score,0)/total).toFixed(2):0;return{name:m,total,kwaly,kwalyPct:total?parseFloat((kwaly/total*100).toFixed(1)):0,to5:s4?parseFloat((s5/s4*100).toFixed(1)):0,toSell:s5?parseFloat((ms.length/s5*100).toFixed(1)):0,salesCount:ms.length,salesRev:ms.reduce((a,s)=>a+s.saleAmount,0),visits:ml.filter(l=>l.score>=5).length,avg:parseFloat(avg)};});
-  const podium=[...mData].sort((a,b)=>b.salesRev-a.salesRev);const medals=["🥇","🥈","🥉"];
+  const podium=[...mData].filter(m=>m.name!=="Danya").sort((a,b)=>b.salesRev-a.salesRev).slice(0,3);const medals=["🥇","🥈","🥉"];
   const allKwaly=fl.filter(l=>l.score>=4).length;const allS5=fl.filter(l=>l.score===5).length;const allRev=fs.reduce((a,s)=>a+s.saleAmount,0);const avgAll=fl.length?(fl.reduce((a,l)=>a+l.score,0)/fl.length).toFixed(2):"0";
   const qData=QUALS.map(q=>({name:t[q],value:fl.filter(l=>l.qualification===q).length,fill:QUAL_COLOR[q]})).filter(d=>d.value>0);
   const PL=({cx,cy,midAngle,outerRadius,name,value})=>{if(!value)return null;const R=Math.PI/180;const r=outerRadius+22;const x=cx+r*Math.cos(-midAngle*R);const y=cy+r*Math.sin(-midAngle*R);return <text x={x} y={y} fill="#fff" textAnchor={x>cx?"start":"end"} dominantBaseline="central" fontSize={9}>{(name||"").slice(0,10)}: {value}</text>;};
@@ -1088,7 +1097,7 @@ function SalesPage({sales,setSales,t,lang}){
             ):(
               <button onClick={()=>setConfirmId(s.id)} style={{position:"absolute",top:10,right:10,background:"rgba(248,113,113,0.15)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 8px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
             )}
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34}}><Avatar name={s.name||s.phone} color={C.accent} size={36}/><div><div style={{fontSize:13,color:"#fff",fontWeight:700}}>{s.name||s.phone}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div><div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34}}><Avatar name={s.name||s.phone} color={C.accent} size={36}/><div><div style={{fontSize:13,color:C.text,fontWeight:700}}>{s.name||s.phone}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div><div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><SrcBadge source={s.source}/>{s.manager&&<div style={{display:"flex",alignItems:"center",gap:4}}><Avatar name={s.manager} color={MGR_COLOR[s.manager]} size={14}/><span style={{fontSize:10,color:MGR_COLOR[s.manager]}}>{s.manager}</span></div>}</div>{s.notes&&<div style={{fontSize:10,color:C.muted,marginTop:8,lineHeight:1.5}}>{s.notes}</div>}
           </div>))}
         </div>}
