@@ -268,24 +268,46 @@ function DateRangeBar({range,setRange,t}){return <div style={{display:"flex",gap
 
 // ─── SETUP SCREEN ─────────────────────────────────────────────────────────────
 function SetupScreen({onSave}){
+  const [mode,setMode]=useState(null); // null | "create" | "join"
   const [apiKey,setApiKey]=useState("");
+  const [binId,setBinId]=useState("");
   const [busy,setBusy]=useState(false);
   const [err,setErr]=useState("");
-  const ins={background:C.surface,border:`1px solid ${C.borderMd}`,color:"#fff",borderRadius:8,padding:"12px 14px",fontSize:14,width:"100%",boxSizing:"border-box",outline:"none",fontFamily:"monospace"};
 
-  const connect=async()=>{
+  const ins={background:"#001f4e",border:"1px solid rgba(255,255,255,0.14)",color:"#fff",borderRadius:8,padding:"11px 14px",fontSize:14,width:"100%",boxSizing:"border-box",outline:"none",fontFamily:"monospace"};
+  const card={background:"#001f4e",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"16px 18px",cursor:"pointer",textAlign:"left",width:"100%"};
+
+  const handleCreate=async()=>{
     const key=apiKey.trim();
     if(!key){setErr("Вставьте Master Key");return;}
     setBusy(true);setErr("");
     try{
       const initData=INIT_DB();
-      const binId=await binCreate(key,initData);
-      if(!binId)throw new Error("Не получили Bin ID");
-      await onSave({binId,apiKey:key},initData);
+      const newBinId=await binCreate(key,initData);
+      if(!newBinId)throw new Error("Не получили Bin ID от сервера");
+      await onSave({binId:newBinId,apiKey:key},initData);
     }catch(e){
       let msg=e.message;
-      if(msg.includes("401")||msg.includes("403"))msg="❌ Неверный Master Key. Скопируйте точно с сайта jsonbin.io";
-      else if(msg.includes("429"))msg="❌ Слишком много запросов. Подождите минуту.";
+      if(msg.includes("401")||msg.includes("403"))msg="❌ Неверный Master Key";
+      else if(msg.includes("429"))msg="❌ Слишком много запросов, подождите минуту";
+      else msg="❌ "+msg;
+      setErr(msg);
+    }
+    setBusy(false);
+  };
+
+  const handleJoin=async()=>{
+    const key=apiKey.trim(),bid=binId.trim();
+    if(!key||!bid){setErr("Заполните оба поля");return;}
+    setBusy(true);setErr("");
+    try{
+      const data=await binRead(bid,key);
+      if(!data||!data.leads)throw new Error("Данные не найдены. Проверьте Bin ID");
+      await onSave({binId:bid,apiKey:key},data);
+    }catch(e){
+      let msg=e.message;
+      if(msg.includes("401")||msg.includes("403"))msg="❌ Неверный Master Key";
+      else if(msg.includes("404"))msg="❌ Bin ID не найден — попросите создателя базы прислать правильный";
       else msg="❌ "+msg;
       setErr(msg);
     }
@@ -293,34 +315,80 @@ function SetupScreen({onSave}){
   };
 
   return(
-    <div style={{display:"flex",height:"100vh",background:C.bg,alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
-      <div style={{width:"min(460px,96vw)",borderRadius:16,border:`1px solid ${C.accentBorder}`,background:C.surface,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
-        <div style={{background:"linear-gradient(135deg,#001840,#002259)",padding:"24px 28px"}}>
-          <div style={{fontSize:28,fontWeight:900,color:C.accent,letterSpacing:2,marginBottom:4}}>GARNO<span style={{color:"#fff"}}>CRM</span></div>
-          <div style={{fontSize:13,color:C.muted}}>Первоначальная настройка базы данных</div>
+    <div style={{display:"flex",height:"100vh",background:"#00132f",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Segoe UI',sans-serif",padding:16}}>
+      <div style={{width:"min(480px,100%)",borderRadius:16,border:"1px solid rgba(191,164,126,0.35)",background:"#001840",overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
+        <div style={{background:"linear-gradient(135deg,#001840,#002259)",padding:"22px 28px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
+          <div style={{fontSize:26,fontWeight:900,color:"#bfa47e",letterSpacing:2,marginBottom:4}}>GARNO<span style={{color:"#fff"}}>CRM</span></div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>Подключение к базе данных</div>
         </div>
-        <div style={{padding:24,display:"flex",flexDirection:"column",gap:16}}>
-          {[{n:"1",t:"Зайдите на jsonbin.io и зарегистрируйтесь (бесплатно)",b:<>Откройте <a href="https://jsonbin.io" target="_blank" rel="noreferrer" style={{color:C.accent}}>jsonbin.io</a> → Sign Up</>},
-            {n:"2",t:'Получите Master Key',b:<>В меню слева нажмите <b style={{color:"#fff"}}>«API Keys»</b> → скопируйте <b style={{color:C.accent}}>Master Key</b> (начинается с <code style={{color:C.cyan,background:C.card,padding:"1px 5px",borderRadius:3}}>$2a$10$</code>)</>},
-            {n:"3",t:"Вставьте ключ ниже",b:null},
-          ].map(s=>(
-            <div key={s.n} style={{display:"flex",gap:12,padding:"11px 14px",background:C.card,borderRadius:10,border:`1px solid ${C.border}`}}>
-              <div style={{width:26,height:26,borderRadius:"50%",background:`${C.accent}25`,border:`2px solid ${C.accent}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:C.accent,flexShrink:0}}>{s.n}</div>
-              <div><div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:s.b?4:0}}>{s.t}</div>{s.b&&<div style={{fontSize:12,color:C.muted,lineHeight:1.7}}>{s.b}</div>}</div>
+        <div style={{padding:24,display:"flex",flexDirection:"column",gap:14}}>
+
+          {/* ── MODE PICKER ── */}
+          {!mode&&(<>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginBottom:4}}>Выберите тип подключения:</div>
+            <button onClick={()=>setMode("create")} style={{...card,border:"1px solid rgba(191,164,126,0.4)"}}>
+              <div style={{fontSize:15,fontWeight:700,color:"#bfa47e",marginBottom:5}}>🆕 Создать новую базу</div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",lineHeight:1.5}}>Первый вход в команде. После создания — нужно поделиться <b style={{color:"#fff"}}>Bin ID</b> с остальными.</div>
+            </button>
+            <button onClick={()=>setMode("join")} style={card}>
+              <div style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:5}}>🔗 Подключиться к базе команды</div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",lineHeight:1.5}}>Для Oleh, Dmytro, Patryk, Danya — введите <b style={{color:"#60a5fa"}}>Bin ID</b> который прислал создатель.</div>
+            </button>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",textAlign:"center"}}>
+              Нужен аккаунт на <a href="https://jsonbin.io" target="_blank" rel="noreferrer" style={{color:"#bfa47e"}}>jsonbin.io</a> (бесплатно)
             </div>
-          ))}
-          <input value={apiKey} onChange={e=>{setApiKey(e.target.value);setErr("");}} placeholder="$2a$10$..." type="password" style={ins} onKeyDown={e=>e.key==="Enter"&&connect()}/>
-          {err&&<div style={{fontSize:12,color:C.red,background:"rgba(248,113,113,0.1)",borderRadius:8,padding:"10px 14px",lineHeight:1.5}}>{err}</div>}
-          <button onClick={connect} disabled={busy||!apiKey.trim()}
-            style={{background:busy?"rgba(255,255,255,0.08)":`linear-gradient(135deg,${C.accent},#d4b896)`,color:busy?"rgba(255,255,255,0.4)":"#00132f",border:"none",borderRadius:10,padding:"14px 0",fontSize:15,fontWeight:800,cursor:busy?"not-allowed":"pointer",opacity:!apiKey.trim()?0.5:1}}>
-            {busy?"⟳ Создаём базу данных...":"🔗 Подключить и запустить CRM"}
-          </button>
-          <div style={{fontSize:11,color:C.dim,textAlign:"center",lineHeight:1.5}}>CRM автоматически создаст базу данных.<br/>Одноразовая настройка — данные не пропадут при обновлениях.</div>
+          </>)}
+
+          {/* ── CREATE MODE ── */}
+          {mode==="create"&&(<>
+            <button onClick={()=>{setMode(null);setErr("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:12,textAlign:"left",padding:0}}>← Назад</button>
+            <div style={{background:"rgba(191,164,126,0.07)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:10,padding:"12px 14px"}}>
+              {["1. Зайдите на jsonbin.io → Sign Up (бесплатно)","2. В меню слева → «API Keys» → скопируйте Master Key"].map((t,i)=>(
+                <div key={i} style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginBottom:i===0?6:0,lineHeight:1.5}}>{t}</div>
+              ))}
+            </div>
+            <div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Master Key (начинается с $2a$10$)</div>
+              <input value={apiKey} onChange={e=>{setApiKey(e.target.value);setErr("");}} placeholder="$2a$10$..." type="password" style={ins} onKeyDown={e=>e.key==="Enter"&&handleCreate()}/>
+            </div>
+            {err&&<div style={{fontSize:12,color:"#f87171",background:"rgba(248,113,113,0.1)",borderRadius:8,padding:"10px 14px"}}>{err}</div>}
+            <button onClick={handleCreate} disabled={busy||!apiKey.trim()}
+              style={{background:busy?"rgba(255,255,255,0.08)":"linear-gradient(135deg,#bfa47e,#d4b896)",color:busy?"rgba(255,255,255,0.4)":"#00132f",border:"none",borderRadius:10,padding:"14px 0",fontSize:15,fontWeight:800,cursor:busy?"not-allowed":"pointer",opacity:!apiKey.trim()?0.5:1}}>
+              {busy?"⟳ Создаём базу...":"🔗 Создать и запустить CRM"}
+            </button>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",lineHeight:1.6}}>
+              После входа найдите <b style={{color:"#bfa47e"}}>Bin ID</b> в настройках CRM и отправьте остальным менеджерам.
+            </div>
+          </>)}
+
+          {/* ── JOIN MODE ── */}
+          {mode==="join"&&(<>
+            <button onClick={()=>{setMode(null);setErr("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:12,textAlign:"left",padding:0}}>← Назад</button>
+            <div style={{background:"rgba(96,165,250,0.08)",border:"1px solid rgba(96,165,250,0.2)",borderRadius:10,padding:"12px 14px",fontSize:12,color:"rgba(255,255,255,0.65)",lineHeight:1.6}}>
+              💡 Попросите создателя базы прислать вам <b style={{color:"#60a5fa"}}>Bin ID</b>.<br/>
+              Он виден в правом верхнем углу CRM после входа → кнопка <b style={{color:"#fff"}}>⚙ Bin ID</b>.
+            </div>
+            <div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Bin ID (от создателя базы)</div>
+              <input value={binId} onChange={e=>{setBinId(e.target.value);setErr("");}} placeholder="6847abcdef1234567890abcd" style={ins}/>
+            </div>
+            <div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Master Key (ваш, с jsonbin.io)</div>
+              <input value={apiKey} onChange={e=>{setApiKey(e.target.value);setErr("");}} placeholder="$2a$10$..." type="password" style={ins} onKeyDown={e=>e.key==="Enter"&&handleJoin()}/>
+            </div>
+            {err&&<div style={{fontSize:12,color:"#f87171",background:"rgba(248,113,113,0.1)",borderRadius:8,padding:"10px 14px"}}>{err}</div>}
+            <button onClick={handleJoin} disabled={busy||!apiKey.trim()||!binId.trim()}
+              style={{background:busy?"rgba(255,255,255,0.08)":"linear-gradient(135deg,#60a5fa,#3b82f6)",color:"#fff",border:"none",borderRadius:10,padding:"14px 0",fontSize:15,fontWeight:800,cursor:busy?"not-allowed":"pointer",opacity:(!apiKey.trim()||!binId.trim())?0.5:1}}>
+              {busy?"⟳ Подключаемся...":"🔗 Подключиться к базе команды"}
+            </button>
+          </>)}
+
         </div>
       </div>
     </div>
   );
 }
+
 
 // ─── GOOGLE-STYLE CALENDAR POPUP ──────────────────────────────────────────────
 function CalPopup({initDate,initEvent,onSave,onDelete,onClose,t,lang}){
@@ -475,8 +543,9 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr}){
 }
 
 // ─── TOPBAR ───────────────────────────────────────────────────────────────────
-function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel}){
+function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,binId}){
   const [showUsers,setShowUsers]=useState(false);
+  const [showBinId,setShowBinId]=useState(false);
   const syncColor=syncLabel==="✓"?C.green:syncLabel==="!"?C.red:syncLabel==="⟳"?C.yellow:C.green;
   return(
     <div style={{height:56,background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10,padding:"0 14px",flexShrink:0}}>
@@ -490,6 +559,29 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
       <div style={{display:"flex",alignItems:"center",gap:5,fontSize:10,background:C.card,borderRadius:7,padding:"4px 10px",border:`1px solid ${C.border}`}}>
         <span style={{color:syncColor,fontSize:14}}>{syncLabel}</span>
         <span style={{color:syncColor,fontWeight:600}}>LIVE SYNC</span>
+      </div>
+      {/* Bin ID share button */}
+      <div style={{position:"relative"}}>
+        <button onClick={()=>setShowBinId(p=>!p)} title="Bin ID для команды"
+          style={{background:C.card,border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"4px 10px",fontSize:10,cursor:"pointer",fontWeight:600}}>
+          ⚙ Bin ID
+        </button>
+        {showBinId&&(
+          <>
+            <div onClick={()=>setShowBinId(false)} style={{position:"fixed",inset:0,zIndex:1999}}/>
+            <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:C.surface,border:`1px solid ${C.accentBorder}`,borderRadius:12,padding:16,zIndex:2000,minWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
+              <div style={{fontSize:12,color:C.muted,marginBottom:8}}>📋 Отправьте этот Bin ID другим менеджерам чтобы они подключились к общей базе:</div>
+              <div style={{background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:8,padding:"10px 12px",fontFamily:"monospace",fontSize:13,color:C.accent,wordBreak:"break-all",marginBottom:10}}>
+                {binId||"—"}
+              </div>
+              <button onClick={()=>{navigator.clipboard?.writeText(binId||"");setShowBinId(false);}}
+                style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",width:"100%"}}>
+                📋 Скопировать Bin ID
+              </button>
+              <div style={{fontSize:10,color:C.dim,marginTop:8,lineHeight:1.5}}>Каждый менеджер при входе выбирает «Подключиться к базе команды» и вводит этот ID.</div>
+            </div>
+          </>
+        )}
       </div>
       <button onClick={onAddLead} style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",gap:8,boxShadow:`0 2px 14px rgba(191,164,126,0.4)`}}><span style={{fontSize:16,fontWeight:900}}>+</span> {t.addLead}</button>
       <div style={{display:"flex",gap:2,background:C.card,borderRadius:8,padding:3,border:`1px solid ${C.border}`}}>{["ru","pl"].map(l=><button key={l} onClick={()=>setLang(l)} style={{padding:"4px 10px",borderRadius:6,border:"none",background:lang===l?C.accentDim:"transparent",color:lang===l?C.accent:C.muted,cursor:"pointer",fontSize:11,fontWeight:700}}>{l.toUpperCase()}</button>)}</div>
@@ -908,7 +1000,7 @@ function GarnoCRM(){
       <style>{`*{box-sizing:border-box;}::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(191,164,126,0.25);border-radius:3px;}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.25);}select option{background:#001840;color:#fff;}input[type=checkbox]{accent-color:#bfa47e;}@media print{.no-print{display:none!important;}#kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;}}`}</style>
       <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel}/>
+        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} binId={db?._binId||lsGet(LS_KEY)?.binId||""}/>
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
           {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
