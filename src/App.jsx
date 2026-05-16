@@ -199,8 +199,8 @@ function useDatabase(){
   const localRef=useRef(null);
   const savingRef=useRef(false);
   const saveTimer=useRef(null);
-  const lastWriteTime=useRef(0); // timestamp of last successful write
 
+  // ── Load on mount ─────────────────────────────────────────────────────────
   useEffect(()=>{
     (async()=>{
       const cfg=lsGet(LS_KEY);
@@ -217,26 +217,25 @@ function useDatabase(){
     })();
   },[]);
 
-  useEffect(()=>{
-    if(status!=="ready")return;
-    const iv=setInterval(async()=>{
-      // Block poll if: currently saving OR within 10 sec of last write (propagation delay)
-      if(savingRef.current) return;
-      if(Date.now()-lastWriteTime.current < 10000) return;
-      try{
-        const data=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
-        const json=JSON.stringify(data);
-        if(json!==localRef.current){
-          localRef.current=json;
-          setDbState(data);
-          setSyncLabel("✓");
-          setTimeout(()=>setSyncLabel("●"),2000);
-        }
-      }catch{}
-    },5000);
-    return()=>clearInterval(iv);
-  },[status]);
+  // ── Manual refresh — called by pressing 🔄 ────────────────────────────────
+  const refresh=async()=>{
+    if(!cfgRef.current||savingRef.current)return;
+    setSyncLabel("⟳");
+    try{
+      const data=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
+      const json=JSON.stringify(data);
+      localRef.current=json;
+      setDbState(data);
+      setSyncLabel("✓");
+      setTimeout(()=>setSyncLabel("●"),1500);
+    }catch(e){
+      console.error(e);
+      setSyncLabel("!");
+      setTimeout(()=>setSyncLabel("●"),3000);
+    }
+  };
 
+  // ── Save with debounce 400ms ───────────────────────────────────────────────
   const updateDb=(upd)=>{
     setDbState(prev=>{
       const next=typeof upd==="function"?upd(prev):upd;
@@ -248,14 +247,12 @@ function useDatabase(){
       saveTimer.current=setTimeout(async()=>{
         try{
           await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,next);
-          lastWriteTime.current=Date.now(); // record write time
           setSyncLabel("✓");
           setTimeout(()=>setSyncLabel("●"),2000);
         }catch(e){
           console.error("Write failed:",e);
           setSyncLabel("!");
-          // If write failed — show error but keep local state
-          alert("❌ Ошибка сохранения: "+e.message+"\n\nВозможно неверный Master Key. Проверьте настройки.");
+          alert("❌ Ошибка сохранения: "+e.message+"\n\nВозможно неверный Master Key.");
         }
         finally{savingRef.current=false;}
       },400);
@@ -266,11 +263,10 @@ function useDatabase(){
   const configure=async(cfg,initData)=>{
     lsSet(LS_KEY,cfg);cfgRef.current=cfg;
     localRef.current=JSON.stringify(initData);
-    lastWriteTime.current=Date.now();
     setDbState(initData);setStatus("ready");
   };
 
-  return{db,status,syncLabel,updateDb,configure};
+  return{db,status,syncLabel,refresh,updateDb,configure};
 }
 
 // ─── UI ATOMS ─────────────────────────────────────────────────────────────────
@@ -561,7 +557,7 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr}){
 }
 
 // ─── TOPBAR ───────────────────────────────────────────────────────────────────
-function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,binId}){
+function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,binId,onRefresh}){
   const [showUsers,setShowUsers]=useState(false);
   const [showBinId,setShowBinId]=useState(false);
   const syncColor=syncLabel==="✓"?C.green:syncLabel==="!"?C.red:syncLabel==="⟳"?C.yellow:C.green;
@@ -573,11 +569,14 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search} style={{background:"transparent",border:"none",outline:"none",color:"#fff",fontSize:12,width:170}}/>
       </div>
       <div style={{flex:1}}/>
-      {/* Sync status */}
-      <div style={{display:"flex",alignItems:"center",gap:5,fontSize:10,background:C.card,borderRadius:7,padding:"4px 10px",border:`1px solid ${C.border}`}}>
-        <span style={{color:syncColor,fontSize:14}}>{syncLabel}</span>
-        <span style={{color:syncColor,fontWeight:600}}>LIVE SYNC</span>
-      </div>
+      {/* Refresh button — saves requests vs auto-polling */}
+      <button onClick={onRefresh} title="Получить свежие данные от команды"
+        style={{display:"flex",alignItems:"center",gap:6,background:C.card,border:`1px solid ${C.border}`,borderRadius:7,padding:"4px 12px",cursor:"pointer",fontSize:11,fontWeight:600,color:syncLabel==="⟳"?C.yellow:syncLabel==="✓"?C.green:syncLabel==="!"?C.red:C.muted,transition:"color 0.3s"}}>
+        <span style={{fontSize:14,display:"inline-block",animation:syncLabel==="⟳"?"spin 1s linear infinite":"none"}}>
+          {syncLabel==="⟳"?"⟳":"🔄"}
+        </span>
+        {syncLabel==="⟳"?"Загрузка...":syncLabel==="✓"?"Обновлено!":syncLabel==="!"?"Ошибка":"Обновить"}
+      </button>
       {/* Bin ID share button */}
       <div style={{position:"relative"}}>
         <button onClick={()=>setShowBinId(p=>!p)} title="Bin ID для команды"
@@ -791,6 +790,7 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
 function CalendarPage({events,setEvents,t,lang}){
   const [calDate,setCalDate]=useState(()=>{const d=new Date();return{year:d.getFullYear(),month:d.getMonth()};});
   const [popup,setPopup]=useState(null);
+  const [dayModal,setDayModal]=useState(null); // {date, events[]}
   const prevM=()=>setCalDate(p=>{const m=p.month-1;return m<0?{year:p.year-1,month:11}:{year:p.year,month:m};});
   const nextM=()=>setCalDate(p=>{const m=p.month+1;return m>11?{year:p.year+1,month:0}:{year:p.year,month:m};});
   const dIM=new Date(calDate.year,calDate.month+1,0).getDate();
@@ -799,8 +799,11 @@ function CalendarPage({events,setEvents,t,lang}){
   const mName=lang==="ru"?MONTHS_RU[calDate.month]:MONTHS_PL[calDate.month];
   const days=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
   const handleSave=(form)=>{if(form.id&&events.find(e=>e.id===form.id))setEvents(p=>p.map(e=>e.id===form.id?{...form}:e));else setEvents(p=>[...p,{...form,id:Date.now()}]);setPopup(null);};
-  const handleDelete=(id)=>{setEvents(p=>p.filter(e=>e.id!==id));setPopup(null);};
+  const handleDelete=(id)=>{setEvents(p=>p.filter(e=>e.id!==id));setPopup(null);setDayModal(null);};
   const sorted=[...events].filter(e=>e.date.startsWith(mStr)).sort((a,b)=>a.date===b.date?a.time.localeCompare(b.time):a.date.localeCompare(b.date));
+
+  const MAX_VISIBLE=3; // max events shown in cell before "еще N"
+
   return(
     <div style={{padding:18}}>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
@@ -810,16 +813,121 @@ function CalendarPage({events,setEvents,t,lang}){
         <div style={{flex:1}}/>
         <button onClick={()=>setPopup({initDate:TODAY,initEvent:null})} style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ {t.addEvent}</button>
       </div>
+
+      {/* CALENDAR GRID */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",marginBottom:16}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:`1px solid ${C.border}`}}>{days.map(d=><div key={d} style={{padding:"10px 6px",textAlign:"center",fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5}}>{d}</div>)}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:`1px solid ${C.border}`}}>
+          {days.map(d=><div key={d} style={{padding:"10px 6px",textAlign:"center",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5}}>{d}</div>)}
+        </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
-          {Array.from({length:fd}).map((_,i)=><div key={`e${i}`} style={{minHeight:90,borderRight:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`}}/>)}
-          {Array.from({length:dIM}).map((_,i)=>{const day=i+1;const ds=`${mStr}-${String(day).padStart(2,"0")}`;const dayEvs=events.filter(e=>e.date===ds).sort((a,b)=>a.time.localeCompare(b.time));const isToday=ds===TODAY;return(<div key={day} onClick={()=>setPopup({initDate:ds,initEvent:null})} style={{minHeight:90,padding:"5px 4px 3px",borderRight:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,background:isToday?"rgba(191,164,126,0.08)":"transparent",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=isToday?"rgba(191,164,126,0.12)":"rgba(255,255,255,0.02)"} onMouseLeave={e=>e.currentTarget.style.background=isToday?"rgba(191,164,126,0.08)":"transparent"}><div style={{width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isToday?C.accent:"transparent",color:isToday?"#00132f":C.muted,fontSize:11,fontWeight:isToday?700:400,marginBottom:2}}>{day}</div>{dayEvs.map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(<div key={ev.id} onClick={e=>{e.stopPropagation();setPopup({initDate:ds,initEvent:ev});}} style={{background:`${c}22`,border:`1px solid ${c}44`,borderRadius:3,padding:"1px 4px",marginBottom:1,fontSize:8,color:c,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer"}}>{ev.time} {ev.title}</div>);})}</div>);})}
+          {Array.from({length:fd}).map((_,i)=><div key={`e${i}`} style={{minHeight:110,borderRight:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`}}/>)}
+          {Array.from({length:dIM}).map((_,i)=>{
+            const day=i+1;
+            const ds=`${mStr}-${String(day).padStart(2,"0")}`;
+            const dayEvs=events.filter(e=>e.date===ds).sort((a,b)=>a.time.localeCompare(b.time));
+            const isToday=ds===TODAY;
+            const visible=dayEvs.slice(0,MAX_VISIBLE);
+            const hidden=dayEvs.length-MAX_VISIBLE;
+            return(
+              <div key={day}
+                onClick={()=>setPopup({initDate:ds,initEvent:null})}
+                style={{minHeight:110,padding:"5px 5px 4px",borderRight:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,background:isToday?"rgba(191,164,126,0.08)":"transparent",cursor:"pointer"}}
+                onMouseEnter={e=>e.currentTarget.style.background=isToday?"rgba(191,164,126,0.12)":"rgba(255,255,255,0.02)"}
+                onMouseLeave={e=>e.currentTarget.style.background=isToday?"rgba(191,164,126,0.08)":"transparent"}>
+                {/* Day number */}
+                <div style={{width:24,height:24,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isToday?C.accent:"transparent",color:isToday?"#00132f":C.muted,fontSize:12,fontWeight:isToday?700:400,marginBottom:3,flexShrink:0}}>{day}</div>
+                {/* Events — max 3 visible */}
+                {visible.map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(
+                  <div key={ev.id}
+                    onClick={e=>{e.stopPropagation();setPopup({initDate:ds,initEvent:ev});}}
+                    style={{background:`${c}22`,border:`1px solid ${c}55`,borderLeft:`3px solid ${c}`,borderRadius:4,padding:"2px 5px",marginBottom:2,cursor:"pointer",overflow:"hidden"}}
+                    onMouseEnter={e=>e.currentTarget.style.background=`${c}40`}
+                    onMouseLeave={e=>e.currentTarget.style.background=`${c}22`}>
+                    <div style={{fontSize:10,color:c,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                      {ev.time} {ev.title}
+                    </div>
+                  </div>
+                );})}
+                {/* "Ещё N" button */}
+                {hidden>0&&(
+                  <button
+                    onClick={e=>{e.stopPropagation();setDayModal({date:ds,evs:dayEvs});}}
+                    style={{background:"rgba(255,255,255,0.08)",border:`1px solid ${C.border}`,color:C.muted,borderRadius:4,padding:"2px 6px",fontSize:10,cursor:"pointer",width:"100%",textAlign:"left",fontWeight:600,marginTop:1}}>
+                    + ещё {hidden}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-        {sorted.map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(<div key={ev.id} style={{background:C.card,border:`1px solid ${c}33`,borderLeft:`3px solid ${c}`,borderRadius:8,padding:"10px 12px",cursor:"pointer"}} onClick={()=>setPopup({initDate:ev.date,initEvent:ev})} onMouseEnter={e=>e.currentTarget.style.background=C.surface} onMouseLeave={e=>e.currentTarget.style.background=C.card}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:12,color:"#fff",fontWeight:600}}>{ev.title}</span><button onClick={e=>{e.stopPropagation();handleDelete(ev.id);}} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:12,padding:0}}>✕</button></div><div style={{fontSize:10,color:C.muted,marginBottom:6}}>{ev.date} · {ev.time}{ev.timeEnd?`–${ev.timeEnd}`:""} · <span style={{color:MGR_COLOR[ev.manager]}}>{ev.manager}</span></div>{ev.description&&<div style={{fontSize:10,color:C.dim,marginBottom:6,fontStyle:"italic"}}>{ev.description}</div>}<Badge label={evLabel(ev.type,lang)} color={c} small/></div>);})}
+
+      {/* EVENT LIST BELOW CALENDAR */}
+      <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>
+        {lang==="ru"?"Все события месяца":"Wszystkie wydarzenia miesiąca"}
       </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+        {sorted.map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(
+          <div key={ev.id} style={{background:C.card,border:`1px solid ${c}33`,borderLeft:`3px solid ${c}`,borderRadius:8,padding:"10px 12px",cursor:"pointer"}}
+            onClick={()=>setPopup({initDate:ev.date,initEvent:ev})}
+            onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+            onMouseLeave={e=>e.currentTarget.style.background=C.card}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:12,color:"#fff",fontWeight:600}}>{ev.title}</span>
+              <button onClick={e=>{e.stopPropagation();handleDelete(ev.id);}} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:12,padding:0}}>✕</button>
+            </div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:6}}>{ev.date} · {ev.time}{ev.timeEnd?`–${ev.timeEnd}`:""} · <span style={{color:MGR_COLOR[ev.manager]}}>{ev.manager}</span></div>
+            {ev.description&&<div style={{fontSize:10,color:C.dim,marginBottom:6,fontStyle:"italic"}}>{ev.description}</div>}
+            <Badge label={evLabel(ev.type,lang)} color={c} small/>
+          </div>
+        );})}
+      </div>
+
+      {/* DAY DETAIL MODAL — показывает все события дня */}
+      {dayModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3500}} onClick={()=>setDayModal(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,border:`1px solid ${C.accentBorder}`,width:"min(420px,95vw)",maxHeight:"80vh",overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.7)"}}>
+            {/* Modal header */}
+            <div style={{background:"linear-gradient(135deg,#001f4e,#002259)",padding:"16px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+              <div>
+                <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:2}}>
+                  {new Date(dayModal.date).toLocaleDateString(lang==="ru"?"ru-RU":"pl-PL",{weekday:"long"}).toUpperCase()}
+                </div>
+                <div style={{fontSize:24,fontWeight:900,color:"#fff"}}>{dayModal.date.split("-")[2]}</div>
+              </div>
+              <button onClick={()=>setDayModal(null)} style={{background:"transparent",border:"none",color:C.muted,fontSize:20,cursor:"pointer",lineHeight:1}}>✕</button>
+            </div>
+            {/* Event list */}
+            <div style={{overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>
+              {dayModal.evs.map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(
+                <div key={ev.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",background:C.card,borderRadius:10,border:`1px solid ${c}33`,borderLeft:`4px solid ${c}`,cursor:"pointer"}}
+                  onClick={()=>{setDayModal(null);setPopup({initDate:dayModal.date,initEvent:ev});}}>
+                  <div style={{flexShrink:0,textAlign:"center",minWidth:44}}>
+                    <div style={{fontSize:13,fontWeight:800,color:c}}>{ev.time}</div>
+                    {ev.timeEnd&&<div style={{fontSize:10,color:C.muted}}>{ev.timeEnd}</div>}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                      <Badge label={evLabel(ev.type,lang)} color={c} small/>
+                      {ev.manager&&<span style={{fontSize:10,color:MGR_COLOR[ev.manager],fontWeight:600}}>{ev.manager}</span>}
+                    </div>
+                    {ev.description&&<div style={{fontSize:11,color:C.muted,marginTop:4,lineHeight:1.4}}>{ev.description}</div>}
+                  </div>
+                  <button onClick={e=>{e.stopPropagation();handleDelete(ev.id);setDayModal(p=>({...p,evs:p.evs.filter(x=>x.id!==ev.id)}));}}
+                    style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:13,padding:"2px 4px",flexShrink:0}}>✕</button>
+                </div>
+              );})}
+              {/* Add event for this day */}
+              <button onClick={()=>{setDayModal(null);setPopup({initDate:dayModal.date,initEvent:null});}}
+                style={{background:C.accentDim,border:`1px dashed ${C.accentBorder}`,color:C.accent,borderRadius:10,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer",marginTop:4}}>
+                + Добавить событие
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {popup&&<CalPopup initDate={popup.initDate} initEvent={popup.initEvent} onSave={handleSave} onDelete={handleDelete} onClose={()=>setPopup(null)} t={t} lang={lang}/>}
     </div>
   );
@@ -961,7 +1069,7 @@ export default function App(){
 }
 
 function GarnoCRM(){
-  const {db,status,syncLabel,updateDb,configure}=useDatabase();
+  const {db,status,syncLabel,refresh,updateDb,configure}=useDatabase();
   const [page,setPage]=useState("dashboard");
   const [selLead,setSelLead]=useState(null);
   const [lang,setLang]=useState("ru");
@@ -1018,10 +1126,10 @@ function GarnoCRM(){
 
   return(
     <div style={{display:"flex",height:"100vh",background:C.bg,color:"#fff",fontFamily:"'DM Sans','Segoe UI',sans-serif",overflow:"hidden",fontSize:13}}>
-      <style>{`*{box-sizing:border-box;}::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(191,164,126,0.25);border-radius:3px;}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.25);}select option{background:#001840;color:#fff;}input[type=checkbox]{accent-color:#bfa47e;}@media print{.no-print{display:none!important;}#kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;}}`}</style>
+      <style>{`*{box-sizing:border-box;}::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(191,164,126,0.25);border-radius:3px;}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.25);}select option{background:#001840;color:#fff;}input[type=checkbox]{accent-color:#bfa47e;}@media print{.no-print{display:none!important;}#kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;}}`}</style>
       <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} binId={db?._binId||lsGet(LS_KEY)?.binId||""}/>
+        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} binId={db?._binId||lsGet(LS_KEY)?.binId||""} onRefresh={refresh}/>
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
           {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
