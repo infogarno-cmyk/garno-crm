@@ -109,8 +109,8 @@ const ACTIONS=["undefined","thinking","missedCall","cancelled","callback"];
 const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green};
 const BUDGETS=["withinMonth","within3m","within6m","year","justPrice","unconfirmed"];
 const BUD_COLOR={withinMonth:C.green,within3m:C.cyan,within6m:C.yellow,year:C.purple,justPrice:C.muted,unconfirmed:"rgba(255,255,255,0.2)"};
-const SOURCES=["pl.calculatorkuchni.online","roda.calculatorkuchni.online","fast.calculatorkuchni.online","ua.calculatorkuchni.online","1.designkitchen.online","fillout","garnofurniture.ukr","garnofurniture.com","Instagram","Mail"];
-const SRC_COLOR={"pl.calculatorkuchni.online":"#3b82f6","roda.calculatorkuchni.online":"#8b5cf6","fast.calculatorkuchni.online":"#06b6d4","ua.calculatorkuchni.online":"#10b981","1.designkitchen.online":"#f59e0b","fillout":"#ec4899","garnofurniture.ukr":"#a78bfa","garnofurniture.com":"#60a5fa","Instagram":"#E1306C","Mail":"#bfa47e"};
+const SOURCES=["pl.calculatorkuchni.online","roda.calculatorkuchni.online","fast.calculatorkuchni.online","ua.calculatorkuchni.online","1.designkitchen.online","fillout","garnofurniture.ukr","garnofurniture.com","Instagram","Mail","Шоу Рум"];
+const SRC_COLOR={"pl.calculatorkuchni.online":"#3b82f6","roda.calculatorkuchni.online":"#8b5cf6","fast.calculatorkuchni.online":"#06b6d4","ua.calculatorkuchni.online":"#10b981","1.designkitchen.online":"#f59e0b","fillout":"#ec4899","garnofurniture.ukr":"#a78bfa","garnofurniture.com":"#60a5fa","Instagram":"#E1306C","Mail":"#bfa47e","Шоу Рум":"#f97316"};
 function srcShort(s){return s.replace(".calculatorkuchni.online","…").replace(".designkitchen.online","…des").replace("garnofurniture","garno");}
 const EVENT_TYPES=["visit","measure","contract","phone","delivery"];
 const EVENT_COLOR={visit:C.blue,measure:C.accent,contract:C.green,phone:C.purple,delivery:C.cyan};
