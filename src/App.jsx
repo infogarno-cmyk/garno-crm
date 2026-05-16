@@ -242,20 +242,6 @@ function useDatabase(){
     }finally{savingRef.current=false;}
   };
 
-  // ── Warn before unload if unsaved ─────────────────────────────────────────
-  useEffect(()=>{
-    const handler=(e)=>{
-      if(pendingRef.current){
-        e.preventDefault();
-        e.returnValue="Есть несохранённые изменения. Подождите...";
-        // Try to flush
-        if(cfgRef.current) binWrite(cfgRef.current.binId,cfgRef.current.apiKey,pendingRef.current).catch(()=>{});
-      }
-    };
-    window.addEventListener("beforeunload",handler);
-    return()=>window.removeEventListener("beforeunload",handler);
-  },[]);
-
   // ── Load on mount ─────────────────────────────────────────────────────────
   useEffect(()=>{
     (async()=>{
@@ -305,9 +291,10 @@ function useDatabase(){
       const next=typeof upd==="function"?upd(prev):upd;
       pendingRef.current=next;
       if(immediate){
-        // Write immediately — no debounce (for deletes)
+        // Write immediately — no debounce (for deletes/adds)
         if(saveTimer.current) clearTimeout(saveTimer.current);
         saveTimer.current=null;
+        localRef.current=JSON.stringify(next); // update immediately to prevent stale reads
         writeNow(next).then(()=>{pendingRef.current=null;});
       } else {
         // Debounced write for edits/adds
