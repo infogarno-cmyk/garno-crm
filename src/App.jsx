@@ -44,7 +44,8 @@ const LIGHT = {
   green:"#15803d", red:"#b91c1c", blue:"#1d4ed8",
   yellow:"#b45309", purple:"#6d28d9", cyan:"#0e7490",
 };
-let C = DARK;
+let C = DARK; // mutable — updated by theme
+// TIP is computed dynamically in components using C
 const getTIP=()=>({contentStyle:{background:C.surface,border:`1px solid ${C.borderMd}`,borderRadius:8,color:C.text,fontSize:11},labelStyle:{color:C.text},itemStyle:{color:C.text}});
 const MONTHS_RU=["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 const MONTHS_PL=["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec","Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"];
@@ -170,7 +171,7 @@ const SEED_SALES=[{id:1,leadId:"502.05",name:"Grzegorz",phone:"48 530 399 395",m
 
 // ─── JSONBIN DATABASE ─────────────────────────────────────────────────────────
 const BIN_BASE="https://api.jsonbin.io/v3/b";
-const LS_KEY="garno_cfg";
+const LS_KEY="garno_cfg"; // localStorage — only stores credentials
 
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
@@ -182,6 +183,7 @@ async function binRead(binId,apiKey){
   });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   const j=await r.json();
+  // JSONBin v3: response is { record: {...} } or directly the data
   return j?.record ?? j;
 }
 async function binWrite(binId,apiKey,data){
@@ -192,6 +194,7 @@ async function binCreate(apiKey,data){
   const r=await fetch(BIN_BASE,{method:"POST",headers:{"Content-Type":"application/json","X-Master-Key":apiKey,"X-Bin-Name":"GarnoCRM","X-Bin-Private":"false"},body:JSON.stringify(data)});
   if(!r.ok){const txt=await r.text();throw new Error(`HTTP ${r.status}: ${txt.slice(0,100)}`);}
   const j=await r.json();
+  // JSONBin v3 returns { record: {...}, metadata: { id: "..." } }
   const id = j?.metadata?.id || j?.id || j?._id;
   if(!id) throw new Error("JSONBin не вернул Bin ID. Ответ: "+JSON.stringify(j).slice(0,200));
   return id;
@@ -207,10 +210,12 @@ function useDatabase(){
   const localRef=useRef(null);
   const savingRef=useRef(false);
   const saveTimer=useRef(null);
-  const pendingRef=useRef(null);
+  const pendingRef=useRef(null); // stores latest data waiting to be written
 
+  // ── Migrate existing data ──────────────────────────────────────────────────
   const migrateData=(data)=>{
     let changed=false;
+    // Fix us. → ua. in all leads
     const leads=(data.leads||[]).map(l=>{
       if(l.source==="us.calculatorkuchni.online"){
         changed=true;
@@ -222,6 +227,7 @@ function useDatabase(){
     return data;
   };
 
+  // ── Immediate write (for critical ops like delete) ─────────────────────────
   const writeNow=async(data)=>{
     if(!cfgRef.current) return;
     savingRef.current=true;
@@ -237,6 +243,7 @@ function useDatabase(){
     }finally{savingRef.current=false;}
   };
 
+  // ── Load on mount ─────────────────────────────────────────────────────────
   useEffect(()=>{
     (async()=>{
       const cfg=lsGet(LS_KEY);
@@ -245,9 +252,11 @@ function useDatabase(){
       try{
         setSyncLabel("⟳");
         let data=await binRead(cfg.binId,cfg.apiKey);
+        // Auto-migrate old data
         const migrated=migrateData(data);
         if(migrated!==data){
           data=migrated;
+          // Save migrated data silently
           binWrite(cfg.binId,cfg.apiKey,data).catch(()=>{});
         }
         localRef.current=JSON.stringify(data);
@@ -256,8 +265,9 @@ function useDatabase(){
         setSyncLabel("●");
       }catch(e){console.error(e);setStatus("error");}
     })();
-  },[]);
+  },[]); // eslint-disable-line
 
+  // ── Manual refresh ────────────────────────────────────────────────────────
   const refresh=async()=>{
     if(!cfgRef.current||savingRef.current)return;
     setSyncLabel("⟳");
@@ -276,16 +286,19 @@ function useDatabase(){
     }
   };
 
+  // ── Update — debounced 400ms for edits, immediate for deletes ─────────────
   const updateDb=(upd,immediate=false)=>{
     setDbState(prev=>{
       const next=typeof upd==="function"?upd(prev):upd;
       pendingRef.current=next;
       if(immediate){
+        // Write immediately — no debounce (for deletes/adds)
         if(saveTimer.current) clearTimeout(saveTimer.current);
         saveTimer.current=null;
-        localRef.current=JSON.stringify(next);
+        localRef.current=JSON.stringify(next); // update immediately to prevent stale reads
         writeNow(next).then(()=>{pendingRef.current=null;});
       } else {
+        // Debounced write for edits/adds
         localRef.current=JSON.stringify(next);
         savingRef.current=true;
         setSyncLabel("⟳");
@@ -330,7 +343,7 @@ function DateRangeBar({range,setRange,t}){return <div style={{display:"flex",gap
 
 // ─── SETUP SCREEN ─────────────────────────────────────────────────────────────
 function SetupScreen({onSave}){
-  const [mode,setMode]=useState(null);
+  const [mode,setMode]=useState(null); // null | "create" | "join"
   const [apiKey,setApiKey]=useState("");
   const [binId,setBinId]=useState("");
   const [busy,setBusy]=useState(false);
@@ -384,6 +397,8 @@ function SetupScreen({onSave}){
           <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>Подключение к базе данных</div>
         </div>
         <div style={{padding:24,display:"flex",flexDirection:"column",gap:14}}>
+
+          {/* ── MODE PICKER ── */}
           {!mode&&(<>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginBottom:4}}>Выберите тип подключения:</div>
             <button onClick={()=>setMode("create")} style={{...card,border:"1px solid rgba(191,164,126,0.4)"}}>
@@ -399,11 +414,12 @@ function SetupScreen({onSave}){
             </div>
           </>)}
 
+          {/* ── CREATE MODE ── */}
           {mode==="create"&&(<>
             <button onClick={()=>{setMode(null);setErr("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:12,textAlign:"left",padding:0}}>← Назад</button>
             <div style={{background:"rgba(191,164,126,0.07)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:10,padding:"12px 14px"}}>
-              {["1. Зайдите на jsonbin.io → Sign Up (бесплатно)","2. В меню слева → «API Keys» → скопируйте Master Key"].map((txt,i)=>(
-                <div key={i} style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginBottom:i===0?6:0,lineHeight:1.5}}>{txt}</div>
+              {["1. Зайдите на jsonbin.io → Sign Up (бесплатно)","2. В меню слева → «API Keys» → скопируйте Master Key"].map((t,i)=>(
+                <div key={i} style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginBottom:i===0?6:0,lineHeight:1.5}}>{t}</div>
               ))}
             </div>
             <div>
@@ -420,6 +436,7 @@ function SetupScreen({onSave}){
             </div>
           </>)}
 
+          {/* ── JOIN MODE ── */}
           {mode==="join"&&(<>
             <button onClick={()=>{setMode(null);setErr("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:12,textAlign:"left",padding:0}}>← Назад</button>
             <div style={{background:"rgba(96,165,250,0.1)",border:"1px solid rgba(96,165,250,0.3)",borderRadius:10,padding:"12px 14px",fontSize:12,color:"rgba(255,255,255,0.8)",lineHeight:1.7}}>
@@ -442,11 +459,13 @@ function SetupScreen({onSave}){
               {busy?"⟳ Подключаемся...":"🔗 Подключиться к базе команды"}
             </button>
           </>)}
+
         </div>
       </div>
     </div>
   );
 }
+
 
 // ─── GOOGLE-STYLE CALENDAR POPUP ──────────────────────────────────────────────
 function CalPopup({initDate,initEvent,onSave,onDelete,onClose,t,lang}){
@@ -504,14 +523,17 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
   const today=new Date().toLocaleDateString("pl-PL",{day:"2-digit",month:"long",year:"numeric"});
   const todayUa=new Date().toLocaleDateString("uk-UA",{day:"2-digit",month:"long",year:"numeric"});
 
+  // Manager info
   const mgrPhotos={Oleh:IMG_OLEH,Dmytro:IMG_DMYTRO,Patryk:IMG_PATRYK};
   const mgr=lead?.manager||"";
   const mgrPhoto=mgrPhotos[mgr]||"";
 
+  // Determine Pan/Pani based on name (simple heuristic - last letter а/я = female)
   const name=lead?.name||"";
   const isFemale=name&&/[аяіеєAa]$/i.test(name.trim());
   const greeting=isUa?(isFemale?"Пані":"Пане"):(isFemale?"Pani":"Pan");
 
+  // Steps
   const CO_PL=[
     {n:"01",t:"ZAPYTANIE",d:"Pobranie od was informacji do wyceny"},
     {n:"02",t:"KONTAKT Z KLIENTEM",d:"Łączymy się z wami dostępnymi sposobami (Mail, WhatsApp i tp.)"},
@@ -533,6 +555,8 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
     {n:"08",t:"МОНТАЖ",d:"Привеземо та встановимо ваше замовлення"},
   ];
   const CO = isUa ? CO_UA : CO_PL;
+
+  const IMG = (src,alt,h=120)=>src?<img src={src} alt={alt} style={{width:"100%",height:h,objectFit:"cover",borderRadius:8,marginTop:8}} onError={e=>e.target.style.display="none"}/>:null;
 
   const totalWithStone = stoneAmt ? amount + stoneAmt : amount;
 
@@ -598,11 +622,13 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
             {isUa?"ДЕТАЛЬНИЙ РОЗРАХУНОК":"SZCZEGÓŁOWA WYCENA"}
           </div>
 
+          {/* Row 1: Meble */}
           <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid #f0ebe2"}}>
             <span style={{fontSize:13,color:"#333"}}>{isUa?"Меблі на замір (проект + виготовлення)":"Meble na wymiar (projekt + wykonanie)"}</span>
             <span style={{fontSize:13,fontWeight:700,color:"#00132f"}}>{fmtM(Math.round(amount*0.87))}</span>
           </div>
 
+          {/* Row 2: Montaż - FREE with deadline */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f0ebe2"}}>
             <div>
               <span style={{fontSize:13,color:"#333"}}>{isUa?"Монтаж та встановлення":"Montaż i instalacja"}</span>
@@ -616,11 +642,13 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
             </div>
           </div>
 
+          {/* Row 3: Blat Standardowy - included */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f0ebe2"}}>
             <span style={{fontSize:13,color:"#333"}}>{isUa?"Стандартна стільниця":"Blat Standardowy"}</span>
             <span style={{fontSize:13,fontWeight:700,color:"#16a34a"}}>✅ {isUa?"В ціні":"w cenie"}</span>
           </div>
 
+          {/* TOTAL */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,padding:"14px 20px",background:"#00132f",borderRadius:10}}>
             <div style={{color:"#bfa47e",fontSize:14,fontWeight:700,letterSpacing:1}}>ŁĄCZNA KWOTA</div>
             <div style={{color:"#bfa47e",fontSize:24,fontWeight:900}}>{fmtM(stoneAmt?totalWithStone:amount)}</div>
@@ -629,7 +657,8 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
             * {isUa?"Cena – brutto. Оплата за оформлення договору та фіксацію ціни – 1000 zł":"Cena – brutto. Opłata za sporządzenie umowy i ustalenie ceny – 1000 zł"}
           </div>
 
-          {stoneAmt>0&&(
+          {/* STONE UPSELL */}
+          {stoneAmt&&(
             <div style={{marginTop:16,background:"linear-gradient(135deg,#7f1d1d,#991b1b)",borderRadius:12,padding:"16px 20px",border:"2px solid #fca5a5"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                 <div>
@@ -661,7 +690,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
               <div style={{fontSize:11,color:"#666",lineHeight:1.6}}>
                 {isUa?"ДСП Кроношпан Білий/Сірий/Антрацит 16/18mm. Екологічний сертифікат.":"ДСП Кроношпан Белый/Серый/Антрацит 16/18mm. Экологический сертификат."}
               </div>
-              <img src={IMG_KRONOSPAN} alt="Kronospan" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}} onError={e=>e.target.style.display="none"}/>
+              <img src={IMG_KRONOSPAN} alt="Kronospan" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}}/>
             </div>
             {/* Fronty */}
             <div style={{padding:14,borderRadius:10,border:"1px solid #e8e0d4",background:"#faf8f5"}}>
@@ -669,7 +698,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
               <div style={{fontSize:11,color:"#666",lineHeight:1.6}}>
                 {isUa?"234+ кольори. Лак, МДФ, шпон, плівка.":"234+ kolorów. Lakier, MDF, fornir, folia."}
               </div>
-              <img src={IMG_FRONTY} alt="Fronty" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}} onError={e=>e.target.style.display="none"}/>
+              <img src={IMG_FRONTY} alt="Fronty" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}}/>
             </div>
             {/* Hettich */}
             <div style={{padding:14,borderRadius:10,border:"1px solid #e8e0d4",background:"#faf8f5"}}>
@@ -677,14 +706,14 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
               <div style={{fontSize:11,color:"#666",lineHeight:1.6}}>
                 Ciche domykanie, wysoka trwałość, 80 000–200 000 cykli.
               </div>
-              <img src={IMG_HETTICH} alt="Hettich" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}} onError={e=>e.target.style.display="none"}/>
+              <img src={IMG_HETTICH} alt="Hettich" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}}/>
             </div>
             {/* Guarantee */}
             <div style={{padding:14,borderRadius:10,border:"2px solid #bfa47e",background:"#fffbf5"}}>
               <div style={{fontSize:13,fontWeight:800,color:"#00132f",marginBottom:4}}>🏆 {isUa?"ГАРАНТІЯ НА ВСЮ КУХНЮ":"GWARANCJA NA CAŁĄ KUCHNIĘ"}</div>
               <div style={{fontSize:18,fontWeight:900,color:"#bfa47e",marginBottom:4}}>5 {isUa?"РОКІВ":"LAT"}</div>
               <div style={{fontSize:11,color:"#666",lineHeight:1.6}}>{isUa?"Офіційна гарантія виробника":"Oficjalna gwarancja producenta"}</div>
-              <img src={IMG_HANDSHAKE} alt="Guarantee" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}} onError={e=>e.target.style.display="none"}/>
+              <img src={IMG_HANDSHAKE} alt="Guarantee" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}}/>
             </div>
           </div>
         </div>
@@ -727,16 +756,16 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
             ))}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
-            <img src={IMG_SHOWROOM1} alt="showroom" style={{width:"100%",height:"140px",objectFit:"cover",borderRadius:8}} onError={e=>e.target.style.display="none"}/>
-            <img src={IMG_TEAM} alt="team" style={{width:"100%",height:"140px",objectFit:"cover",borderRadius:8}} onError={e=>e.target.style.display="none"}/>
-            <img src={IMG_RODA} alt="roda" style={{width:"100%",height:"140px",objectFit:"cover",borderRadius:8}} onError={e=>e.target.style.display="none"}/>
+            <img src={IMG_SHOWROOM1} alt="showroom" style={{width:"100%",height:"140px",objectFit:"cover",borderRadius:8}}/>
+            <img src={IMG_TEAM} alt="team" style={{width:"100%",height:"140px",objectFit:"cover",borderRadius:8}}/>
+            <img src={IMG_RODA} alt="roda" style={{width:"100%",height:"140px",objectFit:"cover",borderRadius:8}}/>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
             <div>
               <div style={{fontSize:12,fontWeight:700,color:"#bfa47e",marginBottom:4}}>📍 Domaniewska 37B, 1 piętro</div>
               <div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Westfield Mokotów, Warszawa</div>
             </div>
-            <img src={IMG_MAP} alt="map" style={{width:"100%",height:"100px",objectFit:"cover",borderRadius:8,border:"1px solid rgba(191,164,126,0.3)"}} onError={e=>e.target.style.display="none"}/>
+            <img src={IMG_MAP} alt="map" style={{width:"100%",height:"100px",objectFit:"cover",borderRadius:8,border:"1px solid rgba(191,164,126,0.3)"}}/>
           </div>
         </div>
 
@@ -749,6 +778,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
     </div>
   );
 }
+
 
 // ─── SALE MODAL ───────────────────────────────────────────────────────────────
 function SaleModal({lead,t,onConfirm,onCancel}){
@@ -858,6 +888,7 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr}){
 function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,binId,onRefresh,theme,toggleTheme}){
   const [showUsers,setShowUsers]=useState(false);
   const [showBinId,setShowBinId]=useState(false);
+  const syncColor=syncLabel==="✓"?C.green:syncLabel==="!"?C.red:syncLabel==="⟳"?C.yellow:C.green;
   const isDark=theme==="dark";
   return(
     <div style={{height:56,background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10,padding:"0 14px",flexShrink:0}}>
@@ -867,6 +898,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search} style={{background:"transparent",border:"none",outline:"none",color:"#fff",fontSize:12,width:170}}/>
       </div>
       <div style={{flex:1}}/>
+      {/* Refresh button — saves requests vs auto-polling */}
       <button onClick={onRefresh} title="Получить свежие данные от команды"
         style={{display:"flex",alignItems:"center",gap:6,background:C.card,border:`1px solid ${C.border}`,borderRadius:7,padding:"4px 12px",cursor:"pointer",fontSize:11,fontWeight:600,color:syncLabel==="⟳"?C.yellow:syncLabel==="✓"?C.green:syncLabel==="!"?C.red:C.muted,transition:"color 0.3s"}}>
         <span style={{fontSize:14,display:"inline-block",animation:syncLabel==="⟳"?"spin 1s linear infinite":"none"}}>
@@ -874,6 +906,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
         </span>
         {syncLabel==="⟳"?"Загрузка...":syncLabel==="✓"?"Обновлено!":syncLabel==="!"?"Ошибка":"Обновить"}
       </button>
+      {/* Bin ID share button */}
       <div style={{position:"relative"}}>
         <button onClick={()=>setShowBinId(p=>!p)} title="Bin ID для команды"
           style={{background:C.card,border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"4px 10px",fontSize:10,cursor:"pointer",fontWeight:600}}>
@@ -901,10 +934,12 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
       </div>
       <button onClick={onAddLead} style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",gap:8,boxShadow:`0 2px 14px rgba(191,164,126,0.4)`}}><span style={{fontSize:16,fontWeight:900}}>+</span> {t.addLead}</button>
       <div style={{display:"flex",gap:2,background:C.card,borderRadius:8,padding:3,border:`1px solid ${C.border}`}}>{["ru","pl"].map(l=><button key={l} onClick={()=>setLang(l)} style={{padding:"4px 10px",borderRadius:6,border:"none",background:lang===l?C.accentDim:"transparent",color:lang===l?C.accent:C.muted,cursor:"pointer",fontSize:11,fontWeight:700}}>{l.toUpperCase()}</button>)}</div>
+      {/* Theme toggle */}
       <button onClick={toggleTheme} title={isDark?"Светлая тема":"Тёмная тема"}
         style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 10px",cursor:"pointer",fontSize:15,lineHeight:1,color:C.muted}}>
         {isDark?"☀️":"🌙"}
       </button>
+      {/* User switcher */}
       <div style={{position:"relative"}}>
         <button onClick={()=>setShowUsers(p=>!p)} style={{display:"flex",alignItems:"center",gap:8,background:C.card,border:`1px solid ${MGR_COLOR[currentUser]||C.accentBorder}`,borderRadius:10,padding:"6px 12px",cursor:"pointer",color:C.text}}>
           <div style={{width:24,height:24,borderRadius:"50%",background:`${MGR_COLOR[currentUser]||C.accent}25`,border:`2px solid ${MGR_COLOR[currentUser]||C.accent}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:MGR_COLOR[currentUser]||C.accent}}>{(currentUser||"?")[0].toUpperCase()}</div>
@@ -982,9 +1017,10 @@ function LeadsPage({leads,setLeads,setLeadsNow,t,mgr,search,onOpen}){
   const ss={background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
   const fl=filterByRange(leads,range).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||l.name.toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).filter(l=>fQ==="all"||l.qualification===fQ).filter(l=>fA==="all"||l.action===fA).filter(l=>fS==="all"||l.source===fS).sort((a,b)=>{
     if(sort==="score") return b.score-a.score;
+    // Parse DD.MM.YYYY date for proper sorting
     const parseDate=(s)=>{if(!s)return 0;const p=s.split(".");if(p.length===3)return new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0;return 0;};
     if(sort==="date") return parseDate(b.createdAt)-parseDate(a.createdAt);
-    return parseDate(b.createdAt)-parseDate(a.createdAt);
+    return parseDate(b.createdAt)-parseDate(a.createdAt); // default also by date desc
   });
   const toggleOne=(id,e)=>{e.stopPropagation();setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});};
   const toggleAll=()=>setSelected(selected.size===fl.length&&fl.length>0?new Set():new Set(fl.map(l=>l.id)));
@@ -1055,6 +1091,7 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
   const confirmSale=(amt,saleDate)=>{
     const upd={...form,saleAmount:amt,isDone:true};
     setLeads(p=>p.map(l=>l.id===lead.id?{...l,...upd}:l));
+    // Format ISO date → DD.MM.YYYY for display and filtering
     let createdAt=new Date().toLocaleDateString("ru-RU");
     if(saleDate){try{const d=new Date(saleDate);createdAt=d.toLocaleDateString("ru-RU");}catch{}}
     onAddSale({id:Date.now(),leadId:lead.leadId||lead.id,name:form.name,phone:form.phone,manager:form.manager||"—",source:form.source,createdAt,saleAmount:amt,notes:form.notes});
@@ -1102,7 +1139,7 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
 function CalendarPage({events,setEvents,setEventsNow,t,lang}){
   const [calDate,setCalDate]=useState(()=>{const d=new Date();return{year:d.getFullYear(),month:d.getMonth()};});
   const [popup,setPopup]=useState(null);
-  const [dayModal,setDayModal]=useState(null);
+  const [dayModal,setDayModal]=useState(null); // {date, events[]}
   const prevM=()=>setCalDate(p=>{const m=p.month-1;return m<0?{year:p.year-1,month:11}:{year:p.year,month:m};});
   const nextM=()=>setCalDate(p=>{const m=p.month+1;return m>11?{year:p.year+1,month:0}:{year:p.year,month:m};});
   const dIM=new Date(calDate.year,calDate.month+1,0).getDate();
@@ -1121,7 +1158,8 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
     });
   };
   const sorted=[...events].filter(e=>e.date.startsWith(mStr)).sort((a,b)=>a.date===b.date?a.time.localeCompare(b.time):a.date.localeCompare(b.date));
-  const MAX_VISIBLE=3;
+
+  const MAX_VISIBLE=3; // max events shown in cell before "еще N"
 
   return(
     <div style={{padding:18}}>
@@ -1133,6 +1171,7 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
         <button onClick={()=>setPopup({initDate:TODAY,initEvent:null})} style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ {t.addEvent}</button>
       </div>
 
+      {/* CALENDAR GRID */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",marginBottom:16}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:`1px solid ${C.border}`}}>
           {days.map(d=><div key={d} style={{padding:"10px 6px",textAlign:"center",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5}}>{d}</div>)}
@@ -1152,7 +1191,9 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
                 style={{minHeight:110,padding:"5px 5px 4px",borderRight:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,background:isToday?"rgba(191,164,126,0.08)":"transparent",cursor:"pointer"}}
                 onMouseEnter={e=>e.currentTarget.style.background=isToday?"rgba(191,164,126,0.12)":"rgba(255,255,255,0.02)"}
                 onMouseLeave={e=>e.currentTarget.style.background=isToday?"rgba(191,164,126,0.08)":"transparent"}>
+                {/* Day number */}
                 <div style={{width:24,height:24,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isToday?C.accent:"transparent",color:isToday?"#00132f":C.muted,fontSize:12,fontWeight:isToday?700:400,marginBottom:3,flexShrink:0}}>{day}</div>
+                {/* Events — max 3 visible */}
                 {visible.map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(
                   <div key={ev.id}
                     onClick={e=>{e.stopPropagation();setPopup({initDate:ds,initEvent:ev});}}
@@ -1164,6 +1205,7 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
                     </div>
                   </div>
                 );})}
+                {/* "Ещё N" button */}
                 {hidden>0&&(
                   <button
                     onClick={e=>{e.stopPropagation();setDayModal({date:ds,evs:dayEvs});}}
@@ -1177,6 +1219,7 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
         </div>
       </div>
 
+      {/* EVENT LIST BELOW CALENDAR */}
       <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>
         {lang==="ru"?"Все события месяца":"Wszystkie wydarzenia miesiąca"}
       </div>
@@ -1197,9 +1240,11 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
         );})}
       </div>
 
+      {/* DAY DETAIL MODAL — показывает все события дня */}
       {dayModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3500}} onClick={()=>setDayModal(null)}>
           <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,border:`1px solid ${C.accentBorder}`,width:"min(420px,95vw)",maxHeight:"80vh",overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.7)"}}>
+            {/* Modal header */}
             <div style={{background:"linear-gradient(135deg,#001f4e,#002259)",padding:"16px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
               <div>
                 <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:2}}>
@@ -1209,6 +1254,7 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
               </div>
               <button onClick={()=>setDayModal(null)} style={{background:"transparent",border:"none",color:C.muted,fontSize:20,cursor:"pointer",lineHeight:1}}>✕</button>
             </div>
+            {/* Event list */}
             <div style={{overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>
               {dayModal.evs.map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(
                 <div key={ev.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",background:C.card,borderRadius:10,border:`1px solid ${c}33`,borderLeft:`4px solid ${c}`,cursor:"pointer"}}
@@ -1229,6 +1275,7 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
                     style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:13,padding:"2px 4px",flexShrink:0}}>✕</button>
                 </div>
               );})}
+              {/* Add event for this day */}
               <button onClick={()=>{setDayModal(null);setPopup({initDate:dayModal.date,initEvent:null});}}
                 style={{background:C.accentDim,border:`1px dashed ${C.accentBorder}`,color:C.accent,borderRadius:10,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer",marginTop:4}}>
                 + Добавить событие
@@ -1292,7 +1339,7 @@ function localAns(q,leads,events){
 }
 
 function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
-  const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [apiOk,setApiOk]=useState(true);const [kpData,setKpData]=useState(null);const [memory,setMemory]=useState([]);const ref=useRef(null);
+  const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [apiOk,setApiOk]=useState(true);const [showApiStatus,setShowApiStatus]=useState(false);const [kpData,setKpData]=useState(null);const [memory,setMemory]=useState([]);const ref=useRef(null);
   useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[chatHistory]);
   const QUICK=["Задачи Dmytro сегодня","Задачи Oleh сегодня","Задачи Patryk сегодня","Статистика менеджеров","Незаконченные задачи","Все события сегодня","Итог дня","Лучший по конверсии?"];
   const buildCtx=()=>{const todayEvs=events.filter(e=>e.date===TODAY);const mStats=MANAGERS.map(m=>{const ml=leads.filter(l=>l.manager===m);const mev=todayEvs.filter(e=>e.manager===m);return`${m}:лидов=${ml.length},kwaly=${ml.filter(l=>l.score>=4).length},продаж=${ml.filter(l=>l.score===6).length},avg=${ml.length?(ml.reduce((s,l)=>s+l.score,0)/ml.length).toFixed(1):0},задачи=[${mev.map(e=>`${e.time} ${e.type}:${e.title}`).join(";")||"нет"}]`;}).join(" | ");const memCtx=memory.length?`\nОбучение: ${memory.join("; ")}`:"";;return`Ты GarnoAI — ассистент CRM GARNO Custom Furniture (Польша). 0-2=неквалиф,3=предв,4=квалиф,5=визит,6=продажа.\nДанные: лидов=${leads.length}, ${mStats}\nСегодня=${TODAY}. Незакрытых=${leads.filter(l=>["missedCall","callback"].includes(l.action)).length}${memCtx}`;};
@@ -1304,7 +1351,9 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
     const leadId=idM[1];const amount=parseInt(amtM[1].replace(/\s/g,""))||0;
     const lead=leads.find(l=>(l.leadId||"").toString()===leadId||l.id.toString()===leadId);
     if(!lead||amount<=0)return null;
+    // Detect language
     const kpLang=msg.match(/укр[аи]|ua\b/i)?"ua":"pl";
+    // Detect stone option: "каменная столешница 3000" or "stone 2500"
     const stoneM=msg.match(/(?:кам[еє]н|stone|кварц|граніт|граниt)[^\d]*(\d[\d\s]*)/i);
     const stoneAmt=stoneM?parseInt(stoneM[1].replace(/\s/g,""))||0:0;
     const stoneLabelM=msg.match(/["«]([^"»]+)["»]/);
@@ -1328,6 +1377,7 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
           <span style={{fontSize:13,fontWeight:700,color:"#fff"}}>GarnoAI</span>
           <span style={{fontSize:10,color:C.muted}}>claude-sonnet · {leads.length} leads</span>
           {memory.length>0&&<span style={{fontSize:10,color:C.blue}}>📚 {memory.length} фактов</span>}
+          
         </div>
         <div style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
           {chatHistory.map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}><div style={{maxWidth:"82%",padding:"10px 14px",background:m.role==="user"?C.accentDim:C.surface,border:`1px solid ${m.role==="user"?C.accentBorder:C.border}`,borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",fontSize:12,color:C.text,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{m.content}</div></div>))}
@@ -1403,6 +1453,7 @@ function GarnoCRM(){
   const [currentUser,setCurrentUser]=useState(()=>localStorage.getItem("garno_user")||null);
   const [theme,setTheme]=useState(()=>localStorage.getItem("garno_theme")||"dark");
 
+  // Apply theme globally
   C = theme==="light" ? LIGHT : DARK;
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);localStorage.setItem("garno_theme",t);};
   const t=T[lang];
@@ -1427,6 +1478,7 @@ function GarnoCRM(){
   );
   if(!db) return null;
 
+  // User picker
   if(!currentUser) return(
     <div style={{display:"flex",height:"100vh",background:C.bg,alignItems:"center",justifyContent:"center",flexDirection:"column",gap:24,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
       <style>{`*{box-sizing:border-box;}`}</style>
@@ -1471,6 +1523,7 @@ function GarnoCRM(){
             -webkit-font-smoothing: antialiased;
           }
           td, th { font-weight: 600 !important; }
+          .crm-muted { font-weight: 600; }
         ` : ""}
         @media print{.no-print{display:none!important;}#kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;}}
       `}</style>
