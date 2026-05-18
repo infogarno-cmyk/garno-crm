@@ -210,35 +210,85 @@ function useDatabase(){
   const localRef=useRef(null);
   const savingRef=useRef(false);
   const saveTimer=useRef(null);
-  const pendingRef=useRef(null); // stores latest data waiting to be written
 
-  // ── Migrate existing data ──────────────────────────────────────────────────
+  // ── Migrate old data (us→ua) ───────────────────────────────────────────────
   const migrateData=(data)=>{
-    let changed=false;
-    // Fix us. → ua. in all leads
-    const leads=(data.leads||[]).map(l=>{
-      if(l.source==="us.calculatorkuchni.online"){
-        changed=true;
-        return {...l,source:"ua.calculatorkuchni.online"};
-      }
-      return l;
-    });
-    if(changed) return {...data,leads};
-    return data;
+    const leads=(data.leads||[]).map(l=>
+      l.source==="us.calculatorkuchni.online"?{...l,source:"ua.calculatorkuchni.online"}:l
+    );
+    const changed=leads.some((l,i)=>l!==data.leads[i]);
+    return changed?{...data,leads}:data;
   };
 
-  // ── Immediate write (for critical ops like delete) ─────────────────────────
-  const writeNow=async(data)=>{
-    if(!cfgRef.current) return;
+  // ── MERGE: combine remote + local changes safely ────────────────────────────
+  // Strategy: remote is the source of truth for items we didn't touch.
+  // We track what changed locally and apply it ON TOP of latest remote data.
+  const mergeWrite=async(localData)=>{
+    if(!cfgRef.current)return;
     savingRef.current=true;
     setSyncLabel("⟳");
     try{
-      await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,data);
-      localRef.current=JSON.stringify(data);
-      setSyncLabel("✓");
-      setTimeout(()=>setSyncLabel("●"),2000);
+      // 1. Read latest from server
+      let remote;
+      try{ remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey); }
+      catch{ remote=null; }
+
+      if(!remote){
+        // Can't read remote — write local as-is
+        await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,localData);
+        localRef.current=JSON.stringify(localData);
+        setSyncLabel("✓");setTimeout(()=>setSyncLabel("●"),2000);
+        return;
+      }
+
+      // 2. Merge: keep remote items that are NOT in local (added by others)
+      // + apply all local items (added/modified/deleted by this user)
+      const localIds=new Set((localData.leads||[]).map(l=>l.id));
+      const remoteIds=new Set((remote.leads||[]).map(l=>l.id));
+
+      // Items added by OTHER users while we were working (in remote but not local)
+      const remoteOnly=(remote.leads||[]).filter(l=>!localIds.has(l.id));
+
+      // Our local leads (includes our adds and removes)
+      const merged=[
+        ...(localData.leads||[]),  // everything we have (our state is authoritative for our changes)
+        ...remoteOnly,              // others' new leads we don't have yet
+      ].sort((a,b)=>{
+        // Sort by date desc
+        const parseDate=(s)=>{if(!s)return 0;const p=s.split(".");if(p.length===3)return new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0;return 0;};
+        return parseDate(b.createdAt)-parseDate(a.createdAt);
+      });
+
+      // Same merge for events and sales (add remote-only items)
+      const localEvIds=new Set((localData.events||[]).map(e=>e.id));
+      const remoteOnlyEvs=(remote.events||[]).filter(e=>!localEvIds.has(e.id));
+      const mergedEvents=[...(localData.events||[]),...remoteOnlyEvs];
+
+      const localSaleIds=new Set((localData.sales||[]).map(s=>s.id));
+      const remoteOnlySales=(remote.sales||[]).filter(s=>!localSaleIds.has(s.id));
+      const mergedSales=[...(localData.sales||[]),...remoteOnlySales];
+
+      const final={
+        ...localData,
+        leads:merged,
+        events:mergedEvents,
+        sales:mergedSales,
+        nextNum:Math.max(localData.nextNum||0,remote.nextNum||0),
+        chat:localData.chat, // keep local chat
+      };
+
+      // 3. Write merged result
+      await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,final);
+      localRef.current=JSON.stringify(final);
+
+      // Update UI if we got new remote data
+      if(remoteOnly.length>0||remoteOnlyEvs.length>0||remoteOnlySales.length>0){
+        setDbState(final);
+      }
+
+      setSyncLabel("✓");setTimeout(()=>setSyncLabel("●"),2000);
     }catch(e){
-      console.error("Write failed:",e);
+      console.error("mergeWrite failed:",e);
       setSyncLabel("!");
     }finally{savingRef.current=false;}
   };
@@ -252,13 +302,7 @@ function useDatabase(){
       try{
         setSyncLabel("⟳");
         let data=await binRead(cfg.binId,cfg.apiKey);
-        // Auto-migrate old data
-        const migrated=migrateData(data);
-        if(migrated!==data){
-          data=migrated;
-          // Save migrated data silently
-          binWrite(cfg.binId,cfg.apiKey,data).catch(()=>{});
-        }
+        data=migrateData(data);
         localRef.current=JSON.stringify(data);
         setDbState(data);
         setStatus("ready");
@@ -273,9 +317,7 @@ function useDatabase(){
     setSyncLabel("⟳");
     try{
       const data=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
-      const json=JSON.stringify(data);
-      localRef.current=json;
-      pendingRef.current=null;
+      localRef.current=JSON.stringify(data);
       setDbState(data);
       setSyncLabel("✓");
       setTimeout(()=>setSyncLabel("●"),1500);
@@ -286,37 +328,21 @@ function useDatabase(){
     }
   };
 
-  // ── Update — debounced 400ms for edits, immediate for deletes ─────────────
+  // ── updateDb: optimistic UI + merge-write ─────────────────────────────────
   const updateDb=(upd,immediate=false)=>{
     setDbState(prev=>{
       const next=typeof upd==="function"?upd(prev):upd;
-      pendingRef.current=next;
+      localRef.current=JSON.stringify(next);
+
       if(immediate){
-        // Write immediately — no debounce (for deletes/adds)
-        if(saveTimer.current) clearTimeout(saveTimer.current);
-        saveTimer.current=null;
-        localRef.current=JSON.stringify(next); // update immediately to prevent stale reads
-        writeNow(next).then(()=>{pendingRef.current=null;});
+        if(saveTimer.current){clearTimeout(saveTimer.current);saveTimer.current=null;}
+        mergeWrite(next);
       } else {
-        // Debounced write for edits/adds
-        localRef.current=JSON.stringify(next);
-        savingRef.current=true;
-        setSyncLabel("⟳");
         if(saveTimer.current) clearTimeout(saveTimer.current);
-        saveTimer.current=setTimeout(async()=>{
-          try{
-            await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,next);
-            localRef.current=JSON.stringify(next);
-            pendingRef.current=null;
-            setSyncLabel("✓");
-            setTimeout(()=>setSyncLabel("●"),2000);
-          }catch(e){
-            console.error("Write failed:",e);
-            setSyncLabel("!");
-            alert("❌ Ошибка сохранения: "+e.message);
-          }
-          finally{savingRef.current=false;}
-        },400);
+        saveTimer.current=setTimeout(()=>{
+          const current=JSON.parse(localRef.current||"{}");
+          mergeWrite(current);
+        },600);
       }
       return next;
     });
@@ -325,7 +351,6 @@ function useDatabase(){
   const configure=async(cfg,initData)=>{
     lsSet(LS_KEY,cfg);cfgRef.current=cfg;
     localRef.current=JSON.stringify(initData);
-    pendingRef.current=null;
     setDbState(initData);setStatus("ready");
   };
 
