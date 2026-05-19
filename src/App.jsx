@@ -225,12 +225,15 @@ function useDatabase(){
   const [db,setDbState]=useState(null);
   const [status,setStatus]=useState("loading");
   const [syncLabel,setSyncLabel]=useState("●");
+  const [syncError,setSyncError]=useState("");
   const cfgRef=useRef(null);
   const localRef=useRef(null);
   const savingRef=useRef(false);
   const saveTimer=useRef(null);
+  const retryTimer=useRef(null);
+  const LS_BACKUP="garno_backup";
 
-  // ── Migrate old data (us→ua) ───────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const migrateData=(data)=>{
     const leads=(data.leads||[]).map(l=>
       l.source==="us.calculatorkuchni.online"?{...l,source:"ua.calculatorkuchni.online"}:l
@@ -239,77 +242,96 @@ function useDatabase(){
     return changed?{...data,leads}:data;
   };
 
-  // ── MERGE: combine remote + local changes safely ────────────────────────────
-  // Strategy: remote is the source of truth for items we didn't touch.
-  // We track what changed locally and apply it ON TOP of latest remote data.
+  const sortLeads=(arr)=>{
+    const pd=(s)=>{if(!s)return 0;const p=s.split(".");if(p.length===3)return new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0;return 0;};
+    return [...arr].sort((a,b)=>pd(b.createdAt)-pd(a.createdAt));
+  };
+
+  // Merge two datasets — local takes priority for items it has, remote fills gaps
+  const mergeData=(local,remote)=>{
+    if(!remote) return local;
+    const localIds=new Set((local.leads||[]).map(l=>l.id));
+    const remoteOnlyLeads=(remote.leads||[]).filter(l=>!localIds.has(l.id));
+    const localEvIds=new Set((local.events||[]).map(e=>e.id));
+    const remoteOnlyEvs=(remote.events||[]).filter(e=>!localEvIds.has(e.id));
+    const localSaleIds=new Set((local.sales||[]).map(s=>s.id));
+    const remoteOnlySales=(remote.sales||[]).filter(s=>!localSaleIds.has(s.id));
+    return{
+      ...local,
+      leads:sortLeads([...(local.leads||[]),...remoteOnlyLeads]),
+      events:[...(local.events||[]),...remoteOnlyEvs],
+      sales:[...(local.sales||[]),...remoteOnlySales],
+      nextNum:Math.max(local.nextNum||0,remote.nextNum||0),
+      chat:local.chat,
+    };
+  };
+
+  // ── MERGE-WRITE: read-fresh → merge local+remote → write back ──────────────
+  // Каждый раз читает актуальный remote перед записью, поэтому не теряет
+  // лиды добавленные другими пользователями пока шла запись.
   const mergeWrite=async(localData)=>{
     if(!cfgRef.current)return;
     savingRef.current=true;
     setSyncLabel("⟳");
+    try{lsSet(LS_BACKUP,localData);}catch{}
     try{
-      // 1. Read latest from server
+      // 1. Читаем самый свежий remote
       let remote;
-      try{ remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey); }
-      catch{ remote=null; }
-
-      if(!remote){
-        // Can't read remote — write local as-is
-        await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,localData);
-        localRef.current=JSON.stringify(localData);
-        setSyncLabel("✓");setTimeout(()=>setSyncLabel("●"),2000);
-        return;
-      }
-
-      // 2. Merge: keep remote items that are NOT in local (added by others)
-      // + apply all local items (added/modified/deleted by this user)
-      const localIds=new Set((localData.leads||[]).map(l=>l.id));
-      const remoteIds=new Set((remote.leads||[]).map(l=>l.id));
-
-      // Items added by OTHER users while we were working (in remote but not local)
-      const remoteOnly=(remote.leads||[]).filter(l=>!localIds.has(l.id));
-
-      // Our local leads (includes our adds and removes)
-      const merged=[
-        ...(localData.leads||[]),  // everything we have (our state is authoritative for our changes)
-        ...remoteOnly,              // others' new leads we don't have yet
-      ].sort((a,b)=>{
-        // Sort by date desc
-        const parseDate=(s)=>{if(!s)return 0;const p=s.split(".");if(p.length===3)return new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0;return 0;};
-        return parseDate(b.createdAt)-parseDate(a.createdAt);
-      });
-
-      // Same merge for events and sales (add remote-only items)
-      const localEvIds=new Set((localData.events||[]).map(e=>e.id));
-      const remoteOnlyEvs=(remote.events||[]).filter(e=>!localEvIds.has(e.id));
-      const mergedEvents=[...(localData.events||[]),...remoteOnlyEvs];
-
-      const localSaleIds=new Set((localData.sales||[]).map(s=>s.id));
-      const remoteOnlySales=(remote.sales||[]).filter(s=>!localSaleIds.has(s.id));
-      const mergedSales=[...(localData.sales||[]),...remoteOnlySales];
-
-      const final={
-        ...localData,
-        leads:merged,
-        events:mergedEvents,
-        sales:mergedSales,
-        nextNum:Math.max(localData.nextNum||0,remote.nextNum||0),
-        chat:localData.chat, // keep local chat
-      };
-
-      // 3. Write merged result
+      try{remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);}catch{remote=null;}
+      // 2. Объединяем: local + то что есть на сервере но нет у нас
+      const final=mergeData(localData,remote);
+      // 3. Пишем объединённый результат
       await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,final);
       localRef.current=JSON.stringify(final);
-
-      // Update UI if we got new remote data
-      if(remoteOnly.length>0||remoteOnlyEvs.length>0||remoteOnlySales.length>0){
-        setDbState(final);
-      }
-
-      setSyncLabel("✓");setTimeout(()=>setSyncLabel("●"),2000);
+      // 4. Если remote принёс новые лиды — обновляем UI
+      const gotNew=(remote?.leads||[]).some(l=>!(localData.leads||[]).find(x=>x.id===l.id));
+      const gotNewEvs=(remote?.events||[]).some(e=>!(localData.events||[]).find(x=>x.id===e.id));
+      if(gotNew||gotNewEvs){setDbState(final);}
+      setSyncLabel("✓");setSyncError("");
+      setTimeout(()=>setSyncLabel("●"),2000);
+      try{localStorage.removeItem(LS_BACKUP);}catch{}
     }catch(e){
       console.error("mergeWrite failed:",e);
       setSyncLabel("!");
+      const em=e.message||"";
+      if(em.includes("401")||em.includes("403")){
+        setSyncError("❌ Неверный Master Key. Данные сохранены локально, используй тот же ключ что у создателя базы.");
+      } else if(em.includes("429")){
+        setSyncError("⏳ Лимит запросов JSONBin. Повтор через 65 сек...");
+        if(retryTimer.current)clearTimeout(retryTimer.current);
+        retryTimer.current=setTimeout(()=>{mergeWrite(JSON.parse(localRef.current||"{}"));},65000);
+      } else {
+        setSyncError("⚠️ Ошибка синхронизации. Данные сохранены локально.");
+      }
     }finally{savingRef.current=false;}
+  };
+
+  // ── Фоновый авто-мёрдж каждые 20 сек ────────────────────────────────────
+  // Решает race condition: если два менеджера пишут одновременно,
+  // через 20 сек каждый подтянет данные другого и запишет объединённый результат.
+  const bgSyncRef=useRef(null);
+  const startBgSync=()=>{
+    if(bgSyncRef.current)clearInterval(bgSyncRef.current);
+    bgSyncRef.current=setInterval(()=>{
+      if(!cfgRef.current||savingRef.current)return;
+      const local=JSON.parse(localRef.current||"{}");
+      if(!local.leads)return;
+      // Тихий мёрдж: читаем remote, объединяем, обновляем UI если нужно
+      (async()=>{
+        try{
+          const remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
+          const gotNew=(remote?.leads||[]).some(l=>!(local.leads||[]).find(x=>x.id===l.id));
+          const gotNewEvs=(remote?.events||[]).some(e=>!(local.events||[]).find(x=>x.id===e.id));
+          if(gotNew||gotNewEvs){
+            // Есть новые данные от других — мёрджим и пишем
+            const merged=mergeData(local,remote);
+            try{await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,merged);}catch{}
+            localRef.current=JSON.stringify(merged);
+            setDbState(merged);
+          }
+        }catch{}
+      })();
+    },20000);
   };
 
   // ── Load on mount ─────────────────────────────────────────────────────────
@@ -322,46 +344,52 @@ function useDatabase(){
         setSyncLabel("⟳");
         let data=await binRead(cfg.binId,cfg.apiKey);
         data=migrateData(data);
+        // Если есть локальный backup с несохранёнными данными — мёрджим
+        const backup=lsGet(LS_BACKUP);
+        if(backup&&backup.leads&&backup.leads.length>0){
+          data=mergeData(backup,data);
+          try{await binWrite(cfg.binId,cfg.apiKey,data);localStorage.removeItem(LS_BACKUP);}catch{}
+        }
         localRef.current=JSON.stringify(data);
         setDbState(data);
         setStatus("ready");
         setSyncLabel("●");
+        startBgSync();
       }catch(e){console.error(e);setStatus("error");}
     })();
+    return()=>{if(bgSyncRef.current)clearInterval(bgSyncRef.current);};
   },[]); // eslint-disable-line
 
-  // ── Manual refresh ────────────────────────────────────────────────────────
+  // ── Manual refresh — merge, не перезапись ────────────────────────────────
   const refresh=async()=>{
     if(!cfgRef.current||savingRef.current)return;
     setSyncLabel("⟳");
     try{
-      const data=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
-      localRef.current=JSON.stringify(data);
-      setDbState(data);
-      setSyncLabel("✓");
+      const remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
+      const local=JSON.parse(localRef.current||"{}");
+      const merged=mergeData(local,remote);
+      localRef.current=JSON.stringify(merged);
+      setDbState(merged);
+      setSyncLabel("✓");setSyncError("");
       setTimeout(()=>setSyncLabel("●"),1500);
     }catch(e){
-      console.error(e);
-      setSyncLabel("!");
+      console.error(e);setSyncLabel("!");
       setTimeout(()=>setSyncLabel("●"),3000);
     }
   };
 
-  // ── updateDb: optimistic UI + merge-write ─────────────────────────────────
+  // ── updateDb: оптимистичный UI + merge-write ──────────────────────────────
   const updateDb=(upd,immediate=false)=>{
     setDbState(prev=>{
       const next=typeof upd==="function"?upd(prev):upd;
       localRef.current=JSON.stringify(next);
-
+      try{lsSet(LS_BACKUP,next);}catch{}
       if(immediate){
         if(saveTimer.current){clearTimeout(saveTimer.current);saveTimer.current=null;}
         mergeWrite(next);
       } else {
-        if(saveTimer.current) clearTimeout(saveTimer.current);
-        saveTimer.current=setTimeout(()=>{
-          const current=JSON.parse(localRef.current||"{}");
-          mergeWrite(current);
-        },600);
+        if(saveTimer.current)clearTimeout(saveTimer.current);
+        saveTimer.current=setTimeout(()=>{mergeWrite(JSON.parse(localRef.current||"{}"));},600);
       }
       return next;
     });
@@ -371,9 +399,10 @@ function useDatabase(){
     lsSet(LS_KEY,cfg);cfgRef.current=cfg;
     localRef.current=JSON.stringify(initData);
     setDbState(initData);setStatus("ready");
+    startBgSync();
   };
 
-  return{db,status,syncLabel,refresh,updateDb,configure};
+  return{db,status,syncLabel,syncError,refresh,updateDb,configure};
 }
 
 // ─── UI ATOMS ─────────────────────────────────────────────────────────────────
@@ -870,7 +899,7 @@ function AddLeadModal({onClose,onAdd,t,lang,nextNum,currentUser}){
 
   const submit=()=>{
     const createdAt=buildCreatedAt(form.dateOverride);
-    onAdd({...form,id:nextNum,leadId:makeLeadId(nextNum,createdAt),score:0,qualification:"unqualified",createdAt,isDone:false,quoteAmt:null,
+    onAdd({...form,id:Date.now(),leadId:makeLeadId(nextNum,createdAt),score:0,qualification:"unqualified",createdAt,isDone:false,quoteAmt:null,
       history:[{date:nowStr(),action:lang==="ru"?"Лид добавлен":"Lead dodany",by:currentUser||"Admin"}]});
     onClose();
   };
@@ -1131,12 +1160,7 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
   const [form,setForm]=useState({...lead});
   const [showSale,setShowSale]=useState(false);
   const set=(k,v)=>setForm(p=>{const u={...p,[k]:v};if(k==="score"){u.qualification=scoreToQual(v);if(parseInt(v)===6&&parseInt(p.score)!==6)setShowSale(true);}return u;});
-
-  // Date conversion helpers: "DD.MM.YYYY" ↔ "YYYY-MM-DD"
-  const createdAtToIso=(str)=>{if(!str)return new Date().toISOString().slice(0,10);const p=str.split(".");if(p.length!==3)return new Date().toISOString().slice(0,10);return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;};
-  const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("ru-RU");}catch{return str;}};
-
-  const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
+  const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
   const confirmSale=(amt,saleDate)=>{
     const upd={...form,saleAmount:amt,isDone:true};
     setLeads(p=>p.map(l=>l.id===lead.id?{...l,...upd}:l));
@@ -1158,10 +1182,6 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📞 Контакт</div>
             {inp("name",t.name)}{inp("phone",t.phone)}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select>:<SrcBadge source={form.source}/>}</div>
-              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.date||"Дата"}</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
-            </div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} small/>}</div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>:form.manager?<div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></div>:<span style={{color:C.dim}}>—</span>}</div>
           </div>
@@ -1383,7 +1403,7 @@ function AnalyticsPage({leads,sales,t}){
 // ─── AI PAGE ──────────────────────────────────────────────────────────────────
 function detectMsgLang(msg){
   if(/[їієÇ]/.test(msg)||(/[іє]/.test(msg)&&/[а-яА-Я]/.test(msg)))return"ua";
-  if(/[ąęóśźżńćłĄĘÓŚŹŻŃĆŁ]/.test(msg)||(/(wygener|ofert|kwot|dla\s)/i.test(msg)&&!/[а-яА-Я]/.test(msg)))return"pl";
+  if(/[ąęóśźżńćłĄĘÓŚŹŻŃĆŁ]/.test(msg)||(/(wygener|ofert|kwot|dla )/.test(msg)&&!/[а-яА-Я]/.test(msg)))return"pl";
   if(/[а-яА-ЯёЁ]/.test(msg))return"ru";
   return"pl";
 }
@@ -1401,7 +1421,7 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
   const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [apiOk,setApiOk]=useState(true);const [showApiStatus,setShowApiStatus]=useState(false);const [kpData,setKpData]=useState(null);const [memory,setMemory]=useState([]);const ref=useRef(null);
   useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[chatHistory]);
   const QUICK=["Задачи Dmytro сегодня","Задачи Oleh сегодня","Задачи Patryk сегодня","Статистика менеджеров","Незаконченные задачи","Все события сегодня","Итог дня","Лучший по конверсии?"];
-  const buildCtx=()=>{const todayEvs=events.filter(e=>e.date===TODAY);const mStats=MANAGERS.map(m=>{const ml=leads.filter(l=>l.manager===m);const mev=todayEvs.filter(e=>e.manager===m);return`${m}:лидов=${ml.length},kwaly=${ml.filter(l=>l.score>=4).length},продаж=${ml.filter(l=>l.score===6).length},avg=${ml.length?(ml.reduce((s,l)=>s+l.score,0)/ml.length).toFixed(1):0},задачи=[${mev.map(e=>`${e.time} ${e.type}:${e.title}`).join(";")||"нет"}]`;}).join(" | ");const memCtx=memory.length?`\nОбучение: ${memory.join("; ")}`:"";;return`Ты GarnoAI — ассистент CRM GARNO Custom Furniture (Польша). 0-2=неквалиф,3=предв,4=квалиф,5=визит,6=продажа. ВАЖНО: отвечай на том же языке что и пользователь (польский→по-польски, украинский→по-украински, русский→по-русски).\nДанные: лидов=${leads.length}, ${mStats}\nСегодня=${TODAY}. Незакрытых=${leads.filter(l=>["missedCall","callback"].includes(l.action)).length}${memCtx}`;};
+  const buildCtx=()=>{const todayEvs=events.filter(e=>e.date===TODAY);const mStats=MANAGERS.map(m=>{const ml=leads.filter(l=>l.manager===m);const mev=todayEvs.filter(e=>e.manager===m);return`${m}:лидов=${ml.length},kwaly=${ml.filter(l=>l.score>=4).length},продаж=${ml.filter(l=>l.score===6).length},avg=${ml.length?(ml.reduce((s,l)=>s+l.score,0)/ml.length).toFixed(1):0},задачи=[${mev.map(e=>`${e.time} ${e.type}:${e.title}`).join(";")||"нет"}]`;}).join(" | ");const memCtx=memory.length?`\nОбучение: ${memory.join("; ")}`:"";;return`Ты GarnoAI — ассистент CRM GARNO Custom Furniture (Польша). 0-2=неквалиф,3=предв,4=квалиф,5=визит,6=продажа. ВАЖНО: всегда отвечай на том же языке что и пользователь.\nДанные: лидов=${leads.length}, ${mStats}\nСегодня=${TODAY}. Незакрытых=${leads.filter(l=>["missedCall","callback"].includes(l.action)).length}${memCtx}`;};
   const detectKP=(msg)=>{
     const m1=msg.match(/(?:кп|ofert|предложен|коммерч|пропозиц)/i);if(!m1)return null;
     const idM=msg.match(/(?:id|лид|лід)[=\s#:]?\s*(\d{5,})/i);
@@ -1423,7 +1443,7 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
     const msg=text||input;if(!msg.trim()||loading)return;setInput("");
     if(msg.toLowerCase().startsWith("запомни:")){const info=msg.replace(/^запомни:\s*/i,"").trim();setMemory(p=>[...p,info]);setChatHistory(p=>[...p,{role:"user",content:msg},{role:"assistant",content:`✅ Запомнил:\n"${info}"`}]);return;}
     const kp=detectKP(msg);
-    if(kp){const langLabel=kp.kpLang==="ua"?"🇺🇦 UA":"🇵🇱 PL";const ml=detectMsgLang(msg);const genMsg=ml==="pl"?`📄 Generuję ofertę ${langLabel} dla ${kp.lead.name||kp.lead.phone} (${kp.lead.leadId}) · ${fmtM(kp.amount)}${kp.stoneAmt?` + blat ${fmtM(kp.stoneAmt)}`:""}...`:ml==="ua"?`📄 Генерую КП ${langLabel} для ${kp.lead.name||kp.lead.phone} (${kp.lead.leadId}) · ${fmtM(kp.amount)}${kp.stoneAmt?` + камінь ${fmtM(kp.stoneAmt)}`:""}...`:`📄 Генерирую КП ${langLabel} для ${kp.lead.name||kp.lead.phone} (${kp.lead.leadId}) · ${fmtM(kp.amount)}${kp.stoneAmt?` + камень ${fmtM(kp.stoneAmt)}`:""}...`;setChatHistory(p=>[...p,{role:"user",content:msg},{role:"assistant",content:genMsg}]);setTimeout(()=>setKpData(kp),400);return;}
+    if(kp){const langLabel=kp.kpLang==="ua"?"🇺🇦 UA":"🇵🇱 PL";setChatHistory(p=>[...p,{role:"user",content:msg},{role:"assistant",content:`📄 Генерирую КП ${langLabel} для ${kp.lead.name||kp.lead.phone} (${kp.lead.leadId}) · ${fmtM(kp.amount)}${kp.stoneAmt?` + камень ${fmtM(kp.stoneAmt)}`:""}...`}]);setTimeout(()=>setKpData(kp),400);return;}
     const upd=[...chatHistory,{role:"user",content:msg}];setChatHistory(upd);setLoading(true);
     if(apiOk){try{const ctrl=new AbortController();setTimeout(()=>ctrl.abort(),14000);const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:ctrl.signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,system:buildCtx(),messages:upd.map(m=>({role:m.role,content:m.content}))})});const data=await res.json();if(!res.ok||data.error){setApiOk(false);setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);}else{setChatHistory(p=>[...p,{role:"assistant",content:(data.content?.map(c=>c.text||"").join("\n")||"").replace(/\*\*/g,"")}]);setApiOk(true);}}catch{setApiOk(false);setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);}}else{setTimeout(()=>{setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);setLoading(false);},300);return;}
     setLoading(false);
@@ -1501,7 +1521,7 @@ export default function App(){
 }
 
 function GarnoCRM(){
-  const {db,status,syncLabel,refresh,updateDb,configure}=useDatabase();
+  const {db,status,syncLabel,syncError,refresh,updateDb,configure}=useDatabase();
   const [page,setPage]=useState("dashboard");
   const [selLead,setSelLead]=useState(null);
   const [lang,setLang]=useState("ru");
@@ -1588,7 +1608,8 @@ function GarnoCRM(){
       `}</style>
       <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} binId={db?._binId||lsGet(LS_KEY)?.binId||""} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
+        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} binId={db?._binId||lsGet(LS_KEY)?.binId||""} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
+        {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
           {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
