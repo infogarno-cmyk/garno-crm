@@ -732,7 +732,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           {/* TOTAL */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,padding:"20px 28px",background:"#00132f",borderRadius:12}}>
             <div style={{color:"#bfa47e",fontSize:22,fontWeight:800,letterSpacing:2,textTransform:"uppercase"}}>{isUa?"ЗАГАЛЬНА СУМА":"Łączna kwota"}</div>
-            <div style={{color:"#bfa47e",fontSize:38,fontWeight:900}}>{fmtM(stoneAmt?amount+stoneAmt:amount)}</div>
+            <div style={{color:"#bfa47e",fontSize:38,fontWeight:900}}>{fmtM(amount)}</div>
           </div>
 
           {/* STONE UPSELL */}
