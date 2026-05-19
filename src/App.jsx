@@ -644,7 +644,14 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:5000,overflowY:"auto"}} onClick={onClose}>
       <div className="no-print" onClick={e=>e.stopPropagation()} style={{position:"fixed",top:14,right:14,display:"flex",gap:8,zIndex:5001}}>
-        <button onClick={()=>window.print()} style={{background:"#bfa47e",color:"#00132f",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:800,cursor:"pointer"}}>🖨 PDF / Drukuj</button>
+        <button onClick={()=>{
+          const doc=document.getElementById("kp-doc");
+          if(!doc)return;
+          const w=window.open("","_blank","width=900,height=800");
+          w.document.write("<!DOCTYPE html><html><head><meta charset=utf-8><style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'DM Sans','Segoe UI',sans-serif;background:#fff;}@media print{@page{margin:0;size:A4 portrait;}body{margin:0;padding:0;}#kp-page1{page-break-after:always;break-after:page;}#kp-page2{page-break-before:always;break-before:page;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}</style></head><body>"+doc.outerHTML+"</body></html>");
+          w.document.close();
+          setTimeout(()=>{w.focus();w.print();},800);
+        }} style={{background:"#bfa47e",color:"#00132f",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:800,cursor:"pointer"}}>🖨 PDF / Drukuj</button>
         <button onClick={onClose} style={{background:"rgba(255,255,255,0.1)",color:"#fff",border:"1px solid rgba(255,255,255,0.2)",borderRadius:8,padding:"9px 14px",cursor:"pointer"}}>✕</button>
       </div>
 
@@ -1631,16 +1638,9 @@ function GarnoCRM(){
           .crm-muted { font-weight: 600; }
         ` : ""}
         @media print{
-          @page{margin:10mm;size:A4 portrait;}
           .no-print{display:none!important;}
           html,body{margin:0!important;padding:0!important;background:#fff!important;}
-          #kp-doc{
-            box-shadow:none!important;
-            margin:0!important;
-            border-radius:0!important;
-            width:190mm!important;
-            max-width:190mm!important;
-          }
+          #kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;max-width:100%!important;width:100%!important;}
           #kp-page1{page-break-after:always!important;break-after:page!important;}
           #kp-page2{page-break-before:always!important;break-before:page!important;}
           * {-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
