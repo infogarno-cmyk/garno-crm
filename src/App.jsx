@@ -327,13 +327,18 @@ function useDatabase(){
           // Always read local AFTER the network call — captures latest deletedLeadIds
           const local=JSON.parse(localRef.current||"{}");
           if(!local.leads)return;
-          const deletedSet=new Set(local.deletedLeadIds||[]);
+          const deletedSet=new Set([...(local.deletedLeadIds||[]),...(remote.deletedLeadIds||[])]);
           // Only merge if remote has NEW leads not present locally AND not deleted
           const remoteNewLeads=(remote?.leads||[]).filter(l=>!deletedSet.has(l.id)&&!(local.leads||[]).find(x=>x.id===l.id));
           const remoteNewEvs=(remote?.events||[]).filter(e=>!(local.events||[]).find(x=>x.id===e.id));
-          if(remoteNewLeads.length===0&&remoteNewEvs.length===0)return;
+          // Check if remote still has leads we already deleted — need to write back deletions
+          const remoteHasDeletedLeads=(remote?.leads||[]).some(l=>deletedSet.has(l.id));
+          if(remoteNewLeads.length===0&&remoteNewEvs.length===0&&!remoteHasDeletedLeads)return;
           // Build merged — deletedSet applied on both sides
           const merged=mergeData(local,remote);
+          // Force-apply deletedSet on merged to be 100% safe
+          merged.leads=(merged.leads||[]).filter(l=>!deletedSet.has(l.id));
+          merged.deletedLeadIds=[...deletedSet];
           try{await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,merged);}catch{}
           localRef.current=JSON.stringify(merged);
           setDbState(merged);
@@ -375,9 +380,16 @@ function useDatabase(){
     try{
       const remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
       const local=JSON.parse(localRef.current||"{}");
+      // Always use our local deletedLeadIds as authoritative — never let remote resurrect deleted leads
+      const deletedSet=new Set([...(local.deletedLeadIds||[]),...(remote.deletedLeadIds||[])]);
       const merged=mergeData(local,remote);
+      // Force-apply deletedSet on the merged result to be 100% safe
+      merged.leads=(merged.leads||[]).filter(l=>!deletedSet.has(l.id));
+      merged.deletedLeadIds=[...deletedSet];
       localRef.current=JSON.stringify(merged);
       setDbState(merged);
+      // Write back so remote also knows about all deletions
+      try{await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,merged);}catch{}
       setSyncLabel("✓");setSyncError("");
       setTimeout(()=>setSyncLabel("●"),1500);
     }catch(e){
@@ -648,7 +660,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           const doc=document.getElementById("kp-doc");
           if(!doc)return;
           const w=window.open("","_blank","width=900,height=800");
-          w.document.write("<!DOCTYPE html><html><head><meta charset=utf-8><style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'DM Sans','Segoe UI',sans-serif;background:#fff;}@media print{@page{margin:0;size:A4 portrait;}body{margin:0;padding:0;}#kp-page1{page-break-after:always;break-after:page;}#kp-page2{page-break-before:always;break-before:page;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}</style></head><body>"+doc.outerHTML+"</body></html>");
+          w.document.write("<!DOCTYPE html><html><head><meta charset=utf-8><style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'DM Sans','Segoe UI',sans-serif;background:#fff;font-size:12px;word-spacing:normal;letter-spacing:normal;}p,div,span{word-break:break-word;overflow-wrap:break-word;hyphens:auto;}@media print{@page{margin:0;size:A4 portrait;}body{margin:0;padding:0;}#kp-page1{page-break-after:always;break-after:page;}#kp-page2{page-break-before:always;break-before:page;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}</style></head><body>"+doc.outerHTML+"</body></html>");
           w.document.close();
           setTimeout(()=>{w.focus();w.print();},800);
         }} style={{background:"#bfa47e",color:"#00132f",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:800,cursor:"pointer"}}>🖨 PDF / Drukuj</button>
@@ -659,14 +671,14 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
       <div id="kp-page1">
         {/* MANAGER GREETING BANNER */}
         {mgr&&(
-          <div style={{background:"linear-gradient(135deg,#001840,#002d6e)",padding:"16px 48px",display:"flex",alignItems:"center",gap:20,borderBottom:"3px solid #bfa47e"}}>
-            {mgrPhoto&&<img src={mgrPhoto} alt={mgr} style={{width:110,height:110,borderRadius:"50%",objectFit:"cover",border:"3px solid #bfa47e",flexShrink:0}} onError={e=>e.target.style.display="none"}/>}
+          <div style={{background:"linear-gradient(135deg,#001840,#002d6e)",padding:"12px 32px",display:"flex",alignItems:"center",gap:16,borderBottom:"3px solid #bfa47e"}}>
+            {mgrPhoto&&<img src={mgrPhoto} alt={mgr} style={{width:90,height:90,borderRadius:"50%",objectFit:"cover",border:"3px solid #bfa47e",flexShrink:0}} onError={e=>e.target.style.display="none"}/>}
             <div>
-              <div style={{fontSize:26,fontWeight:800,color:"#fff",marginBottom:4}}>
+              <div style={{fontSize:20,fontWeight:800,color:"#fff",marginBottom:4}}>
                 {greeting} <b style={{color:"#bfa47e"}}>{name||"Kliencie"}</b>!{" "}
                 {isUa?"Ваш менеджер":"Pana/Pani menedżer"}: <b style={{color:"#bfa47e"}}>{mgr}</b>
               </div>
-              <div style={{fontSize:18,color:"rgba(255,255,255,0.85)",marginTop:4}}>
+              <div style={{fontSize:14,color:"rgba(255,255,255,0.85)",marginTop:4}}>
                 🎁 {isUa
                   ?"Вам доступна безкоштовна консультація + демонстрація проекту + вибір матеріалів у шоурумі"
                   :"Dostępna bezpłatna konsultacja + demonstracja projektu + wybór materiałów w showroomie"}
@@ -676,37 +688,37 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
         )}
 
         {/* HEADER */}
-        <div style={{background:"#00132f",padding:"36px 48px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{background:"#00132f",padding:"20px 32px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div>
-            <div style={{fontSize:32,fontWeight:900,letterSpacing:3,color:"#bfa47e"}}>GARNO</div>
-            <div style={{fontSize:11,color:"rgba(191,164,126,0.7)",letterSpacing:4,textTransform:"uppercase",marginTop:2}}>Custom Furniture</div>
+            <div style={{fontSize:26,fontWeight:900,letterSpacing:3,color:"#bfa47e"}}>GARNO</div>
+            <div style={{fontSize:10,color:"rgba(191,164,126,0.7)",letterSpacing:4,textTransform:"uppercase",marginTop:2}}>Custom Furniture</div>
           </div>
           <div style={{textAlign:"right"}}>
-            <div style={{color:"#bfa47e",fontSize:12,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>{isUa?"КОМЕРЦІЙНА ПРОПОЗИЦІЯ":"OFERTA HANDLOWA"}</div>
-            <div style={{color:"rgba(255,255,255,0.5)",fontSize:11}}>GARNO/{lead.leadId}/{new Date().getFullYear()}</div>
-            <div style={{color:"rgba(255,255,255,0.5)",fontSize:11}}>{isUa?todayUa:today}</div>
+            <div style={{color:"#bfa47e",fontSize:11,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>{isUa?"КОМЕРЦІЙНА ПРОПОЗИЦІЯ":"OFERTA HANDLOWA"}</div>
+            <div style={{color:"rgba(255,255,255,0.5)",fontSize:10}}>GARNO/{lead.leadId}/{new Date().getFullYear()}</div>
+            <div style={{color:"rgba(255,255,255,0.5)",fontSize:10}}>{isUa?todayUa:today}</div>
           </div>
         </div>
         <div style={{height:3,background:"linear-gradient(90deg,#bfa47e,#d4b896,#bfa47e)"}}/>
 
         {/* CLIENT INFO */}
-        <div style={{padding:"28px 48px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:28}}>
+        <div style={{padding:"16px 32px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
           <div>
-            <div style={{fontSize:10,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{isUa?"КЛІЄНТ":"KLIENT"}</div>
-            <div style={{fontSize:20,fontWeight:700,color:"#00132f",marginBottom:4}}>{lead.name||"—"}</div>
-            <div style={{fontSize:13,color:"#555"}}>{lead.phone}</div>
-            <div style={{fontSize:11,color:"#999",marginTop:4}}>ID: <b style={{color:"#bfa47e"}}>{lead.leadId}</b></div>
+            <div style={{fontSize:9,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{isUa?"КЛІЄНТ":"KLIENT"}</div>
+            <div style={{fontSize:17,fontWeight:700,color:"#00132f",marginBottom:3}}>{lead.name||"—"}</div>
+            <div style={{fontSize:12,color:"#555"}}>{lead.phone}</div>
+            <div style={{fontSize:10,color:"#999",marginTop:3}}>ID: <b style={{color:"#bfa47e"}}>{lead.leadId}</b></div>
           </div>
           <div>
-            <div style={{fontSize:10,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>GARNO Custom Furniture</div>
-            <div style={{fontSize:12,color:"#555",lineHeight:2}}>garnofurniture.com<br/>garnofurniture.ukr<br/>Warszawa, Polska</div>
+            <div style={{fontSize:9,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>GARNO Custom Furniture</div>
+            <div style={{fontSize:11,color:"#555",lineHeight:1.8}}>garnofurniture.com<br/>garnofurniture.ukr<br/>Warszawa, Polska</div>
           </div>
         </div>
-        <div style={{margin:"0 48px",height:1,background:"#e8e0d4"}}/>
+        <div style={{margin:"0 32px",height:1,background:"#e8e0d4"}}/>
 
         {/* PRICING TABLE */}
-        <div style={{padding:"28px 48px"}}>
-          <div style={{fontSize:10,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>
+        <div style={{padding:"16px 32px"}}>
+          <div style={{fontSize:9,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>
             {isUa?"ДЕТАЛЬНИЙ РОЗРАХУНОК":"SZCZEGÓŁOWA WYCENA"}
           </div>
 
@@ -737,9 +749,9 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           </div>
 
           {/* TOTAL */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,padding:"20px 28px",background:"#00132f",borderRadius:12}}>
-            <div style={{color:"#bfa47e",fontSize:22,fontWeight:800,letterSpacing:2,textTransform:"uppercase"}}>{isUa?"ЗАГАЛЬНА СУМА":"Łączna kwota"}</div>
-            <div style={{color:"#bfa47e",fontSize:38,fontWeight:900}}>{fmtM(amount)}</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,padding:"14px 22px",background:"#00132f",borderRadius:12}}>
+            <div style={{color:"#bfa47e",fontSize:18,fontWeight:800,letterSpacing:2,textTransform:"uppercase"}}>{isUa?"ЗАГАЛЬНА СУМА":"Łączna kwota"}</div>
+            <div style={{color:"#bfa47e",fontSize:32,fontWeight:900}}>{fmtM(amount)}</div>
           </div>
 
           {/* STONE UPSELL */}
@@ -763,41 +775,41 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
         </div>
 
         {/* MATERIALS */}
-        <div style={{padding:"0 48px 28px"}}>
-          <div style={{fontSize:10,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>
+        <div style={{padding:"0 32px 16px"}}>
+          <div style={{fontSize:9,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>
             {isUa?"МАТЕРІАЛИ ТА ЯКІСТЬ":"MATERIAŁY I JAKOŚĆ"}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             {/* Kronospan */}
-            <div style={{padding:14,borderRadius:10,border:"1px solid #e8e0d4",background:"#faf8f5"}}>
-              <div style={{fontSize:12,fontWeight:700,color:"#00132f",marginBottom:4}}>🪵 {isUa?"Корпуси — Kronospan":"Korpusy — Kronospan"}</div>
-              <div style={{fontSize:11,color:"#666",lineHeight:1.6}}>
+            <div style={{padding:10,borderRadius:10,border:"1px solid #e8e0d4",background:"#faf8f5"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#00132f",marginBottom:3}}>🪵 {isUa?"Корпуси — Kronospan":"Korpusy — Kronospan"}</div>
+              <div style={{fontSize:10,color:"#666",lineHeight:1.5}}>
                 {isUa?"ДСП Кроношпан Білий/Сірий/Антрацит 16/18мм. Екологічний сертифікат.":"Płyta wiórowa Kronospan Biały/Szary/Antracyt 16/18mm. Certyfikat ekologiczny."}
               </div>
-              <img src={IMG_KRONOSPAN} alt="Kronospan" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}}/>
+              <img src={IMG_KRONOSPAN} alt="Kronospan" style={{width:"100%",height:"70px",objectFit:"cover",borderRadius:6,marginTop:6}}/>
             </div>
             {/* Fronty */}
-            <div style={{padding:14,borderRadius:10,border:"1px solid #e8e0d4",background:"#faf8f5"}}>
-              <div style={{fontSize:12,fontWeight:700,color:"#00132f",marginBottom:4}}>✨ {isUa?"Фасади Kronospan (Ціна – Якість)":"Fronty Kronospan (Cena – Jakość)"}</div>
-              <div style={{fontSize:11,color:"#666",lineHeight:1.6}}>
+            <div style={{padding:10,borderRadius:10,border:"1px solid #e8e0d4",background:"#faf8f5"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#00132f",marginBottom:3}}>✨ {isUa?"Фасади Kronospan (Ціна – Якість)":"Fronty Kronospan (Cena – Jakość)"}</div>
+              <div style={{fontSize:10,color:"#666",lineHeight:1.5}}>
                 {isUa?"234+ кольори. Лак, МДФ, шпон, плівка.":"234+ kolorów. Lakier, MDF, fornir, folia."}
               </div>
-              <img src={IMG_FRONTY} alt="Fronty" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}}/>
+              <img src={IMG_FRONTY} alt="Fronty" style={{width:"100%",height:"70px",objectFit:"cover",borderRadius:6,marginTop:6}}/>
             </div>
             {/* Hettich */}
-            <div style={{padding:14,borderRadius:10,border:"1px solid #e8e0d4",background:"#faf8f5"}}>
-              <div style={{fontSize:12,fontWeight:700,color:"#00132f",marginBottom:4}}>⚙️ {isUa?"Фурнітура Hettich 🇩🇪 (Німеччина)":"Okucia Hettich 🇩🇪 (Niemcy)"}</div>
-              <div style={{fontSize:11,color:"#666",lineHeight:1.6}}>
+            <div style={{padding:10,borderRadius:10,border:"1px solid #e8e0d4",background:"#faf8f5"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#00132f",marginBottom:3}}>⚙️ {isUa?"Фурнітура Hettich 🇩🇪 (Німеччина)":"Okucia Hettich 🇩🇪 (Niemcy)"}</div>
+              <div style={{fontSize:10,color:"#666",lineHeight:1.5}}>
                 {isUa?"Тихе закривання, висока міцність, 80 000–200 000 циклів.":"Ciche domykanie, wysoka trwałość, 80 000–200 000 cykli."}
               </div>
-              <img src={IMG_HETTICH} alt="Hettich" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}}/>
+              <img src={IMG_HETTICH} alt="Hettich" style={{width:"100%",height:"70px",objectFit:"cover",borderRadius:6,marginTop:6}}/>
             </div>
             {/* Guarantee */}
-            <div style={{padding:14,borderRadius:10,border:"2px solid #bfa47e",background:"#fffbf5"}}>
-              <div style={{fontSize:13,fontWeight:800,color:"#00132f",marginBottom:4}}>🏆 {isUa?"ГАРАНТІЯ НА ВСЮ КУХНЮ":"GWARANCJA NA CAŁĄ KUCHNIĘ"}</div>
-              <div style={{fontSize:18,fontWeight:900,color:"#bfa47e",marginBottom:4}}>5 {isUa?"РОКІВ":"LAT"}</div>
-              <div style={{fontSize:11,color:"#666",lineHeight:1.6}}>{isUa?"Офіційна гарантія виробника":"Oficjalna gwarancja producenta"}</div>
-              <img src={IMG_HANDSHAKE} alt="Guarantee" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}}/>
+            <div style={{padding:10,borderRadius:10,border:"2px solid #bfa47e",background:"#fffbf5"}}>
+              <div style={{fontSize:12,fontWeight:800,color:"#00132f",marginBottom:3}}>🏆 {isUa?"ГАРАНТІЯ НА ВСЮ КУХНЮ":"GWARANCJA NA CAŁĄ KUCHNIĘ"}</div>
+              <div style={{fontSize:16,fontWeight:900,color:"#bfa47e",marginBottom:3}}>5 {isUa?"РОКІВ":"LAT"}</div>
+              <div style={{fontSize:10,color:"#666",lineHeight:1.5}}>{isUa?"Офіційна гарантія виробника":"Oficjalna gwarancja producenta"}</div>
+              <img src={IMG_HANDSHAKE} alt="Guarantee" style={{width:"100%",height:"70px",objectFit:"cover",borderRadius:6,marginTop:6}}/>
             </div>
           </div>
         </div>
