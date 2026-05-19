@@ -276,6 +276,8 @@ function useDatabase(){
   const mergeWrite=async(localData)=>{
     if(!cfgRef.current)return;
     savingRef.current=true;
+    // Pause bg sync during write to avoid concurrent read-write race
+    if(bgSyncRef.current){clearInterval(bgSyncRef.current);bgSyncRef.current=null;}
     setSyncLabel("⟳");
     try{lsSet(LS_BACKUP,localData);}catch{}
     try{
@@ -307,7 +309,7 @@ function useDatabase(){
       } else {
         setSyncError("⚠️ Ошибка синхронизации. Данные сохранены локально.");
       }
-    }finally{savingRef.current=false;}
+    }finally{savingRef.current=false;startBgSync();}
   };
 
   // ── Фоновый авто-мёрдж каждые 20 сек ────────────────────────────────────
@@ -324,7 +326,8 @@ function useDatabase(){
       (async()=>{
         try{
           const remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
-          const gotNew=(remote?.leads||[]).some(l=>!(local.leads||[]).find(x=>x.id===l.id));
+          const deletedSet=new Set(local.deletedLeadIds||[]);
+          const gotNew=(remote?.leads||[]).some(l=>!deletedSet.has(l.id)&&!(local.leads||[]).find(x=>x.id===l.id));
           const gotNewEvs=(remote?.events||[]).some(e=>!(local.events||[]).find(x=>x.id===e.id));
           if(gotNew||gotNewEvs){
             // Есть новые данные от других — мёрджим и пишем
@@ -1103,10 +1106,11 @@ function LeadsPage({leads,setLeads,setLeadsNow,t,mgr,search,onOpen}){
   const toggleAll=()=>setSelected(selected.size===fl.length&&fl.length>0?new Set():new Set(fl.map(l=>l.id)));
   const deleteSelected=()=>{
     const toDelete=[...selected];
-    setLeadsNow(p=>p.filter(l=>!selected.has(l.id)));
-    // Record deleted IDs so bg sync never restores them
-    updateDb(prev=>({...prev,
-      leads:(prev.leads||[]).filter(l=>!selected.has(l.id)),
+    // ONE atomic update: filter leads + record deleted IDs together
+    // so mergeWrite always sees deletedLeadIds before it reads remote
+    updateDb(prev=>({
+      ...prev,
+      leads:(prev.leads||[]).filter(l=>!toDelete.includes(l.id)),
       deletedLeadIds:[...new Set([...(prev.deletedLeadIds||[]),...toDelete])]
     }),true);
     setSelected(new Set());
