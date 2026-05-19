@@ -1090,7 +1090,7 @@ function Dashboard({leads,events,t,lang}){
 }
 
 // ─── LEADS PAGE ───────────────────────────────────────────────────────────────
-function LeadsPage({leads,setLeads,setLeadsNow,t,mgr,search,onOpen}){
+function LeadsPage({leads,setLeads,setLeadsNow,updateDb,t,mgr,search,onOpen}){
   const [range,setRange]=useState("all");
   const [fQ,setFQ]=useState("all");const [fA,setFA]=useState("all");const [fS,setFS]=useState("all");const [sort,setSort]=useState("date");
   const [selected,setSelected]=useState(new Set());
@@ -1635,7 +1635,7 @@ function GarnoCRM(){
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
-          {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
+          {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} t={t} lang={lang}/>}
           {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} t={t} lang={lang}/>}
           {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory}/>}
