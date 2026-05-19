@@ -649,7 +649,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
       </div>
 
       <div id="kp-doc" onClick={e=>e.stopPropagation()} style={{background:"#fff",maxWidth:794,margin:"56px auto 40px",borderRadius:8,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.5)",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
-
+      <div id="kp-page1">
         {/* MANAGER GREETING BANNER */}
         {mgr&&(
           <div style={{background:"linear-gradient(135deg,#001840,#002d6e)",padding:"16px 48px",display:"flex",alignItems:"center",gap:20,borderBottom:"3px solid #bfa47e"}}>
@@ -719,7 +719,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
             </div>
             <div style={{textAlign:"right"}}>
               <span style={{fontSize:13,color:"#aaa",textDecoration:"line-through"}}>{fmtM(Math.round(amount*0.13))}</span>
-              <div style={{fontSize:13,fontWeight:800,color:"#16a34a"}}>BEZPŁATNIE ✓</div>
+              <div style={{fontSize:13,fontWeight:800,color:"#16a34a"}}>{isUa?"БЕЗКОШТОВНО ✓":"BEZPŁATNIE ✓"}</div>
             </div>
           </div>
 
@@ -731,7 +731,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
 
           {/* TOTAL */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,padding:"20px 28px",background:"#00132f",borderRadius:12}}>
-            <div style={{color:"#bfa47e",fontSize:22,fontWeight:800,letterSpacing:2,textTransform:"uppercase"}}>Łączna kwota</div>
+            <div style={{color:"#bfa47e",fontSize:22,fontWeight:800,letterSpacing:2,textTransform:"uppercase"}}>{isUa?"ЗАГАЛЬНА СУМА":"Łączna kwota"}</div>
             <div style={{color:"#bfa47e",fontSize:38,fontWeight:900}}>{fmtM(stoneAmt?amount+stoneAmt:amount)}</div>
           </div>
 
@@ -741,10 +741,10 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                 <div>
                   <div style={{fontSize:11,color:"#fca5a5",fontWeight:700,marginBottom:4}}>
-                    🔥 {isUa?"ЗНИЖКА! Преміум стільниця з кварцового конгломерату":"СКИДКА! Premiumowy blat z konglomeratu kwarcowego"}
+                    🔥 {isUa?"ЗНИЖКА! Преміум стільниця з кварцового конгломерату":"RABAT! Blatpremium z konglomeratu kwarcowego"}
                   </div>
                   <div style={{fontSize:12,color:"#fff",marginBottom:4}}>{stoneLabel||"Blat premium — kwarc/granit"}</div>
-                      <div style={{fontSize:13,fontWeight:800,color:"#4ade80",marginTop:4}}>50% {isUa?"ЗНИЖКА":"СКИДКА"} до {freeDeadline()}</div>
+                      <div style={{fontSize:13,fontWeight:800,color:"#4ade80",marginTop:4}}>50% {isUa?"ЗНИЖКА":"RABAT"} do {freeDeadline()}</div>
                 </div>
                 <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
                   <div style={{fontSize:13,color:"rgba(255,255,255,0.6)"}}>{fmtM(stoneAmt*2)} − 50% =</div>
@@ -763,15 +763,15 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             {/* Kronospan */}
             <div style={{padding:14,borderRadius:10,border:"1px solid #e8e0d4",background:"#faf8f5"}}>
-              <div style={{fontSize:12,fontWeight:700,color:"#00132f",marginBottom:4}}>🪵 Korpusy — Kronospan</div>
+              <div style={{fontSize:12,fontWeight:700,color:"#00132f",marginBottom:4}}>🪵 {isUa?"Корпуси — Kronospan":"Korpusy — Kronospan"}</div>
               <div style={{fontSize:11,color:"#666",lineHeight:1.6}}>
-                {isUa?"ДСП Кроношпан Білий/Сірий/Антрацит 16/18mm. Екологічний сертифікат.":"ДСП Кроношпан Белый/Серый/Антрацит 16/18mm. Экологический сертификат."}
+                {isUa?"ДСП Кроношпан Білий/Сірий/Антрацит 16/18мм. Екологічний сертифікат.":"Płyta wiórowa Kronospan Biały/Szary/Antracyt 16/18mm. Certyfikat ekologiczny."}
               </div>
               <img src={IMG_KRONOSPAN} alt="Kronospan" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}}/>
             </div>
             {/* Fronty */}
             <div style={{padding:14,borderRadius:10,border:"1px solid #e8e0d4",background:"#faf8f5"}}>
-              <div style={{fontSize:12,fontWeight:700,color:"#00132f",marginBottom:4}}>✨ Fronty Kronospan (Cena – Jakość)</div>
+              <div style={{fontSize:12,fontWeight:700,color:"#00132f",marginBottom:4}}>✨ {isUa?"Фасади Kronospan (Ціна – Якість)":"Fronty Kronospan (Cena – Jakość)"}</div>
               <div style={{fontSize:11,color:"#666",lineHeight:1.6}}>
                 {isUa?"234+ кольори. Лак, МДФ, шпон, плівка.":"234+ kolorów. Lakier, MDF, fornir, folia."}
               </div>
@@ -779,9 +779,9 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
             </div>
             {/* Hettich */}
             <div style={{padding:14,borderRadius:10,border:"1px solid #e8e0d4",background:"#faf8f5"}}>
-              <div style={{fontSize:12,fontWeight:700,color:"#00132f",marginBottom:4}}>⚙️ Okucia Hettich 🇩🇪 (Niemcy)</div>
+              <div style={{fontSize:12,fontWeight:700,color:"#00132f",marginBottom:4}}>⚙️ {isUa?"Фурнітура Hettich 🇩🇪 (Німеччина)":"Okucia Hettich 🇩🇪 (Niemcy)"}</div>
               <div style={{fontSize:11,color:"#666",lineHeight:1.6}}>
-                Ciche domykanie, wysoka trwałość, 80 000–200 000 cykli.
+                {isUa?"Тихе закривання, висока міцність, 80 000–200 000 циклів.":"Ciche domykanie, wysoka trwałość, 80 000–200 000 cykli."}
               </div>
               <img src={IMG_HETTICH} alt="Hettich" style={{width:"100%",height:"90px",objectFit:"cover",borderRadius:6,marginTop:8}}/>
             </div>
@@ -795,6 +795,8 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           </div>
         </div>
 
+      </div>{/* end kp-page1 */}
+      <div id="kp-page2">
         {/* CO DALEJ */}
         <div style={{background:"#00132f",padding:"40px 48px"}}>
           <div style={{fontSize:26,fontWeight:900,color:"#bfa47e",marginBottom:4}}>{isUa?"що далі?":"co dalej?"}</div>
@@ -838,12 +840,12 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"center"}}>
             <div>
-              <div style={{fontSize:12,fontWeight:700,color:"#bfa47e",marginBottom:4}}>📍 Domaniewska 37B, 1 piętro</div>
+              <div style={{fontSize:12,fontWeight:700,color:"#bfa47e",marginBottom:4}}>📍 Domaniewska 37B, 1 {isUa?"поверх":"piętro"}</div>
               <div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Westfield Mokotów, Warszawa</div>
             </div>
             <a href="https://www.google.com/maps/place/Garno+Furniture+-+meble+na+wymiar/@52.1819041,21.0041964,17z" target="_blank" rel="noopener noreferrer"
               style={{display:"block",padding:"12px 16px",background:"rgba(191,164,126,0.15)",border:"1px solid rgba(191,164,126,0.4)",borderRadius:8,textDecoration:"none",textAlign:"center"}}>
-              <div style={{fontSize:13,color:"#bfa47e",fontWeight:700,marginBottom:4}}>🗺️ Nasz Showroom Warszawa</div>
+              <div style={{fontSize:13,color:"#bfa47e",fontWeight:700,marginBottom:4}}>🗺️ {isUa?"Наш шоурум Варшава":"Nasz Showroom Warszawa"}</div>
               <div style={{fontSize:11,color:"rgba(255,255,255,0.6)"}}>Garno Furniture – Google Maps →</div>
             </a>
           </div>
@@ -852,9 +854,10 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
         {/* FOOTER */}
         <div style={{background:"#bfa47e",padding:"14px 48px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{fontSize:12,color:"#00132f",fontWeight:800}}>GARNO Custom Furniture</div>
-          <div style={{fontSize:10,color:"rgba(0,19,47,0.65)"}}>Ważność oferty: 30 dni</div>
+          <div style={{fontSize:10,color:"rgba(0,19,47,0.65)"}}>{isUa?"Термін дії пропозиції: 30 днів":"Ważność oferty: 30 dni"}</div>
         </div>
-      </div>
+      </div>{/* end kp-page2 */}
+      </div>{/* end kp-doc */}
     </div>
   );
 }
@@ -1627,7 +1630,14 @@ function GarnoCRM(){
           td, th { font-weight: 600 !important; }
           .crm-muted { font-weight: 600; }
         ` : ""}
-        @media print{.no-print{display:none!important;}#kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;}}
+        @media print{
+          .no-print{display:none!important;}
+          html,body{margin:0!important;padding:0!important;background:#fff!important;}
+          #kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;max-width:100%!important;width:100%!important;}
+          #kp-page1{page-break-after:always!important;break-after:page!important;}
+          #kp-page2{page-break-before:always!important;break-before:page!important;}
+          * {-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
+        }
       `}</style>
       <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
