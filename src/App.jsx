@@ -250,18 +250,22 @@ function useDatabase(){
   // Merge two datasets — local takes priority for items it has, remote fills gaps
   const mergeData=(local,remote)=>{
     if(!remote) return local;
+    // Deleted IDs — union of both sides so deleted leads never come back
+    const deletedIds=new Set([...(local.deletedLeadIds||[]),...(remote.deletedLeadIds||[])]);
     const localIds=new Set((local.leads||[]).map(l=>l.id));
-    const remoteOnlyLeads=(remote.leads||[]).filter(l=>!localIds.has(l.id));
+    // Remote-only leads that are NOT in our deleted list
+    const remoteOnlyLeads=(remote.leads||[]).filter(l=>!localIds.has(l.id)&&!deletedIds.has(l.id));
     const localEvIds=new Set((local.events||[]).map(e=>e.id));
     const remoteOnlyEvs=(remote.events||[]).filter(e=>!localEvIds.has(e.id));
     const localSaleIds=new Set((local.sales||[]).map(s=>s.id));
     const remoteOnlySales=(remote.sales||[]).filter(s=>!localSaleIds.has(s.id));
     return{
       ...local,
-      leads:sortLeads([...(local.leads||[]),...remoteOnlyLeads]),
+      leads:sortLeads([...(local.leads||[]).filter(l=>!deletedIds.has(l.id)),...remoteOnlyLeads]),
       events:[...(local.events||[]),...remoteOnlyEvs],
       sales:[...(local.sales||[]),...remoteOnlySales],
       nextNum:Math.max(local.nextNum||0,remote.nextNum||0),
+      deletedLeadIds:[...deletedIds],
       chat:local.chat,
     };
   };
@@ -1097,7 +1101,16 @@ function LeadsPage({leads,setLeads,setLeadsNow,t,mgr,search,onOpen}){
   });
   const toggleOne=(id,e)=>{e.stopPropagation();setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});};
   const toggleAll=()=>setSelected(selected.size===fl.length&&fl.length>0?new Set():new Set(fl.map(l=>l.id)));
-  const deleteSelected=()=>{setLeadsNow(p=>p.filter(l=>!selected.has(l.id)));setSelected(new Set());};
+  const deleteSelected=()=>{
+    const toDelete=[...selected];
+    setLeadsNow(p=>p.filter(l=>!selected.has(l.id)));
+    // Record deleted IDs so bg sync never restores them
+    updateDb(prev=>({...prev,
+      leads:(prev.leads||[]).filter(l=>!selected.has(l.id)),
+      deletedLeadIds:[...new Set([...(prev.deletedLeadIds||[]),...toDelete])]
+    }),true);
+    setSelected(new Set());
+  };
   const toggleFav=(id,e)=>{e.stopPropagation();setLeads(p=>p.map(l=>l.id===id?{...l,isFavorite:!l.isFavorite}:l));};
   const allChecked=fl.length>0&&selected.size===fl.length;
   const someChecked=selected.size>0&&selected.size<fl.length;
@@ -1160,7 +1173,9 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
   const [form,setForm]=useState({...lead});
   const [showSale,setShowSale]=useState(false);
   const set=(k,v)=>setForm(p=>{const u={...p,[k]:v};if(k==="score"){u.qualification=scoreToQual(v);if(parseInt(v)===6&&parseInt(p.score)!==6)setShowSale(true);}return u;});
-  const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
+  const createdAtToIso=(str)=>{if(!str)return new Date().toISOString().slice(0,10);const p=str.split(".");if(p.length!==3)return new Date().toISOString().slice(0,10);return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;};
+  const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);if(isNaN(d))return iso;return d.toLocaleDateString("ru-RU");}catch{return iso;}};
+  const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
   const confirmSale=(amt,saleDate)=>{
     const upd={...form,saleAmount:amt,isDone:true};
     setLeads(p=>p.map(l=>l.id===lead.id?{...l,...upd}:l));
@@ -1172,7 +1187,7 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
   };
   const inp=(field,label)=>(<div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{label}</div>{editing?<input value={form[field]||""} onChange={e=>set(field,e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",boxSizing:"border-box"}}/>:<div style={{fontSize:13,color:form[field]?C.text:C.dim}}>{form[field]||"—"}</div>}</div>);
   return(<>
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:1000}} onClick={onClose}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:"16px 16px 0 0",border:`1px solid ${C.border}`,width:"100%",maxWidth:820,maxHeight:"90vh",overflow:"auto",padding:22}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44}/><div><div style={{fontSize:16,fontWeight:700,color:C.text}}>{lead.name||lead.phone}</div><div style={{fontSize:11,color:C.muted}}>ID: <b style={{color:C.accent,fontFamily:"monospace"}}>{lead.leadId||lead.id}</b> · {lead.phone}</div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
@@ -1182,6 +1197,10 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📞 Контакт</div>
             {inp("name",t.name)}{inp("phone",t.phone)}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select>:<SrcBadge source={form.source}/>}</div>
+              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Дата</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
+            </div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} small/>}</div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>:form.manager?<div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></div>:<span style={{color:C.dim}}>—</span>}</div>
           </div>
