@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { IMG_KRONOSPAN, IMG_FRONTY, IMG_HETTICH, IMG_HANDSHAKE, IMG_SHOWROOM1, IMG_TEAM, IMG_RODA, IMG_MAP, IMG_OLEH, IMG_DMYTRO, IMG_PATRYK, IMG_GARNO_NEON } from "./kpPhotos.js";
+import { IMG_KRONOSPAN, IMG_FRONTY, IMG_HETTICH, IMG_HANDSHAKE, IMG_SHOWROOM1, IMG_TEAM, IMG_RODA, IMG_MAP, IMG_OLEH, IMG_DMYTRO, IMG_PATRYK } from "./kpPhotos.js";
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import React from "react";
 
@@ -834,7 +834,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
             <img src={IMG_SHOWROOM1} alt="showroom" style={{width:"100%",height:"180px",objectFit:"cover",borderRadius:8}}/>
-            <img src={typeof IMG_GARNO_NEON!=="undefined"&&IMG_GARNO_NEON?IMG_GARNO_NEON:IMG_TEAM} alt="garno" style={{width:"100%",height:"180px",objectFit:"cover",borderRadius:8}}/>
+            <img src={IMG_RODA} alt="garno" style={{width:"100%",height:"180px",objectFit:"cover",borderRadius:8}}/>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"center"}}>
             <div>
