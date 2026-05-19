@@ -231,25 +231,21 @@ function useDatabase(){
   const savingRef=useRef(false);
   const saveTimer=useRef(null);
   const retryTimer=useRef(null);
-  // FIX 1: отдельный ref для deletedLeadIds — всегда актуален, не зависит от stale closure
-  const deletedIdsRef=useRef(new Set());
   const LS_BACKUP="garno_backup";
-  const LS_DELETED="garno_deleted"; // FIX 2: сохраняем удалённые ID в localStorage отдельно
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  // FIX 3: вспомогательная функция — читает АКТУАЛЬНЫЙ deletedSet из ref + localStorage
-  const getDeletedSet=()=>{
-    // Объединяем ref + localStorage на случай перезагрузки страницы
-    const fromLs=lsGet(LS_DELETED)||[];
-    const merged=new Set([...deletedIdsRef.current,...fromLs]);
-    deletedIdsRef.current=merged;
-    return merged;
-  };
-
   const migrateData=(data)=>{
-    const leads=(data.leads||[]).map(l=>
-      l.source==="us.calculatorkuchni.online"?{...l,source:"ua.calculatorkuchni.online"}:l
-    );
+    const leads=(data.leads||[]).map(l=>{
+      let updated=l;
+      if(l.source==="us.calculatorkuchni.online") updated={...updated,source:"ua.calculatorkuchni.online"};
+      // Backfill updatedAt for old leads — use createdAt parsed to timestamp, or 0
+      if(!updated.updatedAt){
+        const p=(updated.createdAt||"").split(".");
+        const ts=p.length===3?new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0:0;
+        updated={...updated,updatedAt:ts};
+      }
+      return updated;
+    });
     const changed=leads.some((l,i)=>l!==data.leads[i]);
     return changed?{...data,leads}:data;
   };
@@ -259,29 +255,39 @@ function useDatabase(){
     return [...arr].sort((a,b)=>pd(b.createdAt)-pd(a.createdAt));
   };
 
-  // Merge two datasets — local takes priority, deleted leads NEVER return
+  // Merge two datasets — FULL CONFLICT RESOLUTION:
+  // 1. New leads from remote are added locally
+  // 2. Existing leads: whichever side has the newer updatedAt wins (field-level sync)
+  // 3. Deleted leads never come back
   const mergeData=(local,remote)=>{
     if(!remote) return local;
-    // FIX 4: deletedIds = union из всех трёх источников (local data, remote data, ref+localStorage)
-    const deletedIds=new Set([
-      ...(local.deletedLeadIds||[]),
-      ...(remote.deletedLeadIds||[]),
-      ...getDeletedSet(), // самый свежий источник — ref обновляется синхронно при удалении
-    ]);
-    // Сохраняем обновлённый список удалённых в ref и localStorage
-    deletedIdsRef.current=deletedIds;
-    try{lsSet(LS_DELETED,[...deletedIds]);}catch{}
+    // Deleted IDs — union of both sides so deleted leads never come back
+    const deletedIds=new Set([...(local.deletedLeadIds||[]),...(remote.deletedLeadIds||[])]);
+    const localLeadMap=new Map((local.leads||[]).map(l=>[l.id,l]));
+    const remoteLeadMap=new Map((remote.leads||[]).map(l=>[l.id,l]));
 
-    const localIds=new Set((local.leads||[]).map(l=>l.id));
-    // Remote-only leads that are NOT in our deleted list
-    const remoteOnlyLeads=(remote.leads||[]).filter(l=>!localIds.has(l.id)&&!deletedIds.has(l.id));
+    // Build merged leads array
+    const allIds=new Set([...localLeadMap.keys(),...remoteLeadMap.keys()]);
+    const mergedLeads=[];
+    allIds.forEach(id=>{
+      if(deletedIds.has(id)) return; // skip deleted
+      const loc=localLeadMap.get(id);
+      const rem=remoteLeadMap.get(id);
+      if(!loc && rem){ mergedLeads.push(rem); return; } // new from remote
+      if(loc && !rem){ mergedLeads.push(loc); return; } // only local
+      // Both exist — pick the one with newer updatedAt
+      const locTs=loc.updatedAt||0;
+      const remTs=rem.updatedAt||0;
+      mergedLeads.push(remTs>locTs ? rem : loc);
+    });
+
     const localEvIds=new Set((local.events||[]).map(e=>e.id));
     const remoteOnlyEvs=(remote.events||[]).filter(e=>!localEvIds.has(e.id));
     const localSaleIds=new Set((local.sales||[]).map(s=>s.id));
     const remoteOnlySales=(remote.sales||[]).filter(s=>!localSaleIds.has(s.id));
     return{
       ...local,
-      leads:sortLeads([...(local.leads||[]).filter(l=>!deletedIds.has(l.id)),...remoteOnlyLeads]),
+      leads:sortLeads(mergedLeads),
       events:[...(local.events||[]),...remoteOnlyEvs],
       sales:[...(local.sales||[]),...remoteOnlySales],
       nextNum:Math.max(local.nextNum||0,remote.nextNum||0),
@@ -291,39 +297,31 @@ function useDatabase(){
   };
 
   // ── MERGE-WRITE: read-fresh → merge local+remote → write back ──────────────
+  // Каждый раз читает актуальный remote перед записью, поэтому не теряет
+  // лиды добавленные другими пользователями пока шла запись.
   const mergeWrite=async(localData)=>{
     if(!cfgRef.current)return;
     savingRef.current=true;
     // Pause bg sync during write to avoid concurrent read-write race
     if(bgSyncRef.current){clearInterval(bgSyncRef.current);bgSyncRef.current=null;}
     setSyncLabel("⟳");
-    // FIX 5: перед записью всегда вшиваем актуальный deletedLeadIds из ref в localData
-    const freshDeleted=[...getDeletedSet()];
-    const localDataWithDeleted={
-      ...localData,
-      deletedLeadIds:[...new Set([...(localData.deletedLeadIds||[]),...freshDeleted])],
-      leads:(localData.leads||[]).filter(l=>!freshDeleted.includes(l.id)),
-    };
-    try{lsSet(LS_BACKUP,localDataWithDeleted);}catch{}
+    try{lsSet(LS_BACKUP,localData);}catch{}
     try{
       // 1. Читаем самый свежий remote
       let remote;
       try{remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);}catch{remote=null;}
-      // 2. Объединяем: local + то что есть на сервере но нет у нас (удалённые не вернутся)
-      const final=mergeData(localDataWithDeleted,remote);
+      // 2. Объединяем: local + то что есть на сервере но нет у нас
+      const final=mergeData(localData,remote);
       // 3. Пишем объединённый результат
       await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,final);
       localRef.current=JSON.stringify(final);
-      // 4. Если remote принёс новые (не удалённые) лиды — обновляем UI
-      const deletedSet=getDeletedSet();
-      const gotNew=(remote?.leads||[]).some(l=>!deletedSet.has(l.id)&&!(localDataWithDeleted.leads||[]).find(x=>x.id===l.id));
-      const gotNewEvs=(remote?.events||[]).some(e=>!(localDataWithDeleted.events||[]).find(x=>x.id===e.id));
-      if(gotNew||gotNewEvs){setDbState(final);}
+      // 4. Всегда обновляем UI финальным merged состоянием (включает удалённые изменения от других)
+      setDbState(final);
       setSyncLabel("✓");setSyncError("");
       setTimeout(()=>setSyncLabel("●"),2000);
       try{localStorage.removeItem(LS_BACKUP);}catch{}
-      // Задержка перед рестартом bgSync — не читаем сервер сразу после удаления
-      setTimeout(()=>startBgSync(),8000);
+      // Delay bgSync restart so it doesn't immediately re-read after a delete
+      setTimeout(()=>startBgSync(),5000);
     }catch(e){
       console.error("mergeWrite failed:",e);
       setSyncLabel("!");
@@ -340,39 +338,40 @@ function useDatabase(){
     }finally{savingRef.current=false;}
   };
 
-  // ── Фоновый авто-мёрдж каждые 30 сек ────────────────────────────────────
+  // ── Фоновый авто-мёрдж каждые 25 сек ────────────────────────────────────
   const bgSyncRef=useRef(null);
   const startBgSync=()=>{
     if(bgSyncRef.current)clearInterval(bgSyncRef.current);
     bgSyncRef.current=setInterval(()=>{
+      // Skip if currently saving OR if a write finished less than 8 sec ago
       if(!cfgRef.current||savingRef.current)return;
       (async()=>{
         try{
           const remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
-          // Всегда читаем local ПОСЛЕ сетевого вызова — получаем актуальные deletedLeadIds
+          // Always read local AFTER the network call — captures latest deletedLeadIds
           const local=JSON.parse(localRef.current||"{}");
           if(!local.leads)return;
-          // FIX 6: используем getDeletedSet() — включает ref + localStorage + local data
-          const deletedSet=getDeletedSet();
-          // Добавляем deletedLeadIds из local data в deletedSet
-          (local.deletedLeadIds||[]).forEach(id=>deletedSet.add(id));
-          deletedIdsRef.current=deletedSet;
-          // Проверяем есть ли на сервере что-то новое (не удалённое)
-          const remoteNewLeads=(remote?.leads||[]).filter(l=>!deletedSet.has(l.id)&&!(local.leads||[]).find(x=>x.id===l.id));
+          const deletedSet=new Set(local.deletedLeadIds||[]);
+          const localLeadMap=new Map((local.leads||[]).map(l=>[l.id,l]));
+          // Detect new leads from remote not present locally
+          const remoteNewLeads=(remote?.leads||[]).filter(l=>!deletedSet.has(l.id)&&!localLeadMap.has(l.id));
+          // Detect remote leads that are newer than local version
+          const remoteUpdatedLeads=(remote?.leads||[]).filter(l=>{
+            if(deletedSet.has(l.id)) return false;
+            const loc=localLeadMap.get(l.id);
+            if(!loc) return false; // new, handled above
+            return (l.updatedAt||0)>(loc.updatedAt||0);
+          });
           const remoteNewEvs=(remote?.events||[]).filter(e=>!(local.events||[]).find(x=>x.id===e.id));
-          // Если на сервере есть удалённые лиды — нужно записать обратно с deletedLeadIds
-          const remoteHasDeletedLeads=(remote?.leads||[]).some(l=>deletedSet.has(l.id));
-          if(remoteNewLeads.length===0&&remoteNewEvs.length===0&&!remoteHasDeletedLeads)return;
+          if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0)return;
+          // Build merged — deletedSet applied on both sides
           const merged=mergeData(local,remote);
-          // Если на сервере были удалённые лиды — перезаписываем его с правильными deletedLeadIds
-          if(remoteHasDeletedLeads||remoteNewLeads.length>0){
-            try{await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,merged);}catch{}
-          }
+          try{await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,merged);}catch{}
           localRef.current=JSON.stringify(merged);
           setDbState(merged);
         }catch{}
       })();
-    },30000);
+    },25000);
   };
 
   // ── Load on mount ─────────────────────────────────────────────────────────
@@ -381,9 +380,6 @@ function useDatabase(){
       const cfg=lsGet(LS_KEY);
       if(!cfg){setStatus("setup");return;}
       cfgRef.current=cfg;
-      // Восстанавливаем удалённые ID из localStorage при загрузке
-      const savedDeleted=lsGet(LS_DELETED)||[];
-      deletedIdsRef.current=new Set(savedDeleted);
       try{
         setSyncLabel("⟳");
         let data=await binRead(cfg.binId,cfg.apiKey);
@@ -393,9 +389,6 @@ function useDatabase(){
         if(backup&&backup.leads&&backup.leads.length>0){
           data=mergeData(backup,data);
           try{await binWrite(cfg.binId,cfg.apiKey,data);localStorage.removeItem(LS_BACKUP);}catch{}
-        } else {
-          // Даже без backup — применяем deletedLeadIds к загруженным данным
-          data=mergeData(data,null);
         }
         localRef.current=JSON.stringify(data);
         setDbState(data);
@@ -429,11 +422,6 @@ function useDatabase(){
   const updateDb=(upd,immediate=false)=>{
     setDbState(prev=>{
       const next=typeof upd==="function"?upd(prev):upd;
-      // FIX: синхронно обновляем deletedIdsRef при каждом updateDb
-      if(next.deletedLeadIds){
-        next.deletedLeadIds.forEach(id=>deletedIdsRef.current.add(id));
-        try{lsSet(LS_DELETED,[...deletedIdsRef.current]);}catch{}
-      }
       localRef.current=JSON.stringify(next);
       try{lsSet(LS_BACKUP,next);}catch{}
       if(immediate){
@@ -960,7 +948,9 @@ function AddLeadModal({onClose,onAdd,t,lang,nextNum,currentUser}){
 
   const submit=()=>{
     const createdAt=buildCreatedAt(form.dateOverride);
-    onAdd({...form,id:Date.now(),leadId:makeLeadId(nextNum,createdAt),score:0,qualification:"unqualified",createdAt,isDone:false,quoteAmt:null,
+    // Use nextNum-based short ID to avoid 13-digit Date.now() IDs
+    const shortId=nextNum*1000+Math.floor(Math.random()*999)+1;
+    onAdd({...form,id:shortId,leadId:makeLeadId(nextNum,createdAt),score:0,qualification:"unqualified",createdAt,updatedAt:Date.now(),isDone:false,quoteAmt:null,
       history:[{date:nowStr(),action:lang==="ru"?"Лид добавлен":"Lead dodany",by:currentUser||"Admin"}]});
     onClose();
   };
@@ -1233,7 +1223,7 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
   const set=(k,v)=>setForm(p=>{const u={...p,[k]:v};if(k==="score"){u.qualification=scoreToQual(v);if(parseInt(v)===6&&parseInt(p.score)!==6)setShowSale(true);}return u;});
   const createdAtToIso=(str)=>{if(!str)return new Date().toISOString().slice(0,10);const p=str.split(".");if(p.length!==3)return new Date().toISOString().slice(0,10);return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;};
   const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);if(isNaN(d))return iso;return d.toLocaleDateString("ru-RU");}catch{return iso;}};
-  const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
+  const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
   const confirmSale=(amt,saleDate)=>{
     const upd={...form,saleAmount:amt,isDone:true};
     setLeads(p=>p.map(l=>l.id===lead.id?{...l,...upd}:l));
@@ -1703,7 +1693,7 @@ function GarnoCRM(){
           {page==="sales"      && <SalesPage sales={sales} setSales={setSales} setSalesNow={setSalesNow} t={t} lang={lang}/>}
         </div>
       </div>
-      {selLead  && <LeadDetail lead={selLead} setLeads={setLeads} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser}/>}
+      {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser}/>}
       {showAdd  && <AddLeadModal onClose={()=>setShowAdd(false)} onAdd={addLead} t={t} lang={lang} nextNum={nextNum} currentUser={currentUser}/>}
     </div>
   );
