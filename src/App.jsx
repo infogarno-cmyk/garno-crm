@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { IMG_KRONOSPAN, IMG_FRONTY, IMG_HETTICH, IMG_HANDSHAKE, IMG_SHOWROOM1, IMG_TEAM, IMG_RODA, IMG_MAP, IMG_OLEH, IMG_DMYTRO, IMG_PATRYK } from "./kpPhotos.js";
+import { IMG_KRONOSPAN, IMG_FRONTY, IMG_HETTICH, IMG_HANDSHAKE, IMG_SHOWROOM1, IMG_TEAM, IMG_RODA, IMG_MAP, IMG_OLEH, IMG_DMYTRO, IMG_PATRYK, IMG_GARNO_NEON } from "./kpPhotos.js";
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import React from "react";
 
@@ -296,6 +296,8 @@ function useDatabase(){
       setSyncLabel("✓");setSyncError("");
       setTimeout(()=>setSyncLabel("●"),2000);
       try{localStorage.removeItem(LS_BACKUP);}catch{}
+      // Delay bgSync restart so it doesn't immediately re-read after a delete
+      setTimeout(()=>startBgSync(),5000);
     }catch(e){
       console.error("mergeWrite failed:",e);
       setSyncLabel("!");
@@ -309,36 +311,35 @@ function useDatabase(){
       } else {
         setSyncError("⚠️ Ошибка синхронизации. Данные сохранены локально.");
       }
-    }finally{savingRef.current=false;startBgSync();}
+    }finally{savingRef.current=false;}
   };
 
-  // ── Фоновый авто-мёрдж каждые 20 сек ────────────────────────────────────
-  // Решает race condition: если два менеджера пишут одновременно,
-  // через 20 сек каждый подтянет данные другого и запишет объединённый результат.
+  // ── Фоновый авто-мёрдж каждые 25 сек ────────────────────────────────────
   const bgSyncRef=useRef(null);
   const startBgSync=()=>{
     if(bgSyncRef.current)clearInterval(bgSyncRef.current);
     bgSyncRef.current=setInterval(()=>{
+      // Skip if currently saving OR if a write finished less than 8 sec ago
       if(!cfgRef.current||savingRef.current)return;
-      // Не читаем local здесь — читаем ПОСЛЕ binRead чтобы получить актуальные deletedLeadIds
       (async()=>{
         try{
           const remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
-          // Читаем local ПОСЛЕ remote — гарантированно свежий (deletedLeadIds уже записан)
+          // Always read local AFTER the network call — captures latest deletedLeadIds
           const local=JSON.parse(localRef.current||"{}");
           if(!local.leads)return;
           const deletedSet=new Set(local.deletedLeadIds||[]);
-          const gotNew=(remote?.leads||[]).some(l=>!deletedSet.has(l.id)&&!(local.leads||[]).find(x=>x.id===l.id));
-          const gotNewEvs=(remote?.events||[]).some(e=>!(local.events||[]).find(x=>x.id===e.id));
-          if(gotNew||gotNewEvs){
-            const merged=mergeData(local,remote);
-            try{await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,merged);}catch{}
-            localRef.current=JSON.stringify(merged);
-            setDbState(merged);
-          }
+          // Only merge if remote has NEW leads not present locally AND not deleted
+          const remoteNewLeads=(remote?.leads||[]).filter(l=>!deletedSet.has(l.id)&&!(local.leads||[]).find(x=>x.id===l.id));
+          const remoteNewEvs=(remote?.events||[]).filter(e=>!(local.events||[]).find(x=>x.id===e.id));
+          if(remoteNewLeads.length===0&&remoteNewEvs.length===0)return;
+          // Build merged — deletedSet applied on both sides
+          const merged=mergeData(local,remote);
+          try{await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,merged);}catch{}
+          localRef.current=JSON.stringify(merged);
+          setDbState(merged);
         }catch{}
       })();
-    },20000);
+    },25000);
   };
 
   // ── Load on mount ─────────────────────────────────────────────────────────
@@ -652,13 +653,13 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
         {/* MANAGER GREETING BANNER */}
         {mgr&&(
           <div style={{background:"linear-gradient(135deg,#001840,#002d6e)",padding:"16px 48px",display:"flex",alignItems:"center",gap:20,borderBottom:"3px solid #bfa47e"}}>
-            {mgrPhoto&&<img src={mgrPhoto} alt={mgr} style={{width:56,height:56,borderRadius:"50%",objectFit:"cover",border:"2px solid #bfa47e",flexShrink:0}} onError={e=>e.target.style.display="none"}/>}
+            {mgrPhoto&&<img src={mgrPhoto} alt={mgr} style={{width:110,height:110,borderRadius:"50%",objectFit:"cover",border:"3px solid #bfa47e",flexShrink:0}} onError={e=>e.target.style.display="none"}/>}
             <div>
-              <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:2}}>
+              <div style={{fontSize:26,fontWeight:800,color:"#fff",marginBottom:4}}>
                 {greeting} <b style={{color:"#bfa47e"}}>{name||"Kliencie"}</b>!{" "}
                 {isUa?"Ваш менеджер":"Pana/Pani menedżer"}: <b style={{color:"#bfa47e"}}>{mgr}</b>
               </div>
-              <div style={{fontSize:12,color:"rgba(255,255,255,0.7)"}}>
+              <div style={{fontSize:18,color:"rgba(255,255,255,0.85)",marginTop:4}}>
                 🎁 {isUa
                   ?"Вам доступна безкоштовна консультація + демонстрація проекту + вибір матеріалів у шоурумі"
                   :"Dostępna bezpłatna konsultacja + demonstracja projektu + wybór materiałów w showroomie"}
@@ -729,29 +730,25 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           </div>
 
           {/* TOTAL */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,padding:"14px 20px",background:"#00132f",borderRadius:10}}>
-            <div style={{color:"#bfa47e",fontSize:14,fontWeight:700,letterSpacing:1}}>ŁĄCZNA KWOTA</div>
-            <div style={{color:"#bfa47e",fontSize:24,fontWeight:900}}>{fmtM(stoneAmt?totalWithStone:amount)}</div>
-          </div>
-          <div style={{fontSize:11,color:"#aaa",marginTop:6}}>
-            * {isUa?"Cena – brutto. Оплата за оформлення договору та фіксацію ціни – 1000 zł":"Cena – brutto. Opłata za sporządzenie umowy i ustalenie ceny – 1000 zł"}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,padding:"20px 28px",background:"#00132f",borderRadius:12}}>
+            <div style={{color:"#bfa47e",fontSize:22,fontWeight:800,letterSpacing:2,textTransform:"uppercase"}}>Łączna kwota</div>
+            <div style={{color:"#bfa47e",fontSize:38,fontWeight:900}}>{fmtM(stoneAmt?amount+stoneAmt:amount)}</div>
           </div>
 
           {/* STONE UPSELL */}
           {stoneAmt&&(
-            <div style={{marginTop:16,background:"linear-gradient(135deg,#7f1d1d,#991b1b)",borderRadius:12,padding:"16px 20px",border:"2px solid #fca5a5"}}>
+            <div style={{marginTop:12,background:"linear-gradient(135deg,#7f1d1d,#991b1b)",borderRadius:10,padding:"10px 16px",border:"2px solid #fca5a5"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                 <div>
                   <div style={{fontSize:11,color:"#fca5a5",fontWeight:700,marginBottom:4}}>
                     🔥 {isUa?"ЗНИЖКА! Преміум стільниця з кварцового конгломерату":"СКИДКА! Premiumowy blat z konglomeratu kwarcowego"}
                   </div>
                   <div style={{fontSize:12,color:"#fff",marginBottom:4}}>{stoneLabel||"Blat premium — kwarc/granit"}</div>
-                  <div style={{fontSize:11,color:"#fca5a5"}}>♾️ {isUa?"Довічна гарантія":"Gwarancja dożywotnia"}</div>
-                  <div style={{fontSize:13,fontWeight:800,color:"#4ade80",marginTop:4}}>50% СКИДКА до {freeDeadline()}</div>
+                      <div style={{fontSize:13,fontWeight:800,color:"#4ade80",marginTop:4}}>50% {isUa?"ЗНИЖКА":"СКИДКА"} до {freeDeadline()}</div>
                 </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",textDecoration:"line-through"}}>{fmtM(stoneAmt*2)}</div>
-                  <div style={{fontSize:20,fontWeight:900,color:"#fff"}}>{fmtM(stoneAmt)}</div>
+                <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.6)"}}>{fmtM(stoneAmt*2)} − 50% =</div>
+                  <div style={{fontSize:24,fontWeight:900,color:"#fff"}}>{fmtM(stoneAmt)}</div>
                 </div>
               </div>
             </div>
@@ -835,17 +832,20 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
               <div key={item} style={{background:"rgba(191,164,126,0.15)",border:"1px solid rgba(191,164,126,0.3)",borderRadius:8,padding:"6px 14px",fontSize:12,color:"#bfa47e",fontWeight:600}}>{item}</div>
             ))}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
-            <img src={IMG_SHOWROOM1} alt="showroom" style={{width:"100%",height:"140px",objectFit:"cover",borderRadius:8}}/>
-            <img src={IMG_TEAM} alt="team" style={{width:"100%",height:"140px",objectFit:"cover",borderRadius:8}}/>
-            <img src={IMG_RODA} alt="roda" style={{width:"100%",height:"140px",objectFit:"cover",borderRadius:8}}/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+            <img src={IMG_SHOWROOM1} alt="showroom" style={{width:"100%",height:"180px",objectFit:"cover",borderRadius:8}}/>
+            <img src={typeof IMG_GARNO_NEON!=="undefined"&&IMG_GARNO_NEON?IMG_GARNO_NEON:IMG_TEAM} alt="garno" style={{width:"100%",height:"180px",objectFit:"cover",borderRadius:8}}/>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"center"}}>
             <div>
               <div style={{fontSize:12,fontWeight:700,color:"#bfa47e",marginBottom:4}}>📍 Domaniewska 37B, 1 piętro</div>
               <div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Westfield Mokotów, Warszawa</div>
             </div>
-            <img src={IMG_MAP} alt="map" style={{width:"100%",height:"100px",objectFit:"cover",borderRadius:8,border:"1px solid rgba(191,164,126,0.3)"}}/>
+            <a href="https://www.google.com/maps/place/Garno+Furniture+-+meble+na+wymiar/@52.1819041,21.0041964,17z" target="_blank" rel="noopener noreferrer"
+              style={{display:"block",padding:"12px 16px",background:"rgba(191,164,126,0.15)",border:"1px solid rgba(191,164,126,0.4)",borderRadius:8,textDecoration:"none",textAlign:"center"}}>
+              <div style={{fontSize:13,color:"#bfa47e",fontWeight:700,marginBottom:4}}>🗺️ Nasz Showroom Warszawa</div>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.6)"}}>Garno Furniture – Google Maps →</div>
+            </a>
           </div>
         </div>
 
