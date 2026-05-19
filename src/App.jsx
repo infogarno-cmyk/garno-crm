@@ -1631,10 +1631,16 @@ function GarnoCRM(){
           .crm-muted { font-weight: 600; }
         ` : ""}
         @media print{
-          @page{margin:0!important;size:A4;}
+          @page{margin:10mm;size:A4 portrait;}
           .no-print{display:none!important;}
           html,body{margin:0!important;padding:0!important;background:#fff!important;}
-          #kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;max-width:100%!important;width:100%!important;}
+          #kp-doc{
+            box-shadow:none!important;
+            margin:0!important;
+            border-radius:0!important;
+            width:190mm!important;
+            max-width:190mm!important;
+          }
           #kp-page1{page-break-after:always!important;break-after:page!important;}
           #kp-page2{page-break-before:always!important;break-before:page!important;}
           * {-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
