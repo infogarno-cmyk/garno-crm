@@ -1631,6 +1631,7 @@ function GarnoCRM(){
           .crm-muted { font-weight: 600; }
         ` : ""}
         @media print{
+          @page{margin:0!important;size:A4;}
           .no-print{display:none!important;}
           html,body{margin:0!important;padding:0!important;background:#fff!important;}
           #kp-doc{box-shadow:none!important;margin:0!important;border-radius:0!important;max-width:100%!important;width:100%!important;}
