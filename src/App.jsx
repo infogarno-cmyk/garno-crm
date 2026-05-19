@@ -64,7 +64,7 @@ const T = {
     convRate:"Конверсия",revenue:"Выручка",many:"Продаж",totalSales:"Выручка",salesCount:"Продаж",
     podium:"Пьедестал",visits:"Визиты",source_label:"Источник",
     unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",salon:"Визит в салон",sale:"Продажа",
-    thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",undefined:"Не определено",
+    thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",quote:"Просчёт",undefined:"Не определено",
     withinMonth:"В теч. месяца",within3m:"В теч. 3 мес.",within6m:"В теч. полугода",year:"Год",
     justPrice:"Только цена",unconfirmed:"Срок не подтвержден",
     evVisit:"Визит",evMeasure:"Замер",evContract:"Договор",evPhone:"Телефон",evDelivery:"Доставка",
@@ -87,7 +87,7 @@ const T = {
     convRate:"Konwersja",revenue:"Przychód",many:"Sprzedaży",totalSales:"Przychód",salesCount:"Sprzedaży",
     podium:"Podium",visits:"Wizyty",source_label:"Źródło",
     unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",salon:"Wizyta w salonie",sale:"Sprzedaż",
-    thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",undefined:"Nieokreślone",
+    thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",quote:"Wycena",undefined:"Nieokreślone",
     withinMonth:"W ciągu miesiąca",within3m:"W ciągu 3 mies.",within6m:"W ciągu pół roku",year:"Rok",
     justPrice:"Chce tylko cenę",unconfirmed:"Termin niepotwierdzony",
     evVisit:"Wizyta",evMeasure:"Pomiar",evContract:"Umowa",evPhone:"Telefon",evDelivery:"Dostawa",
@@ -106,8 +106,8 @@ const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Patryk:C.purple,Danya:C.cyan};
 function scoreToQual(s){const n=parseInt(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===5)return"salon";return"sale";}
 const QUALS=["unqualified","prequalified","qualified","salon","sale"];
 const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,salon:C.blue,sale:C.accent};
-const ACTIONS=["undefined","thinking","missedCall","cancelled","callback"];
-const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green};
+const ACTIONS=["undefined","thinking","missedCall","cancelled","callback","quote"];
+const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple};
 const BUDGETS=["withinMonth","within3m","within6m","year","justPrice","unconfirmed"];
 const BUD_COLOR={withinMonth:C.green,within3m:C.cyan,within6m:C.yellow,year:C.purple,justPrice:C.muted,unconfirmed:"rgba(255,255,255,0.2)"};
 const SOURCES=["pl.calculatorkuchni.online","roda.calculatorkuchni.online","fast.calculatorkuchni.online","ua.calculatorkuchni.online","1.designkitchen.online","fillout","garnofurniture.ukr","garnofurniture.com","Instagram","Mail","Шоу Рум"];
@@ -123,7 +123,26 @@ function rnd(a,b){return Math.floor(a+Math.random()*(b-a+1));}
 function fmtM(n){if(!n&&n!==0)return"—";return new Intl.NumberFormat("pl-PL").format(n)+" zł";}
 function dAgo(n){const d=new Date(Date.now()-n*86400000);return d.toLocaleDateString("ru-RU");}
 function daysAgoFn(str){if(!str)return 9999;const p=str.split(".");if(p.length!==3)return 9999;const d=new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);return Math.floor((Date.now()-d.getTime())/86400000);}
-function filterByRange(items,range){if(range==="all")return items;const r=DATE_RANGES.find(d=>d.key===range);if(!r)return items;return items.filter(l=>daysAgoFn(l.createdAt)<=r.days);}
+function parseCreatedAt(str){if(!str)return null;const p=str.split(".");if(p.length===3){const d=new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);return isNaN(d)?null:d;}return null;}
+function filterByRange(items,range){
+  if(range==="all")return items;
+  const now=new Date();
+  if(range==="30d"){return items.filter(l=>{const d=parseCreatedAt(l.createdAt);return d&&d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});}
+  if(range==="90d"){const q=Math.floor(now.getMonth()/3);return items.filter(l=>{const d=parseCreatedAt(l.createdAt);return d&&d.getFullYear()===now.getFullYear()&&Math.floor(d.getMonth()/3)===q;});}
+  if(range==="365d"){return items.filter(l=>{const d=parseCreatedAt(l.createdAt);return d&&d.getFullYear()===now.getFullYear();});}
+  const r=DATE_RANGES.find(d=>d.key===range);if(!r)return items;return items.filter(l=>daysAgoFn(l.createdAt)<=r.days);
+}
+function filterEventsByRange(events,range){
+  const now=new Date();
+  if(range==="all")return events;
+  if(range==="1d")return events.filter(e=>e.date===TODAY);
+  if(range==="30d"){const ym=TODAY.slice(0,7);return events.filter(e=>e.date.startsWith(ym));}
+  if(range==="90d"){const q=Math.floor(now.getMonth()/3);return events.filter(e=>{const d=new Date(e.date);return d.getFullYear()===now.getFullYear()&&Math.floor(d.getMonth()/3)===q;});}
+  if(range==="365d")return events.filter(e=>e.date.startsWith(String(now.getFullYear())));
+  const r=DATE_RANGES.find(d=>d.key===range);if(!r)return events;
+  const cutoff=new Date(Date.now()-r.days*86400000).toISOString().slice(0,10);
+  return events.filter(e=>e.date>=cutoff&&e.date<=TODAY);
+}
 const evLabel=(type,lang)=>({visit:{ru:"Визит",pl:"Wizyta"},measure:{ru:"Замер",pl:"Pomiar"},contract:{ru:"Договор",pl:"Umowa"},phone:{ru:"Телефон",pl:"Telefon"},delivery:{ru:"Доставка",pl:"Dostawa"}}[type]?.[lang]||type);
 function makeLeadId(n,dateStr){let d;try{if(dateStr){const p=dateStr.split(".");d=new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);if(isNaN(d))d=new Date();}else d=new Date();}catch{d=new Date();}const dd=String(d.getDate()).padStart(2,"0");const mm=String(d.getMonth()+1).padStart(2,"0");const yy=String(d.getFullYear()).slice(-2);return `${n}${dd}${mm}${yy}`;}
 function nowStr(){const d=new Date();return`${d.toLocaleDateString("ru-RU")} ${d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}`;}
@@ -1003,7 +1022,7 @@ function Dashboard({leads,events,t,lang}){
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>{t.dashboard} <span style={{fontSize:11,color:C.muted}}>({fl.length})</span></div><DateRangeBar range={range} setRange={setRange} t={t}/></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-        {[{label:t.newLeads,val:fl.filter(l=>!l.manager).length,color:C.yellow},{label:t.processed,val:fl.filter(l=>l.isDone).length,color:C.green},{label:t.todayMeetings,val:todayEvs.length,color:C.blue},{label:t.convRate,val:`${fl.length?Math.round(qual.length/fl.length*100):0}%`,color:C.accent}].map(s=>(<div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:9,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{s.label}</div><div style={{fontSize:28,fontWeight:800,color:s.color}}>{s.val}</div></div>))}
+        {(()=>{const rangeVisits=filterEventsByRange(events,range).filter(e=>e.type==="visit").length;const newLeadsCount=fl.length;const processedCount=fl.filter(l=>l.action!=="undefined").length;return[{label:t.newLeads,val:newLeadsCount,color:C.yellow},{label:t.processed,val:processedCount,color:C.green},{label:t.todayMeetings,val:rangeVisits,color:C.blue},{label:t.convRate,val:`${fl.length?Math.round(qual.length/fl.length*100):0}%`,color:C.accent}];})().map(s=>(<div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:9,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{s.label}</div><div style={{fontSize:28,fontWeight:800,color:s.color}}>{s.val}</div></div>))}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
@@ -1081,9 +1100,9 @@ function LeadsPage({leads,setLeads,setLeadsNow,t,mgr,search,onOpen}){
             </tr></thead>
             <tbody>{fl.map(l=>{const isSel=selected.has(l.id);return(
               <tr key={l.id} onClick={()=>onOpen(l)}
-                style={{borderBottom:`1px solid ${C.border}`,background:isSel?"rgba(191,164,126,0.1)":l.isFavorite?"rgba(251,191,36,0.06)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent",cursor:"pointer"}}
+                style={{borderBottom:`1px solid ${C.border}`,background:isSel?"rgba(191,164,126,0.1)":l.isFavorite?"rgba(251,191,36,0.22)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent",cursor:"pointer"}}
                 onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=C.surface)}
-                onMouseLeave={e=>{e.currentTarget.style.background=isSel?"rgba(191,164,126,0.1)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent";}}>
+                onMouseLeave={e=>{e.currentTarget.style.background=isSel?"rgba(191,164,126,0.1)":l.isFavorite?"rgba(251,191,36,0.22)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent";}}>
                 <td style={{padding:"8px 10px"}} onClick={e=>toggleOne(l.id,e)}><input type="checkbox" checked={isSel} onChange={()=>{}} onClick={e=>toggleOne(l.id,e)} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></td>
                 <td style={{padding:"8px 10px"}}><span style={{fontSize:10,color:C.accent,fontFamily:"monospace",fontWeight:600}}>{l.leadId||l.id}</span></td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
@@ -1112,7 +1131,12 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
   const [form,setForm]=useState({...lead});
   const [showSale,setShowSale]=useState(false);
   const set=(k,v)=>setForm(p=>{const u={...p,[k]:v};if(k==="score"){u.qualification=scoreToQual(v);if(parseInt(v)===6&&parseInt(p.score)!==6)setShowSale(true);}return u;});
-  const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
+
+  // Date conversion helpers: "DD.MM.YYYY" ↔ "YYYY-MM-DD"
+  const createdAtToIso=(str)=>{if(!str)return new Date().toISOString().slice(0,10);const p=str.split(".");if(p.length!==3)return new Date().toISOString().slice(0,10);return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;};
+  const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("ru-RU");}catch{return str;}};
+
+  const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
   const confirmSale=(amt,saleDate)=>{
     const upd={...form,saleAmount:amt,isDone:true};
     setLeads(p=>p.map(l=>l.id===lead.id?{...l,...upd}:l));
@@ -1134,6 +1158,10 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📞 Контакт</div>
             {inp("name",t.name)}{inp("phone",t.phone)}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select>:<SrcBadge source={form.source}/>}</div>
+              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.date||"Дата"}</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
+            </div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} small/>}</div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>:form.manager?<div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></div>:<span style={{color:C.dim}}>—</span>}</div>
           </div>
@@ -1353,6 +1381,12 @@ function AnalyticsPage({leads,sales,t}){
 }
 
 // ─── AI PAGE ──────────────────────────────────────────────────────────────────
+function detectMsgLang(msg){
+  if(/[їієÇ]/.test(msg)||(/[іє]/.test(msg)&&/[а-яА-Я]/.test(msg)))return"ua";
+  if(/[ąęóśźżńćłĄĘÓŚŹŻŃĆŁ]/.test(msg)||(/(wygener|ofert|kwot|dla\s)/i.test(msg)&&!/[а-яА-Я]/.test(msg)))return"pl";
+  if(/[а-яА-ЯёЁ]/.test(msg))return"ru";
+  return"pl";
+}
 function localAns(q,leads,events){
   const lq=q.toLowerCase();const dm=lq.match(/(oleh|dmytro|patryk|danya)/i);const m=dm?dm[1].charAt(0).toUpperCase()+dm[1].slice(1):null;
   if((lq.includes("задач")||lq.includes("встреч")||lq.includes("событи")||lq.includes("сегодня"))&&m){const evs=events.filter(e=>e.date===TODAY&&e.manager===m);if(!evs.length)return`📅 У ${m} сегодня нет событий.`;return`📅 У ${m} сегодня (${evs.length}):\n`+evs.map(e=>`• ${e.time}${e.timeEnd?`–${e.timeEnd}`:""}: [${e.type}] ${e.title}${e.description?` — ${e.description}`:""}`).join("\n");}
@@ -1367,7 +1401,7 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
   const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [apiOk,setApiOk]=useState(true);const [showApiStatus,setShowApiStatus]=useState(false);const [kpData,setKpData]=useState(null);const [memory,setMemory]=useState([]);const ref=useRef(null);
   useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[chatHistory]);
   const QUICK=["Задачи Dmytro сегодня","Задачи Oleh сегодня","Задачи Patryk сегодня","Статистика менеджеров","Незаконченные задачи","Все события сегодня","Итог дня","Лучший по конверсии?"];
-  const buildCtx=()=>{const todayEvs=events.filter(e=>e.date===TODAY);const mStats=MANAGERS.map(m=>{const ml=leads.filter(l=>l.manager===m);const mev=todayEvs.filter(e=>e.manager===m);return`${m}:лидов=${ml.length},kwaly=${ml.filter(l=>l.score>=4).length},продаж=${ml.filter(l=>l.score===6).length},avg=${ml.length?(ml.reduce((s,l)=>s+l.score,0)/ml.length).toFixed(1):0},задачи=[${mev.map(e=>`${e.time} ${e.type}:${e.title}`).join(";")||"нет"}]`;}).join(" | ");const memCtx=memory.length?`\nОбучение: ${memory.join("; ")}`:"";;return`Ты GarnoAI — ассистент CRM GARNO Custom Furniture (Польша). 0-2=неквалиф,3=предв,4=квалиф,5=визит,6=продажа.\nДанные: лидов=${leads.length}, ${mStats}\nСегодня=${TODAY}. Незакрытых=${leads.filter(l=>["missedCall","callback"].includes(l.action)).length}${memCtx}`;};
+  const buildCtx=()=>{const todayEvs=events.filter(e=>e.date===TODAY);const mStats=MANAGERS.map(m=>{const ml=leads.filter(l=>l.manager===m);const mev=todayEvs.filter(e=>e.manager===m);return`${m}:лидов=${ml.length},kwaly=${ml.filter(l=>l.score>=4).length},продаж=${ml.filter(l=>l.score===6).length},avg=${ml.length?(ml.reduce((s,l)=>s+l.score,0)/ml.length).toFixed(1):0},задачи=[${mev.map(e=>`${e.time} ${e.type}:${e.title}`).join(";")||"нет"}]`;}).join(" | ");const memCtx=memory.length?`\nОбучение: ${memory.join("; ")}`:"";;return`Ты GarnoAI — ассистент CRM GARNO Custom Furniture (Польша). 0-2=неквалиф,3=предв,4=квалиф,5=визит,6=продажа. ВАЖНО: отвечай на том же языке что и пользователь (польский→по-польски, украинский→по-украински, русский→по-русски).\nДанные: лидов=${leads.length}, ${mStats}\nСегодня=${TODAY}. Незакрытых=${leads.filter(l=>["missedCall","callback"].includes(l.action)).length}${memCtx}`;};
   const detectKP=(msg)=>{
     const m1=msg.match(/(?:кп|ofert|предложен|коммерч|пропозиц)/i);if(!m1)return null;
     const idM=msg.match(/(?:id|лид|лід)[=\s#:]?\s*(\d{5,})/i);
@@ -1389,7 +1423,7 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
     const msg=text||input;if(!msg.trim()||loading)return;setInput("");
     if(msg.toLowerCase().startsWith("запомни:")){const info=msg.replace(/^запомни:\s*/i,"").trim();setMemory(p=>[...p,info]);setChatHistory(p=>[...p,{role:"user",content:msg},{role:"assistant",content:`✅ Запомнил:\n"${info}"`}]);return;}
     const kp=detectKP(msg);
-    if(kp){const langLabel=kp.kpLang==="ua"?"🇺🇦 UA":"🇵🇱 PL";setChatHistory(p=>[...p,{role:"user",content:msg},{role:"assistant",content:`📄 Генерирую КП ${langLabel} для ${kp.lead.name||kp.lead.phone} (${kp.lead.leadId}) · ${fmtM(kp.amount)}${kp.stoneAmt?` + камень ${fmtM(kp.stoneAmt)}`:""}...`}]);setTimeout(()=>setKpData(kp),400);return;}
+    if(kp){const langLabel=kp.kpLang==="ua"?"🇺🇦 UA":"🇵🇱 PL";const ml=detectMsgLang(msg);const genMsg=ml==="pl"?`📄 Generuję ofertę ${langLabel} dla ${kp.lead.name||kp.lead.phone} (${kp.lead.leadId}) · ${fmtM(kp.amount)}${kp.stoneAmt?` + blat ${fmtM(kp.stoneAmt)}`:""}...`:ml==="ua"?`📄 Генерую КП ${langLabel} для ${kp.lead.name||kp.lead.phone} (${kp.lead.leadId}) · ${fmtM(kp.amount)}${kp.stoneAmt?` + камінь ${fmtM(kp.stoneAmt)}`:""}...`:`📄 Генерирую КП ${langLabel} для ${kp.lead.name||kp.lead.phone} (${kp.lead.leadId}) · ${fmtM(kp.amount)}${kp.stoneAmt?` + камень ${fmtM(kp.stoneAmt)}`:""}...`;setChatHistory(p=>[...p,{role:"user",content:msg},{role:"assistant",content:genMsg}]);setTimeout(()=>setKpData(kp),400);return;}
     const upd=[...chatHistory,{role:"user",content:msg}];setChatHistory(upd);setLoading(true);
     if(apiOk){try{const ctrl=new AbortController();setTimeout(()=>ctrl.abort(),14000);const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:ctrl.signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,system:buildCtx(),messages:upd.map(m=>({role:m.role,content:m.content}))})});const data=await res.json();if(!res.ok||data.error){setApiOk(false);setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);}else{setChatHistory(p=>[...p,{role:"assistant",content:(data.content?.map(c=>c.text||"").join("\n")||"").replace(/\*\*/g,"")}]);setApiOk(true);}}catch{setApiOk(false);setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);}}else{setTimeout(()=>{setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);setLoading(false);},300);return;}
     setLoading(false);
