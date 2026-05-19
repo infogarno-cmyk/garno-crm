@@ -320,17 +320,17 @@ function useDatabase(){
     if(bgSyncRef.current)clearInterval(bgSyncRef.current);
     bgSyncRef.current=setInterval(()=>{
       if(!cfgRef.current||savingRef.current)return;
-      const local=JSON.parse(localRef.current||"{}");
-      if(!local.leads)return;
-      // Тихий мёрдж: читаем remote, объединяем, обновляем UI если нужно
+      // Не читаем local здесь — читаем ПОСЛЕ binRead чтобы получить актуальные deletedLeadIds
       (async()=>{
         try{
           const remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
+          // Читаем local ПОСЛЕ remote — гарантированно свежий (deletedLeadIds уже записан)
+          const local=JSON.parse(localRef.current||"{}");
+          if(!local.leads)return;
           const deletedSet=new Set(local.deletedLeadIds||[]);
           const gotNew=(remote?.leads||[]).some(l=>!deletedSet.has(l.id)&&!(local.leads||[]).find(x=>x.id===l.id));
           const gotNewEvs=(remote?.events||[]).some(e=>!(local.events||[]).find(x=>x.id===e.id));
           if(gotNew||gotNewEvs){
-            // Есть новые данные от других — мёрджим и пишем
             const merged=mergeData(local,remote);
             try{await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,merged);}catch{}
             localRef.current=JSON.stringify(merged);
