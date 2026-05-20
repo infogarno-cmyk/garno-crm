@@ -133,7 +133,7 @@ const TODAY = getToday(); // module-level default; use getToday() for runtime-cr
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function fmtM(n){if(!n&&n!==0)return"—";return new Intl.NumberFormat("pl-PL").format(n)+" zł";}
 function daysAgoFn(str){if(!str)return 9999;const p=str.split(".");if(p.length!==3)return 9999;const d=new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);return Math.floor((Date.now()-d.getTime())/86400000);}
-function parseCreatedAt(str){if(!str)return null;const p=str.split(".");if(p.length===3){const d=new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);return isNaN(d)?null:d;}return null;}
+function parseCreatedAt(str){if(!str)return null;const p=str.split(".");if(p.length===3){const yr=p[2].length===4?p[2]:`20${p[2]}`;const d=new Date(`${yr}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);return isNaN(d)?null:d;}return null;}
 function filterByRange(items,range){
   if(range==="all")return items;
   const now=new Date();
@@ -1232,11 +1232,12 @@ function Dashboard({leads,events,t,lang}){
 
 // ─── LEADS PAGE ───────────────────────────────────────────────────────────────
 function LeadsPage({leads,setLeads,setLeadsNow,updateDb,t,mgr,search,onOpen}){
-  const [range,setRange]=useState("all");
+  const [dateFrom,setDateFrom]=useState("");
+  const [dateTo,setDateTo]=useState("");
   const [fQ,setFQ]=useState("all");const [fA,setFA]=useState("all");const [fS,setFS]=useState("all");const [sort,setSort]=useState("date");
   const [selected,setSelected]=useState(new Set());
   const ss={background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
-  const fl=filterByRange(leads,range).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||l.name.toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).filter(l=>fQ==="all"||l.qualification===fQ).filter(l=>fA==="all"||l.action===fA).filter(l=>fS==="all"||l.source===fS).sort((a,b)=>{
+  const fl=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||l.name.toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).filter(l=>fQ==="all"||l.qualification===fQ).filter(l=>fA==="all"||l.action===fA).filter(l=>fS==="all"||l.source===fS).sort((a,b)=>{
     if(sort==="score") return b.score-a.score;
     // Parse DD.MM.YYYY date for proper sorting
     const parseDate=(s)=>{if(!s)return 0;const p=s.split(".");if(p.length===3)return new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0;return 0;};
@@ -1270,7 +1271,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,t,mgr,search,onOpen}){
             <button onClick={()=>setSelected(new Set())} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:14}}>✕</button>
           </div>)}
         </div>
-        <DateRangeBar range={range} setRange={setRange} t={t}/>
+        <DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t}/>
       </div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         <select value={fQ} onChange={e=>setFQ(e.target.value)} style={ss}><option value="all">{t.qualification}</option>{QUALS.map(q=><option key={q} value={q}>{t[q]}</option>)}</select>
@@ -1529,8 +1530,9 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
 
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
 function AnalyticsPage({leads,sales,t}){
-  const [range,setRange]=useState("all");
-  const fl=filterByRange(leads,range);const fs=filterByRange(sales,range);
+  const [dateFrom,setDateFrom]=useState("");
+  const [dateTo,setDateTo]=useState("");
+  const fl=filterByCustomRange(leads,dateFrom,dateTo);const fs=filterByCustomRange(sales,dateFrom,dateTo);
   const mData=MANAGERS.map(m=>{const ml=fl.filter(l=>l.manager===m);const ms=fs.filter(s=>s.manager===m);const total=ml.length;const kwaly=ml.filter(l=>l.score>=4).length;const s4=ml.filter(l=>l.score===4).length;const s5=ml.filter(l=>l.score===5).length;const avg=total?(ml.reduce((a,l)=>a+l.score,0)/total).toFixed(2):0;return{name:m,total,kwaly,kwalyPct:total?parseFloat((kwaly/total*100).toFixed(1)):0,to5:s4?parseFloat((s5/s4*100).toFixed(1)):0,toSell:s5?parseFloat((ms.length/s5*100).toFixed(1)):0,salesCount:ms.length,salesRev:ms.reduce((a,s)=>a+s.saleAmount,0),visits:ml.filter(l=>l.score>=5).length,avg:parseFloat(avg)};});
   const podium=[...mData].filter(m=>m.name!=="Danya").sort((a,b)=>b.salesRev-a.salesRev).slice(0,3);const medals=["🥇","🥈","🥉"];
   const allKwaly=fl.filter(l=>l.score>=4).length;const allS5=fl.filter(l=>l.score===5).length;const allRev=fs.reduce((a,s)=>a+s.saleAmount,0);const avgAll=fl.length?(fl.reduce((a,l)=>a+l.score,0)/fl.length).toFixed(2):"0";
@@ -1538,7 +1540,7 @@ function AnalyticsPage({leads,sales,t}){
   const PL=({cx,cy,midAngle,outerRadius,name,value})=>{if(!value)return null;const R=Math.PI/180;const r=outerRadius+22;const x=cx+r*Math.cos(-midAngle*R);const y=cy+r*Math.sin(-midAngle*R);return <text x={x} y={y} fill="#fff" textAnchor={x>cx?"start":"end"} dominantBaseline="central" fontSize={9}>{(name||"").slice(0,10)}: {value}</text>;};
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>{t.analytics} <span style={{fontSize:11,color:C.muted}}>({fl.length})</span></div><DateRangeBar range={range} setRange={setRange} t={t}/></div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>{t.analytics} <span style={{fontSize:11,color:C.muted}}>({fl.length})</span></div><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t}/></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
         {[{label:t.avgScore,val:avgAll,color:C.accent},{label:`${t.qualityLeads} (4+)`,val:allKwaly,color:C.green},{label:t.qualityPct,val:`${fl.length?Math.round(allKwaly/fl.length*100):0}%`,color:C.blue},{label:t.totalSales,val:fmtM(allRev),color:C.yellow},{label:t.salesCount,val:fs.length,color:C.purple}].map(s=>(<div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:9,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5,lineHeight:1.3}}>{s.label}</div><div style={{fontSize:typeof s.val==="string"&&s.val.length>8?16:24,fontWeight:800,color:s.color}}>{s.val}</div></div>))}
       </div>
@@ -1651,13 +1653,15 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
 
 // ─── SALES PAGE ───────────────────────────────────────────────────────────────
 function SalesPage({sales,setSales,setSalesNow,t,lang}){
-  const [range,setRange]=useState("all");const [confirmId,setConfirmId]=useState(null);
-  const fs=filterByRange(sales,range);const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
+  const [dateFrom,setDateFrom]=useState("");
+  const [dateTo,setDateTo]=useState("");
+  const [confirmId,setConfirmId]=useState(null);
+  const fs=filterByCustomRange(sales,dateFrom,dateTo);const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
   const mRev=MANAGERS.map(m=>({name:m,rev:fs.filter(s=>s.manager===m).reduce((a,s)=>a+s.saleAmount,0),count:fs.filter(s=>s.manager===m).length}));
   const deleteSale=(id)=>{setSalesNow(p=>p.filter(s=>s.id!==id));setConfirmId(null);};
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div><DateRangeBar range={range} setRange={setRange} t={t}/></div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t}/></div>
       <div style={{display:"grid",gridTemplateColumns:`1fr repeat(${MANAGERS.length},1fr)`,gap:10}}>
         <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:12,padding:"14px 16px"}}><div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{lang==="ru"?"Общая выручка":"Łączny przychód"}</div><div style={{fontSize:22,fontWeight:800,color:C.accent}}>{fmtM(totalRev)}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{fs.length} {t.many}</div></div>
         {mRev.map(m=>(<div key={m.name} style={{background:C.card,border:`1px solid ${MGR_COLOR[m.name]}33`,borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><Avatar name={m.name} color={MGR_COLOR[m.name]} size={22}/><span style={{fontSize:11,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</span></div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m.name]}}>{fmtM(m.rev)}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{m.count} {t.many}</div></div>))}
