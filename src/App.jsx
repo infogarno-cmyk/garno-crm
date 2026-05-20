@@ -132,6 +132,15 @@ function filterByRange(items,range){
   if(range==="365d"){return items.filter(l=>{const d=parseCreatedAt(l.createdAt);return d&&d.getFullYear()===now.getFullYear();});}
   const r=DATE_RANGES.find(d=>d.key===range);if(!r)return items;return items.filter(l=>daysAgoFn(l.createdAt)<=r.days);
 }
+function filterByCustomRange(items,dateFrom,dateTo){
+  if(!dateFrom&&!dateTo)return items;
+  return items.filter(l=>{
+    const d=parseCreatedAt(l.createdAt);if(!d)return false;
+    if(dateFrom&&d<new Date(dateFrom))return false;
+    if(dateTo&&d>new Date(dateTo+"T23:59:59"))return false;
+    return true;
+  });
+}
 function filterEventsByRange(events,range){
   const now=new Date();
   if(range==="all")return events;
@@ -454,6 +463,53 @@ function ScoreBar({score}){const c=score<=2?C.red:score===3?C.yellow:score===4?C
 function Btn({children,onClick,variant="primary",small,disabled}){const s={primary:{background:C.accent,color:"#00132f",border:"none"},ghost:{background:"transparent",color:C.muted,border:`1px solid ${C.border}`},danger:{background:"rgba(248,113,113,0.15)",color:C.red,border:`1px solid ${C.red}44`}};return <button onClick={onClick} disabled={disabled} style={{...s[variant],padding:small?"5px 12px":"8px 18px",borderRadius:8,fontSize:small?12:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:6}}>{children}</button>;}
 function DateRangeBar({range,setRange,t}){return <div style={{display:"flex",gap:2,background:C.card,borderRadius:9,padding:3,border:`1px solid ${C.border}`,flexWrap:"wrap"}}>{DATE_RANGES.map(d=>{const lk=`period${d.key.charAt(0).toUpperCase()+d.key.slice(1)}`;const active=range===d.key;return <button key={d.key} onClick={()=>setRange(d.key)} style={{padding:"4px 9px",borderRadius:7,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",fontSize:10,fontWeight:active?700:500,whiteSpace:"nowrap"}}>{t[lk]||d.key}</button>;})}</div>;}
 
+function DashboardDatePicker({dateFrom,dateTo,setDateFrom,setDateTo,t,lang}){
+  const ins={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 9px",fontSize:12,outline:"none",colorScheme:"dark",cursor:"pointer"};
+  const PRESETS=[
+    {key:"1d",days:1},{key:"3d",days:3},{key:"7d",days:7},{key:"14d",days:14},
+    {key:"30d",days:null,mode:"month"},{key:"90d",days:null,mode:"quarter"},
+    {key:"365d",days:null,mode:"year"},{key:"all",days:null,mode:"all"}
+  ];
+  const applyPreset=(p)=>{
+    const now=new Date();const to=now.toISOString().slice(0,10);
+    if(p.mode==="all"){setDateFrom("");setDateTo("");return;}
+    if(p.mode==="month"){const from=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`;setDateFrom(from);setDateTo(to);return;}
+    if(p.mode==="quarter"){const q=Math.floor(now.getMonth()/3);const from=`${now.getFullYear()}-${String(q*3+1).padStart(2,"0")}-01`;setDateFrom(from);setDateTo(to);return;}
+    if(p.mode==="year"){setDateFrom(`${now.getFullYear()}-01-01`);setDateTo(to);return;}
+    const from=new Date(now-p.days*86400000).toISOString().slice(0,10);
+    setDateFrom(from);setDateTo(to);
+  };
+  const activePreset=PRESETS.find(p=>{
+    if(p.mode==="all")return!dateFrom&&!dateTo;
+    if(!dateFrom||!dateTo)return false;
+    const now=new Date();const to=now.toISOString().slice(0,10);
+    if(dateTo!==to)return false;
+    if(p.mode==="month"){return dateFrom===`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`;}
+    if(p.mode==="quarter"){const q=Math.floor(now.getMonth()/3);return dateFrom===`${now.getFullYear()}-${String(q*3+1).padStart(2,"0")}-01`;}
+    if(p.mode==="year")return dateFrom===`${now.getFullYear()}-01-01`;
+    if(p.days){const f=new Date(now-p.days*86400000).toISOString().slice(0,10);return dateFrom===f;}
+    return false;
+  });
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end"}}>
+      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+        <span style={{fontSize:10,color:C.muted}}>📅</span>
+        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={ins}/>
+        <span style={{color:C.dim,fontSize:12}}>—</span>
+        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={ins}/>
+        {(dateFrom||dateTo)&&<button onClick={()=>{setDateFrom("");setDateTo("");}} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:14,padding:"2px 4px"}} title="Сбросить">✕</button>}
+      </div>
+      <div style={{display:"flex",gap:2,flexWrap:"wrap",justifyContent:"flex-end"}}>
+        {PRESETS.map(p=>{const lk=`period${p.key.charAt(0).toUpperCase()+p.key.slice(1)}`;const active=activePreset?.key===p.key;return(
+          <button key={p.key} onClick={()=>applyPreset(p)} style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${active?C.accent:C.border}`,background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",fontSize:10,fontWeight:active?700:400,whiteSpace:"nowrap"}}>
+            {t[lk]||p.key}
+          </button>
+        );})}
+      </div>
+    </div>
+  );
+}
+
 // ─── SETUP SCREEN ─────────────────────────────────────────────────────────────
 function SetupScreen({onSave}){
   const [mode,setMode]=useState(null); // null | "create" | "join"
@@ -680,7 +736,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           const doc=document.getElementById("kp-doc");
           if(!doc)return;
           const w=window.open("","_blank","width=900,height=800");
-          w.document.write("<!DOCTYPE html><html><head><meta charset=utf-8><style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'DM Sans','Segoe UI',sans-serif;background:#fff;}@media print{@page{margin:0;size:A4 portrait;}body{margin:0;padding:0;}#kp-page1{page-break-after:always;break-after:page;}#kp-page2{page-break-before:always;break-before:page;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}</style></head><body>"+doc.outerHTML+"</body></html>");
+          w.document.write("<!DOCTYPE html><html><head><meta charset=utf-8><style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'DM Sans','Segoe UI',sans-serif;background:#fff;}@media print{@page{margin:0;size:A4 portrait;}body{margin:0;padding:0;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}#kp-doc{max-width:100%!important;margin:0!important;border-radius:0!important;box-shadow:none!important;}/* Compact padding for print */#kp-page1 > div[style*='padding: 36px'],#kp-page1 > div[style*='padding:36px']{padding:20px 32px!important;}#kp-page1 div[style*='padding: 28px 48px'],#kp-page1 div[style*='padding:28px 48px'],#kp-page2 div[style*='padding: 28px 48px'],#kp-page2 div[style*='padding:28px 48px']{padding:16px 32px!important;}#kp-page2 div[style*='padding: 40px'],#kp-page2 div[style*='padding:40px']{padding:24px 32px!important;}#kp-page2 div[style*='padding: 32px'],#kp-page2 div[style*='padding:32px']{padding:18px 32px!important;}img[style*='height: 180px'],img[style*='height:180px']{height:120px!important;}img[style*='height: 90px'],img[style*='height:90px']{height:64px!important;}img[style*='height: 110px'],img[style*='height:110px']{height:80px!important;width:80px!important;}div[style*='padding-bottom: 28px']{padding-bottom:14px!important;}div[style*='padding-bottom: 20px']{padding-bottom:10px!important;}div[style*='margin-bottom: 28px']{margin-bottom:14px!important;}</style></head><body>"+doc.outerHTML+"</body></html>");
           w.document.close();
           setTimeout(()=>{w.focus();w.print();},800);
         }} style={{background:"#bfa47e",color:"#00132f",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:800,cursor:"pointer"}}>🖨 PDF / Drukuj</button>
@@ -731,7 +787,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           </div>
           <div>
             <div style={{fontSize:10,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>GARNO Custom Furniture</div>
-            <div style={{fontSize:12,color:"#555",lineHeight:2}}>garnofurniture.com<br/>garnofurniture.ukr<br/>Warszawa, Polska</div>
+            <div style={{fontSize:12,color:"#555",lineHeight:2}}>garnofurniture.com<br/>Warszawa, Polska</div>
           </div>
         </div>
         <div style={{margin:"0 48px",height:1,background:"#e8e0d4"}}/>
@@ -744,8 +800,8 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
 
           {/* Row 1: Meble */}
           <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid #f0ebe2"}}>
-            <span style={{fontSize:13,color:"#333"}}>{isUa?"Меблі на замір (проект + виготовлення)":"Meble na wymiar (projekt + wykonanie)"}</span>
-            <span style={{fontSize:13,fontWeight:700,color:"#00132f"}}>{fmtM(Math.round(amount*0.87))}</span>
+            <span style={{fontSize:13,color:"#333"}}>{isUa?"Меблі на замір":"Meble na wymiar"}</span>
+            <span style={{fontSize:13,fontWeight:700,color:"#00132f"}}>{fmtM(amount)}</span>
           </div>
 
           {/* Row 2: Montaż - FREE with deadline */}
@@ -757,7 +813,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
               </div>
             </div>
             <div style={{textAlign:"right"}}>
-              <span style={{fontSize:13,color:"#aaa",textDecoration:"line-through"}}>{fmtM(Math.round(amount*0.13))}</span>
+              <span style={{fontSize:13,color:"#aaa",textDecoration:"line-through"}}>{fmtM(Math.round(amount*0.12))}</span>
               <div style={{fontSize:13,fontWeight:800,color:"#16a34a"}}>{isUa?"БЕЗКОШТОВНО ✓":"BEZPŁATNIE ✓"}</div>
             </div>
           </div>
@@ -776,19 +832,14 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
 
           {/* STONE UPSELL */}
           {stoneAmt&&(
-            <div style={{marginTop:12,background:"linear-gradient(135deg,#7f1d1d,#991b1b)",borderRadius:10,padding:"10px 16px",border:"2px solid #fca5a5"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                <div>
-                  <div style={{fontSize:11,color:"#fca5a5",fontWeight:700,marginBottom:4}}>
-                    🔥 {isUa?"ЗНИЖКА! Преміум стільниця з кварцового конгломерату":"RABAT! Blatpremium z konglomeratu kwarcowego"}
-                  </div>
-                  <div style={{fontSize:12,color:"#fff",marginBottom:4}}>{stoneLabel||"Blat premium — kwarc/granit"}</div>
-                      <div style={{fontSize:13,fontWeight:800,color:"#4ade80",marginTop:4}}>50% {isUa?"ЗНИЖКА":"RABAT"} do {freeDeadline()}</div>
-                </div>
-                <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
-                  <div style={{fontSize:13,color:"rgba(255,255,255,0.6)"}}>{fmtM(stoneAmt*2)} − 50% =</div>
-                  <div style={{fontSize:24,fontWeight:900,color:"#fff"}}>{fmtM(stoneAmt)}</div>
-                </div>
+            <div style={{marginTop:12,background:"linear-gradient(135deg,#7f1d1d,#991b1b)",borderRadius:10,padding:"14px 20px",border:"2px solid #fca5a5"}}>
+              <div style={{fontSize:11,color:"#fca5a5",fontWeight:700,marginBottom:8}}>
+                🔥 {isUa?"ЗНИЖКА! Преміум стільниця з кварцового конгломерату":"RABAT! Blatpremium z konglomeratu kwarcowego"}
+              </div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:12,flexWrap:"wrap"}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#4ade80",marginRight:"auto"}}>50% {isUa?"ЗНИЖКА":"RABAT"} do {freeDeadline()}</div>
+                <div style={{fontSize:18,fontWeight:800,color:"rgba(255,255,255,0.75)"}}>{fmtM(stoneAmt*2)} − 50% =</div>
+                <div style={{fontSize:34,fontWeight:900,color:"#fff",lineHeight:1}}>{fmtM(stoneAmt)}</div>
               </div>
             </div>
           )}
@@ -875,7 +926,10 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
             <img src={IMG_SHOWROOM1} alt="showroom" style={{width:"100%",height:"180px",objectFit:"cover",borderRadius:8}}/>
-            <img src={IMG_RODA} alt="garno" style={{width:"100%",height:"180px",objectFit:"cover",borderRadius:8}}/>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <img src={IMG_RODA} alt="garno neon" style={{width:"100%",height:"84px",objectFit:"cover",borderRadius:8}}/>
+              <img src={IMG_TEAM} alt="garno team" style={{width:"100%",height:"84px",objectFit:"cover",borderRadius:8}}/>
+            </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"center"}}>
             <div>
@@ -1090,19 +1144,25 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({leads,events,t,lang}){
-  const [range,setRange]=useState("30d");
-  const fl=filterByRange(leads,range);
+  const [dateFrom,setDateFrom]=useState(()=>{const now=new Date();return`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`;});
+  const [dateTo,setDateTo]=useState(()=>new Date().toISOString().slice(0,10));
+  const fl=filterByCustomRange(leads,dateFrom,dateTo);
   const qual=fl.filter(l=>["qualified","salon","sale"].includes(l.qualification));
   const funnelData=QUALS.map(q=>({name:t[q],val:fl.filter(l=>l.qualification===q).length,color:QUAL_COLOR[q]}));
   const srcData=SOURCES.map(s=>({name:srcShort(s),value:fl.filter(l=>l.source===s).length,fill:SRC_COLOR[s]})).filter(d=>d.value>0).sort((a,b)=>b.value-a.value);
   const mgrData=MANAGERS.map(m=>{const ml=fl.filter(l=>l.manager===m);return{name:m,total:ml.length,conv:ml.length?Math.round(ml.filter(l=>["qualified","salon","sale"].includes(l.qualification)).length/ml.length*100):0};});
+  const allEvents=filterByCustomRange(events.map(e=>{const d=new Date(e.date);return{...e,createdAt:`${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()}`};}),dateFrom,dateTo);
+  const rangeVisits=allEvents.filter(e=>e.type==="visit").length;
   const todayEvs=[...events].filter(e=>e.date===TODAY).sort((a,b)=>a.time.localeCompare(b.time));
   const upcoming=[...events].filter(e=>e.date>=TODAY).sort((a,b)=>a.date===b.date?a.time.localeCompare(b.time):a.date.localeCompare(b.date));
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>{t.dashboard} <span style={{fontSize:11,color:C.muted}}>({fl.length})</span></div><DateRangeBar range={range} setRange={setRange} t={t}/></div>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+        <div style={{fontSize:16,fontWeight:700,color:C.text}}>{t.dashboard} <span style={{fontSize:11,color:C.muted}}>({fl.length})</span></div>
+        <DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t} lang={lang}/>
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-        {(()=>{const rangeVisits=filterEventsByRange(events,range).filter(e=>e.type==="visit").length;const newLeadsCount=fl.length;const processedCount=fl.filter(l=>l.action!=="undefined").length;return[{label:t.newLeads,val:newLeadsCount,color:C.yellow},{label:t.processed,val:processedCount,color:C.green},{label:t.todayMeetings,val:rangeVisits,color:C.blue},{label:t.convRate,val:`${fl.length?Math.round(qual.length/fl.length*100):0}%`,color:C.accent}];})().map(s=>(<div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:9,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{s.label}</div><div style={{fontSize:28,fontWeight:800,color:s.color}}>{s.val}</div></div>))}
+        {(()=>{const newLeadsCount=fl.length;const processedCount=fl.filter(l=>l.action!=="undefined").length;return[{label:t.newLeads,val:newLeadsCount,color:C.yellow},{label:t.processed,val:processedCount,color:C.green},{label:t.todayMeetings,val:rangeVisits,color:C.blue},{label:t.convRate,val:`${fl.length?Math.round(qual.length/fl.length*100):0}%`,color:C.accent}];})().map(s=>(<div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:9,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{s.label}</div><div style={{fontSize:28,fontWeight:800,color:s.color}}>{s.val}</div></div>))}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
