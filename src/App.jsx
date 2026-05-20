@@ -49,6 +49,13 @@ const LIGHT = {
   yellow:"#b45309", purple:"#6d28d9", cyan:"#0e7490",
 };
 let C = DARK; // mutable — updated by theme
+function syncColorMaps(){
+  MGR_COLOR.Oleh=C.blue;MGR_COLOR.Dmytro=C.green;MGR_COLOR.Patryk=C.purple;MGR_COLOR.Danya=C.cyan;
+  QUAL_COLOR.unqualified=C.red;QUAL_COLOR.prequalified=C.yellow;QUAL_COLOR.qualified=C.green;QUAL_COLOR.salon=C.blue;QUAL_COLOR.sale=C.accent;
+  ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;
+  BUD_COLOR.withinMonth=C.green;BUD_COLOR.within3m=C.cyan;BUD_COLOR.within6m=C.yellow;BUD_COLOR.year=C.purple;BUD_COLOR.justPrice=C.muted;
+  EVENT_COLOR.visit=C.blue;EVENT_COLOR.measure=C.accent;EVENT_COLOR.contract=C.green;EVENT_COLOR.phone=C.purple;EVENT_COLOR.delivery=C.cyan;
+}
 // TIP is computed dynamically in components using C
 const getTIP=()=>({contentStyle:{background:C.surface,border:`1px solid ${C.borderMd}`,borderRadius:8,color:C.text,fontSize:11},labelStyle:{color:C.text},itemStyle:{color:C.text}});
 const MONTHS_RU=["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
@@ -120,12 +127,11 @@ function srcShort(s){return s.replace(".calculatorkuchni.online","…").replace(
 const EVENT_TYPES=["visit","measure","contract","phone","delivery"];
 const EVENT_COLOR={visit:C.blue,measure:C.accent,contract:C.green,phone:C.purple,delivery:C.cyan};
 const DATE_RANGES=[{key:"1d",days:1},{key:"3d",days:3},{key:"7d",days:7},{key:"14d",days:14},{key:"30d",days:30},{key:"90d",days:90},{key:"365d",days:365},{key:"all",days:99999}];
-const TODAY = new Date().toISOString().slice(0,10);
+function getToday(){return new Date().toISOString().slice(0,10);}
+const TODAY = getToday(); // module-level default; use getToday() for runtime-critical checks
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
-function rnd(a,b){return Math.floor(a+Math.random()*(b-a+1));}
 function fmtM(n){if(!n&&n!==0)return"—";return new Intl.NumberFormat("pl-PL").format(n)+" zł";}
-function dAgo(n){const d=new Date(Date.now()-n*86400000);return d.toLocaleDateString("ru-RU");}
 function daysAgoFn(str){if(!str)return 9999;const p=str.split(".");if(p.length!==3)return 9999;const d=new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);return Math.floor((Date.now()-d.getTime())/86400000);}
 function parseCreatedAt(str){if(!str)return null;const p=str.split(".");if(p.length===3){const d=new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);return isNaN(d)?null:d;}return null;}
 function filterByRange(items,range){
@@ -139,7 +145,8 @@ function filterByRange(items,range){
 function filterByCustomRange(items,dateFrom,dateTo){
   if(!dateFrom&&!dateTo)return items;
   return items.filter(l=>{
-    const d=parseCreatedAt(l.createdAt);if(!d)return false;
+    const d=parseCreatedAt(l.createdAt);
+    if(!d)return true; // no date — always include (don't lose data)
     if(dateFrom&&d<new Date(dateFrom))return false;
     if(dateTo&&d>new Date(dateTo+"T23:59:59"))return false;
     return true;
@@ -223,7 +230,7 @@ async function binWrite(binId,apiKey,data){
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
 }
 async function binCreate(apiKey,data){
-  const r=await fetch(BIN_BASE,{method:"POST",headers:{"Content-Type":"application/json","X-Master-Key":apiKey,"X-Bin-Name":"GarnoCRM","X-Bin-Private":"false"},body:JSON.stringify(data)});
+  const r=await fetch(BIN_BASE,{method:"POST",headers:{"Content-Type":"application/json","X-Master-Key":apiKey,"X-Bin-Name":"GarnoCRM","X-Bin-Private":"true"},body:JSON.stringify(data)});
   if(!r.ok){const txt=await r.text();throw new Error(`HTTP ${r.status}: ${txt.slice(0,100)}`);}
   const j=await r.json();
   // JSONBin v3 returns { record: {...}, metadata: { id: "..." } }
@@ -244,6 +251,7 @@ function useDatabase(){
   const savingRef=useRef(false);
   const saveTimer=useRef(null);
   const retryTimer=useRef(null);
+  const retryCount=useRef(0);
   const LS_BACKUP="garno_backup";
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -257,6 +265,10 @@ function useDatabase(){
         const ts=p.length===3?new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0:0;
         updated={...updated,updatedAt:ts};
       }
+      // Ensure score is always a number, not a string from JSON
+      if(typeof updated.score!=="number"){updated={...updated,score:parseInt(updated.score)||0};}
+      // Ensure qualification is consistent with score
+      if(!updated.qualification||updated.qualification==="undefined"){updated={...updated,qualification:scoreToQual(updated.score)};}
       return updated;
     });
     const changed=leads.some((l,i)=>l!==data.leads[i]);
@@ -294,14 +306,23 @@ function useDatabase(){
       mergedLeads.push(remTs>locTs ? rem : loc);
     });
 
-    const localEvIds=new Set((local.events||[]).map(e=>e.id));
-    const remoteOnlyEvs=(remote.events||[]).filter(e=>!localEvIds.has(e.id));
+    // Events conflict resolution by updatedAt
+    const localEvMap=new Map((local.events||[]).map(e=>[e.id,e]));
+    const mergedEvents=[];
+    const allEvIds=new Set([...(local.events||[]).map(e=>e.id),...(remote.events||[]).map(e=>e.id)]);
+    allEvIds.forEach(id=>{
+      const loc=localEvMap.get(id);
+      const rem=(remote.events||[]).find(e=>e.id===id);
+      if(!loc&&rem){mergedEvents.push(rem);return;}
+      if(loc&&!rem){mergedEvents.push(loc);return;}
+      mergedEvents.push((rem.updatedAt||0)>(loc.updatedAt||0)?rem:loc);
+    });
     const localSaleIds=new Set((local.sales||[]).map(s=>s.id));
     const remoteOnlySales=(remote.sales||[]).filter(s=>!localSaleIds.has(s.id));
     return{
       ...local,
       leads:sortLeads(mergedLeads),
-      events:[...(local.events||[]),...remoteOnlyEvs],
+      events:mergedEvents.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)),
       sales:[...(local.sales||[]),...remoteOnlySales],
       nextNum:Math.max(local.nextNum||0,remote.nextNum||0),
       deletedLeadIds:[...deletedIds],
@@ -342,9 +363,15 @@ function useDatabase(){
       if(em.includes("401")||em.includes("403")){
         setSyncError("❌ Неверный Master Key. Данные сохранены локально, используй тот же ключ что у создателя базы.");
       } else if(em.includes("429")){
-        setSyncError("⏳ Лимит запросов JSONBin. Повтор через 65 сек...");
-        if(retryTimer.current)clearTimeout(retryTimer.current);
-        retryTimer.current=setTimeout(()=>{mergeWrite(JSON.parse(localRef.current||"{}"));},65000);
+        retryCount.current=(retryCount.current||0)+1;
+        if(retryCount.current<=3){
+          setSyncError(`⏳ Лимит запросов JSONBin. Повтор ${retryCount.current}/3 через 65 сек...`);
+          if(retryTimer.current)clearTimeout(retryTimer.current);
+          retryTimer.current=setTimeout(()=>{retryCount.current=0;mergeWrite(JSON.parse(localRef.current||"{}"));},65000);
+        } else {
+          setSyncError("⏳ JSONBin: слишком много ошибок лимита. Данные в localStorage. Обновите страницу позже.");
+          retryCount.current=0;
+        }
       } else {
         setSyncError("⚠️ Ошибка синхронизации. Данные сохранены локально.");
       }
@@ -376,7 +403,9 @@ function useDatabase(){
             return (l.updatedAt||0)>(loc.updatedAt||0);
           });
           const remoteNewEvs=(remote?.events||[]).filter(e=>!(local.events||[]).find(x=>x.id===e.id));
-          if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0)return;
+          const localSaleIds=new Set((local.sales||[]).map(s=>s.id));
+          const remoteNewSales=(remote?.sales||[]).filter(s=>!localSaleIds.has(s.id));
+          if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0)return;
           // Build merged — deletedSet applied on both sides
           const merged=mergeData(local,remote);
           try{await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,merged);}catch{}
@@ -410,7 +439,11 @@ function useDatabase(){
         startBgSync();
       }catch(e){console.error(e);setStatus("error");}
     })();
-    return()=>{if(bgSyncRef.current)clearInterval(bgSyncRef.current);};
+    return()=>{
+    if(bgSyncRef.current)clearInterval(bgSyncRef.current);
+    if(saveTimer.current)clearTimeout(saveTimer.current);
+    if(retryTimer.current)clearTimeout(retryTimer.current);
+  };
   },[]); // eslint-disable-line
 
   // ── Manual refresh — merge, не перезапись ────────────────────────────────
@@ -463,7 +496,7 @@ function Badge({label,color=C.blue,small}){return <span style={{display:"inline-
 function Avatar({name,color,size=32}){const ini=(name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();return <div style={{width:size,height:size,borderRadius:"50%",background:color?`${color}25`:C.accentDim,border:`1.5px solid ${color||C.accent}50`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:color||C.accent,flexShrink:0}}>{ini}</div>;}
 function Dot({color}){return <span style={{width:7,height:7,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>;}
 function SrcBadge({source}){const c=SRC_COLOR[source]||C.muted;return <span style={{fontSize:9,color:c,background:`${c}20`,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",display:"inline-block"}}>{srcShort(source)}</span>;}
-function ScoreBar({score}){const c=score<=2?C.red:score===3?C.yellow:score===4?C.green:score===5?C.blue:C.accent;return <div style={{display:"flex",gap:2,alignItems:"center"}}>{Array.from({length:7}).map((_,i)=><div key={i} style={{width:7,height:7,borderRadius:2,background:i<=score?c:"rgba(255,255,255,0.12)"}}/>)}<span style={{fontSize:10,color:c,marginLeft:2,fontWeight:700}}>{score}</span></div>;}
+function ScoreBar({score}){const s=parseInt(score)||0;const c=s<=2?C.red:s===3?C.yellow:s===4?C.green:s===5?C.blue:C.accent;return <div style={{display:"flex",gap:2,alignItems:"center"}}>{Array.from({length:7}).map((_,i)=><div key={i} style={{width:7,height:7,borderRadius:2,background:i<=s?c:"rgba(255,255,255,0.12)"}}/>)}<span style={{fontSize:10,color:c,marginLeft:2,fontWeight:700}}>{s}</span></div>;}
 function Btn({children,onClick,variant="primary",small,disabled}){const s={primary:{background:C.accent,color:"#00132f",border:"none"},ghost:{background:"transparent",color:C.muted,border:`1px solid ${C.border}`},danger:{background:"rgba(248,113,113,0.15)",color:C.red,border:`1px solid ${C.red}44`}};return <button onClick={onClick} disabled={disabled} style={{...s[variant],padding:small?"5px 12px":"8px 18px",borderRadius:8,fontSize:small?12:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:6}}>{children}</button>;}
 function DateRangeBar({range,setRange,t}){return <div style={{display:"flex",gap:2,background:C.card,borderRadius:9,padding:3,border:`1px solid ${C.border}`,flexWrap:"wrap"}}>{DATE_RANGES.map(d=>{const lk=`period${d.key.charAt(0).toUpperCase()+d.key.slice(1)}`;const active=range===d.key;return <button key={d.key} onClick={()=>setRange(d.key)} style={{padding:"4px 9px",borderRadius:7,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",fontSize:10,fontWeight:active?700:500,whiteSpace:"nowrap"}}>{t[lk]||d.key}</button>;})}</div>;}
 
@@ -740,6 +773,8 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           const doc=document.getElementById("kp-doc");
           if(!doc)return;
           const w=window.open("","_blank","width=900,height=800");
+          if(!w){alert("Разрешите всплывающие окна для этого сайта");return;}
+          const safeHtml=doc.outerHTML.replace(/<script[\s\S]*?<\/script>/gi,"");
           w.document.write("<!DOCTYPE html><html><head><meta charset=utf-8><style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'DM Sans','Segoe UI',sans-serif;background:#fff;font-size:12px;}@media print{@page{margin:0;size:A4 portrait;}body{margin:0;padding:0;}#kp-page1{page-break-after:always;break-after:page;height:297mm;overflow:hidden;}#kp-page2{page-break-before:always;break-before:page;height:297mm;overflow:hidden;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}}#kp-doc{max-width:210mm!important;margin:0 auto!important;border-radius:0!important;box-shadow:none!important;}/* PAGE 1 compact */#kp-page1{display:flex;flex-direction:column;}/* Banner */#kp-page1>div:first-child{padding:10px 32px!important;}#kp-page1>div:first-child img{width:72px!important;height:72px!important;}#kp-page1>div:first-child>div>div:first-child{font-size:18px!important;margin-bottom:2px!important;}#kp-page1>div:first-child>div>div:nth-child(2){font-size:13px!important;}/* Header dark */#kp-page1>div:nth-child(2){padding:18px 36px!important;}#kp-page1>div:nth-child(2) div:first-child{font-size:24px!important;}/* Client info */#kp-page1 div[style*='grid-template-columns: 1fr 1fr']{padding:14px 36px!important;gap:16px!important;}#kp-page1 div[style*='grid-template-columns: 1fr 1fr']>div>div:first-child{font-size:9px!important;margin-bottom:4px!important;}#kp-page1 div[style*='grid-template-columns: 1fr 1fr']>div>div:nth-child(2){font-size:16px!important;}/* Pricing */#kp-page1 div[style*='SZCZEG']{padding:14px 36px 10px!important;}#kp-page1 div[style*='SZCZEG']>div:first-child{margin-bottom:8px!important;}/* Pricing rows */div[style*='border-bottom: 1px solid #f0ebe2']{padding:7px 0!important;}/* Total block */div[style*='background: #00132f'][style*='border-radius: 12px']{margin-top:10px!important;padding:14px 22px!important;}div[style*='background: #00132f'][style*='border-radius: 12px'] div:first-child{font-size:17px!important;}div[style*='background: #00132f'][style*='border-radius: 12px'] div:last-child{font-size:30px!important;}/* Stone block */div[style*='gradient(135deg,#7f1d1d']{margin-top:8px!important;padding:10px 16px!important;}/* Materials */div[style*='MATERI']{padding:10px 36px 14px!important;}div[style*='MATERI']>div:first-child{margin-bottom:8px!important;}div[style*='grid-template-columns: 1fr 1fr'][style*='gap: 14px'] > div,div[style*='grid-template-columns: 1fr 1fr'][style*='gap:14px'] > div{padding:10px!important;}div[style*='grid-template-columns: 1fr 1fr'][style*='gap: 14px'] img,div[style*='grid-template-columns: 1fr 1fr'][style*='gap:14px'] img{height:60px!important;margin-top:4px!important;}/* PAGE 2 compact */#kp-page2{display:flex;flex-direction:column;}/* Co dalej */#kp-page2>div:first-child{padding:18px 36px!important;flex:1;}#kp-page2>div:first-child>div:first-child{font-size:20px!important;margin-bottom:2px!important;}#kp-page2>div:first-child>div:nth-child(2){font-size:10px!important;margin-bottom:16px!important;}#kp-page2>div:first-child>div:nth-child(3){padding-left:32px!important;}div[style*='position: relative'][style*='padding-bottom: 28px'],div[style*='position:relative'][style*='padding-bottom:28px']{padding-bottom:14px!important;}div[style*='position: relative'][style*='padding-bottom: 20px'],div[style*='position:relative'][style*='padding-bottom:20px']{padding-bottom:10px!important;}div[style*='padding-bottom: 28px']{padding-bottom:14px!important;}div[style*='padding-bottom: 20px']{padding-bottom:10px!important;}/* Showroom block */#kp-page2>div:nth-child(2){padding:14px 36px!important;}#kp-page2>div:nth-child(2)>div:first-child{font-size:14px!important;}#kp-page2>div:nth-child(2)>div:nth-child(2){font-size:11px!important;margin-bottom:8px!important;}#kp-page2>div:nth-child(2)>div:nth-child(3){gap:6px!important;margin-bottom:10px!important;}#kp-page2>div:nth-child(2)>div:nth-child(3)>div{padding:4px 10px!important;font-size:10px!important;}/* Showroom photos 3-in-row */div[style*='grid-template-columns: 1fr 1fr 1fr']{gap:6px!important;margin-bottom:10px!important;}div[style*='grid-template-columns: 1fr 1fr 1fr'] img{height:100px!important;}/* Footer */#kp-page2>div:last-child{padding:10px 36px!important;margin-top:auto;}</style></head><body>"+doc.outerHTML+"</body></html>");
           w.document.close();
           setTimeout(()=>{w.focus();w.print();},800);
@@ -1156,7 +1191,7 @@ function Dashboard({leads,events,t,lang}){
   const allEvents=filterByCustomRange(events.map(e=>{const d=new Date(e.date);return{...e,createdAt:`${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()}`};}),dateFrom,dateTo);
   const rangeVisits=allEvents.filter(e=>e.type==="visit").length;
   const todayEvs=[...events].filter(e=>e.date===TODAY).sort((a,b)=>a.time.localeCompare(b.time));
-  const upcoming=[...events].filter(e=>e.date>=TODAY).sort((a,b)=>a.date===b.date?a.time.localeCompare(b.time):a.date.localeCompare(b.date));
+  const upcoming=[...events].filter(e=>e.date>=getToday()).sort((a,b)=>a.date===b.date?a.time.localeCompare(b.time):a.date.localeCompare(b.date));
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
@@ -1349,7 +1384,7 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
   const mStr=`${calDate.year}-${String(calDate.month+1).padStart(2,"0")}`;
   const mName=lang==="ru"?MONTHS_RU[calDate.month]:MONTHS_PL[calDate.month];
   const days=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
-  const handleSave=(form)=>{if(form.id&&events.find(e=>e.id===form.id))setEvents(p=>p.map(e=>e.id===form.id?{...form}:e));else setEvents(p=>[...p,{...form,id:Date.now()}]);setPopup(null);};
+  const handleSave=(form)=>{const now=Date.now();if(form.id&&events.find(e=>e.id===form.id))setEvents(p=>p.map(e=>e.id===form.id?{...form,updatedAt:now}:e));else setEvents(p=>[...p,{...form,id:now,updatedAt:now}]);setPopup(null);};
   const handleDelete=(id)=>{
     setEventsNow(p=>p.filter(e=>e.id!==id));
     setPopup(null);
@@ -1480,7 +1515,7 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
               {/* Add event for this day */}
               <button onClick={()=>{setDayModal(null);setPopup({initDate:dayModal.date,initEvent:null});}}
                 style={{background:C.accentDim,border:`1px dashed ${C.accentBorder}`,color:C.accent,borderRadius:10,padding:"10px 0",fontSize:13,fontWeight:700,cursor:"pointer",marginTop:4}}>
-                + Добавить событие
+                + {lang==="ru"?"Добавить событие":"Dodaj wydarzenie"}
               </button>
             </div>
           </div>
@@ -1538,8 +1573,8 @@ function detectMsgLang(msg){
 }
 function localAns(q,leads,events){
   const lq=q.toLowerCase();const dm=lq.match(/(oleh|dmytro|patryk|danya)/i);const m=dm?dm[1].charAt(0).toUpperCase()+dm[1].slice(1):null;
-  if((lq.includes("задач")||lq.includes("встреч")||lq.includes("событи")||lq.includes("сегодня"))&&m){const evs=events.filter(e=>e.date===TODAY&&e.manager===m);if(!evs.length)return`📅 У ${m} сегодня нет событий.`;return`📅 У ${m} сегодня (${evs.length}):\n`+evs.map(e=>`• ${e.time}${e.timeEnd?`–${e.timeEnd}`:""}: [${e.type}] ${e.title}${e.description?` — ${e.description}`:""}`).join("\n");}
-  if(lq.includes("задач")||lq.includes("встреч")||lq.includes("сегодня")){const evs=events.filter(e=>e.date===TODAY);if(!evs.length)return"📅 Сегодня событий нет.";return`📅 Сегодня (${evs.length}):\n`+MANAGERS.map(mn=>{const mevs=evs.filter(e=>e.manager===mn);if(!mevs.length)return`${mn}: нет`;return`${mn}: `+mevs.map(e=>`${e.time} ${e.title}`).join(", ");}).join("\n");}
+  if((lq.includes("задач")||lq.includes("встреч")||lq.includes("событи")||lq.includes("сегодня"))&&m){const t0=getToday();const evs=events.filter(e=>e.date===t0&&e.manager===m);if(!evs.length)return`📅 У ${m} сегодня нет событий.`;return`📅 У ${m} сегодня (${evs.length}):\n`+evs.map(e=>`• ${e.time}${e.timeEnd?`–${e.timeEnd}`:""}: [${e.type}] ${e.title}${e.description?` — ${e.description}`:""}`).join("\n");}
+  if(lq.includes("задач")||lq.includes("встреч")||lq.includes("сегодня")){const evs=events.filter(e=>e.date===getToday());if(!evs.length)return"📅 Сегодня событий нет.";return`📅 Сегодня (${evs.length}):\n`+MANAGERS.map(mn=>{const mevs=evs.filter(e=>e.manager===mn);if(!mevs.length)return`${mn}: нет`;return`${mn}: `+mevs.map(e=>`${e.time} ${e.title}`).join(", ");}).join("\n");}
   if(lq.includes("менедж")||lq.includes("статистик")){return"📊 По менеджерам:\n"+MANAGERS.map(mn=>{const ml=leads.filter(l=>l.manager===mn);return`• ${mn}: ${ml.length} лидов | AI: ${ml.length?(ml.reduce((a,l)=>a+l.score,0)/ml.length).toFixed(1):0} | Kwaly: ${ml.filter(l=>l.score>=4).length} | Продаж: ${ml.filter(l=>l.score===6).length}`;}).join("\n");}
   if(lq.includes("незаконч")||lq.includes("итог")){const open=leads.filter(l=>l.action==="missedCall"||l.action==="callback");return`📋 Незакрытые (${open.length}):\n`+open.slice(0,8).map(l=>`• ${l.name||l.phone} [${l.action}] — ${l.manager||"—"}`).join("\n");}
   if(lq.includes("лучш")){const best=[...MANAGERS].sort((a,b)=>{const al=leads.filter(l=>l.manager===a);const bl=leads.filter(l=>l.manager===b);return(bl.filter(l=>l.score>=4).length/Math.max(bl.length,1))-(al.filter(l=>l.score>=4).length/Math.max(al.length,1));})[0];return`🏆 Лучший: ${best}`;}
@@ -1547,10 +1582,13 @@ function localAns(q,leads,events){
 }
 
 function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
-  const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [apiOk,setApiOk]=useState(true);const [showApiStatus,setShowApiStatus]=useState(false);const [kpData,setKpData]=useState(null);const [memory,setMemory]=useState([]);const ref=useRef(null);
+  const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [apiOk,setApiOk]=useState(true);const [showApiStatus,setShowApiStatus]=useState(false);const [kpData,setKpData]=useState(null);const ref=useRef(null);
+  // Memory persisted in chatHistory prefixed entries
+  const memory=chatHistory.filter(m=>m.role==="memory").map(m=>m.content);
+  const addMemory=(info)=>setChatHistory(p=>[...p,{role:"memory",content:info}]);
   useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[chatHistory]);
   const QUICK=["Задачи Dmytro сегодня","Задачи Oleh сегодня","Задачи Patryk сегодня","Статистика менеджеров","Незаконченные задачи","Все события сегодня","Итог дня","Лучший по конверсии?"];
-  const buildCtx=()=>{const todayEvs=events.filter(e=>e.date===TODAY);const mStats=MANAGERS.map(m=>{const ml=leads.filter(l=>l.manager===m);const mev=todayEvs.filter(e=>e.manager===m);return`${m}:лидов=${ml.length},kwaly=${ml.filter(l=>l.score>=4).length},продаж=${ml.filter(l=>l.score===6).length},avg=${ml.length?(ml.reduce((s,l)=>s+l.score,0)/ml.length).toFixed(1):0},задачи=[${mev.map(e=>`${e.time} ${e.type}:${e.title}`).join(";")||"нет"}]`;}).join(" | ");const memCtx=memory.length?`\nОбучение: ${memory.join("; ")}`:"";;return`Ты GarnoAI — ассистент CRM GARNO Custom Furniture (Польша). 0-2=неквалиф,3=предв,4=квалиф,5=визит,6=продажа. ВАЖНО: всегда отвечай на том же языке что и пользователь.\nДанные: лидов=${leads.length}, ${mStats}\nСегодня=${TODAY}. Незакрытых=${leads.filter(l=>["missedCall","callback"].includes(l.action)).length}${memCtx}`;};
+  const buildCtx=()=>{const todayEvs=events.filter(e=>e.date===getToday());const mStats=MANAGERS.map(m=>{const ml=leads.filter(l=>l.manager===m);const mev=todayEvs.filter(e=>e.manager===m);return`${m}:лидов=${ml.length},kwaly=${ml.filter(l=>l.score>=4).length},продаж=${ml.filter(l=>l.score===6).length},avg=${ml.length?(ml.reduce((s,l)=>s+l.score,0)/ml.length).toFixed(1):0},задачи=[${mev.map(e=>`${e.time} ${e.type}:${e.title}`).join(";")||"нет"}]`;}).join(" | ");const memCtx=memory.length?`\nОбучение: ${memory.slice(-10).join("; ")}`:"";;return`Ты GarnoAI — ассистент CRM GARNO Custom Furniture (Польша). 0-2=неквалиф,3=предв,4=квалиф,5=визит,6=продажа. ВАЖНО: всегда отвечай на том же языке что и пользователь.\nДанные: лидов=${leads.length}, ${mStats}\nСегодня=${TODAY}. Незакрытых=${leads.filter(l=>["missedCall","callback"].includes(l.action)).length}${memCtx}`;};
   const detectKP=(msg)=>{
     const m1=msg.match(/(?:кп|ofert|предложен|коммерч|пропозиц)/i);if(!m1)return null;
     const idM=msg.match(/(?:id|лид|лід)[=\s#:]?\s*(\d{5,})/i);
@@ -1570,11 +1608,11 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
   };
   const send=async(text)=>{
     const msg=text||input;if(!msg.trim()||loading)return;setInput("");
-    if(msg.toLowerCase().startsWith("запомни:")){const info=msg.replace(/^запомни:\s*/i,"").trim();setMemory(p=>[...p,info]);setChatHistory(p=>[...p,{role:"user",content:msg},{role:"assistant",content:`✅ Запомнил:\n"${info}"`}]);return;}
+    if(msg.toLowerCase().startsWith("запомни:")){const info=msg.replace(/^запомни:\s*/i,"").trim();addMemory(info);setChatHistory(p=>[...p,{role:"user",content:msg},{role:"assistant",content:`✅ Запомнил:\n"${info}"`}]);return;}
     const kp=detectKP(msg);
     if(kp){const langLabel=kp.kpLang==="ua"?"🇺🇦 UA":"🇵🇱 PL";setChatHistory(p=>[...p,{role:"user",content:msg},{role:"assistant",content:`📄 Генерирую КП ${langLabel} для ${kp.lead.name||kp.lead.phone} (${kp.lead.leadId}) · ${fmtM(kp.amount)}${kp.stoneAmt?` + камень ${fmtM(kp.stoneAmt)}`:""}...`}]);setTimeout(()=>setKpData(kp),400);return;}
     const upd=[...chatHistory,{role:"user",content:msg}];setChatHistory(upd);setLoading(true);
-    if(apiOk){try{const ctrl=new AbortController();setTimeout(()=>ctrl.abort(),14000);const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:ctrl.signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,system:buildCtx(),messages:upd.map(m=>({role:m.role,content:m.content}))})});const data=await res.json();if(!res.ok||data.error){setApiOk(false);setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);}else{setChatHistory(p=>[...p,{role:"assistant",content:(data.content?.map(c=>c.text||"").join("\n")||"").replace(/\*\*/g,"")}]);setApiOk(true);}}catch{setApiOk(false);setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);}}else{setTimeout(()=>{setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);setLoading(false);},300);return;}
+    if(apiOk){try{const ctrl=new AbortController();const _at=setTimeout(()=>ctrl.abort(),14000);const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:ctrl.signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,system:buildCtx(),messages:upd.filter(m=>m.role==="user"||m.role==="assistant").map(m=>({role:m.role,content:m.content}))})});clearTimeout(_at);const data=await res.json();if(!res.ok||data.error){setApiOk(false);setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);}else{setChatHistory(p=>[...p,{role:"assistant",content:(data.content?.map(c=>c.text||"").join("\n")||"").replace(/\*\*/g,"")}]);setApiOk(true);}}catch{setApiOk(false);setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);}}else{setTimeout(()=>{setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);setLoading(false);},300);return;}
     setLoading(false);
   };
   return(
@@ -1662,7 +1700,7 @@ function GarnoCRM(){
   const [theme,setTheme]=useState(()=>localStorage.getItem("garno_theme")||"dark");
 
   // Apply theme globally
-  C = theme==="light" ? LIGHT : DARK;
+  C = theme==="light" ? LIGHT : DARK; syncColorMaps();
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);localStorage.setItem("garno_theme",t);};
   const t=T[lang];
 
