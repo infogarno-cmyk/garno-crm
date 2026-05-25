@@ -208,37 +208,28 @@ const SEED_EVENTS=[
 ];
 const SEED_SALES=[{id:1,leadId:"502.05",name:"Grzegorz",phone:"48 530 399 395",manager:"Dmytro",source:"fast.calculatorkuchni.online",createdAt:"2.5.2026",saleAmount:23250,notes:"kuchnia 23250 zł standardowy blat"}];
 
-// ─── JSONBIN DATABASE ─────────────────────────────────────────────────────────
-const BIN_BASE="https://api.jsonbin.io/v3/b";
-const LS_KEY="garno_cfg"; // localStorage — only stores credentials
+// ─── SUPABASE DATABASE ────────────────────────────────────────────────────────
+const SB_URL="https://bnyjwjuejrfalbubdbcv.supabase.co";
+const SB_KEY="sb_publishable_frwr6x08dbBL1tfFlkb9iw_-egAa2Cm";
+const SB_HDR={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`};
 
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 
-async function binRead(binId,apiKey){
-  const r=await fetch(`${BIN_BASE}/${binId}/latest`,{
-    headers:{"X-Master-Key":apiKey,"X-Bin-Meta":"false"},
-    cache:"no-store"
+async function sbRead(){
+  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&select=data`,{headers:SB_HDR,cache:"no-store"});
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  const j=await r.json();
+  if(!j||j.length===0)throw new Error("empty");
+  return j[0].data;
+}
+async function sbWrite(data){
+  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1`,{
+    method:"PATCH",headers:{...SB_HDR,"Prefer":"return=minimal"},
+    body:JSON.stringify({data,updated_at:new Date().toISOString()})
   });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
-  const j=await r.json();
-  // JSONBin v3: response is { record: {...} } or directly the data
-  return j?.record ?? j;
 }
-async function binWrite(binId,apiKey,data){
-  const r=await fetch(`${BIN_BASE}/${binId}`,{method:"PUT",headers:{"Content-Type":"application/json","X-Master-Key":apiKey},body:JSON.stringify(data)});
-  if(!r.ok)throw new Error(`HTTP ${r.status}`);
-}
-async function binCreate(apiKey,data){
-  const r=await fetch(BIN_BASE,{method:"POST",headers:{"Content-Type":"application/json","X-Master-Key":apiKey,"X-Bin-Name":"GarnoCRM","X-Bin-Private":"true"},body:JSON.stringify(data)});
-  if(!r.ok){const txt=await r.text();throw new Error(`HTTP ${r.status}: ${txt.slice(0,100)}`);}
-  const j=await r.json();
-  // JSONBin v3 returns { record: {...}, metadata: { id: "..." } }
-  const id = j?.metadata?.id || j?.id || j?._id;
-  if(!id) throw new Error("JSONBin не вернул Bin ID. Ответ: "+JSON.stringify(j).slice(0,200));
-  return id;
-}
-
 const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
 
 function useDatabase(){
@@ -246,7 +237,6 @@ function useDatabase(){
   const [status,setStatus]=useState("loading");
   const [syncLabel,setSyncLabel]=useState("●");
   const [syncError,setSyncError]=useState("");
-  const cfgRef=useRef(null);
   const localRef=useRef(null);
   const savingRef=useRef(false);
   const saveTimer=useRef(null);
@@ -334,46 +324,33 @@ function useDatabase(){
   // Каждый раз читает актуальный remote перед записью, поэтому не теряет
   // лиды добавленные другими пользователями пока шла запись.
   const mergeWrite=async(localData)=>{
-    if(!cfgRef.current)return;
     savingRef.current=true;
-    // Pause bg sync during write to avoid concurrent read-write race
+    setSyncError("");
     if(bgSyncRef.current){clearInterval(bgSyncRef.current);bgSyncRef.current=null;}
     setSyncLabel("⟳");
     try{lsSet(LS_BACKUP,localData);}catch{}
     try{
-      // 1. Читаем самый свежий remote
       let remote;
-      try{remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);}catch{remote=null;}
-      // 2. Объединяем: local + то что есть на сервере но нет у нас
+      try{remote=await sbRead();}catch{remote=null;}
       const final=mergeData(localData,remote);
-      // 3. Пишем объединённый результат
-      await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,final);
+      await sbWrite(final);
       localRef.current=JSON.stringify(final);
-      // 4. Всегда обновляем UI финальным merged состоянием (включает удалённые изменения от других)
       setDbState(final);
       setSyncLabel("✓");setSyncError("");
       setTimeout(()=>setSyncLabel("●"),2000);
       try{localStorage.removeItem(LS_BACKUP);}catch{}
-      // Delay bgSync restart so it doesn't immediately re-read after a delete
       setTimeout(()=>startBgSync(),5000);
     }catch(e){
       console.error("mergeWrite failed:",e);
       setSyncLabel("!");
-      const em=e.message||"";
-      if(em.includes("401")||em.includes("403")){
-        setSyncError("❌ Неверный Master Key. Данные сохранены локально, используй тот же ключ что у создателя базы.");
-      } else if(em.includes("429")){
-        retryCount.current=(retryCount.current||0)+1;
-        if(retryCount.current<=3){
-          setSyncError(`⏳ Лимит запросов JSONBin. Повтор ${retryCount.current}/3 через 65 сек...`);
-          if(retryTimer.current)clearTimeout(retryTimer.current);
-          retryTimer.current=setTimeout(()=>{retryCount.current=0;mergeWrite(JSON.parse(localRef.current||"{}"));},65000);
-        } else {
-          setSyncError("⏳ JSONBin: слишком много ошибок лимита. Данные в localStorage. Обновите страницу позже.");
-          retryCount.current=0;
-        }
+      setSyncError("⚠️ Ошибка синхронизации. Данные сохранены локально, попытка повтора...");
+      retryCount.current=(retryCount.current||0)+1;
+      if(retryCount.current<=3){
+        if(retryTimer.current)clearTimeout(retryTimer.current);
+        retryTimer.current=setTimeout(()=>{retryCount.current=0;mergeWrite(JSON.parse(localRef.current||"{}"));},15000);
       } else {
-        setSyncError("⚠️ Ошибка синхронизации. Данные сохранены локально.");
+        retryCount.current=0;
+        setSyncError("⚠️ Supabase недоступен. Работаем офлайн, данные в localStorage.");
       }
     }finally{savingRef.current=false;}
   };
@@ -383,11 +360,10 @@ function useDatabase(){
   const startBgSync=()=>{
     if(bgSyncRef.current)clearInterval(bgSyncRef.current);
     bgSyncRef.current=setInterval(()=>{
-      // Skip if currently saving OR if a write finished less than 8 sec ago
-      if(!cfgRef.current||savingRef.current)return;
+      if(savingRef.current)return;
       (async()=>{
         try{
-          const remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
+          const remote=await sbRead();
           // Always read local AFTER the network call — captures latest deletedLeadIds
           const local=JSON.parse(localRef.current||"{}");
           if(!local.leads)return;
@@ -408,7 +384,7 @@ function useDatabase(){
           if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0)return;
           // Build merged — deletedSet applied on both sides
           const merged=mergeData(local,remote);
-          try{await binWrite(cfgRef.current.binId,cfgRef.current.apiKey,merged);}catch{}
+          try{await sbWrite(merged);}catch{}
           localRef.current=JSON.stringify(merged);
           setDbState(merged);
         }catch{}
@@ -419,25 +395,53 @@ function useDatabase(){
   // ── Load on mount ─────────────────────────────────────────────────────────
   useEffect(()=>{
     (async()=>{
-      const cfg=lsGet(LS_KEY);
-      if(!cfg){setStatus("setup");return;}
-      cfgRef.current=cfg;
       try{
         setSyncLabel("⟳");
-        let data=await binRead(cfg.binId,cfg.apiKey);
-        data=migrateData(data);
-        // Если есть локальный backup с несохранёнными данными — мёрджим
+        let remote=null;
+        try{remote=await sbRead();}catch{}
         const backup=lsGet(LS_BACKUP);
-        if(backup&&backup.leads&&backup.leads.length>0){
-          data=mergeData(backup,data);
-          try{await binWrite(cfg.binId,cfg.apiKey,data);localStorage.removeItem(LS_BACKUP);}catch{}
+        // Если remote пустой ({}) — это первый запуск, грузим seed
+        const isFirstRun=!remote||!remote.leads||remote.leads.length===0;
+        let data;
+        if(isFirstRun){
+          // Есть ли локальный backup с данными от JSONBin?
+          if(backup&&backup.leads&&backup.leads.length>0){
+            data=migrateData(backup);
+            setSyncError("✅ Данные восстановлены из локального кэша (JSONBin→Supabase)");
+            setTimeout(()=>setSyncError(""),5000);
+          } else {
+            data=INIT_DB();
+          }
+          // Записываем в Supabase
+          try{await sbWrite(data);}catch(e){console.error("First write failed:",e);}
+        } else {
+          data=migrateData(remote);
+          // Мёрджим с локальным backup если есть несохранённые изменения
+          if(backup&&backup.leads&&backup.leads.length>0){
+            data=mergeData(backup,data);
+            try{await sbWrite(data);localStorage.removeItem(LS_BACKUP);}catch{}
+          }
         }
         localRef.current=JSON.stringify(data);
         setDbState(data);
         setStatus("ready");
         setSyncLabel("●");
         startBgSync();
-      }catch(e){console.error(e);setStatus("error");}
+      }catch(e){
+        console.error("Supabase unavailable:",e);
+        const backup=lsGet(LS_BACKUP);
+        if(backup&&backup.leads&&backup.leads.length>0){
+          const data=migrateData(backup);
+          localRef.current=JSON.stringify(data);
+          setDbState(data);
+          setStatus("ready");
+          setSyncLabel("offline");
+          setSyncError("⚠️ Supabase недоступен — работаем офлайн. Данные сохранятся при восстановлении связи.");
+          startBgSync();
+        } else {
+          setStatus("error");
+        }
+      }
     })();
     return()=>{
     if(bgSyncRef.current)clearInterval(bgSyncRef.current);
@@ -448,10 +452,10 @@ function useDatabase(){
 
   // ── Manual refresh — merge, не перезапись ────────────────────────────────
   const refresh=async()=>{
-    if(!cfgRef.current||savingRef.current)return;
+    if(savingRef.current)return;
     setSyncLabel("⟳");
     try{
-      const remote=await binRead(cfgRef.current.binId,cfgRef.current.apiKey);
+      const remote=await sbRead();
       const local=JSON.parse(localRef.current||"{}");
       const merged=mergeData(local,remote);
       localRef.current=JSON.stringify(merged);
@@ -481,14 +485,7 @@ function useDatabase(){
     });
   };
 
-  const configure=async(cfg,initData)=>{
-    lsSet(LS_KEY,cfg);cfgRef.current=cfg;
-    localRef.current=JSON.stringify(initData);
-    setDbState(initData);setStatus("ready");
-    startBgSync();
-  };
-
-  return{db,status,syncLabel,syncError,refresh,updateDb,configure};
+  return{db,status,syncLabel,syncError,refresh,updateDb};
 }
 
 // ─── UI ATOMS ─────────────────────────────────────────────────────────────────
@@ -547,130 +544,6 @@ function DashboardDatePicker({dateFrom,dateTo,setDateFrom,setDateTo,t,lang}){
   );
 }
 
-// ─── SETUP SCREEN ─────────────────────────────────────────────────────────────
-function SetupScreen({onSave}){
-  const [mode,setMode]=useState(null); // null | "create" | "join"
-  const [apiKey,setApiKey]=useState("");
-  const [binId,setBinId]=useState("");
-  const [busy,setBusy]=useState(false);
-  const [err,setErr]=useState("");
-
-  const ins={background:"#001f4e",border:"1px solid rgba(255,255,255,0.14)",color:"#fff",borderRadius:8,padding:"11px 14px",fontSize:14,width:"100%",boxSizing:"border-box",outline:"none",fontFamily:"monospace"};
-  const card={background:"#001f4e",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"16px 18px",cursor:"pointer",textAlign:"left",width:"100%"};
-
-  const handleCreate=async()=>{
-    const key=apiKey.trim();
-    if(!key){setErr("Вставьте Master Key");return;}
-    setBusy(true);setErr("");
-    try{
-      const initData=INIT_DB();
-      const newBinId=await binCreate(key,initData);
-      if(!newBinId)throw new Error("Не получили Bin ID от сервера");
-      await onSave({binId:newBinId,apiKey:key},initData);
-    }catch(e){
-      let msg=e.message;
-      if(msg.includes("401")||msg.includes("403"))msg="❌ Неверный Master Key";
-      else if(msg.includes("429"))msg="❌ Слишком много запросов, подождите минуту";
-      else msg="❌ "+msg;
-      setErr(msg);
-    }
-    setBusy(false);
-  };
-
-  const handleJoin=async()=>{
-    const key=apiKey.trim(),bid=binId.trim();
-    if(!key||!bid){setErr("Заполните оба поля");return;}
-    setBusy(true);setErr("");
-    try{
-      const data=await binRead(bid,key);
-      if(!data||!data.leads)throw new Error("Данные не найдены. Проверьте Bin ID");
-      await onSave({binId:bid,apiKey:key},data);
-    }catch(e){
-      let msg=e.message;
-      if(msg.includes("401")||msg.includes("403"))msg="❌ Неверный Master Key";
-      else if(msg.includes("404"))msg="❌ Bin ID не найден — попросите создателя базы прислать правильный";
-      else msg="❌ "+msg;
-      setErr(msg);
-    }
-    setBusy(false);
-  };
-
-  return(
-    <div style={{display:"flex",height:"100vh",background:"#00132f",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Segoe UI',sans-serif",padding:16}}>
-      <div style={{width:"min(480px,100%)",borderRadius:16,border:"1px solid rgba(191,164,126,0.35)",background:"#001840",overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
-        <div style={{background:"linear-gradient(135deg,#001840,#002259)",padding:"22px 28px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
-          <div style={{fontSize:26,fontWeight:900,color:"#bfa47e",letterSpacing:2,marginBottom:4}}>GARNO<span style={{color:"#fff"}}>CRM</span></div>
-          <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>Подключение к базе данных</div>
-        </div>
-        <div style={{padding:24,display:"flex",flexDirection:"column",gap:14}}>
-
-          {/* ── MODE PICKER ── */}
-          {!mode&&(<>
-            <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginBottom:4}}>Выберите тип подключения:</div>
-            <button onClick={()=>setMode("create")} style={{...card,border:"1px solid rgba(191,164,126,0.4)"}}>
-              <div style={{fontSize:15,fontWeight:700,color:"#bfa47e",marginBottom:5}}>🆕 Создать новую базу</div>
-              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",lineHeight:1.5}}>Первый вход в команде. После создания — нужно поделиться <b style={{color:"#fff"}}>Bin ID</b> с остальными.</div>
-            </button>
-            <button onClick={()=>setMode("join")} style={card}>
-              <div style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:5}}>🔗 Подключиться к базе команды</div>
-              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",lineHeight:1.5}}>Для Oleh, Dmytro, Patryk, Danya — введите <b style={{color:"#60a5fa"}}>Bin ID</b> который прислал создатель.</div>
-            </button>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",textAlign:"center"}}>
-              Нужен аккаунт на <a href="https://jsonbin.io" target="_blank" rel="noreferrer" style={{color:"#bfa47e"}}>jsonbin.io</a> (бесплатно)
-            </div>
-          </>)}
-
-          {/* ── CREATE MODE ── */}
-          {mode==="create"&&(<>
-            <button onClick={()=>{setMode(null);setErr("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:12,textAlign:"left",padding:0}}>← Назад</button>
-            <div style={{background:"rgba(191,164,126,0.07)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:10,padding:"12px 14px"}}>
-              {["1. Зайдите на jsonbin.io → Sign Up (бесплатно)","2. В меню слева → «API Keys» → скопируйте Master Key"].map((t,i)=>(
-                <div key={i} style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginBottom:i===0?6:0,lineHeight:1.5}}>{t}</div>
-              ))}
-            </div>
-            <div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Master Key (начинается с $2a$10$)</div>
-              <input value={apiKey} onChange={e=>{setApiKey(e.target.value);setErr("");}} placeholder="$2a$10$..." type="password" style={ins} onKeyDown={e=>e.key==="Enter"&&handleCreate()}/>
-            </div>
-            {err&&<div style={{fontSize:12,color:"#f87171",background:"rgba(248,113,113,0.1)",borderRadius:8,padding:"10px 14px"}}>{err}</div>}
-            <button onClick={handleCreate} disabled={busy||!apiKey.trim()}
-              style={{background:busy?"rgba(255,255,255,0.08)":"linear-gradient(135deg,#bfa47e,#d4b896)",color:busy?"rgba(255,255,255,0.4)":"#00132f",border:"none",borderRadius:10,padding:"14px 0",fontSize:15,fontWeight:800,cursor:busy?"not-allowed":"pointer",opacity:!apiKey.trim()?0.5:1}}>
-              {busy?"⟳ Создаём базу...":"🔗 Создать и запустить CRM"}
-            </button>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",lineHeight:1.6}}>
-              После входа найдите <b style={{color:"#bfa47e"}}>Bin ID</b> в настройках CRM и отправьте остальным менеджерам.
-            </div>
-          </>)}
-
-          {/* ── JOIN MODE ── */}
-          {mode==="join"&&(<>
-            <button onClick={()=>{setMode(null);setErr("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:12,textAlign:"left",padding:0}}>← Назад</button>
-            <div style={{background:"rgba(96,165,250,0.1)",border:"1px solid rgba(96,165,250,0.3)",borderRadius:10,padding:"12px 14px",fontSize:12,color:"rgba(255,255,255,0.8)",lineHeight:1.7}}>
-              ⚠️ Для синхронизации <b style={{color:"#fff"}}>все менеджеры должны использовать один и тот же Master Key</b> — тот что у администратора (создателя базы).<br/><br/>
-              Попросите администратора прислать вам:<br/>
-              1. <b style={{color:"#60a5fa"}}>Bin ID</b> (из кнопки ⚙ в шапке CRM)<br/>
-              2. <b style={{color:"#bfa47e"}}>Master Key</b> (его ключ с jsonbin.io)
-            </div>
-            <div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Bin ID (от администратора)</div>
-              <input value={binId} onChange={e=>{setBinId(e.target.value);setErr("");}} placeholder="6847abcdef1234567890abcd" style={ins}/>
-            </div>
-            <div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Master Key администратора (с его jsonbin.io)</div>
-              <input value={apiKey} onChange={e=>{setApiKey(e.target.value);setErr("");}} placeholder="$2a$10$..." type="password" style={ins} onKeyDown={e=>e.key==="Enter"&&handleJoin()}/>
-            </div>
-            {err&&<div style={{fontSize:12,color:"#f87171",background:"rgba(248,113,113,0.1)",borderRadius:8,padding:"10px 14px"}}>{err}</div>}
-            <button onClick={handleJoin} disabled={busy||!apiKey.trim()||!binId.trim()}
-              style={{background:busy?"rgba(255,255,255,0.08)":"linear-gradient(135deg,#60a5fa,#3b82f6)",color:"#fff",border:"none",borderRadius:10,padding:"14px 0",fontSize:15,fontWeight:800,cursor:busy?"not-allowed":"pointer",opacity:(!apiKey.trim()||!binId.trim())?0.5:1}}>
-              {busy?"⟳ Подключаемся...":"🔗 Подключиться к базе команды"}
-            </button>
-          </>)}
-
-        </div>
-      </div>
-    </div>
-  );
-}
 
 
 // ─── GOOGLE-STYLE CALENDAR POPUP ──────────────────────────────────────────────
@@ -1100,10 +973,10 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr}){
 }
 
 // ─── TOPBAR ───────────────────────────────────────────────────────────────────
-function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,binId,onRefresh,theme,toggleTheme}){
+function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,onRefresh,theme,toggleTheme}){
   const [showUsers,setShowUsers]=useState(false);
   const [showBinId,setShowBinId]=useState(false);
-  const syncColor=syncLabel==="✓"?C.green:syncLabel==="!"?C.red:syncLabel==="⟳"?C.yellow:C.green;
+  const syncColor=syncLabel==="✓"?C.green:syncLabel==="!"?C.red:syncLabel==="⟳"?C.yellow:syncLabel==="offline"?C.yellow:C.green;
   const isDark=theme==="dark";
   return(
     <div style={{height:56,background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10,padding:"0 14px",flexShrink:0}}>
@@ -1115,11 +988,11 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
       <div style={{flex:1}}/>
       {/* Refresh button — saves requests vs auto-polling */}
       <button onClick={onRefresh} title="Получить свежие данные от команды"
-        style={{display:"flex",alignItems:"center",gap:6,background:C.card,border:`1px solid ${C.border}`,borderRadius:7,padding:"4px 12px",cursor:"pointer",fontSize:11,fontWeight:600,color:syncLabel==="⟳"?C.yellow:syncLabel==="✓"?C.green:syncLabel==="!"?C.red:C.muted,transition:"color 0.3s"}}>
+        style={{display:"flex",alignItems:"center",gap:6,background:C.card,border:`1px solid ${C.border}`,borderRadius:7,padding:"4px 12px",cursor:"pointer",fontSize:11,fontWeight:600,color:syncLabel==="⟳"?C.yellow:syncLabel==="✓"?C.green:syncLabel==="!"?C.red:syncLabel==="offline"?C.yellow:C.muted,transition:"color 0.3s"}}>
         <span style={{fontSize:14,display:"inline-block",animation:syncLabel==="⟳"?"spin 1s linear infinite":"none"}}>
-          {syncLabel==="⟳"?"⟳":"🔄"}
+          {syncLabel==="⟳"?"⟳":syncLabel==="offline"?"📴":"🔄"}
         </span>
-        {syncLabel==="⟳"?"Загрузка...":syncLabel==="✓"?"Обновлено!":syncLabel==="!"?"Ошибка":"Обновить"}
+        {syncLabel==="⟳"?"Загрузка...":syncLabel==="✓"?"Обновлено!":syncLabel==="!"?"Ошибка":syncLabel==="offline"?"Офлайн":"Обновить"}
       </button>
       {/* Bin ID share button */}
       <div style={{position:"relative"}}>
@@ -1137,7 +1010,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
                 {binId||"—"}
               </div>
               <div style={{fontSize:11,color:C.yellow,marginBottom:10,background:"rgba(251,191,36,0.08)",borderRadius:8,padding:"8px 10px",lineHeight:1.6}}>
-                ⚠️ <b style={{color:"#fff"}}>Важно:</b> менеджеры должны использовать <b style={{color:C.yellow}}>ваш Master Key</b> (с вашего аккаунта jsonbin.io), а не свой. Иначе записи не сохранятся.
+                ✅ База данных: <b style={{color:"#fff"}}>Supabase</b> (Frankfurt). Синхронизация работает автоматически.
               </div>
               <button onClick={()=>{navigator.clipboard?.writeText(binId||"");setShowBinId(false);}}
                 style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",width:"100%"}}>
@@ -1718,12 +1591,18 @@ function GarnoCRM(){
       <div style={{display:"flex",gap:6}}>{[0,1,2].map(i=><div key={i} style={{width:8,height:8,borderRadius:"50%",background:C.accent,animation:"pulse 1s infinite",animationDelay:`${i*0.25}s`}}/>)}</div>
     </div>
   );
-  if(status==="setup") return <SetupScreen onSave={configure}/>;
+  // setup screen removed — Supabase credentials are hardcoded
   if(status==="error") return(
-    <div style={{display:"flex",height:"100vh",background:C.bg,alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:"'DM Sans',sans-serif"}}>
-      <div style={{fontSize:32,color:C.red}}>⚠️</div>
-      <div style={{color:"#fff",fontWeight:700}}>Ошибка подключения к базе данных</div>
-      <button onClick={()=>{localStorage.removeItem("garno_cfg");window.location.reload();}} style={{background:C.accent,color:"#00132f",border:"none",borderRadius:8,padding:"10px 20px",fontWeight:700,cursor:"pointer"}}>Переподключить</button>
+    <div style={{display:"flex",height:"100vh",background:C.bg,alignItems:"center",justifyContent:"center",flexDirection:"column",gap:20,fontFamily:"'DM Sans',sans-serif",padding:24}}>
+      <div style={{fontSize:40}}>⚠️</div>
+      <div style={{color:"#fff",fontWeight:800,fontSize:18}}>Нет соединения с JSONBin</div>
+      <div style={{color:"rgba(255,255,255,0.55)",fontSize:13,textAlign:"center",maxWidth:400,lineHeight:1.6}}>
+        Сервер JSONBin недоступен и локальный кэш пуст или отсутствует.<br/>
+        Данные не удалены — они хранятся в JSONBin. Попробуйте обновить страницу позже.
+      </div>
+      <div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
+        <button onClick={()=>window.location.reload()} style={{background:C.accent,color:"#00132f",border:"none",borderRadius:8,padding:"11px 24px",fontWeight:700,cursor:"pointer",fontSize:14}}>🔄 Повторить попытку</button>
+      </div>
     </div>
   );
   if(!db) return null;
@@ -1786,7 +1665,7 @@ function GarnoCRM(){
       `}</style>
       <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} binId={db?._binId||lsGet(LS_KEY)?.binId||""} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
+        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
