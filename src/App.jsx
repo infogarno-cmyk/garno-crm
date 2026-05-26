@@ -213,6 +213,31 @@ const SB_URL="https://bnyjwjuejrfalbubdbcv.supabase.co";
 const SB_KEY="sb_publishable_frwr6x08dbBL1tfFlkb9iw_-egAa2Cm";
 const SB_HDR={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`};
 
+// ─── JSONBIN MIGRATION (one-time) ─────────────────────────────────────────────
+const JB_BIN_ID="6a08675badc21f119aabd73e";
+const JB_MASTER_KEY="$2a$10$bk7OT8Sf080sRLiypGChtOXjBoaV61S289jKScNs2xjRyChedniFa";
+const JB_MIGRATED_KEY="garno_jb_migrated";
+async function tryMigrateFromJsonBin(){
+  // Skip if already migrated
+  if(localStorage.getItem(JB_MIGRATED_KEY)==="1")return null;
+  try{
+    const r=await fetch(`https://api.jsonbin.io/v3/b/${JB_BIN_ID}/latest`,{
+      headers:{"X-Master-Key":JB_MASTER_KEY,"X-Bin-Meta":"false"},
+      cache:"no-store",
+      signal:AbortSignal.timeout(8000)
+    });
+    if(!r.ok)return null;
+    const j=await r.json();
+    const data=j?.record??j;
+    if(!data||!data.leads||data.leads.length===0)return null;
+    console.log("✅ JSONBin migration: found",data.leads.length,"leads");
+    return data;
+  }catch(e){
+    console.log("JSONBin still unavailable:",e.message);
+    return null;
+  }
+}
+
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 
@@ -307,15 +332,24 @@ function useDatabase(){
       if(loc&&!rem){mergedEvents.push(loc);return;}
       mergedEvents.push((rem.updatedAt||0)>(loc.updatedAt||0)?rem:loc);
     });
+    // Sales tombstone — deleted sales never come back
+    const deletedSaleIds=new Set([...(local.deletedSaleIds||[]),...(remote.deletedSaleIds||[])]);
     const localSaleIds=new Set((local.sales||[]).map(s=>s.id));
-    const remoteOnlySales=(remote.sales||[]).filter(s=>!localSaleIds.has(s.id));
+    const remoteOnlySales=(remote.sales||[]).filter(s=>!localSaleIds.has(s.id)&&!deletedSaleIds.has(s.id));
+
+    // Events tombstone — deleted events never come back
+    const deletedEventIds=new Set([...(local.deletedEventIds||[]),...(remote.deletedEventIds||[])]);
+    const mergedEventsFinal=mergedEvents.filter(e=>!deletedEventIds.has(e.id));
+
     return{
       ...local,
       leads:sortLeads(mergedLeads),
-      events:mergedEvents.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)),
-      sales:[...(local.sales||[]),...remoteOnlySales],
+      events:mergedEventsFinal.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)),
+      sales:[...(local.sales||[]).filter(s=>!deletedSaleIds.has(s.id)),...remoteOnlySales],
       nextNum:Math.max(local.nextNum||0,remote.nextNum||0),
       deletedLeadIds:[...deletedIds],
+      deletedSaleIds:[...deletedSaleIds],
+      deletedEventIds:[...deletedEventIds],
       chat:local.chat,
     };
   };
@@ -404,13 +438,24 @@ function useDatabase(){
         const isFirstRun=!remote||!remote.leads||remote.leads.length===0;
         let data;
         if(isFirstRun){
-          // Есть ли локальный backup с данными от JSONBin?
-          if(backup&&backup.leads&&backup.leads.length>0){
+          // 1. Пробуем достать данные из JSONBin (миграция)
+          const jbData=await tryMigrateFromJsonBin();
+          if(jbData&&jbData.leads&&jbData.leads.length>0){
+            // Мёрджим JSONBin + локальный backup чтобы ничего не потерять
+            const merged=backup&&backup.leads&&backup.leads.length>0?mergeData(jbData,backup):jbData;
+            data=migrateData(merged);
+            setSyncError("✅ Данные перенесены из JSONBin → Supabase! Лидов: "+data.leads.length);
+            setTimeout(()=>setSyncError(""),8000);
+            localStorage.setItem(JB_MIGRATED_KEY,"1");
+          // 2. Есть ли локальный backup с данными?
+          } else if(backup&&backup.leads&&backup.leads.length>0){
             data=migrateData(backup);
-            setSyncError("✅ Данные восстановлены из локального кэша (JSONBin→Supabase)");
+            setSyncError("✅ Данные восстановлены из локального кэша. Лидов: "+data.leads.length);
             setTimeout(()=>setSyncError(""),5000);
           } else {
+            // 3. JSONBin ещё лежит и кэша нет — показываем предупреждение
             data=INIT_DB();
+            setSyncError("⏳ JSONBin пока недоступен. CRM запущена с демо-данными. Как только JSONBin поднимется — обнови страницу и данные перенесутся автоматически.");
           }
           // Записываем в Supabase
           try{await sbWrite(data);}catch(e){console.error("First write failed:",e);}
@@ -489,7 +534,14 @@ function useDatabase(){
 }
 
 // ─── UI ATOMS ─────────────────────────────────────────────────────────────────
-function Badge({label,color=C.blue,small}){return <span style={{display:"inline-block",background:`${color}22`,color,border:`1px solid ${color}44`,borderRadius:20,padding:small?"1px 7px":"2px 10px",fontSize:small?10:11,fontWeight:600,whiteSpace:"nowrap"}}>{label}</span>;}
+function Badge({label,color=C.blue,small,action}){
+  const isQuote=action==="quote";
+  return(
+    <span style={{display:"inline-flex",alignItems:"center",gap:3,background:`${color}22`,color,border:`1px solid ${color}44`,borderRadius:20,padding:small?"1px 7px":"2px 10px",fontSize:small?10:11,fontWeight:600,whiteSpace:"nowrap"}}>
+      {label}{isQuote&&<span style={{color:"#ef4444",fontWeight:900,fontSize:12,lineHeight:1}}>‼‼</span>}
+    </span>
+  );
+}
 function Avatar({name,color,size=32}){const ini=(name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();return <div style={{width:size,height:size,borderRadius:"50%",background:color?`${color}25`:C.accentDim,border:`1.5px solid ${color||C.accent}50`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:color||C.accent,flexShrink:0}}>{ini}</div>;}
 function Dot({color}){return <span style={{width:7,height:7,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>;}
 function SrcBadge({source}){const c=SRC_COLOR[source]||C.muted;return <span style={{fontSize:9,color:c,background:`${c}20`,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",display:"inline-block"}}>{srcShort(source)}</span>;}
@@ -1172,7 +1224,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,t,mgr,search,onOpen}){
                 <td style={{padding:"8px 10px"}}><ScoreBar score={l.score}/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.qualification]} color={QUAL_COLOR[l.qualification]} small/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={(t[l.budgetTimeline]||"").slice(0,14)} color={BUD_COLOR[l.budgetTimeline]} small/></td>
-                <td style={{padding:"8px 10px"}}><Badge label={t[l.action]} color={ACT_COLOR[l.action]} small/></td>
+                <td style={{padding:"8px 10px"}}><Badge label={t[l.action]} color={ACT_COLOR[l.action]} action={l.action} small/></td>
                 <td style={{padding:"8px 10px"}}>{l.manager?<div style={{display:"flex",alignItems:"center",gap:5}}><Avatar name={l.manager} color={MGR_COLOR[l.manager]} size={18}/><span style={{color:MGR_COLOR[l.manager],fontSize:11}}>{l.manager}</span></div>:<span style={{color:C.dim,fontSize:11}}>—</span>}</td>
                 <td style={{padding:"8px 10px"}}><SrcBadge source={l.source}/></td>
                 <td style={{padding:"8px 10px",display:"flex",gap:4,alignItems:"center"}}><button onClick={e=>{e.stopPropagation();toggleFav(l.id,e);}} style={{background:l.isFavorite?"rgba(251,191,36,0.2)":"transparent",border:`1px solid ${l.isFavorite?"#fbbf24":C.border}`,color:l.isFavorite?"#fbbf24":C.dim,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}} title="Избранное">{l.isFavorite?"★":"☆"}</button><button onClick={e=>{e.stopPropagation();onOpen(l);}} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:6,padding:"3px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>→</button></td>
@@ -1220,7 +1272,7 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select>:<SrcBadge source={form.source}/>}</div>
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Дата</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
             </div>
-            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} small/>}</div>
+            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}</div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>:form.manager?<div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></div>:<span style={{color:C.dim}}>—</span>}</div>
           </div>
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
@@ -1261,6 +1313,10 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
   const handleSave=(form)=>{const now=Date.now();if(form.id&&events.find(e=>e.id===form.id))setEvents(p=>p.map(e=>e.id===form.id?{...form,updatedAt:now}:e));else setEvents(p=>[...p,{...form,id:now,updatedAt:now}]);setPopup(null);};
   const handleDelete=(id)=>{
     setEventsNow(p=>p.filter(e=>e.id!==id));
+    updateDb(p=>({...p,
+      events:(p.events||[]).filter(e=>e.id!==id),
+      deletedEventIds:[...new Set([...(p.deletedEventIds||[]),id])]
+    }),true);
     setPopup(null);
     setDayModal(prev=>{
       if(!prev) return null;
@@ -1531,7 +1587,15 @@ function SalesPage({sales,setSales,setSalesNow,t,lang}){
   const [confirmId,setConfirmId]=useState(null);
   const fs=filterByCustomRange(sales,dateFrom,dateTo);const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
   const mRev=MANAGERS.map(m=>({name:m,rev:fs.filter(s=>s.manager===m).reduce((a,s)=>a+s.saleAmount,0),count:fs.filter(s=>s.manager===m).length}));
-  const deleteSale=(id)=>{setSalesNow(p=>p.filter(s=>s.id!==id));setConfirmId(null);};
+  const deleteSale=(id)=>{
+    setSalesNow(p=>p.filter(s=>s.id!==id));
+    // Add to tombstone so bgSync doesn't bring it back
+    updateDb(p=>({...p,
+      sales:(p.sales||[]).filter(s=>s.id!==id),
+      deletedSaleIds:[...new Set([...(p.deletedSaleIds||[]),id])]
+    }),true);
+    setConfirmId(null);
+  };
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t}/></div>
