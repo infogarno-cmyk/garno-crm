@@ -536,9 +536,16 @@ function useDatabase(){
 // ─── UI ATOMS ─────────────────────────────────────────────────────────────────
 function Badge({label,color=C.blue,small,action}){
   const isQuote=action==="quote";
+  if(isQuote){
+    return(
+      <span style={{display:"inline-block",background:"rgba(234,179,8,0.15)",color:"#eab308",border:"2px solid #eab308",borderRadius:4,padding:small?"1px 7px":"2px 10px",fontSize:small?10:11,fontWeight:800,whiteSpace:"nowrap",letterSpacing:0.3}}>
+        {label}
+      </span>
+    );
+  }
   return(
-    <span style={{display:"inline-flex",alignItems:"center",gap:3,background:`${color}22`,color,border:`1px solid ${color}44`,borderRadius:20,padding:small?"1px 7px":"2px 10px",fontSize:small?10:11,fontWeight:600,whiteSpace:"nowrap"}}>
-      {label}{isQuote&&<span style={{color:"#ef4444",fontWeight:900,fontSize:12,lineHeight:1}}>‼‼</span>}
+    <span style={{display:"inline-block",background:`${color}22`,color,border:`1px solid ${color}44`,borderRadius:20,padding:small?"1px 7px":"2px 10px",fontSize:small?10:11,fontWeight:600,whiteSpace:"nowrap"}}>
+      {label}
     </span>
   );
 }
@@ -1299,7 +1306,7 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
 }
 
 // ─── CALENDAR PAGE ────────────────────────────────────────────────────────────
-function CalendarPage({events,setEvents,setEventsNow,t,lang}){
+function CalendarPage({events,setEvents,setEventsNow,updateDb,t,lang}){
   const [calDate,setCalDate]=useState(()=>{const d=new Date();return{year:d.getFullYear(),month:d.getMonth()};});
   const [popup,setPopup]=useState(null);
   const [dayModal,setDayModal]=useState(null); // {date, events[]}
@@ -1312,7 +1319,6 @@ function CalendarPage({events,setEvents,setEventsNow,t,lang}){
   const days=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
   const handleSave=(form)=>{const now=Date.now();if(form.id&&events.find(e=>e.id===form.id))setEvents(p=>p.map(e=>e.id===form.id?{...form,updatedAt:now}:e));else setEvents(p=>[...p,{...form,id:now,updatedAt:now}]);setPopup(null);};
   const handleDelete=(id)=>{
-    setEventsNow(p=>p.filter(e=>e.id!==id));
     updateDb(p=>({...p,
       events:(p.events||[]).filter(e=>e.id!==id),
       deletedEventIds:[...new Set([...(p.deletedEventIds||[]),id])]
@@ -1581,15 +1587,13 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
 }
 
 // ─── SALES PAGE ───────────────────────────────────────────────────────────────
-function SalesPage({sales,setSales,setSalesNow,t,lang}){
+function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang}){
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
   const [confirmId,setConfirmId]=useState(null);
   const fs=filterByCustomRange(sales,dateFrom,dateTo);const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
   const mRev=MANAGERS.map(m=>({name:m,rev:fs.filter(s=>s.manager===m).reduce((a,s)=>a+s.saleAmount,0),count:fs.filter(s=>s.manager===m).length}));
   const deleteSale=(id)=>{
-    setSalesNow(p=>p.filter(s=>s.id!==id));
-    // Add to tombstone so bgSync doesn't bring it back
     updateDb(p=>({...p,
       sales:(p.sales||[]).filter(s=>s.id!==id),
       deletedSaleIds:[...new Set([...(p.deletedSaleIds||[]),id])]
@@ -1734,10 +1738,10 @@ function GarnoCRM(){
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
           {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
-          {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} t={t} lang={lang}/>}
+          {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} t={t} lang={lang}/>}
           {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory}/>}
-          {page==="sales"      && <SalesPage sales={sales} setSales={setSales} setSalesNow={setSalesNow} t={t} lang={lang}/>}
+          {page==="sales"      && <SalesPage sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang}/>}
         </div>
       </div>
       {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser}/>}
