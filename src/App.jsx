@@ -1189,7 +1189,13 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,t,mgr,search,onOpen}){
     }),true);
     setSelected(new Set());
   };
-  const toggleFav=(id,e)=>{e.stopPropagation();setLeads(p=>p.map(l=>l.id===id?{...l,isFavorite:!l.isFavorite}:l));};
+  const toggleFav=(id,e)=>{
+    e.stopPropagation();
+    updateDb(p=>({
+      ...p,
+      leads:(p.leads||[]).map(l=>l.id===id?{...l,isFavorite:!l.isFavorite,updatedAt:Date.now()}:l)
+    }),true);
+  };
   const allChecked=fl.length>0&&selected.size===fl.length;
   const someChecked=selected.size>0&&selected.size<fl.length;
   return(
@@ -1246,7 +1252,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,t,mgr,search,onOpen}){
 }
 
 // ─── LEAD DETAIL ──────────────────────────────────────────────────────────────
-function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
+function LeadDetail({lead,setLeads,updateDb,t,lang,onClose,onAddSale,currentUser}){
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({...lead});
   const [showSale,setShowSale]=useState(false);
@@ -1255,12 +1261,16 @@ function LeadDetail({lead,setLeads,t,lang,onClose,onAddSale,currentUser}){
   const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);if(isNaN(d))return iso;return d.toLocaleDateString("ru-RU");}catch{return iso;}};
   const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
   const confirmSale=(amt,saleDate)=>{
-    const upd={...form,saleAmount:amt,isDone:true};
-    setLeads(p=>p.map(l=>l.id===lead.id?{...l,...upd}:l));
-    // Format ISO date → DD.MM.YYYY for display and filtering
     let createdAt=new Date().toLocaleDateString("ru-RU");
     if(saleDate){try{const d=new Date(saleDate);createdAt=d.toLocaleDateString("ru-RU");}catch{}}
-    onAddSale({id:Date.now(),leadId:lead.leadId||lead.id,name:form.name,phone:form.phone,manager:form.manager||"—",source:form.source,createdAt,saleAmount:amt,notes:form.notes});
+    const newSale={id:Date.now(),leadId:lead.leadId||lead.id,name:form.name,phone:form.phone,manager:form.manager||"—",source:form.source,createdAt,saleAmount:amt,notes:form.notes};
+    const updLead={...form,saleAmount:amt,isDone:true,updatedAt:Date.now()};
+    // Атомарно: лид + продажа в одном updateDb → один save в Supabase
+    updateDb(p=>({
+      ...p,
+      leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l),
+      sales:[newSale,...(p.sales||[])],
+    }),true);
     setShowSale(false);onClose();
   };
   const inp=(field,label)=>(<div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{label}</div>{editing?<input value={form[field]||""} onChange={e=>set(field,e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",boxSizing:"border-box"}}/>:<div style={{fontSize:13,color:form[field]?C.text:C.dim}}>{form[field]||"—"}</div>}</div>);
@@ -1744,7 +1754,7 @@ function GarnoCRM(){
           {page==="sales"      && <SalesPage sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang}/>}
         </div>
       </div>
-      {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser}/>}
+      {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser}/>}
       {showAdd  && <AddLeadModal onClose={()=>setShowAdd(false)} onAdd={addLead} t={t} lang={lang} nextNum={nextNum} currentUser={currentUser}/>}
     </div>
   );
