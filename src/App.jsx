@@ -255,7 +255,7 @@ async function sbWrite(data){
   });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
 }
-const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
+const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,domains:[...SOURCES],chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
 
 function useDatabase(){
   const [db,setDbState]=useState(null);
@@ -962,9 +962,10 @@ function SaleModal({lead,t,onConfirm,onCancel}){
 }
 
 // ─── ADD LEAD MODAL ───────────────────────────────────────────────────────────
-function AddLeadModal({onClose,onAdd,t,lang,nextNum,currentUser}){
+function AddLeadModal({onClose,onAdd,domains,t,lang,nextNum,currentUser}){
   const todayIso=new Date().toISOString().slice(0,10);
-  const [form,setForm]=useState({name:"",phone:"",action:"undefined",source:SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed",dateOverride:todayIso});
+  const allDomains=domains&&domains.length?domains:SOURCES;
+  const [form,setForm]=useState({name:"",phone:"",action:"undefined",clientLang:"pl",source:allDomains[0]||SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed",dateOverride:todayIso});
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
 
   const buildCreatedAt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("ru-RU");}catch{return new Date().toLocaleDateString("ru-RU");}};
@@ -973,7 +974,7 @@ function AddLeadModal({onClose,onAdd,t,lang,nextNum,currentUser}){
     const createdAt=buildCreatedAt(form.dateOverride);
     // Use nextNum-based short ID to avoid 13-digit Date.now() IDs
     const shortId=nextNum*1000+Math.floor(Math.random()*999)+1;
-    onAdd({...form,id:shortId,leadId:makeLeadId(nextNum,createdAt),score:0,qualification:"unqualified",createdAt,updatedAt:Date.now(),isDone:false,quoteAmt:null,
+    onAdd({...form,id:shortId,leadId:makeLeadId(nextNum,createdAt),score:0,qualification:"unqualified",createdAt,updatedAt:Date.now(),isDone:false,quoteAmt:null,clientLang:form.clientLang||"pl",
       history:[{date:nowStr(),action:lang==="ru"?"Лид добавлен":"Lead dodany",by:currentUser||"Admin"}]});
     onClose();
   };
@@ -991,11 +992,20 @@ function AddLeadModal({onClose,onAdd,t,lang,nextNum,currentUser}){
           <button onClick={onClose} style={{background:"transparent",border:"none",color:C.muted,fontSize:18,cursor:"pointer"}}>✕</button>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:11}}>
-          <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.name} <span style={{color:C.dim,fontWeight:400,fontSize:9}}>(необязательно)</span></div><input value={form.name} onChange={e=>set("name",e.target.value)} autoFocus placeholder={lang==="ru"?"Имя клиента...":"Imię klienta..."} style={ins}/></div>
+          <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
+            <div style={{flex:1}}><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.name} <span style={{color:C.dim,fontWeight:400,fontSize:9}}>(необязательно)</span></div><input value={form.name} onChange={e=>set("name",e.target.value)} autoFocus placeholder={lang==="ru"?"Имя клиента...":"Imię klienta..."} style={ins}/></div>
+            <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>Язык</div>
+              <div style={{display:"flex",gap:4}}>
+                {[{v:"pl",flag:"🇵🇱"},{v:"ua",flag:"🇺🇦"}].map(({v,flag})=>(
+                  <button key={v} onClick={()=>set("clientLang",v)} style={{fontSize:20,padding:"4px 7px",borderRadius:7,border:`2px solid ${form.clientLang===v?C.accent:"transparent"}`,background:form.clientLang===v?C.accentDim:"transparent",cursor:"pointer",lineHeight:1}}>{flag}</button>
+                ))}
+              </div>
+            </div>
+          </div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.phone}</div><input value={form.phone} onChange={e=>set("phone",e.target.value)} placeholder="48 500 000 000" style={ins}/></div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.date}</div><input type="date" value={form.dateOverride} onChange={e=>set("dateOverride",e.target.value)} style={{...ins,colorScheme:"dark"}}/></div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.source}</div><select value={form.source} onChange={e=>set("source",e.target.value)} style={ins}>{SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+            <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.source}</div><select value={form.source} onChange={e=>set("source",e.target.value)} style={ins}>{allDomains.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.action}</div><select value={form.action} onChange={e=>set("action",e.target.value)} style={{...ins,color:ACT_COLOR[form.action]||"#fff",borderColor:ACT_COLOR[form.action]||C.borderMd}}>{ACTIONS.map(a=><option key={a} value={a}>{t[a]||a}</option>)}</select></div>
           </div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.manager}</div><select value={form.manager} onChange={e=>set("manager",e.target.value)} style={ins}><option value="">{lang==="ru"?"— не назначен —":"— nieprzypisany —"}</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select></div>
@@ -1252,7 +1262,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,t,mgr,search,onOpen}){
 }
 
 // ─── LEAD DETAIL ──────────────────────────────────────────────────────────────
-function LeadDetail({lead,setLeads,updateDb,t,lang,onClose,onAddSale,currentUser}){
+function LeadDetail({lead,setLeads,updateDb,domains,t,lang,onClose,onAddSale,currentUser}){
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({...lead});
   const [showSale,setShowSale]=useState(false);
@@ -1286,7 +1296,7 @@ function LeadDetail({lead,setLeads,updateDb,t,lang,onClose,onAddSale,currentUser
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📞 Контакт</div>
             {inp("name",t.name)}{inp("phone",t.phone)}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{SOURCES.map(s=><option key={s} value={s}>{s}</option>)}</select>:<SrcBadge source={form.source}/>}</div>
+              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{(domains&&domains.length?domains:SOURCES).map(s=><option key={s} value={s}>{s}</option>)}</select>:<SrcBadge source={form.source}/>}</div><div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Язык клиента</div>{editing?<div style={{display:"flex",gap:4,marginTop:2}}>{[{v:"pl",flag:"🇵🇱",label:"PL"},{v:"ua",flag:"🇺🇦",label:"UA"}].map(({v,flag,label})=><button key={v} onClick={()=>set("clientLang",v)} style={{fontSize:16,padding:"3px 8px",borderRadius:6,border:`2px solid ${(form.clientLang||"pl")===v?C.accent:"transparent"}`,background:(form.clientLang||"pl")===v?C.accentDim:"transparent",cursor:"pointer",color:C.text,fontSize:11,display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:15}}>{flag}</span>{label}</button>)}</div>:<span style={{fontSize:16}}>{form.clientLang==="ua"?"🇺🇦 UA":"🇵🇱 PL"}</span>}</div>
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Дата</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
             </div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}</div>
@@ -1302,7 +1312,7 @@ function LeadDetail({lead,setLeads,updateDb,t,lang,onClose,onAddSale,currentUser
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📝 {t.notes}</div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.period}</div>{editing?<select value={form.budgetTimeline||"unconfirmed"} onChange={e=>set("budgetTimeline",e.target.value)} style={{background:C.surface,border:`1px solid ${BUD_COLOR[form.budgetTimeline]||C.borderMd}`,color:BUD_COLOR[form.budgetTimeline]||C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{BUDGETS.map(b=><option key={b} value={b}>{t[b]||b}</option>)}</select>:<Badge label={t[form.budgetTimeline]||"—"} color={BUD_COLOR[form.budgetTimeline]||C.muted} small/>}</div>
-            {editing?<textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"8px 10px",fontSize:12,width:"100%",minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>:<div style={{fontSize:12,color:form.notes?C.text:C.dim,lineHeight:1.6}}>{form.notes||"—"}</div>}
+            {editing?<textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"8px 10px",fontSize:12,width:"100%",minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>:<div style={{fontSize:12,color:form.notes?C.text:C.dim,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{form.notes||"—"}</div>}
           </div>
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>◷ {t.history}</div>
@@ -1474,7 +1484,7 @@ function CalendarPage({events,setEvents,setEventsNow,updateDb,t,lang}){
 }
 
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
-function AnalyticsPage({leads,sales,t}){
+function AnalyticsPage({leads,sales,domains,updateDb,t}){
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
   const fl=filterByCustomRange(leads,dateFrom,dateTo);const fs=filterByCustomRange(sales,dateFrom,dateTo);
@@ -1507,6 +1517,129 @@ function AnalyticsPage({leads,sales,t}){
         <ResponsiveContainer width="100%" height={190}><PieChart><Pie data={qData} cx="50%" cy="50%" innerRadius={44} outerRadius={68} dataKey="value" labelLine={false} label={<PL/>}>{qData.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Pie><Tooltip {...getTIP()}/></PieChart></ResponsiveContainer>
         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:6}}>{qData.map(d=><div key={d.name} style={{display:"flex",alignItems:"center",gap:4}}><Dot color={d.fill}/><span style={{fontSize:10,color:C.muted}}>{d.name}: <b style={{color:d.fill}}>{d.value}</b></span></div>)}</div>
       </div>
+
+      {/* ─── СТАТИСТИКА ПО ДОМЕНАМ ─────────────────────────────────────────── */}
+      {(()=>{
+        const domList=domains&&domains.length?domains:SOURCES;
+        const domData=domList.map(d=>{const dl=fl.filter(l=>l.source===d);const kwaly=dl.filter(l=>l.score>=4).length;const dsales=fs.filter(s=>s.source===d);return{name:d,total:dl.length,kwaly,kwalyPct:dl.length?parseFloat((kwaly/dl.length*100).toFixed(1)):0,salesCount:dsales.length,salesRev:dsales.reduce((a,s)=>a+s.saleAmount,0)};}).filter(d=>d.total>0).sort((a,b)=>b.total-a.total);
+        if(!domData.length)return null;
+        return(
+          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:11,fontWeight:700,color:C.accent,textTransform:"uppercase",letterSpacing:1}}>🌐 Статистика по доменам</span></div>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{background:"rgba(191,164,126,0.08)",borderBottom:`1px solid ${C.accentBorder}`}}>{["Домен","Лидов","Kwaly","Kwaly%","Продаж","Выручка"].map(h=><th key={h} style={{padding:"8px 12px",color:C.accent,fontWeight:700,textAlign:"left",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>)}</tr></thead>
+              <tbody>
+                {domData.map((d,i)=>(
+                  <tr key={d.name} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
+                    <td style={{padding:"9px 12px",color:C.accent,fontWeight:600,fontSize:11,fontFamily:"monospace"}}>{d.name}</td>
+                    <td style={{padding:"9px 12px",color:C.text,fontWeight:700}}>{d.total}</td>
+                    <td style={{padding:"9px 12px",color:C.green,fontWeight:700}}>{d.kwaly}</td>
+                    <td style={{padding:"9px 12px"}}><span style={{color:d.kwalyPct>40?C.green:d.kwalyPct>20?C.yellow:C.red,fontWeight:700}}>{d.kwalyPct}%</span></td>
+                    <td style={{padding:"9px 12px",color:C.purple,fontWeight:700}}>{d.salesCount}</td>
+                    <td style={{padding:"9px 12px",color:"#fff",fontSize:11}}>{d.salesRev?fmtM(d.salesRev):<span style={{color:C.dim}}>—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
+
+      {/* ─── УПРАВЛЕНИЕ ДОМЕНАМИ ────────────────────────────────────────────── */}
+      {(()=>{
+        const domList=domains&&domains.length?domains:SOURCES;
+        const [newDom,setNewDom]=React.useState("");
+        const addDomain=()=>{const d=newDom.trim();if(!d||domList.includes(d))return;updateDb(p=>({...p,domains:[...(p.domains||domList),d]}),true);setNewDom("");};
+        const removeDomain=(d)=>{if(domList.length<=1)return;updateDb(p=>({...p,domains:(p.domains||domList).filter(x=>x!==d)}),true);};
+        return(
+          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
+            <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>🌐 Управление источниками / доменами</div>
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              <input value={newDom} onChange={e=>setNewDom(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addDomain()} placeholder="garnofurniture.com / Instagram / ..." style={{flex:1,background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"7px 11px",fontSize:12,outline:"none"}}/>
+              <button onClick={addDomain} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:7,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Добавить</button>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {domList.map(d=>(
+                <div key={d} style={{display:"flex",alignItems:"center",gap:4,background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 10px"}}>
+                  <span style={{fontSize:11,color:C.text,fontFamily:"monospace"}}>{d}</span>
+                  <button onClick={()=>removeDomain(d)} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 2px"}} title="Удалить">✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+
+// ─── KP WIZARD POPUP ──────────────────────────────────────────────────────────
+function KPWizard({leads,onGenerate,onClose}){
+  const [amount,setAmount]=useState("");
+  const [stone,setStone]=useState(false);
+  const [stoneAmt,setStoneAmt]=useState("");
+  const [selLead,setSelLead]=useState(null);
+  const [search,setSearch]=useState("");
+  const filtered=leads.filter(l=>(l.name||"").toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).slice(0,30);
+  const ins={background:"rgba(255,255,255,0.07)",border:"1px solid rgba(191,164,126,0.25)",color:"#fff",borderRadius:7,padding:"8px 11px",fontSize:13,width:"100%",boxSizing:"border-box",outline:"none"};
+  const canSubmit=selLead&&amount&&parseFloat(amount)>0&&(!stone||stoneAmt);
+  const submit=()=>{if(!canSubmit)return;const lang=(selLead.clientLang||"pl")==="ua"?"ua":"pl";onGenerate({lead:selLead,amount:parseFloat(amount),stoneAmt:stone?parseFloat(stoneAmt):0,kpLang:lang});onClose();};
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#001433",border:"1px solid rgba(191,164,126,0.35)",borderRadius:16,width:"min(520px,95vw)",padding:28,maxHeight:"88vh",overflowY:"auto",boxShadow:"0 24px 64px rgba(0,0,0,0.6)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+          <div style={{fontSize:17,fontWeight:800,color:"#bfa47e"}}>📄 Сгенерировать КП</div>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",fontSize:18,cursor:"pointer"}}>✕</button>
+        </div>
+
+        {/* Выбор лида */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:10,color:"rgba(191,164,126,0.7)",marginBottom:6,textTransform:"uppercase",letterSpacing:0.8}}>Выбери лида</div>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск по имени, телефону, ID..." style={{...ins,marginBottom:8}}/>
+          <div style={{maxHeight:160,overflowY:"auto",borderRadius:8,border:"1px solid rgba(191,164,126,0.15)"}}>
+            {filtered.map(l=>(
+              <div key={l.id} onClick={()=>{setSelLead(l);setSearch(l.name||l.phone||"");}} style={{padding:"8px 12px",cursor:"pointer",background:selLead?.id===l.id?"rgba(191,164,126,0.18)":"transparent",borderBottom:"1px solid rgba(255,255,255,0.05)",display:"flex",alignItems:"center",gap:8,transition:"background 0.15s"}} onMouseEnter={e=>e.currentTarget.style.background=selLead?.id===l.id?"rgba(191,164,126,0.18)":"rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background=selLead?.id===l.id?"rgba(191,164,126,0.18)":"transparent"}>
+                <span style={{fontSize:14}}>{(l.clientLang||"pl")==="ua"?"🇺🇦":"🇵🇱"}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"#fff"}}>{l.name||"—"} <span style={{color:"rgba(191,164,126,0.6)",fontFamily:"monospace",fontSize:10}}>#{l.leadId}</span></div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{l.phone} · {l.manager}</div>
+                </div>
+                {selLead?.id===l.id&&<span style={{color:"#bfa47e",fontSize:14}}>✓</span>}
+              </div>
+            ))}
+            {!filtered.length&&<div style={{padding:12,color:"rgba(255,255,255,0.3)",fontSize:12,textAlign:"center"}}>Лиды не найдены</div>}
+          </div>
+          {selLead&&<div style={{marginTop:6,fontSize:11,color:"#bfa47e"}}>✓ Выбран: <b>{selLead.name||selLead.phone}</b> · КП на языке: <b>{(selLead.clientLang||"pl")==="ua"?"🇺🇦 UA":"🇵🇱 PL"}</b></div>}
+        </div>
+
+        {/* Сумма */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:10,color:"rgba(191,164,126,0.7)",marginBottom:6,textTransform:"uppercase",letterSpacing:0.8}}>Сумма мебели (zł)</div>
+          <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="23250" style={ins}/>
+        </div>
+
+        {/* Каменная столешница */}
+        <div style={{marginBottom:20,background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"12px 14px",border:"1px solid rgba(191,164,126,0.15)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:stone?10:0,cursor:"pointer"}} onClick={()=>setStone(p=>!p)}>
+            <div style={{width:36,height:20,borderRadius:10,background:stone?"#22c55e":"rgba(255,255,255,0.15)",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+              <div style={{width:16,height:16,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:stone?18:2,transition:"left 0.2s"}}/>
+            </div>
+            <span style={{fontSize:13,color:"#fff",fontWeight:600}}>Каменная столешница (Blat premium)</span>
+          </div>
+          {stone&&(
+            <div>
+              <div style={{fontSize:10,color:"rgba(191,164,126,0.7)",marginBottom:6,textTransform:"uppercase",letterSpacing:0.8}}>Сумма столешницы (zł)</div>
+              <input type="number" value={stoneAmt} onChange={e=>setStoneAmt(e.target.value)} placeholder="3500" style={ins}/>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:4}}>Будет показана как скидка 50% (цена × 2 → ваша сумма)</div>
+            </div>
+          )}
+        </div>
+
+        <button onClick={submit} disabled={!canSubmit} style={{width:"100%",background:canSubmit?"linear-gradient(135deg,#bfa47e,#d4bc98)":"rgba(255,255,255,0.1)",color:canSubmit?"#00132f":"rgba(255,255,255,0.3)",border:"none",borderRadius:10,padding:"13px 22px",fontSize:14,fontWeight:800,cursor:canSubmit?"pointer":"not-allowed",transition:"all 0.2s"}}>
+          {canSubmit?"📄 Сгенерировать КП":"Заполни все поля ↑"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -1529,7 +1662,7 @@ function localAns(q,leads,events){
 }
 
 function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
-  const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [apiOk,setApiOk]=useState(true);const [showApiStatus,setShowApiStatus]=useState(false);const [kpData,setKpData]=useState(null);const ref=useRef(null);
+  const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [apiOk,setApiOk]=useState(true);const [showApiStatus,setShowApiStatus]=useState(false);const [kpData,setKpData]=useState(null);const [showKPWizard,setShowKPWizard]=useState(false);const ref=useRef(null);
   // Memory persisted in chatHistory prefixed entries
   const memory=chatHistory.filter(m=>m.role==="memory").map(m=>m.content);
   const addMemory=(info)=>setChatHistory(p=>[...p,{role:"memory",content:info}]);
@@ -1578,6 +1711,7 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
           <div ref={ref}/>
         </div>
         <div style={{padding:10,borderTop:`1px solid ${C.border}`,display:"flex",gap:8}}>
+          <button onClick={()=>setShowKPWizard(true)} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:8,padding:"9px 12px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>📄 КП</button>
           <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder={t.aiPlaceholder} style={{flex:1,background:C.surface,border:`1px solid ${C.borderMd}`,color:"#fff",borderRadius:8,padding:"9px 12px",fontSize:12,outline:"none"}}/>
           <button onClick={()=>setChatHistory([{role:"assistant",content:"GarnoAI готов."}])} style={{background:C.accentDim,border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,padding:"9px 10px",cursor:"pointer",fontSize:12}} title="Очистить">🗑</button>
           <button onClick={()=>send()} disabled={loading||!input.trim()} style={{background:C.accent,border:"none",color:"#00132f",borderRadius:8,padding:"9px 16px",fontSize:12,fontWeight:700,cursor:"pointer",opacity:(!input.trim()||loading)?0.5:1}}>{t.send}</button>
@@ -1592,6 +1726,7 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
         </div>
       </div>
       {kpData&&<KPModal lead={kpData.lead} amount={kpData.amount} stoneAmt={kpData.stoneAmt||0} stoneLabel={kpData.stoneLabel} lang={kpData.kpLang||"pl"} onClose={()=>setKpData(null)}/>}
+      {showKPWizard&&<KPWizard leads={leads} onClose={()=>setShowKPWizard(false)} onGenerate={(d)=>setKpData(d)}/>}
     </div>
   );
 }
@@ -1747,14 +1882,14 @@ function GarnoCRM(){
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
-          {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
+          {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} domains={domains} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} t={t} lang={lang}/>}
           {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory}/>}
           {page==="sales"      && <SalesPage sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang}/>}
         </div>
       </div>
-      {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser}/>}
+      {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} domains={domains} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser}/>}
       {showAdd  && <AddLeadModal onClose={()=>setShowAdd(false)} onAdd={addLead} t={t} lang={lang} nextNum={nextNum} currentUser={currentUser}/>}
     </div>
   );
