@@ -122,6 +122,14 @@ const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C
 const BUDGETS=["withinMonth","within3m","within6m","year","justPrice","unconfirmed"];
 const BUD_COLOR={withinMonth:C.green,within3m:C.cyan,within6m:C.yellow,year:C.purple,justPrice:C.muted,unconfirmed:"rgba(255,255,255,0.2)"};
 const SOURCES=["pl.calculatorkuchni.online","roda.calculatorkuchni.online","fast.calculatorkuchni.online","ua.calculatorkuchni.online","1.designkitchen.online","fillout","garnofurniture.ukr","garnofurniture.com","Instagram","Mail","Шоу Рум"];
+// Normalize domain — always returns {name, color}
+const DOMAIN_COLORS=["#60a5fa","#34d399","#f59e0b","#a78bfa","#f87171","#22d3ee","#fb923c","#e879f9"];
+function normDomain(d,idx){
+  if(typeof d==="string")return{name:d,color:DOMAIN_COLORS[idx%DOMAIN_COLORS.length]};
+  return{name:d.name||d,color:d.color||DOMAIN_COLORS[idx%DOMAIN_COLORS.length]};
+}
+function normDomains(arr){return(arr||[]).map((d,i)=>normDomain(d,i));}
+
 const SRC_COLOR={"pl.calculatorkuchni.online":"#3b82f6","roda.calculatorkuchni.online":"#8b5cf6","fast.calculatorkuchni.online":"#06b6d4","ua.calculatorkuchni.online":"#10b981","1.designkitchen.online":"#f59e0b","fillout":"#ec4899","garnofurniture.ukr":"#a78bfa","garnofurniture.com":"#60a5fa","Instagram":"#E1306C","Mail":"#bfa47e","Шоу Рум":"#f97316"};
 function srcShort(s){return s.replace(".calculatorkuchni.online","…").replace(".designkitchen.online","…des").replace("garnofurniture","garno");}
 const EVENT_TYPES=["visit","measure","contract","phone","delivery"];
@@ -255,7 +263,7 @@ async function sbWrite(data){
   });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
 }
-const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,domains:[...SOURCES],chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
+const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,domains:normDomains(SOURCES),chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
 
 function useDatabase(){
   const [db,setDbState]=useState(null);
@@ -341,6 +349,15 @@ function useDatabase(){
     const deletedEventIds=new Set([...(local.deletedEventIds||[]),...(remote.deletedEventIds||[])]);
     const mergedEventsFinal=mergedEvents.filter(e=>!deletedEventIds.has(e.id));
 
+    // Merge domains explicitly — never lose domain config
+    const localDoms=normDomains(local.domains);
+    const remoteDoms=normDomains(remote?.domains);
+    // Union by name, local wins for duplicates
+    const domMap=new Map();
+    remoteDoms.forEach(d=>domMap.set(d.name,d));
+    localDoms.forEach(d=>domMap.set(d.name,d));
+    const mergedDomains=[...domMap.values()];
+
     return{
       ...local,
       leads:sortLeads(mergedLeads),
@@ -351,6 +368,7 @@ function useDatabase(){
       deletedSaleIds:[...deletedSaleIds],
       deletedEventIds:[...deletedEventIds],
       chat:local.chat,
+      domains:mergedDomains,
     };
   };
 
@@ -551,7 +569,7 @@ function Badge({label,color=C.blue,small,action}){
 }
 function Avatar({name,color,size=32}){const ini=(name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();return <div style={{width:size,height:size,borderRadius:"50%",background:color?`${color}25`:C.accentDim,border:`1.5px solid ${color||C.accent}50`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:color||C.accent,flexShrink:0}}>{ini}</div>;}
 function Dot({color}){return <span style={{width:7,height:7,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>;}
-function SrcBadge({source}){const c=SRC_COLOR[source]||C.muted;return <span style={{fontSize:9,color:c,background:`${c}20`,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",display:"inline-block"}}>{srcShort(source)}</span>;}
+function SrcBadge({source,color}){const c=color||SRC_COLOR[source]||C.muted;return <span style={{fontSize:9,color:c,background:`${c}20`,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",display:"inline-block"}}>{srcShort(source)}</span>;}
 function ScoreBar({score}){const s=parseInt(score)||0;const c=s<=2?C.red:s===3?C.yellow:s===4?C.green:s===5?C.blue:C.accent;return <div style={{display:"flex",gap:2,alignItems:"center"}}>{Array.from({length:7}).map((_,i)=><div key={i} style={{width:7,height:7,borderRadius:2,background:i<=s?c:"rgba(255,255,255,0.12)"}}/>)}<span style={{fontSize:10,color:c,marginLeft:2,fontWeight:700}}>{s}</span></div>;}
 function Btn({children,onClick,variant="primary",small,disabled}){const s={primary:{background:C.accent,color:"#00132f",border:"none"},ghost:{background:"transparent",color:C.muted,border:`1px solid ${C.border}`},danger:{background:"rgba(248,113,113,0.15)",color:C.red,border:`1px solid ${C.red}44`}};return <button onClick={onClick} disabled={disabled} style={{...s[variant],padding:small?"5px 12px":"8px 18px",borderRadius:8,fontSize:small?12:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:6}}>{children}</button>;}
 function DateRangeBar({range,setRange,t}){return <div style={{display:"flex",gap:2,background:C.card,borderRadius:9,padding:3,border:`1px solid ${C.border}`,flexWrap:"wrap"}}>{DATE_RANGES.map(d=>{const lk=`period${d.key.charAt(0).toUpperCase()+d.key.slice(1)}`;const active=range===d.key;return <button key={d.key} onClick={()=>setRange(d.key)} style={{padding:"4px 9px",borderRadius:7,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",fontSize:10,fontWeight:active?700:500,whiteSpace:"nowrap"}}>{t[lk]||d.key}</button>;})}</div>;}
@@ -964,8 +982,8 @@ function SaleModal({lead,t,onConfirm,onCancel}){
 // ─── ADD LEAD MODAL ───────────────────────────────────────────────────────────
 function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
   const todayIso=new Date().toISOString().slice(0,10);
-  const allDomains=srcList&&srcList.length?srcList:SOURCES;
-  const [form,setForm]=useState({name:"",phone:"",action:"undefined",clientLang:"pl",source:allDomains[0]||SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed",dateOverride:todayIso});
+  const allDomains=normDomains(srcList&&srcList.length?srcList:SOURCES);
+  const [form,setForm]=useState({name:"",phone:"",action:"undefined",clientLang:"pl",source:(allDomains[0]&&(allDomains[0].name||allDomains[0]))||SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed",dateOverride:todayIso});
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
 
   const buildCreatedAt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("ru-RU");}catch{return new Date().toLocaleDateString("ru-RU");}};
@@ -1005,7 +1023,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.phone}</div><input value={form.phone} onChange={e=>set("phone",e.target.value)} placeholder="48 500 000 000" style={ins}/></div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.date}</div><input type="date" value={form.dateOverride} onChange={e=>set("dateOverride",e.target.value)} style={{...ins,colorScheme:"dark"}}/></div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.source}</div><select value={form.source} onChange={e=>set("source",e.target.value)} style={ins}>{allDomains.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+            <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.source}</div><select value={form.source} onChange={e=>set("source",e.target.value)} style={ins}>{allDomains.map(d=><option key={d.name||d} value={d.name||d}>{d.name||d}</option>)}</select></div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.action}</div><select value={form.action} onChange={e=>set("action",e.target.value)} style={{...ins,color:ACT_COLOR[form.action]||"#fff",borderColor:ACT_COLOR[form.action]||C.borderMd}}>{ACTIONS.map(a=><option key={a} value={a}>{t[a]||a}</option>)}</select></div>
           </div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.manager}</div><select value={form.manager} onChange={e=>set("manager",e.target.value)} style={ins}><option value="">{lang==="ru"?"— не назначен —":"— nieprzypisany —"}</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select></div>
@@ -1224,7 +1242,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         <select value={fQ} onChange={e=>setFQ(e.target.value)} style={ss}><option value="all">{t.qualification}</option>{QUALS.map(q=><option key={q} value={q}>{t[q]}</option>)}</select>
         <select value={fA} onChange={e=>setFA(e.target.value)} style={ss}><option value="all">{t.action}</option>{ACTIONS.map(a=><option key={a} value={a}>{t[a]}</option>)}</select>
-        <select value={fS} onChange={e=>setFS(e.target.value)} style={ss}><option value="all">{t.source}</option>{(srcList&&srcList.length?srcList:SOURCES).map(s=><option key={s} value={s}>{srcShort(s)}</option>)}</select>
+        <select value={fS} onChange={e=>setFS(e.target.value)} style={ss}><option value="all">{t.source}</option>{normDomains(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{srcShort(d.name)}</option>)}</select>
         <select value={sort} onChange={e=>setSort(e.target.value)} style={ss}><option value="date">{t.date}</option><option value="id">ID</option><option value="score">{t.score} ↓</option></select>
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
@@ -1296,7 +1314,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📞 Контакт</div>
             {inp("name",t.name)}{inp("phone",t.phone)}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{(srcList&&srcList.length?srcList:SOURCES).map(s=><option key={s} value={s}>{s}</option>)}</select>:<SrcBadge source={form.source}/>}</div><div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Язык клиента</div>{editing?<div style={{display:"flex",gap:4,marginTop:2}}>{[{v:"pl",flag:"🇵🇱",label:"PL"},{v:"ua",flag:"🇺🇦",label:"UA"}].map(({v,flag,label})=><button key={v} onClick={()=>set("clientLang",v)} style={{fontSize:16,padding:"3px 8px",borderRadius:6,border:`2px solid ${(form.clientLang||"pl")===v?C.accent:"transparent"}`,background:(form.clientLang||"pl")===v?C.accentDim:"transparent",cursor:"pointer",color:C.text,fontSize:11,display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:15}}>{flag}</span>{label}</button>)}</div>:<span style={{fontSize:16}}>{form.clientLang==="ua"?"🇺🇦 UA":"🇵🇱 PL"}</span>}</div>
+              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{normDomains(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select>:<SrcBadge source={form.source}/>}</div><div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Язык клиента</div>{editing?<div style={{display:"flex",gap:4,marginTop:2}}>{[{v:"pl",flag:"🇵🇱",label:"PL"},{v:"ua",flag:"🇺🇦",label:"UA"}].map(({v,flag,label})=><button key={v} onClick={()=>set("clientLang",v)} style={{fontSize:16,padding:"3px 8px",borderRadius:6,border:`2px solid ${(form.clientLang||"pl")===v?C.accent:"transparent"}`,background:(form.clientLang||"pl")===v?C.accentDim:"transparent",cursor:"pointer",color:C.text,fontSize:11,display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:15}}>{flag}</span>{label}</button>)}</div>:<span style={{fontSize:16}}>{form.clientLang==="ua"?"🇺🇦 UA":"🇵🇱 PL"}</span>}</div>
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Дата</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
             </div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}</div>
@@ -1485,22 +1503,61 @@ function CalendarPage({events,setEvents,setEventsNow,updateDb,t,lang}){
 
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
 function DomainManager({srcList,updateDb}){
-  const domList=srcList&&srcList.length?srcList:SOURCES;
+  const domList=normDomains(srcList&&srcList.length?srcList:SOURCES);
   const [newDom,setNewDom]=useState("");
-  const addDomain=()=>{const d=newDom.trim();if(!d||domList.includes(d))return;updateDb(p=>({...p,domains:[...(p.domains||domList),d]}),true);setNewDom("");};
-  const removeDomain=(d)=>{if(domList.length<=1)return;updateDb(p=>({...p,domains:(p.domains||domList).filter(x=>x!==d)}),true);};
+  const [newColor,setNewColor]=useState(DOMAIN_COLORS[0]);
+  const addDomain=()=>{
+    const name=newDom.trim();
+    if(!name||domList.find(d=>d.name===name))return;
+    const entry={name,color:newColor};
+    updateDb(p=>{
+      const cur=normDomains(p.domains&&p.domains.length?p.domains:SOURCES);
+      return{...p,domains:[...cur,entry]};
+    },true);
+    setNewDom("");
+    setNewColor(DOMAIN_COLORS[domList.length%DOMAIN_COLORS.length]);
+  };
+  const removeDomain=(name)=>{
+    if(domList.length<=1)return;
+    updateDb(p=>{
+      const cur=normDomains(p.domains&&p.domains.length?p.domains:SOURCES);
+      return{...p,domains:cur.filter(d=>d.name!==name)};
+    },true);
+  };
+  const changeColor=(name,color)=>{
+    updateDb(p=>{
+      const cur=normDomains(p.domains&&p.domains.length?p.domains:SOURCES);
+      return{...p,domains:cur.map(d=>d.name===name?{...d,color}:d)};
+    },true);
+  };
   return(
     <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
-      <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>🌐 Управление источниками / доменами</div>
-      <div style={{display:"flex",gap:8,marginBottom:12}}>
-        <input value={newDom} onChange={e=>setNewDom(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addDomain()} placeholder="garnofurniture.com / Instagram / ..." style={{flex:1,background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"7px 11px",fontSize:12,outline:"none"}}/>
-        <button onClick={addDomain} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:7,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Добавить</button>
+      <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>🌐 Управление источниками / доменами</div>
+      <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
+        <div style={{position:"relative",flexShrink:0}}>
+          <input type="color" value={newColor} onChange={e=>setNewColor(e.target.value)}
+            style={{width:36,height:36,padding:2,border:`1px solid ${C.border}`,borderRadius:8,cursor:"pointer",background:C.surface}}
+            title="Выбери цвет домена"/>
+        </div>
+        <input value={newDom} onChange={e=>setNewDom(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&addDomain()}
+          placeholder="garnofurniture.com / Instagram / Olx ..."
+          style={{flex:1,background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"8px 11px",fontSize:12,outline:"none"}}/>
+        <button onClick={addDomain}
+          style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:7,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+          + Добавить
+        </button>
       </div>
       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
         {domList.map(d=>(
-          <div key={d} style={{display:"flex",alignItems:"center",gap:4,background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 10px"}}>
-            <span style={{fontSize:11,color:C.text,fontFamily:"monospace"}}>{d}</span>
-            <button onClick={()=>removeDomain(d)} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 2px"}} title="Удалить">✕</button>
+          <div key={d.name} style={{display:"flex",alignItems:"center",gap:4,background:`${d.color}15`,border:`1px solid ${d.color}50`,borderRadius:7,padding:"4px 4px 4px 8px"}}>
+            <input type="color" value={d.color} onChange={e=>changeColor(d.name,e.target.value)}
+              style={{width:14,height:14,padding:0,border:"none",background:"transparent",cursor:"pointer",borderRadius:3,flexShrink:0}}
+              title="Изменить цвет"/>
+            <span style={{fontSize:11,color:d.color,fontWeight:600,fontFamily:"monospace"}}>{d.name}</span>
+            <button onClick={()=>removeDomain(d.name)}
+              style={{background:"transparent",border:"none",color:`${d.color}80`,cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 4px"}}
+              title="Удалить">✕</button>
           </div>
         ))}
       </div>
@@ -1512,8 +1569,8 @@ function AnalyticsPage({leads,sales,srcList,updateDb,t}){
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
   const fl=filterByCustomRange(leads,dateFrom,dateTo);const fs=filterByCustomRange(sales,dateFrom,dateTo);
-  const domList=srcList&&srcList.length?srcList:SOURCES;
-  const domData=domList.map(d=>{const dl=fl.filter(l=>l.source===d);const kwaly=dl.filter(l=>l.score>=4).length;const dsales=fs.filter(s=>s.source===d);return{name:d,total:dl.length,kwaly,kwalyPct:dl.length?parseFloat((kwaly/dl.length*100).toFixed(1)):0,salesCount:dsales.length,salesRev:dsales.reduce((a,s)=>a+s.saleAmount,0)};}).filter(d=>d.total>0).sort((a,b)=>b.total-a.total);
+  const domList=normDomains(srcList&&srcList.length?srcList:SOURCES);
+  const domData=domList.map(dom=>{const dl=fl.filter(l=>l.source===dom.name);const kwaly=dl.filter(l=>l.score>=4).length;const dsales=fs.filter(s=>s.source===dom.name);return{name:dom.name,color:dom.color,total:dl.length,kwaly,kwalyPct:dl.length?parseFloat((kwaly/dl.length*100).toFixed(1)):0,salesCount:dsales.length,salesRev:dsales.reduce((a,s)=>a+s.saleAmount,0)};}).filter(d=>d.total>0).sort((a,b)=>b.total-a.total);
   const mData=MANAGERS.map(m=>{const ml=fl.filter(l=>l.manager===m);const ms=fs.filter(s=>s.manager===m);const total=ml.length;const kwaly=ml.filter(l=>l.score>=4).length;const s4=ml.filter(l=>l.score===4).length;const s5=ml.filter(l=>l.score===5).length;const avg=total?(ml.reduce((a,l)=>a+l.score,0)/total).toFixed(2):0;return{name:m,total,kwaly,kwalyPct:total?parseFloat((kwaly/total*100).toFixed(1)):0,to5:s4?parseFloat((s5/s4*100).toFixed(1)):0,toSell:s5?parseFloat((ms.length/s5*100).toFixed(1)):0,salesCount:ms.length,salesRev:ms.reduce((a,s)=>a+s.saleAmount,0),visits:ml.filter(l=>l.score>=5).length,avg:parseFloat(avg)};});
   const podium=[...mData].filter(m=>m.name!=="Danya").sort((a,b)=>b.salesRev-a.salesRev).slice(0,3);const medals=["🥇","🥈","🥉"];
   const allKwaly=fl.filter(l=>l.score>=4).length;const allS5=fl.filter(l=>l.score===5).length;const allRev=fs.reduce((a,s)=>a+s.saleAmount,0);const avgAll=fl.length?(fl.reduce((a,l)=>a+l.score,0)/fl.length).toFixed(2):"0";
@@ -1553,7 +1610,7 @@ function AnalyticsPage({leads,sales,srcList,updateDb,t}){
             <tbody>
               {domData.map((d,i)=>(
                 <tr key={d.name} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
-                  <td style={{padding:"9px 12px",color:C.accent,fontWeight:600,fontSize:11,fontFamily:"monospace"}}>{d.name}</td>
+                  <td style={{padding:"9px 12px",fontWeight:700,fontSize:11,fontFamily:"monospace"}}><span style={{color:d.color||C.accent,background:`${d.color||C.accent}18`,border:`1px solid ${d.color||C.accent}40`,borderRadius:5,padding:"2px 8px"}}>{d.name}</span></td>
                   <td style={{padding:"9px 12px",color:C.text,fontWeight:700}}>{d.total}</td>
                   <td style={{padding:"9px 12px",color:C.green,fontWeight:700}}>{d.kwaly}</td>
                   <td style={{padding:"9px 12px"}}><span style={{color:d.kwalyPct>40?C.green:d.kwalyPct>20?C.yellow:C.red,fontWeight:700}}>{d.kwalyPct}%</span></td>
@@ -1834,7 +1891,7 @@ function GarnoCRM(){
   const sales   = db.sales   ?? [];
   const nextNum = db.nextNum ?? (leads.length+1);
   const chatHist= db.chat    ?? [];
-  const srcList = (db.domains&&db.domains.length) ? db.domains : SOURCES;
+  const srcList = normDomains((db.domains&&db.domains.length) ? db.domains : SOURCES);
 
   const setLeads      = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}));
   const setLeadsNow   = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}),true);
