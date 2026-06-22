@@ -351,14 +351,11 @@ function useDatabase(){
     const deletedEventIds=new Set([...(local.deletedEventIds||[]),...(remote.deletedEventIds||[])]);
     const mergedEventsFinal=mergedEvents.filter(e=>!deletedEventIds.has(e.id));
 
-    // Merge domains explicitly — never lose domain config
-    const localDoms=normDoms(local.domains);
-    const remoteDoms=normDoms(remote?.domains);
-    // Union by name, local wins for duplicates
-    const domMap=new Map();
-    remoteDoms.forEach(d=>domMap.set(d.name,d));
-    localDoms.forEach(d=>domMap.set(d.name,d));
-    const mergedDomains=[...domMap.values()];
+    // Domains: local ALWAYS wins — no union (union restores deleted domains from stale remote)
+    // If local has domains → use them. Only fall back to remote if local has none.
+    const mergedDomains=local.domains&&local.domains.length>0
+      ? normDoms(local.domains)
+      : normDoms(remote?.domains);
 
     return{
       ...local,
