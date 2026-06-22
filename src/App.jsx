@@ -123,12 +123,10 @@ const BUDGETS=["withinMonth","within3m","within6m","year","justPrice","unconfirm
 const BUD_COLOR={withinMonth:C.green,within3m:C.cyan,within6m:C.yellow,year:C.purple,justPrice:C.muted,unconfirmed:"rgba(255,255,255,0.2)"};
 const SOURCES=["pl.calculatorkuchni.online","roda.calculatorkuchni.online","fast.calculatorkuchni.online","ua.calculatorkuchni.online","1.designkitchen.online","fillout","garnofurniture.ukr","garnofurniture.com","Instagram","Mail","Шоу Рум"];
 // Normalize domain — always returns {name, color}
-const DOMAIN_COLORS=["#60a5fa","#34d399","#f59e0b","#a78bfa","#f87171","#22d3ee","#fb923c","#e879f9"];
-function normDomain(d,idx){
-  if(typeof d==="string")return{name:d,color:DOMAIN_COLORS[idx%DOMAIN_COLORS.length]};
-  return{name:d.name||d,color:d.color||DOMAIN_COLORS[idx%DOMAIN_COLORS.length]};
-}
-function normDomains(arr){return(arr||[]).map((d,i)=>normDomain(d,i));}
+// Domain color palette — safe const before any component renders
+const DOM_COLORS=["#60a5fa","#34d399","#f59e0b","#a78bfa","#f87171","#22d3ee","#fb923c","#e879f9"];
+const normDom=(d,i=0)=>typeof d==="string"?{name:d,color:DOM_COLORS[i%DOM_COLORS.length]}:{name:d.name||String(d),color:d.color||DOM_COLORS[i%DOM_COLORS.length]};
+const normDoms=(arr)=>(Array.isArray(arr)?arr:[]).map((d,i)=>normDom(d,i));
 
 const SRC_COLOR={"pl.calculatorkuchni.online":"#3b82f6","roda.calculatorkuchni.online":"#8b5cf6","fast.calculatorkuchni.online":"#06b6d4","ua.calculatorkuchni.online":"#10b981","1.designkitchen.online":"#f59e0b","fillout":"#ec4899","garnofurniture.ukr":"#a78bfa","garnofurniture.com":"#60a5fa","Instagram":"#E1306C","Mail":"#bfa47e","Шоу Рум":"#f97316"};
 function srcShort(s){return s.replace(".calculatorkuchni.online","…").replace(".designkitchen.online","…des").replace("garnofurniture","garno");}
@@ -263,7 +261,7 @@ async function sbWrite(data){
   });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
 }
-const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,domains:normDomains(SOURCES),chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
+const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,domains:normDoms(SOURCES),chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
 
 function useDatabase(){
   const [db,setDbState]=useState(null);
@@ -279,6 +277,10 @@ function useDatabase(){
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const migrateData=(data)=>{
+    // Normalize domains — fix any corrupted entries
+    if(data.domains){
+      data={...data,domains:normDoms(data.domains.filter(d=>d&&(typeof d==="string"?d.length>0:d.name&&d.name!=="undefined"&&!String(d.name).includes("[object"))))};
+    }
     const leads=(data.leads||[]).map(l=>{
       let updated=l;
       if(l.source==="us.calculatorkuchni.online") updated={...updated,source:"ua.calculatorkuchni.online"};
@@ -350,8 +352,8 @@ function useDatabase(){
     const mergedEventsFinal=mergedEvents.filter(e=>!deletedEventIds.has(e.id));
 
     // Merge domains explicitly — never lose domain config
-    const localDoms=normDomains(local.domains);
-    const remoteDoms=normDomains(remote?.domains);
+    const localDoms=normDoms(local.domains);
+    const remoteDoms=normDoms(remote?.domains);
     // Union by name, local wins for duplicates
     const domMap=new Map();
     remoteDoms.forEach(d=>domMap.set(d.name,d));
@@ -982,7 +984,7 @@ function SaleModal({lead,t,onConfirm,onCancel}){
 // ─── ADD LEAD MODAL ───────────────────────────────────────────────────────────
 function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
   const todayIso=new Date().toISOString().slice(0,10);
-  const allDomains=normDomains(srcList&&srcList.length?srcList:SOURCES);
+  const allDomains=normDoms(srcList&&srcList.length?srcList:SOURCES);
   const [form,setForm]=useState({name:"",phone:"",action:"undefined",clientLang:"pl",source:(allDomains[0]&&(allDomains[0].name||allDomains[0]))||SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed",dateOverride:todayIso});
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
 
@@ -1242,7 +1244,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         <select value={fQ} onChange={e=>setFQ(e.target.value)} style={ss}><option value="all">{t.qualification}</option>{QUALS.map(q=><option key={q} value={q}>{t[q]}</option>)}</select>
         <select value={fA} onChange={e=>setFA(e.target.value)} style={ss}><option value="all">{t.action}</option>{ACTIONS.map(a=><option key={a} value={a}>{t[a]}</option>)}</select>
-        <select value={fS} onChange={e=>setFS(e.target.value)} style={ss}><option value="all">{t.source}</option>{normDomains(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{srcShort(d.name)}</option>)}</select>
+        <select value={fS} onChange={e=>setFS(e.target.value)} style={ss}><option value="all">{t.source}</option>{normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{srcShort(d.name)}</option>)}</select>
         <select value={sort} onChange={e=>setSort(e.target.value)} style={ss}><option value="date">{t.date}</option><option value="id">ID</option><option value="score">{t.score} ↓</option></select>
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
@@ -1314,7 +1316,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📞 Контакт</div>
             {inp("name",t.name)}{inp("phone",t.phone)}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{normDomains(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select>:<SrcBadge source={form.source}/>}</div><div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Язык клиента</div>{editing?<div style={{display:"flex",gap:4,marginTop:2}}>{[{v:"pl",flag:"🇵🇱",label:"PL"},{v:"ua",flag:"🇺🇦",label:"UA"}].map(({v,flag,label})=><button key={v} onClick={()=>set("clientLang",v)} style={{fontSize:16,padding:"3px 8px",borderRadius:6,border:`2px solid ${(form.clientLang||"pl")===v?C.accent:"transparent"}`,background:(form.clientLang||"pl")===v?C.accentDim:"transparent",cursor:"pointer",color:C.text,fontSize:11,display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:15}}>{flag}</span>{label}</button>)}</div>:<span style={{fontSize:16}}>{form.clientLang==="ua"?"🇺🇦 UA":"🇵🇱 PL"}</span>}</div>
+              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select>:<SrcBadge source={form.source}/>}</div><div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Язык клиента</div>{editing?<div style={{display:"flex",gap:4,marginTop:2}}>{[{v:"pl",flag:"🇵🇱",label:"PL"},{v:"ua",flag:"🇺🇦",label:"UA"}].map(({v,flag,label})=><button key={v} onClick={()=>set("clientLang",v)} style={{fontSize:16,padding:"3px 8px",borderRadius:6,border:`2px solid ${(form.clientLang||"pl")===v?C.accent:"transparent"}`,background:(form.clientLang||"pl")===v?C.accentDim:"transparent",cursor:"pointer",color:C.text,fontSize:11,display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:15}}>{flag}</span>{label}</button>)}</div>:<span style={{fontSize:16}}>{form.clientLang==="ua"?"🇺🇦 UA":"🇵🇱 PL"}</span>}</div>
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Дата</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
             </div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}</div>
@@ -1503,30 +1505,30 @@ function CalendarPage({events,setEvents,setEventsNow,updateDb,t,lang}){
 
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
 function DomainManager({srcList,updateDb}){
-  const domList=normDomains(srcList&&srcList.length?srcList:SOURCES);
+  const domList=normDoms(srcList&&srcList.length?srcList:SOURCES);
   const [newDom,setNewDom]=useState("");
-  const [newColor,setNewColor]=useState(DOMAIN_COLORS[0]);
+  const [newColor,setNewColor]=useState(DOM_COLORS[0]);
   const addDomain=()=>{
     const name=newDom.trim();
     if(!name||domList.find(d=>d.name===name))return;
     const entry={name,color:newColor};
     updateDb(p=>{
-      const cur=normDomains(p.domains&&p.domains.length?p.domains:SOURCES);
+      const cur=normDoms(p.domains&&p.domains.length?p.domains:SOURCES);
       return{...p,domains:[...cur,entry]};
     },true);
     setNewDom("");
-    setNewColor(DOMAIN_COLORS[domList.length%DOMAIN_COLORS.length]);
+    setNewColor(DOM_COLORS[domList.length%DOM_COLORS.length]);
   };
   const removeDomain=(name)=>{
     if(domList.length<=1)return;
     updateDb(p=>{
-      const cur=normDomains(p.domains&&p.domains.length?p.domains:SOURCES);
+      const cur=normDoms(p.domains&&p.domains.length?p.domains:SOURCES);
       return{...p,domains:cur.filter(d=>d.name!==name)};
     },true);
   };
   const changeColor=(name,color)=>{
     updateDb(p=>{
-      const cur=normDomains(p.domains&&p.domains.length?p.domains:SOURCES);
+      const cur=normDoms(p.domains&&p.domains.length?p.domains:SOURCES);
       return{...p,domains:cur.map(d=>d.name===name?{...d,color}:d)};
     },true);
   };
@@ -1569,7 +1571,7 @@ function AnalyticsPage({leads,sales,srcList,updateDb,t}){
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
   const fl=filterByCustomRange(leads,dateFrom,dateTo);const fs=filterByCustomRange(sales,dateFrom,dateTo);
-  const domList=normDomains(srcList&&srcList.length?srcList:SOURCES);
+  const domList=normDoms(srcList&&srcList.length?srcList:SOURCES);
   const domData=domList.map(dom=>{const dl=fl.filter(l=>l.source===dom.name);const kwaly=dl.filter(l=>l.score>=4).length;const dsales=fs.filter(s=>s.source===dom.name);return{name:dom.name,color:dom.color,total:dl.length,kwaly,kwalyPct:dl.length?parseFloat((kwaly/dl.length*100).toFixed(1)):0,salesCount:dsales.length,salesRev:dsales.reduce((a,s)=>a+s.saleAmount,0)};}).filter(d=>d.total>0).sort((a,b)=>b.total-a.total);
   const mData=MANAGERS.map(m=>{const ml=fl.filter(l=>l.manager===m);const ms=fs.filter(s=>s.manager===m);const total=ml.length;const kwaly=ml.filter(l=>l.score>=4).length;const s4=ml.filter(l=>l.score===4).length;const s5=ml.filter(l=>l.score===5).length;const avg=total?(ml.reduce((a,l)=>a+l.score,0)/total).toFixed(2):0;return{name:m,total,kwaly,kwalyPct:total?parseFloat((kwaly/total*100).toFixed(1)):0,to5:s4?parseFloat((s5/s4*100).toFixed(1)):0,toSell:s5?parseFloat((ms.length/s5*100).toFixed(1)):0,salesCount:ms.length,salesRev:ms.reduce((a,s)=>a+s.saleAmount,0),visits:ml.filter(l=>l.score>=5).length,avg:parseFloat(avg)};});
   const podium=[...mData].filter(m=>m.name!=="Danya").sort((a,b)=>b.salesRev-a.salesRev).slice(0,3);const medals=["🥇","🥈","🥉"];
@@ -1891,7 +1893,7 @@ function GarnoCRM(){
   const sales   = db.sales   ?? [];
   const nextNum = db.nextNum ?? (leads.length+1);
   const chatHist= db.chat    ?? [];
-  const srcList = normDomains((db.domains&&db.domains.length) ? db.domains : SOURCES);
+  const srcList = normDoms((db.domains&&db.domains.length) ? db.domains : SOURCES);
 
   const setLeads      = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}));
   const setLeadsNow   = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}),true);
