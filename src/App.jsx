@@ -547,7 +547,27 @@ function useDatabase(){
     });
   };
 
-  return{db,status,syncLabel,syncError,refresh,updateDb};
+  // Direct atomic domain write — bypasses mergeData entirely
+  const setDomains=async(newDoms)=>{
+    try{
+      // Read fresh Supabase data to avoid overwriting other changes
+      let base=null;
+      try{base=await sbRead();}catch{}
+      const current=base||JSON.parse(localRef.current||"{}");
+      const final={...current,domains:newDoms};
+      await sbWrite(final);
+      localRef.current=JSON.stringify(final);
+      setDbState(final);
+      try{lsSet("garno_backup",final);}catch{}
+    }catch(e){
+      console.error("setDomains failed:",e);
+      // Fallback: at least update local state
+      setDbState(p=>({...p,domains:newDoms}));
+      localRef.current=JSON.stringify({...JSON.parse(localRef.current||"{}"),domains:newDoms});
+    }
+  };
+
+  return{db,status,syncLabel,syncError,refresh,updateDb,setDomains};
 }
 
 // ─── UI ATOMS ─────────────────────────────────────────────────────────────────
@@ -1501,33 +1521,31 @@ function CalendarPage({events,setEvents,setEventsNow,updateDb,t,lang}){
 }
 
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
-function DomainManager({srcList,updateDb}){
+function DomainManager({srcList,setDomains}){
   const domList=normDoms(srcList&&srcList.length?srcList:SOURCES);
   const [newDom,setNewDom]=useState("");
   const [newColor,setNewColor]=useState(DOM_COLORS[0]);
+  const [saving,setSaving]=useState(false);
+  const save=async(newList)=>{
+    setSaving(true);
+    await setDomains(newList);
+    setSaving(false);
+  };
   const addDomain=()=>{
     const name=newDom.trim();
     if(!name||domList.find(d=>d.name===name))return;
     const entry={name,color:newColor};
-    updateDb(p=>{
-      const cur=normDoms(p.domains&&p.domains.length?p.domains:SOURCES);
-      return{...p,domains:[...cur,entry]};
-    },true);
+    const newList=[...domList,entry];
+    save(newList);
     setNewDom("");
-    setNewColor(DOM_COLORS[domList.length%DOM_COLORS.length]);
+    setNewColor(DOM_COLORS[newList.length%DOM_COLORS.length]);
   };
   const removeDomain=(name)=>{
     if(domList.length<=1)return;
-    updateDb(p=>{
-      const cur=normDoms(p.domains&&p.domains.length?p.domains:SOURCES);
-      return{...p,domains:cur.filter(d=>d.name!==name)};
-    },true);
+    save(domList.filter(d=>d.name!==name));
   };
   const changeColor=(name,color)=>{
-    updateDb(p=>{
-      const cur=normDoms(p.domains&&p.domains.length?p.domains:SOURCES);
-      return{...p,domains:cur.map(d=>d.name===name?{...d,color}:d)};
-    },true);
+    save(domList.map(d=>d.name===name?{...d,color}:d));
   };
   return(
     <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
@@ -1542,9 +1560,9 @@ function DomainManager({srcList,updateDb}){
           onKeyDown={e=>e.key==="Enter"&&addDomain()}
           placeholder="garnofurniture.com / Instagram / Olx ..."
           style={{flex:1,background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"8px 11px",fontSize:12,outline:"none"}}/>
-        <button onClick={addDomain}
-          style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:7,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
-          + Добавить
+        <button onClick={addDomain} disabled={saving}
+          style={{background:saving?"rgba(191,164,126,0.1)":C.accentDim,border:`1px solid ${C.accentBorder}`,color:saving?C.dim:C.accent,borderRadius:7,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:saving?"wait":"pointer",whiteSpace:"nowrap"}}>
+          {saving?"⏳ Сохранение...":"+ Добавить"}
         </button>
       </div>
       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -1564,7 +1582,7 @@ function DomainManager({srcList,updateDb}){
   );
 }
 
-function AnalyticsPage({leads,sales,srcList,updateDb,t}){
+function AnalyticsPage({leads,sales,srcList,setDomains,t}){
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
   const fl=filterByCustomRange(leads,dateFrom,dateTo);const fs=filterByCustomRange(sales,dateFrom,dateTo);
@@ -1622,7 +1640,7 @@ function AnalyticsPage({leads,sales,srcList,updateDb,t}){
         </div>
       )}
 
-      <DomainManager srcList={srcList} updateDb={updateDb}/>
+      <DomainManager srcList={srcList} setDomains={setDomains}/>
     </div>
   );
 }
@@ -1832,7 +1850,7 @@ export default function App(){
 }
 
 function GarnoCRM(){
-  const {db,status,syncLabel,syncError,refresh,updateDb,configure}=useDatabase();
+  const {db,status,syncLabel,syncError,refresh,updateDb,setDomains}=useDatabase();
   const [page,setPage]=useState("dashboard");
   const [selLead,setSelLead]=useState(null);
   const [lang,setLang]=useState("ru");
@@ -1939,7 +1957,7 @@ function GarnoCRM(){
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
           {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
-          {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} srcList={srcList} updateDb={updateDb} t={t}/>}
+          {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} srcList={srcList} setDomains={setDomains} t={t}/>}
           {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory}/>}
           {page==="sales"      && <SalesPage sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang}/>}
         </div>
