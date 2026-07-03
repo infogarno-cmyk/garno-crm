@@ -547,24 +547,18 @@ function useDatabase(){
     });
   };
 
-  // Direct atomic domain write — bypasses mergeData entirely
+  // Direct atomic domain write — bypasses mergeData, blocks bgSync
   const setDomains=async(newDoms)=>{
+    savingRef.current=true;
+    if(bgSyncRef.current){clearInterval(bgSyncRef.current);bgSyncRef.current=null;}
+    const optimistic={...JSON.parse(localRef.current||"{}"),domains:newDoms};
+    localRef.current=JSON.stringify(optimistic);
+    setDbState(optimistic);
     try{
-      // Read fresh Supabase data to avoid overwriting other changes
-      let base=null;
-      try{base=await sbRead();}catch{}
-      const current=base||JSON.parse(localRef.current||"{}");
-      const final={...current,domains:newDoms};
-      await sbWrite(final);
-      localRef.current=JSON.stringify(final);
-      setDbState(final);
-      try{lsSet("garno_backup",final);}catch{}
-    }catch(e){
-      console.error("setDomains failed:",e);
-      // Fallback: at least update local state
-      setDbState(p=>({...p,domains:newDoms}));
-      localRef.current=JSON.stringify({...JSON.parse(localRef.current||"{}"),domains:newDoms});
-    }
+      await sbWrite(optimistic);
+      try{lsSet("garno_backup",optimistic);}catch{}
+    }catch(e){console.error("setDomains failed:",e);}
+    finally{savingRef.current=false;setTimeout(()=>startBgSync(),3000);}
   };
 
   return{db,status,syncLabel,syncError,refresh,updateDb,setDomains};
@@ -1522,14 +1516,16 @@ function CalendarPage({events,setEvents,setEventsNow,updateDb,t,lang}){
 
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
 function DomainManager({srcList,setDomains}){
-  const domList=normDoms(srcList&&srcList.length?srcList:SOURCES);
+  const [localDoms,setLocalDoms]=useState(()=>normDoms(srcList&&srcList.length?srcList:SOURCES));
+  React.useEffect(()=>{setLocalDoms(normDoms(srcList&&srcList.length?srcList:SOURCES));},[srcList]);
+  const domList=localDoms;
   const [newDom,setNewDom]=useState("");
   const [newColor,setNewColor]=useState(DOM_COLORS[0]);
   const [saving,setSaving]=useState(false);
-  const save=async(newList)=>{
+  const save=(newList)=>{
+    setLocalDoms(newList);
     setSaving(true);
-    await setDomains(newList);
-    setSaving(false);
+    setDomains(newList).finally(()=>setSaving(false));
   };
   const addDomain=()=>{
     const name=newDom.trim();
