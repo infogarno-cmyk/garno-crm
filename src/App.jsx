@@ -277,7 +277,7 @@ async function sbWriteDomains(domains){
   });
   if(!r.ok){const t=await r.text();throw new Error(`HTTP ${r.status}: ${t.slice(0,100)}`);}
 }
-const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,// domains stored in row id=2 (not here),tasks:[],chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
+const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,/* domains in row id=2 */tasks:[],chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
 
 function useDatabase(){
   const [db,setDbState]=useState(null);
@@ -315,7 +315,7 @@ function useDatabase(){
     });
     const changed=leads.some((l,i)=>l!==data.leads[i]);
     const mdata=changed?{...data,leads}:data;
-    if(!mdata.tasks)return{...mdata,tasks:[],domains:undefined};
+    if(!mdata.tasks)return{...mdata,tasks:[]};
     return mdata;
   };
 
