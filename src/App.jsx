@@ -261,13 +261,30 @@ async function sbWrite(data){
   });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
 }
-const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,domains:normDoms(SOURCES),chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
+// Domains stored in separate row (id=2) — never mixed with leads/events/sales
+async function sbReadDomains(){
+  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.2&select=data`,{headers:SB_HDR,cache:"no-store"});
+  if(!r.ok)return null;
+  const j=await r.json();
+  return j&&j.length>0?j[0].data:null;
+}
+async function sbWriteDomains(domains){
+  // Upsert row id=2 with domains
+  const r=await fetch(`${SB_URL}/rest/v1/garnocrm`,{
+    method:"POST",
+    headers:{...SB_HDR,"Prefer":"resolution=merge-duplicates"},
+    body:JSON.stringify({id:2,data:{domains},updated_at:new Date().toISOString()})
+  });
+  if(!r.ok){const t=await r.text();throw new Error(`HTTP ${r.status}: ${t.slice(0,100)}`);}
+}
+const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,// domains stored in row id=2 (not here),tasks:[],chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
 
 function useDatabase(){
   const [db,setDbState]=useState(null);
   const [status,setStatus]=useState("loading");
   const [syncLabel,setSyncLabel]=useState("●");
   const [syncError,setSyncError]=useState("");
+  const [domainsState,setDomainsState]=useState(null); // separate from main db
   const localRef=useRef(null);
   const savingRef=useRef(false);
   const saveTimer=useRef(null);
@@ -297,7 +314,9 @@ function useDatabase(){
       return updated;
     });
     const changed=leads.some((l,i)=>l!==data.leads[i]);
-    return changed?{...data,leads}:data;
+    const mdata=changed?{...data,leads}:data;
+    if(!mdata.tasks)return{...mdata,tasks:[],domains:undefined};
+    return mdata;
   };
 
   const sortLeads=(arr)=>{
@@ -351,12 +370,7 @@ function useDatabase(){
     const deletedEventIds=new Set([...(local.deletedEventIds||[]),...(remote.deletedEventIds||[])]);
     const mergedEventsFinal=mergedEvents.filter(e=>!deletedEventIds.has(e.id));
 
-    // Domains: local ALWAYS wins — no union (union restores deleted domains from stale remote)
-    // If local has domains → use them. Only fall back to remote if local has none.
-    const mergedDomains=local.domains&&local.domains.length>0
-      ? normDoms(local.domains)
-      : normDoms(remote?.domains);
-
+    // Domains are stored in a separate Supabase row (id=2) — not merged here
     return{
       ...local,
       leads:sortLeads(mergedLeads),
@@ -367,7 +381,17 @@ function useDatabase(){
       deletedSaleIds:[...deletedSaleIds],
       deletedEventIds:[...deletedEventIds],
       chat:local.chat,
-      domains:mergedDomains,
+      // domains are stored in row id=2, NOT here
+      tasks:(()=>{
+        // Merge tasks by ID, latest updatedAt wins
+        const taskMap=new Map();
+        (remote?.tasks||[]).forEach(t=>taskMap.set(t.id,t));
+        (local.tasks||[]).forEach(t=>{
+          const ex=taskMap.get(t.id);
+          if(!ex||(t.updatedAt||0)>=(ex.updatedAt||0))taskMap.set(t.id,t);
+        });
+        return [...taskMap.values()].sort((a,b)=>(a.order||0)-(b.order||0));
+      })(),
     };
   };
 
@@ -486,6 +510,14 @@ function useDatabase(){
         }
         localRef.current=JSON.stringify(data);
         setDbState(data);
+        // Load domains from separate row
+        try{
+          const dr=await sbReadDomains();
+          const lsDoms=lsGet("garno_domains_v2");
+          if(dr&&dr.domains&&dr.domains.length>0){setDomainsState(normDoms(dr.domains));}
+          else if(lsDoms&&lsDoms.length>0){setDomainsState(normDoms(lsDoms));}
+          else{setDomainsState(normDoms(SOURCES));}
+        }catch{setDomainsState(normDoms(SOURCES));}
         setStatus("ready");
         setSyncLabel("●");
         startBgSync();
@@ -547,21 +579,16 @@ function useDatabase(){
     });
   };
 
-  // Direct atomic domain write — bypasses mergeData, blocks bgSync
+  // Domain write — completely isolated in row id=2, NEVER touches main data
   const setDomains=async(newDoms)=>{
-    savingRef.current=true;
-    if(bgSyncRef.current){clearInterval(bgSyncRef.current);bgSyncRef.current=null;}
-    const optimistic={...JSON.parse(localRef.current||"{}"),domains:newDoms};
-    localRef.current=JSON.stringify(optimistic);
-    setDbState(optimistic);
-    try{
-      await sbWrite(optimistic);
-      try{lsSet("garno_backup",optimistic);}catch{}
-    }catch(e){console.error("setDomains failed:",e);}
-    finally{savingRef.current=false;setTimeout(()=>startBgSync(),3000);}
+    // Immediate local update — no wait
+    setDomainsState(newDoms);
+    try{lsSet("garno_domains_v2",newDoms);}catch{}
+    // Background write to Supabase row id=2
+    try{await sbWriteDomains(newDoms);}catch(e){console.error("domain write failed:",e);}
   };
 
-  return{db,status,syncLabel,syncError,refresh,updateDb,setDomains};
+  return{db,status,syncLabel,syncError,refresh,updateDb,setDomains,domainsState};
 }
 
 // ─── UI ATOMS ─────────────────────────────────────────────────────────────────
@@ -1056,7 +1083,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"ai",icon:"◆",ru:"AI Ассистент",pl:"Asystent AI"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"}];
+const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"ai",icon:"◆",ru:"AI Ассистент",pl:"Asystent AI"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"}];
 function Sidebar({page,setPage,lang,collapsed,mgr,setMgr}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
@@ -1800,6 +1827,321 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
 }
 
 // ─── SALES PAGE ───────────────────────────────────────────────────────────────
+
+// ─── TASKS: CONFETTI ──────────────────────────────────────────────────────────
+function Confetti({onDone}){
+  useEffect(()=>{
+    if(!document.getElementById('g-confetti-style')){
+      const s=document.createElement('style');s.id='g-confetti-style';
+      s.textContent='@keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}';
+      document.head.appendChild(s);
+    }
+    const t=setTimeout(onDone,3200);return()=>clearTimeout(t);
+  },[]);
+  const cols=['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b','#cc77ff','#ff77cc','#00d4ff'];
+  return(
+    <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:9999,overflow:'hidden'}}>
+      {Array.from({length:80}).map((_,i)=>(
+        <div key={i} style={{
+          position:'absolute',
+          left:`${Math.random()*100}%`,top:'-12px',
+          width:`${5+Math.random()*9}px`,height:`${5+Math.random()*9}px`,
+          background:cols[i%cols.length],
+          borderRadius:Math.random()>.5?'50%':'2px',
+          animation:`confettiFall ${1.4+Math.random()*2}s linear ${Math.random()*.9}s forwards`,
+        }}/>
+      ))}
+    </div>
+  );
+}
+
+// ─── TASKS: MODAL ─────────────────────────────────────────────────────────────
+function TaskModal({task,onSave,onClose}){
+  const [form,setForm]=useState({
+    title:task?.title||'',assignee:task?.assignee||'—',
+    priority:task?.priority||'MID',deadline:task?.deadline||'',status:task?.status||'todo',
+  });
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+  const ins={background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.12)',color:'#fff',borderRadius:8,padding:'10px 14px',fontSize:13,width:'100%',outline:'none',boxSizing:'border-box'};
+  const PRIO=[['HIGH','#ef4444'],['MID','#f59e0b'],['LOW','#22c55e']];
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2500}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'#0d1527',border:'1px solid rgba(255,255,255,0.1)',borderRadius:16,width:'min(540px,94vw)',padding:32,boxShadow:'0 24px 64px rgba(0,0,0,0.7)',fontFamily:"'DM Sans',sans-serif"}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+          <div style={{fontSize:18,fontWeight:800,color:'#fff'}}>🖊 Задача</div>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:'rgba(255,255,255,0.4)',fontSize:20,cursor:'pointer',lineHeight:1}}>✕</button>
+        </div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>НАЗВАНИЕ</div>
+          <input value={form.title} onChange={e=>set('title',e.target.value)} autoFocus style={ins} placeholder="Название задачи..."/>
+        </div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:8,textTransform:'uppercase',letterSpacing:1}}>ИСПОЛНИТЕЛЬ</div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {[...MANAGERS,'—'].map(m=>{const active=form.assignee===m;return(
+              <button key={m} onClick={()=>set('assignee',m)} style={{flex:1,minWidth:60,padding:'9px 6px',borderRadius:8,border:active?'2px solid #ef4444':'1px solid rgba(255,255,255,0.15)',background:active?'rgba(239,68,68,0.2)':'rgba(255,255,255,0.05)',color:active?'#fff':'rgba(255,255,255,0.6)',fontWeight:active?700:500,fontSize:12,cursor:'pointer'}}>
+                {m==='—'?'— Никто':`🧑 ${m}`}
+              </button>
+            );})}
+          </div>
+        </div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:8,textTransform:'uppercase',letterSpacing:1}}>ПРИОРИТЕТ</div>
+          <div style={{display:'flex',gap:6}}>
+            {PRIO.map(([p,c])=>{const active=form.priority===p;return(
+              <button key={p} onClick={()=>set('priority',p)} style={{flex:1,padding:'10px',borderRadius:8,border:active?`2px solid ${c}`:'1px solid rgba(255,255,255,0.15)',background:active?`${c}30`:'rgba(255,255,255,0.05)',color:active?c:'rgba(255,255,255,0.4)',fontWeight:700,fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                <span style={{width:8,height:8,borderRadius:'50%',background:c,flexShrink:0,display:'inline-block'}}/>
+                {p}
+              </button>
+            );})}
+          </div>
+        </div>
+        <div style={{marginBottom:24}}>
+          <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>ДЕДЛАЙН</div>
+          <input type="date" value={form.deadline} onChange={e=>set('deadline',e.target.value)} style={{...ins,colorScheme:'dark'}}/>
+        </div>
+        <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+          <button onClick={onClose} style={{padding:'10px 24px',borderRadius:8,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.7)',fontWeight:600,cursor:'pointer',fontSize:13}}>Отмена</button>
+          <button onClick={()=>{if(form.title.trim())onSave(form);}} style={{padding:'10px 24px',borderRadius:8,border:'none',background:'#ef4444',color:'#fff',fontWeight:700,cursor:'pointer',fontSize:13,opacity:form.title.trim()?1:0.5}}>Сохранить</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── TASKS PAGE ────────────────────────────────────────────────────────────────
+const TASK_PRIO_COLORS={HIGH:'#ef4444',MID:'#f59e0b',LOW:'#22c55e'};
+const TASK_COLS_CFG=[
+  {id:'todo',    label:'TO DO',   color:'#60a5fa'},
+  {id:'process', label:'PROCESS', color:'#f59e0b'},
+  {id:'done',    label:'DONE',    color:'#22c55e'},
+];
+
+function TasksPage({tasks,updateDb,currentUser,lang}){
+  const [viewUser,setViewUser]=useState(currentUser||'all');
+  const [modal,setModal]=useState(null);
+  const [confetti,setConfetti]=useState(false);
+  const [dragId,setDragId]=useState(null);
+  const [dragOverCol,setDragOverCol]=useState(null);
+  const [dragOverIdx,setDragOverIdx]=useState(null);
+
+  // auto-switch to currentUser when it changes
+  useEffect(()=>{if(currentUser)setViewUser(currentUser);},[currentUser]);
+
+  const filtered=viewUser==='all'?tasks:tasks.filter(t=>t.assignee===viewUser);
+  const byCol=(col)=>[...filtered].filter(t=>t.status===col).sort((a,b)=>(a.order||0)-(b.order||0));
+  const allSorted=[...filtered].sort((a,b)=>{
+    const ord={todo:0,process:1,done:2};
+    return (ord[a.status]||0)-(ord[b.status]||0)||(a.order||0)-(b.order||0);
+  });
+
+  const saveTasks=(newTasks)=>{
+    updateDb(p=>({...p,tasks:newTasks}),true);
+  };
+
+  const saveTask=(form,id)=>{
+    const now=Date.now();
+    let newTasks;
+    if(id){
+      newTasks=tasks.map(t=>t.id===id?{...t,...form,updatedAt:now}:t);
+    } else {
+      const maxOrd=tasks.length?Math.max(...tasks.map(t=>t.order||0))+1:0;
+      newTasks=[...tasks,{...form,id:now,createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd}];
+    }
+    saveTasks(newTasks);
+    setModal(null);
+  };
+
+  const deleteTask=(id)=>{
+    saveTasks(tasks.filter(t=>t.id!==id));
+    setModal(null);
+  };
+
+  const clearDone=()=>{
+    setConfetti(true);
+    setTimeout(()=>{saveTasks(tasks.filter(t=>t.status!=='done'));},1200);
+  };
+
+  // Drag & Drop
+  const handleDragStart=(e,taskId)=>{
+    setDragId(taskId);
+    e.dataTransfer.effectAllowed='move';
+  };
+
+  const handleDragOver=(e,col,idx)=>{
+    e.preventDefault();
+    e.dataTransfer.dropEffect='move';
+    setDragOverCol(col);
+    setDragOverIdx(idx);
+  };
+
+  const handleDrop=(e,col,insertIdx)=>{
+    e.preventDefault();
+    if(!dragId)return;
+    const dragged=tasks.find(t=>t.id===dragId);
+    if(!dragged)return;
+
+    const colTasks=[...tasks].filter(t=>t.status===col&&t.id!==dragId).sort((a,b)=>(a.order||0)-(b.order||0));
+    const idx=insertIdx===undefined?colTasks.length:insertIdx;
+    colTasks.splice(idx,0,{...dragged,status:col});
+
+    const reordered=colTasks.map((t,i)=>({...t,order:i,updatedAt:Date.now()}));
+    const others=tasks.filter(t=>t.status!==col&&t.id!==dragId);
+    saveTasks([...others,...reordered]);
+    setDragId(null);setDragOverCol(null);setDragOverIdx(null);
+  };
+
+  const handleDragEnd=()=>{setDragId(null);setDragOverCol(null);setDragOverIdx(null);};
+
+  const TaskCard=({task,col})=>{
+    const pc=TASK_PRIO_COLORS[task.priority]||'#aaa';
+    const isDragging=dragId===task.id;
+    const dueDate=task.deadline?new Date(task.deadline):null;
+    const overdue=dueDate&&dueDate<new Date()&&task.status!=='done';
+    return(
+      <div
+        draggable
+        onDragStart={e=>handleDragStart(e,task.id)}
+        onDragEnd={handleDragEnd}
+        onClick={()=>setModal({task})}
+        style={{
+          background:'rgba(255,255,255,0.04)',
+          border:`1px solid rgba(255,255,255,${isDragging?'0.02':'0.09'})`,
+          borderLeft:`3px solid ${pc}`,
+          borderRadius:8,padding:'10px 12px',cursor:'grab',
+          opacity:isDragging?0.35:1,
+          transform:isDragging?'scale(0.97)':'scale(1)',
+          transition:'opacity 0.15s,transform 0.15s',
+          userSelect:'none',
+        }}
+      >
+        <div style={{fontSize:13,fontWeight:600,color:'#fff',marginBottom:8,lineHeight:1.4}}>{task.title}</div>
+        <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
+          <span style={{fontSize:10,fontWeight:700,color:pc,background:`${pc}20`,border:`1px solid ${pc}40`,borderRadius:10,padding:'1px 8px'}}>{task.priority}</span>
+          {task.assignee&&task.assignee!=='—'&&(
+            <span style={{fontSize:10,color:'rgba(255,255,255,0.45)',background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'1px 8px'}}>{task.assignee}</span>
+          )}
+          {task.deadline&&(
+            <span style={{fontSize:10,color:overdue?'#ef4444':'rgba(255,255,255,0.3)',marginLeft:'auto',display:'flex',alignItems:'center',gap:2}}>
+              {overdue?'⚠️':'📅'} {task.deadline.split('-').reverse().join('.')}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const ColDropZone=({col,idx,show})=>(
+    <div
+      onDragOver={e=>handleDragOver(e,col,idx)}
+      onDrop={e=>handleDrop(e,col,idx)}
+      style={{height:show?32:4,background:show?'rgba(255,255,255,0.06)':'transparent',borderRadius:6,border:show?'2px dashed rgba(255,255,255,0.2)':'2px dashed transparent',transition:'all 0.15s',display:'flex',alignItems:'center',justifyContent:'center'}}
+    >
+      {show&&<span style={{fontSize:10,color:'rgba(255,255,255,0.3)'}}>↓</span>}
+    </div>
+  );
+
+  const addTaskForCol=(colId)=>{
+    setModal({task:{status:colId,assignee:viewUser==='all'?'—':viewUser,priority:'MID',title:'',deadline:''}});
+  };
+
+  return(
+    <div style={{padding:'18px 20px',height:'100%',overflow:'auto',fontFamily:"'DM Sans',sans-serif",display:'flex',flexDirection:'column',gap:14}}>
+      {confetti&&<Confetti onDone={()=>setConfetti(false)}/>}
+
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+        <div style={{fontSize:17,fontWeight:800,color:C.text}}>☰ {lang==='ru'?'Задачи':'Zadania'} <span style={{fontSize:12,color:C.muted,fontWeight:400}}>({allSorted.length})</span></div>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <select value={viewUser} onChange={e=>setViewUser(e.target.value)} style={{background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,padding:'6px 10px',fontSize:12,cursor:'pointer'}}>
+            <option value="all">{lang==='ru'?'Все':'Wszyscy'}</option>
+            {MANAGERS.map(m=><option key={m} value={m}>{m}</option>)}
+          </select>
+          <button onClick={()=>setModal({task:null})} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            + {lang==='ru'?'Задача':'Zadanie'}
+          </button>
+        </div>
+      </div>
+
+      {/* Board */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,flex:1,minHeight:0}}>
+
+        {/* ALL TASKS column */}
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:12,display:'flex',flexDirection:'column',gap:6,overflow:'hidden'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:6,flexShrink:0}}>
+            <span style={{width:8,height:8,borderRadius:'50%',background:C.dim,flexShrink:0}}/>
+            <span style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:1}}>ALL TASKS</span>
+            <span style={{marginLeft:'auto',background:C.surface,color:C.muted,borderRadius:20,padding:'1px 8px',fontSize:10,fontWeight:700}}>{allSorted.length}</span>
+          </div>
+          <div style={{overflowY:'auto',display:'flex',flexDirection:'column',gap:5,flex:1}}>
+            {allSorted.map(task=><TaskCard key={task.id} task={task} col="all"/>)}
+            {!allSorted.length&&<div style={{color:C.dim,fontSize:12,textAlign:'center',padding:'20px 0'}}>Нет задач</div>}
+          </div>
+        </div>
+
+        {/* Status columns */}
+        {TASK_COLS_CFG.map(col=>{
+          const colTasks=byCol(col.id);
+          const isOver=dragOverCol===col.id;
+          return(
+            <div key={col.id}
+              onDragOver={e=>handleDragOver(e,col.id,colTasks.length)}
+              onDrop={e=>handleDrop(e,col.id,colTasks.length)}
+              style={{background:C.card,border:`1px solid ${isOver?`${col.color}50`:C.border}`,borderRadius:12,padding:12,display:'flex',flexDirection:'column',gap:0,overflow:'hidden',transition:'border-color 0.15s'}}
+            >
+              {/* Column header */}
+              <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:8,flexShrink:0}}>
+                <span style={{width:8,height:8,borderRadius:'50%',background:col.color,flexShrink:0}}/>
+                <span style={{fontSize:10,fontWeight:700,color:col.color,textTransform:'uppercase',letterSpacing:1}}>{col.label}</span>
+                <span style={{marginLeft:'auto',background:`${col.color}20`,color:col.color,borderRadius:20,padding:'1px 8px',fontSize:10,fontWeight:700}}>{colTasks.length}</span>
+                {col.id==='done'&&colTasks.length>0&&(
+                  <button onClick={clearDone} style={{background:'#22c55e',border:'none',color:'#000',borderRadius:6,padding:'3px 8px',fontSize:9,fontWeight:800,cursor:'pointer',whiteSpace:'nowrap'}}>✓ Готово</button>
+                )}
+              </div>
+
+              {/* Cards + drop zones */}
+              <div style={{overflowY:'auto',display:'flex',flexDirection:'column',flex:1,gap:0}}>
+                <ColDropZone col={col.id} idx={0} show={isOver&&dragOverIdx===0&&colTasks.length>0}/>
+                {colTasks.map((task,i)=>(
+                  <div key={task.id}>
+                    <TaskCard task={task} col={col.id}/>
+                    <ColDropZone col={col.id} idx={i+1} show={isOver&&dragOverIdx===i+1}/>
+                  </div>
+                ))}
+                {/* Empty drop zone */}
+                {colTasks.length===0&&(
+                  <div onDragOver={e=>handleDragOver(e,col.id,0)} onDrop={e=>handleDrop(e,col.id,0)}
+                    style={{flex:1,minHeight:60,border:isOver?'2px dashed rgba(255,255,255,0.2)':'2px dashed transparent',borderRadius:8,transition:'border 0.15s',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    {isOver&&<span style={{color:'rgba(255,255,255,0.25)',fontSize:12}}>Перетащи сюда</span>}
+                  </div>
+                )}
+              </div>
+
+              <button onClick={()=>addTaskForCol(col.id)} style={{marginTop:8,background:'transparent',border:'1px dashed rgba(255,255,255,0.12)',color:'rgba(255,255,255,0.3)',borderRadius:7,padding:'7px',fontSize:11,cursor:'pointer',flexShrink:0,transition:'all 0.15s'}}
+                onMouseEnter={e=>{e.target.style.borderColor='rgba(255,255,255,0.3)';e.target.style.color='rgba(255,255,255,0.6)';}}
+                onMouseLeave={e=>{e.target.style.borderColor='rgba(255,255,255,0.12)';e.target.style.color='rgba(255,255,255,0.3)';}}
+              >+ Add a card</button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Modal */}
+      {modal&&(
+        <TaskModal
+          task={modal.task}
+          onSave={(form)=>saveTask(form,modal.task?.id)}
+          onClose={()=>setModal(null)}
+        />
+      )}
+      {/* Delete from modal */}
+      {modal?.task?.id&&(
+        <div style={{display:'none'}} id={`del-${modal.task.id}`} onClick={()=>deleteTask(modal.task.id)}/>
+      )}
+    </div>
+  );
+}
+
 function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang}){
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
@@ -1846,7 +2188,7 @@ export default function App(){
 }
 
 function GarnoCRM(){
-  const {db,status,syncLabel,syncError,refresh,updateDb,setDomains}=useDatabase();
+  const {db,status,syncLabel,syncError,refresh,updateDb,setDomains,domainsState}=useDatabase();
   const [page,setPage]=useState("dashboard");
   const [selLead,setSelLead]=useState(null);
   const [lang,setLang]=useState("ru");
@@ -1902,9 +2244,10 @@ function GarnoCRM(){
   const leads   = db.leads   ?? [];
   const events  = db.events  ?? [];
   const sales   = db.sales   ?? [];
+  const tasks    = db.tasks   ?? [];
   const nextNum = db.nextNum ?? (leads.length+1);
   const chatHist= db.chat    ?? [];
-  const srcList = normDoms((db.domains&&db.domains.length) ? db.domains : SOURCES);
+  const srcList = domainsState&&domainsState.length ? domainsState : normDoms(SOURCES);
 
   const setLeads      = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}));
   const setLeadsNow   = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}),true);
@@ -1956,6 +2299,7 @@ function GarnoCRM(){
           {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} srcList={srcList} setDomains={setDomains} t={t}/>}
           {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory}/>}
           {page==="sales"      && <SalesPage sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang}/>}
+          {page==="tasks"      && <TasksPage tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang}/>}
         </div>
       </div>
       {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser}/>}
