@@ -1084,7 +1084,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"ai",icon:"◆",ru:"AI Ассистент",pl:"Asystent AI"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"}];
-function Sidebar({page,setPage,lang,collapsed,mgr,setMgr}){
+function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
       <div style={{padding:"14px 10px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
@@ -1092,7 +1092,7 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr}){
         {!collapsed&&<span style={{color:C.accent,fontWeight:900,fontSize:14,letterSpacing:1.5}}>GARNO<span style={{color:"#fff"}}>CRM</span></span>}
       </div>
       <nav style={{flex:1,padding:"8px 6px",display:"flex",flexDirection:"column",gap:2,overflowY:"auto",overflowX:"hidden"}}>
-        {NAV.map(item=>{const active=page===item.key;return(<button key={item.key} onClick={()=>setPage(item.key)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:active?700:500,borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent"}}><span style={{fontSize:14,flexShrink:0}}>{item.icon}</span>{!collapsed&&<span style={{whiteSpace:"nowrap"}}>{lang==="ru"?item.ru:item.pl}</span>}</button>);})}
+        {NAV.map(item=>{const active=page===item.key;return(<button key={item.key} onClick={()=>setPage(item.key)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:active?700:500,borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent"}}><span style={{fontSize:14,flexShrink:0}}>{item.icon}</span>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}</span>}</button>);})}
         {!collapsed&&page==="leads"&&(<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}}>{["all",...MANAGERS].map(m=>(<button key={m} onClick={()=>setMgr(m)} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderRadius:6,border:"none",background:mgr===m?`${MGR_COLOR[m]||C.accent}22`:"transparent",color:mgr===m?(MGR_COLOR[m]||C.accent):C.muted,cursor:"pointer",fontSize:12,fontWeight:mgr===m?600:400,width:"100%",textAlign:"left"}}>{m!=="all"&&<Avatar name={m} color={MGR_COLOR[m]} size={18}/>}{m==="all"?`◉ ${lang==="ru"?"Все":"Wszyscy"}`:m}</button>))}</div>)}
       </nav>
     </div>
@@ -1898,9 +1898,12 @@ function TaskModal({task,onSave,onClose}){
           <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>ДЕДЛАЙН</div>
           <input type="date" value={form.deadline} onChange={e=>set('deadline',e.target.value)} style={{...ins,colorScheme:'dark'}}/>
         </div>
-        <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
-          <button onClick={onClose} style={{padding:'10px 24px',borderRadius:8,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.7)',fontWeight:600,cursor:'pointer',fontSize:13}}>Отмена</button>
-          <button onClick={()=>{if(form.title.trim())onSave(form);}} style={{padding:'10px 24px',borderRadius:8,border:'none',background:'#ef4444',color:'#fff',fontWeight:700,cursor:'pointer',fontSize:13,opacity:form.title.trim()?1:0.5}}>Сохранить</button>
+        <div style={{display:'flex',gap:10,justifyContent:'space-between'}}>
+          {task?.id&&<button onClick={()=>onSave({...form,_delete:true})} style={{padding:'10px 16px',borderRadius:8,border:'1px solid rgba(239,68,68,0.3)',background:'rgba(239,68,68,0.1)',color:'#ef4444',fontWeight:600,cursor:'pointer',fontSize:13}}>🗑 Удалить</button>}
+          <div style={{display:'flex',gap:10,marginLeft:'auto'}}>
+            <button onClick={onClose} style={{padding:'10px 24px',borderRadius:8,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.7)',fontWeight:600,cursor:'pointer',fontSize:13}}>Отмена</button>
+            <button onClick={()=>{if(form.title.trim())onSave(form);}} style={{padding:'10px 24px',borderRadius:8,border:'none',background:'#ef4444',color:'#fff',fontWeight:700,cursor:'pointer',fontSize:13,opacity:form.title.trim()?1:0.5}}>Сохранить</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1919,108 +1922,133 @@ function TasksPage({tasks,updateDb,currentUser,lang}){
   const [viewUser,setViewUser]=useState(currentUser||'all');
   const [modal,setModal]=useState(null);
   const [confetti,setConfetti]=useState(false);
+  // DnD state: dragId = id of card being dragged, dropTarget = {col, idx}
   const [dragId,setDragId]=useState(null);
-  const [dragOverCol,setDragOverCol]=useState(null);
-  const [dragOverIdx,setDragOverIdx]=useState(null);
+  const [dropTarget,setDropTarget]=useState(null);
 
-  // auto-switch to currentUser when it changes
   useEffect(()=>{if(currentUser)setViewUser(currentUser);},[currentUser]);
 
-  const filtered=viewUser==='all'?tasks:tasks.filter(t=>t.assignee===viewUser);
+  // Mark tasks as seen when user opens tasks page
+  useEffect(()=>{
+    if(!currentUser||!tasks.length)return;
+    const unseen=tasks.filter(t=>t.assignee===currentUser&&!(t.seenBy||[]).includes(currentUser));
+    if(!unseen.length)return;
+    const marked=tasks.map(t=>
+      t.assignee===currentUser&&!(t.seenBy||[]).includes(currentUser)
+        ?{...t,seenBy:[...(t.seenBy||[]),currentUser]}
+        :t
+    );
+    updateDb(p=>({...p,tasks:marked}),true);
+  },[currentUser]); // only on mount/user change
+
+  const allTasks=[...tasks];
+  const filtered=viewUser==='all'?allTasks:allTasks.filter(t=>t.assignee===viewUser);
   const byCol=(col)=>[...filtered].filter(t=>t.status===col).sort((a,b)=>(a.order||0)-(b.order||0));
   const allSorted=[...filtered].sort((a,b)=>{
     const ord={todo:0,process:1,done:2};
-    return (ord[a.status]||0)-(ord[b.status]||0)||(a.order||0)-(b.order||0);
+    return(ord[a.status]||0)-(ord[b.status]||0)||(a.order||0)-(b.order||0);
   });
 
-  const saveTasks=(newTasks)=>{
-    updateDb(p=>({...p,tasks:newTasks}),true);
-  };
+  const saveTasks=(newTasks)=>updateDb(p=>({...p,tasks:newTasks}),true);
 
   const saveTask=(form,id)=>{
     const now=Date.now();
     let newTasks;
     if(id){
+      if(form._delete){saveTasks(tasks.filter(t=>t.id!==id));setModal(null);return;}
       newTasks=tasks.map(t=>t.id===id?{...t,...form,updatedAt:now}:t);
     } else {
       const maxOrd=tasks.length?Math.max(...tasks.map(t=>t.order||0))+1:0;
-      newTasks=[...tasks,{...form,id:now,createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd}];
+      const assignee=form.assignee||'—';
+      newTasks=[...tasks,{...form,id:now,createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,seenBy:[assignee]}];
     }
-    saveTasks(newTasks);
-    setModal(null);
+    saveTasks(newTasks);setModal(null);
   };
 
-  const deleteTask=(id)=>{
-    saveTasks(tasks.filter(t=>t.id!==id));
-    setModal(null);
-  };
+  const deleteTask=(id)=>{saveTasks(tasks.filter(t=>t.id!==id));setModal(null);};
 
   const clearDone=()=>{
     setConfetti(true);
-    setTimeout(()=>{saveTasks(tasks.filter(t=>t.status!=='done'));},1200);
+    setTimeout(()=>saveTasks(tasks.filter(t=>t.status!=='done')),1400);
   };
 
-  // Drag & Drop
-  const handleDragStart=(e,taskId)=>{
-    setDragId(taskId);
+  // ── DnD ────────────────────────────────────────────────────────
+  const onDragStart=(e,id)=>{
+    setDragId(id);
     e.dataTransfer.effectAllowed='move';
+    e.stopPropagation();
+  };
+  const onDragEnd=()=>{setDragId(null);setDropTarget(null);};
+
+  // Called on the gap-divs between cards
+  const onGapDragOver=(e,col,idx)=>{
+    e.preventDefault();e.stopPropagation();
+    setDropTarget({col,idx});
+  };
+  // Called on the column background (drop at end)
+  const onColDragOver=(e,col,endIdx)=>{
+    e.preventDefault();
+    if(!dropTarget||dropTarget.col!==col)setDropTarget({col,idx:endIdx});
+  };
+  // Called on a card itself — split top/bottom half to determine insert position
+  const onCardDragOver=(e,col,cardIdx)=>{
+    e.preventDefault();e.stopPropagation();
+    const rect=e.currentTarget.getBoundingClientRect();
+    const insertIdx=e.clientY<rect.top+rect.height/2?cardIdx:cardIdx+1;
+    setDropTarget({col,idx:insertIdx});
   };
 
-  const handleDragOver=(e,col,idx)=>{
-    e.preventDefault();
-    e.dataTransfer.dropEffect='move';
-    setDragOverCol(col);
-    setDragOverIdx(idx);
-  };
-
-  const handleDrop=(e,col,insertIdx)=>{
-    e.preventDefault();
-    if(!dragId)return;
+  const onDrop=(e)=>{
+    e.preventDefault();e.stopPropagation();
+    if(!dragId||!dropTarget)return;
     const dragged=tasks.find(t=>t.id===dragId);
     if(!dragged)return;
-
+    const{col,idx}=dropTarget;
+    // All tasks in target col except the dragged one, sorted
     const colTasks=[...tasks].filter(t=>t.status===col&&t.id!==dragId).sort((a,b)=>(a.order||0)-(b.order||0));
-    const idx=insertIdx===undefined?colTasks.length:insertIdx;
-    colTasks.splice(idx,0,{...dragged,status:col});
-
-    const reordered=colTasks.map((t,i)=>({...t,order:i,updatedAt:Date.now()}));
+    const clampedIdx=Math.min(idx,colTasks.length);
+    colTasks.splice(clampedIdx,0,{...dragged,status:col});
+    const reordered=colTasks.map((t,i)=>({...t,order:i*10,updatedAt:Date.now()}));
     const others=tasks.filter(t=>t.status!==col&&t.id!==dragId);
     saveTasks([...others,...reordered]);
-    setDragId(null);setDragOverCol(null);setDragOverIdx(null);
+    setDragId(null);setDropTarget(null);
   };
 
-  const handleDragEnd=()=>{setDragId(null);setDragOverCol(null);setDragOverIdx(null);};
-
-  const TaskCard=({task,col})=>{
+  // ── Card component ──────────────────────────────────────────────
+  const TaskCard=({task,cardIdx,col})=>{
     const pc=TASK_PRIO_COLORS[task.priority]||'#aaa';
     const isDragging=dragId===task.id;
-    const dueDate=task.deadline?new Date(task.deadline):null;
-    const overdue=dueDate&&dueDate<new Date()&&task.status!=='done';
+    const isNew=!(task.seenBy||[]).includes(currentUser)&&task.assignee===currentUser;
+    const overdue=task.deadline&&new Date(task.deadline)<new Date()&&task.status!=='done';
     return(
       <div
         draggable
-        onDragStart={e=>handleDragStart(e,task.id)}
-        onDragEnd={handleDragEnd}
+        onDragStart={e=>onDragStart(e,task.id)}
+        onDragEnd={onDragEnd}
+        onDragOver={col!=='all'?e=>onCardDragOver(e,col,cardIdx):undefined}
+        onDrop={col!=='all'?onDrop:undefined}
         onClick={()=>setModal({task})}
         style={{
-          background:'rgba(255,255,255,0.04)',
-          border:`1px solid rgba(255,255,255,${isDragging?'0.02':'0.09'})`,
+          background:isNew?'rgba(239,68,68,0.08)':'rgba(255,255,255,0.04)',
+          border:`1px solid ${isNew?'rgba(239,68,68,0.3)':'rgba(255,255,255,0.09)'}`,
           borderLeft:`3px solid ${pc}`,
-          borderRadius:8,padding:'10px 12px',cursor:'grab',
-          opacity:isDragging?0.35:1,
-          transform:isDragging?'scale(0.97)':'scale(1)',
-          transition:'opacity 0.15s,transform 0.15s',
-          userSelect:'none',
+          borderRadius:8,padding:'10px 12px',cursor:'grab',marginBottom:4,
+          opacity:isDragging?0.3:1,
+          transition:'opacity 0.15s',userSelect:'none',
+          outline:isNew?'1px solid rgba(239,68,68,0.15)':'none',
         }}
       >
-        <div style={{fontSize:13,fontWeight:600,color:'#fff',marginBottom:8,lineHeight:1.4}}>{task.title}</div>
-        <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#fff',flex:1,lineHeight:1.4}}>{task.title}</div>
+          {isNew&&<span style={{background:'#ef4444',color:'#fff',borderRadius:8,fontSize:9,fontWeight:800,padding:'1px 5px',flexShrink:0}}>NEW</span>}
+        </div>
+        <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap',marginTop:6}}>
           <span style={{fontSize:10,fontWeight:700,color:pc,background:`${pc}20`,border:`1px solid ${pc}40`,borderRadius:10,padding:'1px 8px'}}>{task.priority}</span>
           {task.assignee&&task.assignee!=='—'&&(
             <span style={{fontSize:10,color:'rgba(255,255,255,0.45)',background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'1px 8px'}}>{task.assignee}</span>
           )}
           {task.deadline&&(
-            <span style={{fontSize:10,color:overdue?'#ef4444':'rgba(255,255,255,0.3)',marginLeft:'auto',display:'flex',alignItems:'center',gap:2}}>
+            <span style={{fontSize:10,color:overdue?'#ef4444':'rgba(255,255,255,0.3)',marginLeft:'auto'}}>
               {overdue?'⚠️':'📅'} {task.deadline.split('-').reverse().join('.')}
             </span>
           )}
@@ -2029,113 +2057,110 @@ function TasksPage({tasks,updateDb,currentUser,lang}){
     );
   };
 
-  const ColDropZone=({col,idx,show})=>(
-    <div
-      onDragOver={e=>handleDragOver(e,col,idx)}
-      onDrop={e=>handleDrop(e,col,idx)}
-      style={{height:show?32:4,background:show?'rgba(255,255,255,0.06)':'transparent',borderRadius:6,border:show?'2px dashed rgba(255,255,255,0.2)':'2px dashed transparent',transition:'all 0.15s',display:'flex',alignItems:'center',justifyContent:'center'}}
-    >
-      {show&&<span style={{fontSize:10,color:'rgba(255,255,255,0.3)'}}>↓</span>}
-    </div>
-  );
-
-  const addTaskForCol=(colId)=>{
-    setModal({task:{status:colId,assignee:viewUser==='all'?'—':viewUser,priority:'MID',title:'',deadline:''}});
+  // Gap between cards where you can drop
+  const Gap=({col,idx})=>{
+    const active=dropTarget&&dropTarget.col===col&&dropTarget.idx===idx;
+    return(
+      <div
+        onDragOver={e=>onGapDragOver(e,col,idx)}
+        onDrop={onDrop}
+        style={{height:active?28:6,background:active?'rgba(255,255,255,0.08)':'transparent',
+          border:active?'2px dashed rgba(255,255,255,0.3)':'2px dashed transparent',
+          borderRadius:6,transition:'all 0.12s',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:active?4:0}}
+      >
+        {active&&<span style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>↓ сюда</span>}
+      </div>
+    );
   };
 
+  const addFor=(colId)=>setModal({task:{status:colId,assignee:viewUser==='all'?'—':viewUser,priority:'MID',title:'',deadline:''}});
+
   return(
-    <div style={{padding:'18px 20px',height:'100%',overflow:'auto',fontFamily:"'DM Sans',sans-serif",display:'flex',flexDirection:'column',gap:14}}>
+    <div style={{padding:'18px 20px',height:'100%',overflow:'hidden',fontFamily:"'DM Sans',sans-serif",display:'flex',flexDirection:'column',gap:12}}>
       {confetti&&<Confetti onDone={()=>setConfetti(false)}/>}
 
       {/* Header */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
-        <div style={{fontSize:17,fontWeight:800,color:C.text}}>☰ {lang==='ru'?'Задачи':'Zadania'} <span style={{fontSize:12,color:C.muted,fontWeight:400}}>({allSorted.length})</span></div>
-        <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          <select value={viewUser} onChange={e=>setViewUser(e.target.value)} style={{background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,padding:'6px 10px',fontSize:12,cursor:'pointer'}}>
-            <option value="all">{lang==='ru'?'Все':'Wszyscy'}</option>
-            {MANAGERS.map(m=><option key={m} value={m}>{m}</option>)}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8,flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{fontSize:17,fontWeight:800,color:C.text}}>☰ {lang==='ru'?'Задачи':'Zadania'}</div>
+          <select value={viewUser} onChange={e=>setViewUser(e.target.value)}
+            style={{background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>
+            <option value="all">👥 {lang==='ru'?'Все':'Wszyscy'}</option>
+            {MANAGERS.map(m=><option key={m} value={m}>🧑 {m}</option>)}
           </select>
-          <button onClick={()=>setModal({task:null})} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>
-            + {lang==='ru'?'Задача':'Zadanie'}
-          </button>
+          <span style={{fontSize:12,color:C.muted}}>({allSorted.length})</span>
         </div>
+        <button onClick={()=>setModal({task:null})} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+          + {lang==='ru'?'Задача':'Zadanie'}
+        </button>
       </div>
 
       {/* Board */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,flex:1,minHeight:0}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,flex:1,minHeight:0,overflow:'hidden'}}>
 
-        {/* ALL TASKS column */}
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:12,display:'flex',flexDirection:'column',gap:6,overflow:'hidden'}}>
-          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:6,flexShrink:0}}>
-            <span style={{width:8,height:8,borderRadius:'50%',background:C.dim,flexShrink:0}}/>
+        {/* ALL TASKS */}
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:12,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:8,flexShrink:0}}>
+            <span style={{width:7,height:7,borderRadius:'50%',background:C.dim}}/>
             <span style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:1}}>ALL TASKS</span>
             <span style={{marginLeft:'auto',background:C.surface,color:C.muted,borderRadius:20,padding:'1px 8px',fontSize:10,fontWeight:700}}>{allSorted.length}</span>
           </div>
-          <div style={{overflowY:'auto',display:'flex',flexDirection:'column',gap:5,flex:1}}>
-            {allSorted.map(task=><TaskCard key={task.id} task={task} col="all"/>)}
-            {!allSorted.length&&<div style={{color:C.dim,fontSize:12,textAlign:'center',padding:'20px 0'}}>Нет задач</div>}
+          <div style={{overflowY:'auto',flex:1}}>
+            {allSorted.map((task,i)=><TaskCard key={task.id} task={task} cardIdx={i} col="all"/>)}
+            {!allSorted.length&&<div style={{color:C.dim,fontSize:12,textAlign:'center',padding:20}}>Нет задач</div>}
           </div>
+          <button onClick={()=>addFor('todo')} style={{marginTop:8,background:'transparent',border:'1px dashed rgba(255,255,255,0.12)',color:'rgba(255,255,255,0.3)',borderRadius:7,padding:'7px',fontSize:11,cursor:'pointer',flexShrink:0}}
+            onMouseEnter={e=>{e.target.style.borderColor='rgba(255,255,255,0.35)';e.target.style.color='rgba(255,255,255,0.6)';}}
+            onMouseLeave={e=>{e.target.style.borderColor='rgba(255,255,255,0.12)';e.target.style.color='rgba(255,255,255,0.3)';}}>
+            + Add a card
+          </button>
         </div>
 
         {/* Status columns */}
         {TASK_COLS_CFG.map(col=>{
           const colTasks=byCol(col.id);
-          const isOver=dragOverCol===col.id;
+          const isOver=dropTarget&&dropTarget.col===col.id;
           return(
             <div key={col.id}
-              onDragOver={e=>handleDragOver(e,col.id,colTasks.length)}
-              onDrop={e=>handleDrop(e,col.id,colTasks.length)}
-              style={{background:C.card,border:`1px solid ${isOver?`${col.color}50`:C.border}`,borderRadius:12,padding:12,display:'flex',flexDirection:'column',gap:0,overflow:'hidden',transition:'border-color 0.15s'}}
-            >
-              {/* Column header */}
-              <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:8,flexShrink:0}}>
-                <span style={{width:8,height:8,borderRadius:'50%',background:col.color,flexShrink:0}}/>
+              onDragOver={e=>onColDragOver(e,col.id,colTasks.length)}
+              onDrop={onDrop}
+              style={{background:C.card,border:`1px solid ${isOver?`${col.color}60`:C.border}`,borderRadius:12,padding:12,display:'flex',flexDirection:'column',overflow:'hidden',transition:'border-color 0.15s'}}>
+              {/* Header */}
+              <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:6,flexShrink:0}}>
+                <span style={{width:7,height:7,borderRadius:'50%',background:col.color}}/>
                 <span style={{fontSize:10,fontWeight:700,color:col.color,textTransform:'uppercase',letterSpacing:1}}>{col.label}</span>
                 <span style={{marginLeft:'auto',background:`${col.color}20`,color:col.color,borderRadius:20,padding:'1px 8px',fontSize:10,fontWeight:700}}>{colTasks.length}</span>
                 {col.id==='done'&&colTasks.length>0&&(
-                  <button onClick={clearDone} style={{background:'#22c55e',border:'none',color:'#000',borderRadius:6,padding:'3px 8px',fontSize:9,fontWeight:800,cursor:'pointer',whiteSpace:'nowrap'}}>✓ Готово</button>
+                  <button onClick={clearDone} style={{background:'#22c55e',border:'none',color:'#000',borderRadius:6,padding:'2px 8px',fontSize:9,fontWeight:800,cursor:'pointer',whiteSpace:'nowrap'}}>✓ Готово</button>
                 )}
               </div>
-
-              {/* Cards + drop zones */}
-              <div style={{overflowY:'auto',display:'flex',flexDirection:'column',flex:1,gap:0}}>
-                <ColDropZone col={col.id} idx={0} show={isOver&&dragOverIdx===0&&colTasks.length>0}/>
+              {/* Cards */}
+              <div style={{overflowY:'auto',flex:1}}>
+                <Gap col={col.id} idx={0}/>
                 {colTasks.map((task,i)=>(
                   <div key={task.id}>
-                    <TaskCard task={task} col={col.id}/>
-                    <ColDropZone col={col.id} idx={i+1} show={isOver&&dragOverIdx===i+1}/>
+                    <TaskCard task={task} cardIdx={i} col={col.id}/>
+                    <Gap col={col.id} idx={i+1}/>
                   </div>
                 ))}
-                {/* Empty drop zone */}
                 {colTasks.length===0&&(
-                  <div onDragOver={e=>handleDragOver(e,col.id,0)} onDrop={e=>handleDrop(e,col.id,0)}
-                    style={{flex:1,minHeight:60,border:isOver?'2px dashed rgba(255,255,255,0.2)':'2px dashed transparent',borderRadius:8,transition:'border 0.15s',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    {isOver&&<span style={{color:'rgba(255,255,255,0.25)',fontSize:12}}>Перетащи сюда</span>}
+                  <div onDragOver={e=>{e.preventDefault();setDropTarget({col:col.id,idx:0});}} onDrop={onDrop}
+                    style={{minHeight:80,border:isOver?'2px dashed rgba(255,255,255,0.2)':'2px dashed transparent',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',transition:'border 0.15s'}}>
+                    {isOver&&<span style={{color:'rgba(255,255,255,0.3)',fontSize:12}}>Перетащи сюда</span>}
                   </div>
                 )}
               </div>
-
-              <button onClick={()=>addTaskForCol(col.id)} style={{marginTop:8,background:'transparent',border:'1px dashed rgba(255,255,255,0.12)',color:'rgba(255,255,255,0.3)',borderRadius:7,padding:'7px',fontSize:11,cursor:'pointer',flexShrink:0,transition:'all 0.15s'}}
-                onMouseEnter={e=>{e.target.style.borderColor='rgba(255,255,255,0.3)';e.target.style.color='rgba(255,255,255,0.6)';}}
-                onMouseLeave={e=>{e.target.style.borderColor='rgba(255,255,255,0.12)';e.target.style.color='rgba(255,255,255,0.3)';}}
-              >+ Add a card</button>
+              <button onClick={()=>addFor(col.id)} style={{marginTop:8,background:'transparent',border:'1px dashed rgba(255,255,255,0.12)',color:'rgba(255,255,255,0.3)',borderRadius:7,padding:'7px',fontSize:11,cursor:'pointer',flexShrink:0}}
+                onMouseEnter={e=>{e.target.style.borderColor='rgba(255,255,255,0.35)';e.target.style.color='rgba(255,255,255,0.6)';}}
+                onMouseLeave={e=>{e.target.style.borderColor='rgba(255,255,255,0.12)';e.target.style.color='rgba(255,255,255,0.3)';}}>
+                + Add a card
+              </button>
             </div>
           );
         })}
       </div>
 
-      {/* Modal */}
-      {modal&&(
-        <TaskModal
-          task={modal.task}
-          onSave={(form)=>saveTask(form,modal.task?.id)}
-          onClose={()=>setModal(null)}
-        />
-      )}
-      {/* Delete from modal */}
-      {modal?.task?.id&&(
-        <div style={{display:'none'}} id={`del-${modal.task.id}`} onClick={()=>deleteTask(modal.task.id)}/>
-      )}
+      {modal&&<TaskModal task={modal.task} onSave={(form)=>saveTask(form,modal.task?.id)} onClose={()=>setModal(null)}/>}
     </div>
   );
 }
@@ -2246,6 +2271,11 @@ function GarnoCRM(){
   const nextNum = db.nextNum ?? (leads.length+1);
   const chatHist= db.chat    ?? [];
   const srcList = domainsState&&domainsState.length ? domainsState : normDoms(SOURCES);
+  // Unread tasks: assigned to currentUser, not yet seen by them
+  const unreadTasksCount = (db.tasks||[]).filter(t=>
+    t.assignee===currentUser &&
+    !(t.seenBy||[]).includes(currentUser)
+  ).length;
 
   const setLeads      = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}));
   const setLeadsNow   = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}),true);
@@ -2286,9 +2316,9 @@ function GarnoCRM(){
           * {-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
         }
       `}</style>
-      <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr}/>
+      <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr} unreadTasks={unreadTasksCount}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
+        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} unreadTasks={unreadTasksCount} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
