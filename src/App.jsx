@@ -2245,10 +2245,7 @@ function GarnoCRM(){
   const tasks    = db.tasks   ?? [];
   const nextNum = db.nextNum ?? (leads.length+1);
   const chatHist= db.chat    ?? [];
-  // useMemo: stable reference when domainsState is null (prevents infinite useEffect loops)
-  const srcList = React.useMemo(()=>
-    domainsState&&domainsState.length ? domainsState : normDoms(SOURCES),
-  [domainsState]);
+  const srcList = domainsState&&domainsState.length ? domainsState : normDoms(SOURCES);
 
   const setLeads      = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}));
   const setLeadsNow   = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}),true);
