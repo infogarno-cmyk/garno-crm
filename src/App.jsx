@@ -579,13 +579,13 @@ function useDatabase(){
     });
   };
 
-  // Domain write — completely isolated in row id=2, NEVER touches main data
-  const setDomains=async(newDoms)=>{
-    // Immediate local update — no wait
-    setDomainsState(newDoms);
+  // Domain write — isolated in row id=2, optimistic update first
+  const setDomains=(newDoms)=>{
+    // SYNC: update state immediately (React re-renders → srcList updates → DomainManager shows new domains)
+    setDomainsState([...newDoms]); // new array ref to guarantee re-render
     try{lsSet("garno_domains_v2",newDoms);}catch{}
-    // Background write to Supabase row id=2
-    try{await sbWriteDomains(newDoms);}catch(e){console.error("domain write failed:",e);}
+    // ASYNC: write to Supabase in background
+    return sbWriteDomains(newDoms).catch(e=>console.error("domain write failed:",e));
   };
 
   return{db,status,syncLabel,syncError,refresh,updateDb,setDomains,domainsState};
@@ -1543,22 +1543,20 @@ function CalendarPage({events,setEvents,setEventsNow,updateDb,t,lang}){
 
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
 function DomainManager({srcList,setDomains}){
-  const [localDoms,setLocalDoms]=useState(()=>normDoms(srcList&&srcList.length?srcList:SOURCES));
-  React.useEffect(()=>{setLocalDoms(normDoms(srcList&&srcList.length?srcList:SOURCES));},[srcList]);
-  const domList=localDoms;
+  // No local state — srcList is always authoritative from domainsState in GarnoCRM
+  // setDomains calls setDomainsState immediately (optimistic) then writes to Supabase
+  const domList=normDoms(srcList&&srcList.length?srcList:SOURCES);
   const [newDom,setNewDom]=useState("");
   const [newColor,setNewColor]=useState(DOM_COLORS[0]);
   const [saving,setSaving]=useState(false);
   const save=(newList)=>{
-    setLocalDoms(newList);
     setSaving(true);
     setDomains(newList).finally(()=>setSaving(false));
   };
   const addDomain=()=>{
     const name=newDom.trim();
     if(!name||domList.find(d=>d.name===name))return;
-    const entry={name,color:newColor};
-    const newList=[...domList,entry];
+    const newList=[...domList,{name,color:newColor}];
     save(newList);
     setNewDom("");
     setNewColor(DOM_COLORS[newList.length%DOM_COLORS.length]);
@@ -2247,7 +2245,10 @@ function GarnoCRM(){
   const tasks    = db.tasks   ?? [];
   const nextNum = db.nextNum ?? (leads.length+1);
   const chatHist= db.chat    ?? [];
-  const srcList = domainsState&&domainsState.length ? domainsState : normDoms(SOURCES);
+  // useMemo: stable reference when domainsState is null (prevents infinite useEffect loops)
+  const srcList = React.useMemo(()=>
+    domainsState&&domainsState.length ? domainsState : normDoms(SOURCES),
+  [domainsState]);
 
   const setLeads      = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}));
   const setLeadsNow   = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}),true);
