@@ -1922,158 +1922,172 @@ function TasksPage({tasks,updateDb,currentUser,lang}){
   const [viewUser,setViewUser]=useState(currentUser||'all');
   const [modal,setModal]=useState(null);
   const [confetti,setConfetti]=useState(false);
-  // DnD state: dragId = id of card being dragged, dropTarget = {col, idx}
   const [dragId,setDragId]=useState(null);
-  const [dropTarget,setDropTarget]=useState(null);
+  const [dropTarget,setDropTarget]=useState(null); // {col, idx}
+  const [quickAdd,setQuickAdd]=useState(null);      // colId for inline add
+  const [quickTitle,setQuickTitle]=useState('');
 
   useEffect(()=>{if(currentUser)setViewUser(currentUser);},[currentUser]);
 
-  // Mark tasks as seen when user opens tasks page
+  // Mark assigned tasks as seen on open
   useEffect(()=>{
-    if(!currentUser||!tasks.length)return;
+    if(!currentUser)return;
     const unseen=tasks.filter(t=>t.assignee===currentUser&&!(t.seenBy||[]).includes(currentUser));
     if(!unseen.length)return;
     const marked=tasks.map(t=>
       t.assignee===currentUser&&!(t.seenBy||[]).includes(currentUser)
-        ?{...t,seenBy:[...(t.seenBy||[]),currentUser]}
-        :t
+        ?{...t,seenBy:[...(t.seenBy||[]),currentUser]}:t
     );
     updateDb(p=>({...p,tasks:marked}),true);
-  },[currentUser]); // only on mount/user change
+  },[currentUser]);
 
-  const allTasks=[...tasks];
-  const filtered=viewUser==='all'?allTasks:allTasks.filter(t=>t.assignee===viewUser);
+  const filtered=viewUser==='all'?tasks:tasks.filter(t=>t.assignee===viewUser);
   const byCol=(col)=>[...filtered].filter(t=>t.status===col).sort((a,b)=>(a.order||0)-(b.order||0));
   const allSorted=[...filtered].sort((a,b)=>{
     const ord={todo:0,process:1,done:2};
     return(ord[a.status]||0)-(ord[b.status]||0)||(a.order||0)-(b.order||0);
   });
 
-  const saveTasks=(newTasks)=>updateDb(p=>({...p,tasks:newTasks}),true);
+  const saveTasks=(nt)=>updateDb(p=>({...p,tasks:nt}),true);
 
   const saveTask=(form,id)=>{
     const now=Date.now();
-    let newTasks;
     if(id){
       if(form._delete){saveTasks(tasks.filter(t=>t.id!==id));setModal(null);return;}
-      newTasks=tasks.map(t=>t.id===id?{...t,...form,updatedAt:now}:t);
-    } else {
-      const maxOrd=tasks.length?Math.max(...tasks.map(t=>t.order||0))+1:0;
+      saveTasks(tasks.map(t=>t.id===id?{...t,...form,updatedAt:now}:t));
+    }else{
+      const maxOrd=tasks.length?Math.max(...tasks.map(t=>t.order||0))+10:0;
       const assignee=form.assignee||'—';
-      newTasks=[...tasks,{...form,id:now,createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,seenBy:[assignee]}];
+      saveTasks([...tasks,{...form,id:now,createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,seenBy:[assignee]}]);
     }
-    saveTasks(newTasks);setModal(null);
+    setModal(null);
   };
 
-  const deleteTask=(id)=>{saveTasks(tasks.filter(t=>t.id!==id));setModal(null);};
+  // Quick add — creates on self with MID priority, in the given column
+  const quickCreate=(colId)=>{
+    const title=quickTitle.trim();
+    if(!title){setQuickAdd(null);setQuickTitle('');return;}
+    const now=Date.now();
+    const colTasks=tasks.filter(t=>t.status===colId);
+    const maxOrd=colTasks.length?Math.max(...colTasks.map(t=>t.order||0))+10:0;
+    const assignee=(currentUser&&currentUser!=='all')?currentUser:(viewUser!=='all'?viewUser:'—');
+    saveTasks([...tasks,{
+      id:now,title,status:colId,priority:'MID',assignee,deadline:'',
+      createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,seenBy:[assignee]
+    }]);
+    setQuickTitle('');setQuickAdd(null);
+  };
 
   const clearDone=()=>{
     setConfetti(true);
     setTimeout(()=>saveTasks(tasks.filter(t=>t.status!=='done')),1400);
   };
 
-  // ── DnD ────────────────────────────────────────────────────────
+  // ── DRAG & DROP ──────────────────────────────────────────────
   const onDragStart=(e,id)=>{
     setDragId(id);
     e.dataTransfer.effectAllowed='move';
-    e.stopPropagation();
+    try{e.dataTransfer.setData('text/plain',String(id));}catch{}
   };
   const onDragEnd=()=>{setDragId(null);setDropTarget(null);};
 
-  // Called on the gap-divs between cards
-  const onGapDragOver=(e,col,idx)=>{
-    e.preventDefault();e.stopPropagation();
-    setDropTarget({col,idx});
-  };
-  // Called on the column background (drop at end)
-  const onColDragOver=(e,col,endIdx)=>{
-    e.preventDefault();
-    if(!dropTarget||dropTarget.col!==col)setDropTarget({col,idx:endIdx});
-  };
-  // Called on a card itself — split top/bottom half to determine insert position
-  const onCardDragOver=(e,col,cardIdx)=>{
-    e.preventDefault();e.stopPropagation();
-    const rect=e.currentTarget.getBoundingClientRect();
-    const insertIdx=e.clientY<rect.top+rect.height/2?cardIdx:cardIdx+1;
-    setDropTarget({col,idx:insertIdx});
+  const computeDropIdx=(e,col)=>{
+    // Determine insert index by comparing pointer Y to card midpoints
+    const colTasks=byCol(col);
+    const container=e.currentTarget.closest('[data-col-body]')||e.currentTarget;
+    const cards=container.querySelectorAll('[data-task-card]');
+    let idx=colTasks.length;
+    for(let i=0;i<cards.length;i++){
+      const r=cards[i].getBoundingClientRect();
+      if(e.clientY < r.top + r.height/2){idx=i;break;}
+    }
+    return idx;
   };
 
-  const onDrop=(e)=>{
-    e.preventDefault();e.stopPropagation();
-    if(!dragId||!dropTarget)return;
+  const onColBodyDragOver=(e,col)=>{
+    e.preventDefault();
+    if(!dragId)return;
+    const idx=computeDropIdx(e,col);
+    if(!dropTarget||dropTarget.col!==col||dropTarget.idx!==idx)setDropTarget({col,idx});
+  };
+
+  const onColDrop=(e,col)=>{
+    e.preventDefault();
+    if(!dragId){setDropTarget(null);return;}
     const dragged=tasks.find(t=>t.id===dragId);
-    if(!dragged)return;
-    const{col,idx}=dropTarget;
-    // All tasks in target col except the dragged one, sorted
+    if(!dragged){setDropTarget(null);return;}
+    const idx=dropTarget&&dropTarget.col===col?dropTarget.idx:byCol(col).length;
     const colTasks=[...tasks].filter(t=>t.status===col&&t.id!==dragId).sort((a,b)=>(a.order||0)-(b.order||0));
-    const clampedIdx=Math.min(idx,colTasks.length);
-    colTasks.splice(clampedIdx,0,{...dragged,status:col});
+    const clamped=Math.max(0,Math.min(idx,colTasks.length));
+    colTasks.splice(clamped,0,{...dragged,status:col});
     const reordered=colTasks.map((t,i)=>({...t,order:i*10,updatedAt:Date.now()}));
     const others=tasks.filter(t=>t.status!==col&&t.id!==dragId);
     saveTasks([...others,...reordered]);
     setDragId(null);setDropTarget(null);
   };
 
-  // ── Card component ──────────────────────────────────────────────
-  const TaskCard=({task,cardIdx,col})=>{
+  // ── CARD ─────────────────────────────────────────────────────
+  const TaskCard=({task,draggable=true})=>{
     const pc=TASK_PRIO_COLORS[task.priority]||'#aaa';
     const isDragging=dragId===task.id;
-    const isNew=!(task.seenBy||[]).includes(currentUser)&&task.assignee===currentUser;
+    const isNew=task.assignee===currentUser&&!(task.seenBy||[]).includes(currentUser);
     const overdue=task.deadline&&new Date(task.deadline)<new Date()&&task.status!=='done';
     return(
-      <div
-        draggable
-        onDragStart={e=>onDragStart(e,task.id)}
-        onDragEnd={onDragEnd}
-        onDragOver={col!=='all'?e=>onCardDragOver(e,col,cardIdx):undefined}
-        onDrop={col!=='all'?onDrop:undefined}
+      <div data-task-card
+        draggable={draggable}
+        onDragStart={draggable?e=>onDragStart(e,task.id):undefined}
+        onDragEnd={draggable?onDragEnd:undefined}
         onClick={()=>setModal({task})}
         style={{
           background:isNew?'rgba(239,68,68,0.08)':'rgba(255,255,255,0.04)',
           border:`1px solid ${isNew?'rgba(239,68,68,0.3)':'rgba(255,255,255,0.09)'}`,
           borderLeft:`3px solid ${pc}`,
-          borderRadius:8,padding:'10px 12px',cursor:'grab',marginBottom:4,
-          opacity:isDragging?0.3:1,
-          transition:'opacity 0.15s',userSelect:'none',
-          outline:isNew?'1px solid rgba(239,68,68,0.15)':'none',
-        }}
-      >
+          borderRadius:8,padding:'10px 12px',
+          cursor:draggable?'grab':'pointer',
+          marginBottom:6,
+          opacity:isDragging?0.25:1,
+          transition:'opacity 0.12s',
+          userSelect:'none',
+        }}>
         <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
           <div style={{fontSize:13,fontWeight:600,color:'#fff',flex:1,lineHeight:1.4}}>{task.title}</div>
           {isNew&&<span style={{background:'#ef4444',color:'#fff',borderRadius:8,fontSize:9,fontWeight:800,padding:'1px 5px',flexShrink:0}}>NEW</span>}
         </div>
         <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap',marginTop:6}}>
           <span style={{fontSize:10,fontWeight:700,color:pc,background:`${pc}20`,border:`1px solid ${pc}40`,borderRadius:10,padding:'1px 8px'}}>{task.priority}</span>
-          {task.assignee&&task.assignee!=='—'&&(
-            <span style={{fontSize:10,color:'rgba(255,255,255,0.45)',background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'1px 8px'}}>{task.assignee}</span>
-          )}
-          {task.deadline&&(
-            <span style={{fontSize:10,color:overdue?'#ef4444':'rgba(255,255,255,0.3)',marginLeft:'auto'}}>
-              {overdue?'⚠️':'📅'} {task.deadline.split('-').reverse().join('.')}
-            </span>
-          )}
+          {task.assignee&&task.assignee!=='—'&&<span style={{fontSize:10,color:'rgba(255,255,255,0.45)',background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'1px 8px'}}>{task.assignee}</span>}
+          {task.deadline&&<span style={{fontSize:10,color:overdue?'#ef4444':'rgba(255,255,255,0.3)',marginLeft:'auto'}}>{overdue?'⚠️':'📅'} {task.deadline.split('-').reverse().join('.')}</span>}
         </div>
       </div>
     );
   };
 
-  // Gap between cards where you can drop
-  const Gap=({col,idx})=>{
-    const active=dropTarget&&dropTarget.col===col&&dropTarget.idx===idx;
-    return(
-      <div
-        onDragOver={e=>onGapDragOver(e,col,idx)}
-        onDrop={onDrop}
-        style={{height:active?28:6,background:active?'rgba(255,255,255,0.08)':'transparent',
-          border:active?'2px dashed rgba(255,255,255,0.3)':'2px dashed transparent',
-          borderRadius:6,transition:'all 0.12s',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:active?4:0}}
-      >
-        {active&&<span style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>↓ сюда</span>}
-      </div>
-    );
-  };
+  // Drop indicator line
+  const DropLine=()=><div style={{height:3,background:'#60a5fa',borderRadius:2,margin:'2px 0 8px',boxShadow:'0 0 8px rgba(96,165,250,0.6)'}}/>;
 
-  const addFor=(colId)=>setModal({task:{status:colId,assignee:viewUser==='all'?'—':viewUser,priority:'MID',title:'',deadline:''}});
+  // Inline quick-add form
+  const QuickAddForm=({colId})=>(
+    <div style={{marginTop:6}}>
+      <input autoFocus value={quickTitle}
+        onChange={e=>setQuickTitle(e.target.value)}
+        onKeyDown={e=>{if(e.key==='Enter')quickCreate(colId);if(e.key==='Escape'){setQuickAdd(null);setQuickTitle('');}}}
+        placeholder="Название задачи..."
+        style={{width:'100%',boxSizing:'border-box',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(239,68,68,0.4)',color:'#fff',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',marginBottom:6}}/>
+      <div style={{display:'flex',gap:6}}>
+        <button onClick={()=>quickCreate(colId)} style={{flex:1,background:'#7f1d1d',border:'1px solid rgba(239,68,68,0.4)',color:'#fff',borderRadius:8,padding:'9px',fontSize:12,fontWeight:700,cursor:'pointer'}}>Создать</button>
+        <button onClick={()=>{setQuickAdd(null);setQuickTitle('');}} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.5)',borderRadius:8,padding:'9px 14px',fontSize:14,cursor:'pointer'}}>✕</button>
+      </div>
+    </div>
+  );
+
+  const AddCardBtn=({colId})=>(
+    <button onClick={()=>{setQuickAdd(colId);setQuickTitle('');}}
+      style={{marginTop:6,background:'transparent',border:'1px dashed rgba(255,255,255,0.12)',color:'rgba(255,255,255,0.3)',borderRadius:7,padding:'8px',fontSize:11,cursor:'pointer',flexShrink:0,width:'100%'}}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(255,255,255,0.35)';e.currentTarget.style.color='rgba(255,255,255,0.6)';}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(255,255,255,0.12)';e.currentTarget.style.color='rgba(255,255,255,0.3)';}}>
+      + Add a card
+    </button>
+  );
 
   return(
     <div style={{padding:'18px 20px',height:'100%',overflow:'hidden',fontFamily:"'DM Sans',sans-serif",display:'flex',flexDirection:'column',gap:12}}>
@@ -2098,7 +2112,7 @@ function TasksPage({tasks,updateDb,currentUser,lang}){
       {/* Board */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,flex:1,minHeight:0,overflow:'hidden'}}>
 
-        {/* ALL TASKS */}
+        {/* ALL TASKS (read-only, no drop) */}
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:12,display:'flex',flexDirection:'column',overflow:'hidden'}}>
           <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:8,flexShrink:0}}>
             <span style={{width:7,height:7,borderRadius:'50%',background:C.dim}}/>
@@ -2106,14 +2120,10 @@ function TasksPage({tasks,updateDb,currentUser,lang}){
             <span style={{marginLeft:'auto',background:C.surface,color:C.muted,borderRadius:20,padding:'1px 8px',fontSize:10,fontWeight:700}}>{allSorted.length}</span>
           </div>
           <div style={{overflowY:'auto',flex:1}}>
-            {allSorted.map((task,i)=><TaskCard key={task.id} task={task} cardIdx={i} col="all"/>)}
+            {allSorted.map(task=><TaskCard key={task.id} task={task} draggable={false}/>)}
             {!allSorted.length&&<div style={{color:C.dim,fontSize:12,textAlign:'center',padding:20}}>Нет задач</div>}
           </div>
-          <button onClick={()=>addFor('todo')} style={{marginTop:8,background:'transparent',border:'1px dashed rgba(255,255,255,0.12)',color:'rgba(255,255,255,0.3)',borderRadius:7,padding:'7px',fontSize:11,cursor:'pointer',flexShrink:0}}
-            onMouseEnter={e=>{e.target.style.borderColor='rgba(255,255,255,0.35)';e.target.style.color='rgba(255,255,255,0.6)';}}
-            onMouseLeave={e=>{e.target.style.borderColor='rgba(255,255,255,0.12)';e.target.style.color='rgba(255,255,255,0.3)';}}>
-            + Add a card
-          </button>
+          {quickAdd==='all'?<QuickAddForm colId="todo"/>:<AddCardBtn colId="all"/>}
         </div>
 
         {/* Status columns */}
@@ -2122,39 +2132,35 @@ function TasksPage({tasks,updateDb,currentUser,lang}){
           const isOver=dropTarget&&dropTarget.col===col.id;
           return(
             <div key={col.id}
-              onDragOver={e=>onColDragOver(e,col.id,colTasks.length)}
-              onDrop={onDrop}
+              onDoubleClick={e=>{if(e.target===e.currentTarget||e.target.closest('[data-col-body]')){setQuickAdd(col.id);setQuickTitle('');}}}
               style={{background:C.card,border:`1px solid ${isOver?`${col.color}60`:C.border}`,borderRadius:12,padding:12,display:'flex',flexDirection:'column',overflow:'hidden',transition:'border-color 0.15s'}}>
               {/* Header */}
-              <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:6,flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:8,flexShrink:0}}>
                 <span style={{width:7,height:7,borderRadius:'50%',background:col.color}}/>
                 <span style={{fontSize:10,fontWeight:700,color:col.color,textTransform:'uppercase',letterSpacing:1}}>{col.label}</span>
                 <span style={{marginLeft:'auto',background:`${col.color}20`,color:col.color,borderRadius:20,padding:'1px 8px',fontSize:10,fontWeight:700}}>{colTasks.length}</span>
-                {col.id==='done'&&colTasks.length>0&&(
-                  <button onClick={clearDone} style={{background:'#22c55e',border:'none',color:'#000',borderRadius:6,padding:'2px 8px',fontSize:9,fontWeight:800,cursor:'pointer',whiteSpace:'nowrap'}}>✓ Готово</button>
-                )}
+                {col.id==='done'&&colTasks.length>0&&<button onClick={clearDone} style={{background:'#22c55e',border:'none',color:'#000',borderRadius:6,padding:'2px 8px',fontSize:9,fontWeight:800,cursor:'pointer',whiteSpace:'nowrap'}}>✓ Готово</button>}
               </div>
-              {/* Cards */}
-              <div style={{overflowY:'auto',flex:1}}>
-                <Gap col={col.id} idx={0}/>
+              {/* Body — drop target */}
+              <div data-col-body
+                onDragOver={e=>onColBodyDragOver(e,col.id)}
+                onDrop={e=>onColDrop(e,col.id)}
+                onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDropTarget(null);}}
+                style={{overflowY:'auto',flex:1,minHeight:60}}>
                 {colTasks.map((task,i)=>(
                   <div key={task.id}>
-                    <TaskCard task={task} cardIdx={i} col={col.id}/>
-                    <Gap col={col.id} idx={i+1}/>
+                    {isOver&&dropTarget.idx===i&&<DropLine/>}
+                    <TaskCard task={task}/>
                   </div>
                 ))}
-                {colTasks.length===0&&(
-                  <div onDragOver={e=>{e.preventDefault();setDropTarget({col:col.id,idx:0});}} onDrop={onDrop}
-                    style={{minHeight:80,border:isOver?'2px dashed rgba(255,255,255,0.2)':'2px dashed transparent',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',transition:'border 0.15s'}}>
-                    {isOver&&<span style={{color:'rgba(255,255,255,0.3)',fontSize:12}}>Перетащи сюда</span>}
+                {isOver&&dropTarget.idx>=colTasks.length&&<DropLine/>}
+                {colTasks.length===0&&!isOver&&(
+                  <div style={{minHeight:60,display:'flex',alignItems:'center',justifyContent:'center',color:'rgba(255,255,255,0.15)',fontSize:11}}>
+                    2× клик — создать
                   </div>
                 )}
               </div>
-              <button onClick={()=>addFor(col.id)} style={{marginTop:8,background:'transparent',border:'1px dashed rgba(255,255,255,0.12)',color:'rgba(255,255,255,0.3)',borderRadius:7,padding:'7px',fontSize:11,cursor:'pointer',flexShrink:0}}
-                onMouseEnter={e=>{e.target.style.borderColor='rgba(255,255,255,0.35)';e.target.style.color='rgba(255,255,255,0.6)';}}
-                onMouseLeave={e=>{e.target.style.borderColor='rgba(255,255,255,0.12)';e.target.style.color='rgba(255,255,255,0.3)';}}>
-                + Add a card
-              </button>
+              {quickAdd===col.id?<QuickAddForm colId={col.id}/>:<AddCardBtn colId={col.id}/>}
             </div>
           );
         })}
