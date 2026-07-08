@@ -1988,40 +1988,43 @@ function TasksPage({tasks,updateDb,currentUser,lang}){
     setDragId(id);
     e.dataTransfer.effectAllowed='move';
     try{e.dataTransfer.setData('text/plain',String(id));}catch{}
+    // Use the card itself as drag image with offset so it follows cleanly
+    try{
+      const el=e.currentTarget;
+      const r=el.getBoundingClientRect();
+      e.dataTransfer.setDragImage(el,e.clientX-r.left,e.clientY-r.top);
+    }catch{}
   };
   const onDragEnd=()=>{setDragId(null);setDropTarget(null);};
 
-  const computeDropIdx=(e,col)=>{
-    // Determine insert index by comparing pointer Y to card midpoints
-    const colTasks=byCol(col);
-    const container=e.currentTarget.closest('[data-col-body]')||e.currentTarget;
-    const cards=container.querySelectorAll('[data-task-card]');
-    let idx=colTasks.length;
+  const onColBodyDragOver=(e,col)=>{
+    e.preventDefault();
+    e.dataTransfer.dropEffect='move';
+    if(!dragId)return;
+    // Compute insert index from live DOM positions of visible cards
+    const body=e.currentTarget;
+    const cards=[...body.querySelectorAll('[data-task-card]')];
+    let idx=cards.length;
     for(let i=0;i<cards.length;i++){
       const r=cards[i].getBoundingClientRect();
       if(e.clientY < r.top + r.height/2){idx=i;break;}
     }
-    return idx;
-  };
-
-  const onColBodyDragOver=(e,col)=>{
-    e.preventDefault();
-    if(!dragId)return;
-    const idx=computeDropIdx(e,col);
-    if(!dropTarget||dropTarget.col!==col||dropTarget.idx!==idx)setDropTarget({col,idx});
+    setDropTarget(prev=>(prev&&prev.col===col&&prev.idx===idx)?prev:{col,idx});
   };
 
   const onColDrop=(e,col)=>{
     e.preventDefault();
-    if(!dragId){setDropTarget(null);return;}
-    const dragged=tasks.find(t=>t.id===dragId);
-    if(!dragged){setDropTarget(null);return;}
-    const idx=dropTarget&&dropTarget.col===col?dropTarget.idx:byCol(col).length;
-    const colTasks=[...tasks].filter(t=>t.status===col&&t.id!==dragId).sort((a,b)=>(a.order||0)-(b.order||0));
+    const id=dragId;
+    if(!id){setDropTarget(null);return;}
+    const dragged=tasks.find(t=>t.id===id);
+    if(!dragged){setDragId(null);setDropTarget(null);return;}
+    // colTasks already excludes the dragged card (matches what user saw)
+    const colTasks=[...tasks].filter(t=>t.status===col&&t.id!==id).sort((a,b)=>(a.order||0)-(b.order||0));
+    const idx=(dropTarget&&dropTarget.col===col)?dropTarget.idx:colTasks.length;
     const clamped=Math.max(0,Math.min(idx,colTasks.length));
-    colTasks.splice(clamped,0,{...dragged,status:col});
-    const reordered=colTasks.map((t,i)=>({...t,order:i*10,updatedAt:Date.now()}));
-    const others=tasks.filter(t=>t.status!==col&&t.id!==dragId);
+    colTasks.splice(clamped,0,{...dragged,status:col,updatedAt:Date.now()});
+    const reordered=colTasks.map((t,i)=>({...t,order:i*10}));
+    const others=tasks.filter(t=>t.status!==col&&t.id!==id);
     saveTasks([...others,...reordered]);
     setDragId(null);setDropTarget(null);
   };
@@ -2147,18 +2150,24 @@ function TasksPage({tasks,updateDb,currentUser,lang}){
                 onDrop={e=>onColDrop(e,col.id)}
                 onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDropTarget(null);}}
                 style={{overflowY:'auto',flex:1,minHeight:60}}>
-                {colTasks.map((task,i)=>(
-                  <div key={task.id}>
-                    {isOver&&dropTarget.idx===i&&<DropLine/>}
-                    <TaskCard task={task}/>
-                  </div>
-                ))}
-                {isOver&&dropTarget.idx>=colTasks.length&&<DropLine/>}
-                {colTasks.length===0&&!isOver&&(
-                  <div style={{minHeight:60,display:'flex',alignItems:'center',justifyContent:'center',color:'rgba(255,255,255,0.15)',fontSize:11}}>
-                    2× клик — создать
-                  </div>
-                )}
+                {(()=>{
+                  // Hide the card being dragged from its source column so it doesn't jump
+                  const visible=colTasks.filter(t=>t.id!==dragId);
+                  return(<>
+                    {visible.map((task,i)=>(
+                      <div key={task.id}>
+                        {isOver&&dropTarget.idx===i&&<DropLine/>}
+                        <TaskCard task={task}/>
+                      </div>
+                    ))}
+                    {isOver&&dropTarget.idx>=visible.length&&<DropLine/>}
+                    {visible.length===0&&!isOver&&(
+                      <div style={{minHeight:60,display:'flex',alignItems:'center',justifyContent:'center',color:'rgba(255,255,255,0.15)',fontSize:11}}>
+                        2× клик — создать
+                      </div>
+                    )}
+                  </>);
+                })()}
               </div>
               {quickAdd===col.id?<QuickAddForm colId={col.id}/>:<AddCardBtn colId={col.id}/>}
             </div>
