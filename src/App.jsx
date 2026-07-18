@@ -82,6 +82,9 @@ const T = {
     period1d:"1 день",period3d:"3 дня",period7d:"Неделя",period14d:"2 нед.",
     period30d:"Месяц",period90d:"Квартал",period365d:"Год",periodAll:"Всё",
     saleAmountTitle:"Введите сумму продажи",saleAmountConfirm:"Подтвердить продажу",
+    visitTitle:"Введите дату визита",visitConfirm:"Подтвердить визит",visitDate:"Дата визита",visitTime:"Время",
+    visits_tab:"Визиты",leads_tab:"Лиды",salesTab:"Продажи",dynTab:"Динамика",meetings:"Встречи",
+    noVisits:"Визитов пока нет",editVisit:"Редактировать визит",visitSaved:"Визит сохранён",
     todaySection:"Сегодня",noToday:"Нет задач на сегодня",
     saleSectionTitle:"Все продажи",description:"Описание",
     deleteSelected:"Удалить выбранные",
@@ -139,6 +142,9 @@ const T = {
     period1d:"1 dzień",period3d:"3 dni",period7d:"Tydzień",period14d:"2 tyg.",
     period30d:"Miesiąc",period90d:"Kwartał",period365d:"Rok",periodAll:"Wszystko",
     saleAmountTitle:"Wprowadź kwotę sprzedaży",saleAmountConfirm:"Potwierdź sprzedaż",
+    visitTitle:"Wprowadź datę wizyty",visitConfirm:"Potwierdź wizytę",visitDate:"Data wizyty",visitTime:"Godzina",
+    visits_tab:"Wizyty",leads_tab:"Leady",salesTab:"Sprzedaże",dynTab:"Dynamika",meetings:"Spotkania",
+    noVisits:"Brak wizyt",editVisit:"Edytuj wizytę",visitSaved:"Wizyta zapisana",
     todaySection:"Dzisiaj",noToday:"Brak zadań na dzisiaj",
     saleSectionTitle:"Wszystkie sprzedaże",description:"Opis",
     deleteSelected:"Usuń wybrane",
@@ -207,6 +213,14 @@ function filterByRange(items,range){
   if(range==="365d"){return items.filter(l=>{const d=parseCreatedAt(l.createdAt);return d&&d.getFullYear()===now.getFullYear();});}
   const r=DATE_RANGES.find(d=>d.key===range);if(!r)return items;return items.filter(l=>daysAgoFn(l.createdAt)<=r.days);
 }
+// Визит попадает в диапазон по вручную введённой дате визита (ISO YYYY-MM-DD)
+function visitInRange(l,dateFrom,dateTo){
+  if(!l.visitDate)return false;
+  if(dateFrom&&l.visitDate<dateFrom)return false;
+  if(dateTo&&l.visitDate>dateTo)return false;
+  return true;
+}
+function leadsWithVisits(leads){return (leads||[]).filter(l=>l.visitDate&&(parseInt(l.score)||0)>=5);}
 function filterByCustomRange(items,dateFrom,dateTo){
   if(!dateFrom&&!dateTo)return items;
   return items.filter(l=>{
@@ -1063,6 +1077,42 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
 
 
 // ─── SALE MODAL ───────────────────────────────────────────────────────────────
+function VisitModal({lead,t,initDate,initTime,onConfirm,onCancel}){
+  const [vDate,setVDate]=useState(initDate||new Date().toISOString().slice(0,10));
+  const [vTime,setVTime]=useState(initTime||"12:00");
+  const ins={background:C.card,border:`2px solid ${C.blue}66`,color:C.text,borderRadius:9,padding:"12px 16px",fontSize:15,width:"100%",boxSizing:"border-box",outline:"none"};
+  const confirm=()=>{if(!vDate)return;onConfirm(vDate,vTime);};
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.87)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000}}>
+      <div style={{background:C.surface,borderRadius:16,border:`2px solid ${C.blue}`,width:"min(420px,95vw)",padding:32}}>
+        <div style={{fontSize:20,fontWeight:800,color:C.blue,marginBottom:4}}>📅 {t.visitTitle}</div>
+        <div style={{fontSize:13,color:C.muted,marginBottom:20}}>{lead?.name||lead?.phone}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.visitDate}</div>
+            <input type="date" value={vDate} onChange={e=>setVDate(e.target.value)} autoFocus
+              onKeyDown={e=>e.key==="Enter"&&vDate&&confirm()}
+              style={{...ins,colorScheme:"dark",fontSize:16,fontWeight:700}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.visitTime}</div>
+            <input type="time" value={vTime} onChange={e=>setVTime(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&vDate&&confirm()}
+              style={{...ins,colorScheme:"dark",fontSize:14}}/>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:10,marginTop:20}}>
+          <Btn onClick={onCancel} variant="ghost">{t.cancel}</Btn>
+          <button onClick={confirm} disabled={!vDate}
+            style={{flex:1,background:`linear-gradient(135deg,${C.blue},#7cc4ff)`,color:"#00132f",border:"none",borderRadius:9,padding:"12px 0",fontSize:14,fontWeight:800,cursor:vDate?"pointer":"not-allowed",opacity:vDate?1:0.5}}>
+            ✓ {t.visitConfirm}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SaleModal({lead,t,onConfirm,onCancel}){
   const [amt,setAmt]=useState("");
   const [saleDate,setSaleDate]=useState(new Date().toISOString().slice(0,10));
@@ -1162,7 +1212,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"dynamics",icon:"◭",ru:"Динамика продаж",pl:"Dynamika sprzedaży"},{key:"ai",icon:"◆",ru:"AI Ассистент",pl:"Asystent AI"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"}];
+const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"ai",icon:"◆",ru:"AI Ассистент",pl:"Asystent AI"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"}];
 function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,t}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
@@ -1268,7 +1318,8 @@ function Dashboard({leads,events,t,lang}){
   const srcData=SOURCES.map(s=>({name:srcShort(s),value:fl.filter(l=>l.source===s).length,fill:SRC_COLOR[s]})).filter(d=>d.value>0).sort((a,b)=>b.value-a.value);
   const mgrData=MANAGERS.map(m=>{const ml=fl.filter(l=>l.manager===m);return{name:m,total:ml.length,conv:ml.length?Math.round(ml.filter(l=>["qualified","salon","sale"].includes(l.qualification)).length/ml.length*100):0};});
   const allEvents=filterByCustomRange(events.map(e=>{const d=new Date(e.date);return{...e,createdAt:`${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()}`};}),dateFrom,dateTo);
-  const rangeVisits=allEvents.filter(e=>e.type==="visit").length;
+  // Встречи = лиды с оценкой 5+ у которых дата визита попадает в выбранный диапазон
+  const rangeVisits=leadsWithVisits(leads).filter(l=>visitInRange(l,dateFrom,dateTo)).length;
   const todayEvs=[...events].filter(e=>e.date===TODAY).sort((a,b)=>a.time.localeCompare(b.time));
   const upcoming=[...events].filter(e=>e.date>=getToday()).sort((a,b)=>a.date===b.date?a.time.localeCompare(b.time):a.date.localeCompare(b.date));
   return(
@@ -1278,7 +1329,7 @@ function Dashboard({leads,events,t,lang}){
         <DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t} lang={lang}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-        {(()=>{const newLeadsCount=fl.length;const processedCount=fl.filter(l=>l.action!=="undefined").length;return[{label:t.newLeads,val:newLeadsCount,color:C.yellow},{label:t.processed,val:processedCount,color:C.green},{label:t.todayMeetings,val:rangeVisits,color:C.blue},{label:t.convRate,val:`${fl.length?Math.round(qual.length/fl.length*100):0}%`,color:C.accent}];})().map(s=>(<div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:9,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{s.label}</div><div style={{fontSize:28,fontWeight:800,color:s.color}}>{s.val}</div></div>))}
+        {(()=>{const newLeadsCount=fl.length;const processedCount=fl.filter(l=>l.action!=="undefined").length;return[{label:t.newLeads,val:newLeadsCount,color:C.yellow},{label:t.processed,val:processedCount,color:C.green},{label:t.meetings,val:rangeVisits,color:C.blue},{label:t.convRate,val:`${fl.length?Math.round(qual.length/fl.length*100):0}%`,color:C.accent}];})().map(s=>(<div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:9,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{s.label}</div><div style={{fontSize:28,fontWeight:800,color:s.color}}>{s.val}</div></div>))}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
@@ -1310,6 +1361,167 @@ function Dashboard({leads,events,t,lang}){
 }
 
 // ─── LEADS PAGE ───────────────────────────────────────────────────────────────
+// ─── TAB BAR (общий для подразделов) ──────────────────────────────────────────
+function TabBar({tabs,active,onChange}){
+  return(
+    <div style={{display:"flex",gap:4,padding:"12px 18px 0",borderBottom:`1px solid ${C.border}`}}>
+      {tabs.map(tb=>{
+        const on=active===tb.key;
+        return(
+          <button key={tb.key} onClick={()=>onChange(tb.key)}
+            style={{background:"transparent",border:"none",borderBottom:`2px solid ${on?C.accent:"transparent"}`,
+              color:on?C.accent:C.muted,padding:"8px 16px",fontSize:13,fontWeight:on?700:500,
+              cursor:"pointer",marginBottom:-1,transition:"all .15s",display:"flex",alignItems:"center",gap:6}}>
+            {tb.icon&&<span>{tb.icon}</span>}{tb.label}
+            {tb.count!==undefined&&<span style={{fontSize:10,background:on?C.accentDim:C.surface,color:on?C.accent:C.dim,borderRadius:10,padding:"1px 7px",fontWeight:700}}>{tb.count}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── LEADS SECTION (Лиды | Визиты) ────────────────────────────────────────────
+function LeadsSection(props){
+  const [tab,setTab]=useState("leads");
+  const {t,leads,mgr}=props;
+  const visitCount=leadsWithVisits(leads).filter(l=>mgr==="all"||l.manager===mgr).length;
+  return(
+    <div style={{height:"100%",overflowY:"auto"}}>
+      <TabBar active={tab} onChange={setTab} tabs={[
+        {key:"leads", icon:"◈", label:t.leads_tab||t.leads},
+        {key:"visits",icon:"📅",label:t.visits_tab,count:visitCount},
+      ]}/>
+      {tab==="leads"?<LeadsPage {...props}/>:<VisitsPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>}
+    </div>
+  );
+}
+
+// ─── SALES SECTION (Продажи | Динамика) ───────────────────────────────────────
+function SalesSection(props){
+  const [tab,setTab]=useState("sales");
+  const {t,sales}=props;
+  return(
+    <div style={{height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <TabBar active={tab} onChange={setTab} tabs={[
+        {key:"sales",   icon:"★", label:t.salesTab||t.sales,count:(sales||[]).length},
+        {key:"dynamics",icon:"◭", label:t.dynTab||t.dynTitle},
+      ]}/>
+      <div style={{flex:1,minHeight:0,overflowY:"auto"}}>
+        {tab==="sales"
+          ?<SalesPage sales={props.sales} setSales={props.setSales} setSalesNow={props.setSalesNow} updateDb={props.updateDb} t={t} lang={props.lang}/>
+          :<DynamicsPage leads={props.leads} sales={props.sales} t={t} lang={props.lang}/>}
+      </div>
+    </div>
+  );
+}
+
+// ─── VISITS TAB ───────────────────────────────────────────────────────────────
+function VisitsPanel({leads,updateDb,t,mgr,search,onOpen}){
+  const [editing,setEditing]=useState(null); // lead being edited
+  const [dateFrom,setDateFrom]=useState("");
+  const [dateTo,setDateTo]=useState("");
+
+  const visits=leadsWithVisits(leads)
+    .filter(l=>mgr==="all"||l.manager===mgr)
+    .filter(l=>!search||(l.name||"").toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search))
+    .filter(l=>visitInRange(l,dateFrom||null,dateTo||null))
+    .sort((a,b)=>(b.visitDate||"").localeCompare(a.visitDate||"")||(b.visitTime||"").localeCompare(a.visitTime||""));
+
+  const saveVisit=(id,vDate,vTime)=>{
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,visitDate:vDate,visitTime:vTime,updatedAt:Date.now()}:l)}),true);
+    setEditing(null);
+  };
+  const removeVisit=(id)=>{
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,visitDate:null,visitTime:null,updatedAt:Date.now()}:l)}),true);
+    setEditing(null);
+  };
+
+  const ins={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 9px",fontSize:12,outline:"none",colorScheme:"dark",cursor:"pointer"};
+  const today=getToday();
+
+  return(
+    <div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+        <div style={{fontSize:16,fontWeight:700,color:C.text}}>
+          📅 {t.visits_tab} <span style={{fontSize:12,color:C.muted}}>({visits.length})</span>
+        </div>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={ins}/>
+          <span style={{color:C.dim,fontSize:12}}>—</span>
+          <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={ins}/>
+          {(dateFrom||dateTo)&&<button onClick={()=>{setDateFrom("");setDateTo("");}} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:14}}>✕</button>}
+        </div>
+      </div>
+
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead>
+            <tr style={{background:"rgba(96,165,250,0.08)",borderBottom:`1px solid ${C.border}`}}>
+              {[t.visitDate,t.visitTime,"ID",t.name,t.phone,t.manager,t.source,t.score,""].map((h,i)=>(
+                <th key={i} style={{padding:"9px 12px",color:C.blue,fontWeight:700,textAlign:"left",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visits.map((l,i)=>{
+              const isEdit=editing===l.id;
+              const past=l.visitDate<today;
+              const isToday=l.visitDate===today;
+              return(
+                <tr key={l.id} style={{borderBottom:`1px solid ${C.border}`,background:isToday?"rgba(96,165,250,0.07)":i%2?"rgba(255,255,255,0.02)":"transparent"}}>
+                  {isEdit?(
+                    <>
+                      <td style={{padding:"7px 12px"}}>
+                        <input type="date" defaultValue={l.visitDate} id={`vd-${l.id}`} style={{...ins,padding:"4px 7px"}}/>
+                      </td>
+                      <td style={{padding:"7px 12px"}}>
+                        <input type="time" defaultValue={l.visitTime||"12:00"} id={`vt-${l.id}`} style={{...ins,padding:"4px 7px"}}/>
+                      </td>
+                      <td colSpan={5} style={{padding:"7px 12px",color:C.muted,fontSize:11}}>{l.name||l.phone}</td>
+                      <td style={{padding:"7px 12px",whiteSpace:"nowrap"}}>
+                        <button onClick={()=>saveVisit(l.id,document.getElementById(`vd-${l.id}`).value,document.getElementById(`vt-${l.id}`).value)}
+                          style={{background:C.green,border:"none",color:"#00132f",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",marginRight:5}}>✓</button>
+                        <button onClick={()=>setEditing(null)}
+                          style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",marginRight:5}}>✕</button>
+                        <button onClick={()=>removeVisit(l.id)} title={t.delete}
+                          style={{background:"transparent",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                      </td>
+                    </>
+                  ):(
+                    <>
+                      <td style={{padding:"9px 12px",fontWeight:700,color:isToday?C.blue:past?C.dim:C.text,whiteSpace:"nowrap"}}>
+                        {l.visitDate.split("-").reverse().join(".")}
+                        {isToday&&<span style={{marginLeft:6,fontSize:9,background:C.blue,color:"#00132f",borderRadius:8,padding:"1px 6px",fontWeight:800}}>{t.todaySection}</span>}
+                      </td>
+                      <td style={{padding:"9px 12px",color:C.muted}}>{l.visitTime||"—"}</td>
+                      <td style={{padding:"9px 12px",color:C.accent,fontFamily:"monospace",fontSize:10}}>{l.leadId}</td>
+                      <td onClick={()=>onOpen(l)} style={{padding:"9px 12px",cursor:"pointer",fontWeight:600,color:C.text}}>
+                        <span style={{marginRight:5}}>{l.clientLang==="ua"?"🇺🇦":l.clientLang==="en"?"🇬🇧":"🇵🇱"}</span>{l.name||"—"}
+                      </td>
+                      <td style={{padding:"9px 12px",color:C.muted}}>{l.phone}</td>
+                      <td style={{padding:"9px 12px"}}><span style={{color:MGR_COLOR[l.manager]||C.muted,fontWeight:600}}>{l.manager||"—"}</span></td>
+                      <td style={{padding:"9px 12px"}}><SrcBadge source={l.source}/></td>
+                      <td style={{padding:"9px 12px"}}><ScoreBar score={l.score}/></td>
+                      <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
+                        <button onClick={()=>setEditing(l.id)} title={t.editVisit}
+                          style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>✎</button>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
+            {!visits.length&&(
+              <tr><td colSpan={9} style={{padding:30,textAlign:"center",color:C.dim,fontSize:13}}>{t.noVisits}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onOpen}){
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
@@ -1403,10 +1615,27 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({...lead});
   const [showSale,setShowSale]=useState(false);
-  const set=(k,v)=>setForm(p=>{const u={...p,[k]:v};if(k==="score"){u.qualification=scoreToQual(v);if(parseInt(v)===6&&parseInt(p.score)!==6)setShowSale(true);}return u;});
+  const [showVisit,setShowVisit]=useState(false);
+  const set=(k,v)=>setForm(p=>{
+    const u={...p,[k]:v};
+    if(k==="score"){
+      u.qualification=scoreToQual(v);
+      const nv=parseInt(v),pv=parseInt(p.score);
+      if(nv===6&&pv!==6)setShowSale(true);
+      // Визит: оценка стала 5 — спросить дату визита
+      if(nv===5&&pv!==5)setShowVisit(true);
+    }
+    return u;
+  });
   const createdAtToIso=(str)=>{if(!str)return new Date().toISOString().slice(0,10);const p=str.split(".");if(p.length!==3)return new Date().toISOString().slice(0,10);return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;};
   const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);if(isNaN(d))return iso;return d.toLocaleDateString("ru-RU");}catch{return iso;}};
   const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
+  const confirmVisit=(vDate,vTime)=>{
+    const updLead={...form,visitDate:vDate,visitTime:vTime||"12:00",score:5,qualification:"salon",updatedAt:Date.now()};
+    setForm(updLead);
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l)}),true);
+    setShowVisit(false);
+  };
   const confirmSale=(amt,saleDate)=>{
     let createdAt=new Date().toLocaleDateString("ru-RU");
     if(saleDate){try{const d=new Date(saleDate);createdAt=d.toLocaleDateString("ru-RU");}catch{}}
@@ -1458,6 +1687,9 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
         </div>
       </div>
     </div>
+    {showVisit&&<VisitModal lead={form} t={t} initDate={form.visitDate} initTime={form.visitTime}
+      onConfirm={confirmVisit}
+      onCancel={()=>{setShowVisit(false);setForm(p=>({...p,score:4,qualification:"qualified"}));}}/>}
     {showSale&&<SaleModal lead={form} t={t} onConfirm={confirmSale} onCancel={()=>{setShowSale(false);setForm(p=>({...p,score:5,qualification:"salon"}));}}/>}
   </>);
 }
@@ -2279,6 +2511,7 @@ function DynamicsPage({leads,sales,t,lang}){
   ];
 
   const scoped=mgr==="all"?leads:leads.filter(l=>l.manager===mgr);
+  const scopedSales=mgr==="all"?(sales||[]):(sales||[]).filter(s=>s.manager===mgr);
 
   const data=(()=>{
     if(!dateFrom||!dateTo)return[];
@@ -2289,15 +2522,22 @@ function DynamicsPage({leads,sales,t,lang}){
     const out=[];
     for(let i=0;i<days;i++){
       const d=new Date(from);d.setDate(from.getDate()+i);
+      const iso=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      // Квалифицированные — по дате ДОБАВЛЕНИЯ лида в CRM
       const dayLeads=scoped.filter(l=>{
         const ld=parseCreatedAt(l.createdAt);
         return ld&&ld.getDate()===d.getDate()&&ld.getMonth()===d.getMonth()&&ld.getFullYear()===d.getFullYear();
       });
       const scored=dayLeads.filter(l=>typeof l.score==="number");
       const avg=scored.length?scored.reduce((a,l)=>a+l.score,0)/scored.length:0;
-      const q=dayLeads.filter(l=>l.score>=4).length;   // 4+
-      const v=dayLeads.filter(l=>l.score>=5).length;   // 5+
-      const s=dayLeads.filter(l=>l.score>=6).length;   // 6
+      const q=dayLeads.filter(l=>l.score>=4).length;
+      // Визиты — по вручную введённой ДАТЕ ВИЗИТА
+      const v=scoped.filter(l=>l.visitDate===iso&&(parseInt(l.score)||0)>=5).length;
+      // Продажи — по вручную введённой ДАТЕ ПРОДАЖИ из раздела Продажи
+      const s=scopedSales.filter(sl=>{
+        const sd=parseCreatedAt(sl.createdAt);
+        return sd&&sd.getDate()===d.getDate()&&sd.getMonth()===d.getMonth()&&sd.getFullYear()===d.getFullYear();
+      }).length;
       out.push({
         day:`${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}`,
         qual:q, visits:v, sales:s,
@@ -2612,12 +2852,11 @@ function GarnoCRM(){
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
-          {page==="leads"      && <LeadsPage leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
+          {page==="leads"      && <LeadsSection leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
-          {page==="dynamics"   && <DynamicsPage leads={leads} sales={sales} t={t} lang={lang}/>}
           {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} srcList={srcList} setDomains={setDomains} t={t} lang={lang}/>}
           {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory}/>}
-          {page==="sales"      && <SalesPage sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang}/>}
+          {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="tasks"      && <TasksPage tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t}/>}
         </div>
       </div>
