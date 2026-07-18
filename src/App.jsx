@@ -83,7 +83,7 @@ const T = {
     period30d:"Месяц",period90d:"Квартал",period365d:"Год",periodAll:"Всё",
     saleAmountTitle:"Введите сумму продажи",saleAmountConfirm:"Подтвердить продажу",
     visitTitle:"Введите дату визита",visitConfirm:"Подтвердить визит",visitDate:"Дата визита",visitTime:"Время",
-    visits_tab:"Визиты",leads_tab:"Лиды",salesTab:"Продажи",dynTab:"Динамика",meetings:"Встречи",
+    visits_tab:"Визиты",autoDate:"дата = день добавления лида",leads_tab:"Лиды",salesTab:"Продажи",dynTab:"Динамика",meetings:"Встречи",
     noVisits:"Визитов пока нет",editVisit:"Редактировать визит",visitSaved:"Визит сохранён",
     todaySection:"Сегодня",noToday:"Нет задач на сегодня",
     saleSectionTitle:"Все продажи",description:"Описание",
@@ -143,7 +143,7 @@ const T = {
     period30d:"Miesiąc",period90d:"Kwartał",period365d:"Rok",periodAll:"Wszystko",
     saleAmountTitle:"Wprowadź kwotę sprzedaży",saleAmountConfirm:"Potwierdź sprzedaż",
     visitTitle:"Wprowadź datę wizyty",visitConfirm:"Potwierdź wizytę",visitDate:"Data wizyty",visitTime:"Godzina",
-    visits_tab:"Wizyty",leads_tab:"Leady",salesTab:"Sprzedaże",dynTab:"Dynamika",meetings:"Spotkania",
+    visits_tab:"Wizyty",autoDate:"data = dzień dodania leada",leads_tab:"Leady",salesTab:"Sprzedaże",dynTab:"Dynamika",meetings:"Spotkania",
     noVisits:"Brak wizyt",editVisit:"Edytuj wizytę",visitSaved:"Wizyta zapisana",
     todaySection:"Dzisiaj",noToday:"Brak zadań na dzisiaj",
     saleSectionTitle:"Wszystkie sprzedaże",description:"Opis",
@@ -219,6 +219,14 @@ function visitInRange(l,dateFrom,dateTo){
   if(dateFrom&&l.visitDate<dateFrom)return false;
   if(dateTo&&l.visitDate>dateTo)return false;
   return true;
+}
+// "DD.MM.YYYY" -> "YYYY-MM-DD"
+function createdAtToIsoDate(str){
+  if(!str)return null;
+  const p=String(str).split(".");
+  if(p.length!==3)return null;
+  const yr=p[2].length===4?p[2]:`20${p[2]}`;
+  return `${yr}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;
 }
 function leadsWithVisits(leads){return (leads||[]).filter(l=>l.visitDate&&(parseInt(l.score)||0)>=5);}
 function filterByCustomRange(items,dateFrom,dateTo){
@@ -385,6 +393,15 @@ function useDatabase(){
         const p=(updated.createdAt||"").split(".");
         const ts=p.length===3?new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0:0;
         updated={...updated,updatedAt:ts};
+      }
+      // ── Разовый бэкфилл визитов ──────────────────────────────────────────
+      // У лидов с оценкой 5+, созданных до внедрения поля visitDate, его нет,
+      // поэтому они выпадали из статистики визитов. Проставляем им дату визита
+      // = дате добавления лида. Новые визиты дату получают из модалки вручную.
+      const sc=parseInt(updated.score)||0;
+      if(sc>=5&&!updated.visitDate){
+        const iso=createdAtToIsoDate(updated.createdAt);
+        if(iso)updated={...updated,visitDate:iso,visitBackfilled:true};
       }
       // Ensure score is always a number, not a string from JSON
       if(typeof updated.score!=="number"){updated={...updated,score:parseInt(updated.score)||0};}
@@ -1429,7 +1446,7 @@ function VisitsPanel({leads,updateDb,t,mgr,search,onOpen}){
     .sort((a,b)=>(b.visitDate||"").localeCompare(a.visitDate||"")||(b.visitTime||"").localeCompare(a.visitTime||""));
 
   const saveVisit=(id,vDate,vTime)=>{
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,visitDate:vDate,visitTime:vTime,updatedAt:Date.now()}:l)}),true);
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,visitDate:vDate,visitTime:vTime,visitBackfilled:false,updatedAt:Date.now()}:l)}),true);
     setEditing(null);
   };
   const removeVisit=(id)=>{
@@ -1493,6 +1510,7 @@ function VisitsPanel({leads,updateDb,t,mgr,search,onOpen}){
                       <td style={{padding:"9px 12px",fontWeight:700,color:isToday?C.blue:past?C.dim:C.text,whiteSpace:"nowrap"}}>
                         {l.visitDate.split("-").reverse().join(".")}
                         {isToday&&<span style={{marginLeft:6,fontSize:9,background:C.blue,color:"#00132f",borderRadius:8,padding:"1px 6px",fontWeight:800}}>{t.todaySection}</span>}
+                        {l.visitBackfilled&&<span title={t.autoDate} style={{marginLeft:6,fontSize:9,color:C.dim,border:`1px solid ${C.border}`,borderRadius:8,padding:"1px 6px",fontWeight:600}}>авто</span>}
                       </td>
                       <td style={{padding:"9px 12px",color:C.muted}}>{l.visitTime||"—"}</td>
                       <td style={{padding:"9px 12px",color:C.accent,fontFamily:"monospace",fontSize:10}}>{l.leadId}</td>
@@ -1631,7 +1649,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);if(isNaN(d))return iso;return d.toLocaleDateString("ru-RU");}catch{return iso;}};
   const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
   const confirmVisit=(vDate,vTime)=>{
-    const updLead={...form,visitDate:vDate,visitTime:vTime||"12:00",score:5,qualification:"salon",updatedAt:Date.now()};
+    const updLead={...form,visitDate:vDate,visitTime:vTime||"12:00",visitBackfilled:false,score:5,qualification:"salon",updatedAt:Date.now()};
     setForm(updLead);
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l)}),true);
     setShowVisit(false);
