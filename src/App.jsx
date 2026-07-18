@@ -2266,6 +2266,7 @@ function DynamicsPage({leads,sales,t,lang}){
   const [mgr,setMgr]=useState("all");
   const [visible,setVisible]=useState({qual:true,visits:true,sales:true,avg:false,conv45:true,conv56:true});
   const [smooth,setSmooth]=useState(true);
+  const [hoverKey,setHoverKey]=useState(null); // подсветка серии при наведении
 
   // left = counts | pct = percentages 0-100 | avg = hidden axis 0-6
   const SERIES=[
@@ -2301,7 +2302,7 @@ function DynamicsPage({leads,sales,t,lang}){
         day:`${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}`,
         qual:q, visits:v, sales:s,
         conv45: q?+(v/q*100).toFixed(1):null,   // сколько % из 4+ дошли до 5+
-        conv56: v?+(s/v*100).toFixed(1):null,   // сколько % из 5+ дошли до 6
+        conv56: s?+(v/s*100).toFixed(1):null,   // отношение 5+ к 6 (перевёрнуто)
         avg:+avg.toFixed(2),
         total:dayLeads.length,
       });
@@ -2316,7 +2317,7 @@ function DynamicsPage({leads,sales,t,lang}){
   const avgOverall=totals.leadSum?(totals.scoreSum/totals.leadSum).toFixed(2):"0.00";
   // Итоговые конверсии считаем по сумме за период, а не как среднее дневных
   const conv45Total=totals.qual?(totals.visits/totals.qual*100).toFixed(1):"0.0";
-  const conv56Total=totals.visits?(totals.sales/totals.visits*100).toFixed(1):"0.0";
+  const conv56Total=totals.sales?(totals.visits/totals.sales*100).toFixed(1):"0.0";
 
   const PRESETS=[
     {key:"7d",days:7},{key:"14d",days:14},{key:"30d",days:30},
@@ -2394,8 +2395,11 @@ function DynamicsPage({leads,sales,t,lang}){
           const on=visible[s.key];
           return(
             <button key={s.key} onClick={()=>setVisible(p=>({...p,[s.key]:!p[s.key]}))}
-              style={{display:"flex",alignItems:"center",gap:6,background:on?`${s.color}18`:"transparent",
-                border:`1px solid ${on?s.color+"60":C.border}`,color:on?s.color:C.dim,
+              onMouseEnter={()=>on&&setHoverKey(s.key)} onMouseLeave={()=>setHoverKey(null)}
+              style={{display:"flex",alignItems:"center",gap:6,
+                background:on?`${s.color}${hoverKey===s.key?"33":"18"}`:"transparent",
+                border:`1px solid ${on?s.color+(hoverKey===s.key?"":"60"):C.border}`,color:on?s.color:C.dim,
+                opacity:hoverKey&&hoverKey!==s.key?0.45:1,
                 borderRadius:20,padding:"4px 12px",fontSize:11,fontWeight:on?700:400,cursor:"pointer",transition:"all .15s"}}>
               <span style={{width:8,height:8,borderRadius:"50%",background:on?s.color:C.dim,display:"inline-block"}}/>
               {s.label}
@@ -2421,19 +2425,29 @@ function DynamicsPage({leads,sales,t,lang}){
                 textAnchor={data.length>25?"end":"middle"} height={data.length>25?46:26}/>
               <YAxis yAxisId="left" tick={{fill:C.muted,fontSize:10}} axisLine={false} tickLine={false} allowDecimals={false}
                 label={{value:t.dynCount,angle:-90,position:"insideLeft",fill:C.muted,fontSize:10,offset:18}}/>
-              <YAxis yAxisId="pct" orientation="right" domain={[0,100]} hide={!showPct}
+              <YAxis yAxisId="pct" orientation="right" domain={[0,"auto"]} hide={!showPct}
                 tick={{fill:C.cyan,fontSize:10}} axisLine={false} tickLine={false} width={38} unit="%"/>
               <YAxis yAxisId="avg" orientation="right" domain={[0,6]} hide={true}/>
               <Tooltip {...TIP}/>
-              <Legend wrapperStyle={{fontSize:11,paddingTop:6}} iconType="circle"/>
-              {SERIES.filter(s=>visible[s.key]).map(s=>(
-                <Line key={s.key} yAxisId={s.axis} type={smooth?"monotone":"linear"} dataKey={s.key} name={s.label}
-                  stroke={s.color} strokeWidth={s.pct?2.2:s.key==="avg"?2:2.4}
-                  strokeDasharray={s.key==="avg"?"5 4":s.pct?"7 3":undefined}
-                  connectNulls={s.pct?true:undefined}
-                  dot={data.length<=45?{r:2.5,fill:s.color,strokeWidth:0}:false}
-                  activeDot={{r:5,strokeWidth:2,stroke:C.card}}/>
-              ))}
+              <Legend wrapperStyle={{fontSize:11,paddingTop:6,cursor:"pointer"}} iconType="circle"
+                onMouseEnter={(e)=>{const s=SERIES.find(x=>x.label===e.value);setHoverKey(s?s.key:null);}}
+                onMouseLeave={()=>setHoverKey(null)}/>
+              {SERIES.filter(s=>visible[s.key]).map(s=>{
+                const dim=hoverKey&&hoverKey!==s.key;   // другая серия под курсором
+                const hot=hoverKey===s.key;             // эта серия под курсором
+                const baseW=s.pct?2.2:s.key==="avg"?2:2.4;
+                return(
+                  <Line key={s.key} yAxisId={s.axis} type={smooth?"monotone":"linear"} dataKey={s.key} name={s.label}
+                    stroke={s.color} strokeWidth={hot?baseW+1.6:baseW}
+                    strokeOpacity={dim?0.12:1}
+                    strokeDasharray={s.key==="avg"?"5 4":s.pct?"7 3":undefined}
+                    connectNulls={s.pct?true:undefined}
+                    dot={data.length<=45&&!dim?{r:hot?3.5:2.5,fill:s.color,strokeWidth:0}:false}
+                    activeDot={{r:5,strokeWidth:2,stroke:C.card}}
+                    isAnimationActive={false}
+                    style={{transition:"stroke-opacity .18s, stroke-width .18s"}}/>
+                );
+              })}
             </LineChart>
           </ResponsiveContainer>
         )}
