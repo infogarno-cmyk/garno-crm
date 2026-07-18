@@ -118,6 +118,7 @@ const T = {
     // dynamics
     dynQual:"Квалифицированные (4+)",dynVisits:"Визиты (5)",dynSales:"Продажи (6)",dynAvg:"Средняя оценка",
     dynTitle:"Динамика продаж",dynCount:"Количество событий",dynDays:"Дни",dynNoData:"Нет данных за выбранный период",
+    dynConv45:"4→5 (%)",dynConv56:"5→6 (%)",dynPct:"Конверсия, %",dynAllMgr:"Все менеджеры",
   },
   pl:{
     dashboard:"Panel",leads:"Leady",calendar:"Kalendarz",analytics:"Analityka",ai:"Asystent AI",sales:"Sprzedaże",
@@ -165,6 +166,7 @@ const T = {
     totalRevenue:"Całkowity przychód",salesAppear:"Sprzedaże pojawią się przy ocenie 6",
     dynQual:"Kwalifikowane (4+)",dynVisits:"Wizyty (5)",dynSales:"Sprzedaże (6)",dynAvg:"Średnia ocena",
     dynTitle:"Dynamika sprzedaży",dynCount:"Liczba zdarzeń",dynDays:"Dni",dynNoData:"Brak danych za wybrany okres",
+    dynConv45:"4→5 (%)",dynConv56:"5→6 (%)",dynPct:"Konwersja, %",dynAllMgr:"Wszyscy menedżerowie",
   }
 };
 
@@ -2054,27 +2056,43 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
   const clearDone=()=>{setConfetti(true);setTimeout(()=>saveTasks(tasks.filter(t=>(t.status||'all')!=='done')),1400);};
 
   // ════ POINTER DRAG ════
+  // pending holds pointer-down info until movement exceeds threshold (click vs drag)
+  const pending=useRef(null);
+  const DRAG_THRESHOLD=5; // px
+
   const onPointerDown=(e,task,cardEl)=>{
-    if(e.button!==0)return; // left only
+    if(e.button!==0)return; // left button only
     const r=cardEl.getBoundingClientRect();
-    setDrag({id:task.id,w:r.width,h:r.height,offX:e.clientX-r.left,offY:e.clientY-r.top,fromCol:task.status||'all'});
-    setPos({x:e.clientX,y:e.clientY});
-    setOver({col:task.status||'all',idx:byCol(task.status||'all').findIndex(t=>t.id===task.id)});
-    e.preventDefault();
+    pending.current={
+      id:task.id,task,
+      startX:e.clientX,startY:e.clientY,
+      w:r.width,h:r.height,
+      offX:e.clientX-r.left,offY:e.clientY-r.top,
+      fromCol:task.status||'all',
+      moved:false,
+    };
   };
 
   useEffect(()=>{
-    if(!drag)return;
     const move=(e)=>{
+      const p=pending.current;
+      if(!p)return;
+      // Activate drag only after the pointer travels past the threshold
+      if(!p.moved){
+        const dx=e.clientX-p.startX, dy=e.clientY-p.startY;
+        if(Math.hypot(dx,dy)<DRAG_THRESHOLD)return;
+        p.moved=true;
+        setDrag({id:p.id,w:p.w,h:p.h,offX:p.offX,offY:p.offY,fromCol:p.fromCol});
+        setOver({col:p.fromCol,idx:byCol(p.fromCol).findIndex(t=>t.id===p.id)});
+      }
       setPos({x:e.clientX,y:e.clientY});
-      // Find which column + index the cursor is over
       const cols=boardRef.current?.querySelectorAll('[data-col]');
       if(!cols)return;
       for(const colEl of cols){
         const cr=colEl.getBoundingClientRect();
         if(e.clientX>=cr.left&&e.clientX<=cr.right){
           const colId=colEl.getAttribute('data-col');
-          const cards=[...colEl.querySelectorAll('[data-card]')].filter(c=>c.getAttribute('data-card')!==String(drag.id));
+          const cards=[...colEl.querySelectorAll('[data-card]')].filter(c=>c.getAttribute('data-card')!==String(p.id));
           let idx=cards.length;
           for(let i=0;i<cards.length;i++){
             const r=cards[i].getBoundingClientRect();
@@ -2085,35 +2103,42 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
         }
       }
     };
+
     const up=()=>{
-      // Commit drop
-      setDrag(d=>{
-        setOver(o=>{
-          if(d&&o){
-            const dragged=tasks.find(t=>t.id===d.id);
-            if(dragged){
-              const target=byCol(o.col).filter(t=>t.id!==d.id);
-              let idx=o.idx;
-              if(d.fromCol===o.col){
-                const orig=byCol(o.col).findIndex(t=>t.id===d.id);
-                if(orig<o.idx)idx=o.idx-1;
-              }
-              idx=Math.max(0,Math.min(idx,target.length));
-              target.splice(idx,0,{...dragged,status:o.col,updatedAt:Date.now()});
-              const reordered=target.map((t,i)=>({...t,order:i*10}));
-              const others=tasks.filter(t=>(t.status||'all')!==o.col&&t.id!==d.id);
-              saveTasks([...others,...reordered]);
+      const p=pending.current;
+      pending.current=null;
+      if(!p)return;
+
+      // No movement → plain click → open the edit modal
+      if(!p.moved){ setModal({task:p.task}); return; }
+
+      // Movement → commit the drop using latest over-target
+      setOver(o=>{
+        if(o){
+          const dragged=tasks.find(t=>t.id===p.id);
+          if(dragged){
+            const target=byCol(o.col).filter(t=>t.id!==p.id);
+            let idx=o.idx;
+            if(p.fromCol===o.col){
+              const orig=byCol(o.col).findIndex(t=>t.id===p.id);
+              if(orig>-1&&orig<o.idx)idx=o.idx-1;
             }
+            idx=Math.max(0,Math.min(idx,target.length));
+            target.splice(idx,0,{...dragged,status:o.col,updatedAt:Date.now()});
+            const reordered=target.map((t,i)=>({...t,order:i*10}));
+            const others=tasks.filter(t=>(t.status||'all')!==o.col&&t.id!==p.id);
+            saveTasks([...others,...reordered]);
           }
-          return null;
-        });
+        }
         return null;
       });
+      setDrag(null);
     };
+
     window.addEventListener('pointermove',move);
     window.addEventListener('pointerup',up);
     return()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);};
-  },[drag,tasks,viewUser]); // eslint-disable-line
+  },[tasks,viewUser]); // eslint-disable-line
 
   const draggedTask=drag?tasks.find(t=>t.id===drag.id):null;
 
@@ -2124,12 +2149,11 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
     return(
       <div data-card={ghost?undefined:task.id}
         onPointerDown={ghost?undefined:e=>onPointerDown(e,task,e.currentTarget)}
-        onClick={ghost?undefined:(e)=>{if(!drag)setModal({task});}}
         style={{
           background:isNew?'rgba(239,68,68,0.08)':'rgba(255,255,255,0.04)',
           border:`1px solid ${isNew?'rgba(239,68,68,0.3)':'rgba(255,255,255,0.09)'}`,
           borderLeft:`3px solid ${pc}`,borderRadius:8,padding:'10px 12px',
-          cursor:'grab',marginBottom:6,userSelect:'none',touchAction:'none',
+          cursor:drag&&drag.id===task.id?'grabbing':'pointer',marginBottom:6,userSelect:'none',touchAction:'none',
           width:ghost?drag.w:'auto',
           boxShadow:ghost?'0 12px 32px rgba(0,0,0,0.5)':'none',
           transform:ghost?'rotate(2deg)':'none',
@@ -2239,17 +2263,22 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
 function DynamicsPage({leads,sales,t,lang}){
   const [dateFrom,setDateFrom]=useState(()=>{const d=new Date();d.setDate(d.getDate()-29);return d.toISOString().slice(0,10);});
   const [dateTo,setDateTo]=useState(()=>new Date().toISOString().slice(0,10));
-  const [visible,setVisible]=useState({qual:true,visits:true,sales:true,avg:true});
+  const [mgr,setMgr]=useState("all");
+  const [visible,setVisible]=useState({qual:true,visits:true,sales:true,avg:false,conv45:true,conv56:true});
   const [smooth,setSmooth]=useState(true);
 
+  // left = counts | pct = percentages 0-100 | avg = hidden axis 0-6
   const SERIES=[
     {key:"qual",   label:t.dynQual,   color:C.green,  axis:"left"},
     {key:"visits", label:t.dynVisits, color:C.blue,   axis:"left"},
     {key:"sales",  label:t.dynSales,  color:C.accent, axis:"left"},
-    {key:"avg",    label:t.dynAvg,    color:C.purple, axis:"right"},
+    {key:"conv45", label:t.dynConv45, color:C.cyan,   axis:"pct", pct:true},
+    {key:"conv56", label:t.dynConv56, color:C.yellow, axis:"pct", pct:true},
+    {key:"avg",    label:t.dynAvg,    color:C.purple, axis:"avg"},
   ];
 
-  // Build day-by-day series across the selected range
+  const scoped=mgr==="all"?leads:leads.filter(l=>l.manager===mgr);
+
   const data=(()=>{
     if(!dateFrom||!dateTo)return[];
     const from=new Date(dateFrom+"T00:00:00");
@@ -2259,19 +2288,22 @@ function DynamicsPage({leads,sales,t,lang}){
     const out=[];
     for(let i=0;i<days;i++){
       const d=new Date(from);d.setDate(from.getDate()+i);
-      const dayLeads=leads.filter(l=>{
+      const dayLeads=scoped.filter(l=>{
         const ld=parseCreatedAt(l.createdAt);
         return ld&&ld.getDate()===d.getDate()&&ld.getMonth()===d.getMonth()&&ld.getFullYear()===d.getFullYear();
       });
       const scored=dayLeads.filter(l=>typeof l.score==="number");
       const avg=scored.length?scored.reduce((a,l)=>a+l.score,0)/scored.length:0;
+      const q=dayLeads.filter(l=>l.score>=4).length;   // 4+
+      const v=dayLeads.filter(l=>l.score>=5).length;   // 5+
+      const s=dayLeads.filter(l=>l.score>=6).length;   // 6
       out.push({
         day:`${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}`,
-        qual:  dayLeads.filter(l=>l.score>=4).length,
-        visits:dayLeads.filter(l=>l.score===5).length,
-        sales: dayLeads.filter(l=>l.score===6).length,
-        avg:   +avg.toFixed(2),
-        total: dayLeads.length,
+        qual:q, visits:v, sales:s,
+        conv45: q?+(v/q*100).toFixed(1):null,   // сколько % из 4+ дошли до 5+
+        conv56: v?+(s/v*100).toFixed(1):null,   // сколько % из 5+ дошли до 6
+        avg:+avg.toFixed(2),
+        total:dayLeads.length,
       });
     }
     return out;
@@ -2279,9 +2311,12 @@ function DynamicsPage({leads,sales,t,lang}){
 
   const totals=data.reduce((a,d)=>({
     qual:a.qual+d.qual, visits:a.visits+d.visits, sales:a.sales+d.sales,
-    days:a.days+(d.total>0?1:0), scoreSum:a.scoreSum+(d.avg*(d.total||0)), leadSum:a.leadSum+d.total,
-  }),{qual:0,visits:0,sales:0,days:0,scoreSum:0,leadSum:0});
+    scoreSum:a.scoreSum+(d.avg*(d.total||0)), leadSum:a.leadSum+d.total,
+  }),{qual:0,visits:0,sales:0,scoreSum:0,leadSum:0});
   const avgOverall=totals.leadSum?(totals.scoreSum/totals.leadSum).toFixed(2):"0.00";
+  // Итоговые конверсии считаем по сумме за период, а не как среднее дневных
+  const conv45Total=totals.qual?(totals.visits/totals.qual*100).toFixed(1):"0.0";
+  const conv56Total=totals.visits?(totals.sales/totals.visits*100).toFixed(1):"0.0";
 
   const PRESETS=[
     {key:"7d",days:7},{key:"14d",days:14},{key:"30d",days:30},
@@ -2295,18 +2330,30 @@ function DynamicsPage({leads,sales,t,lang}){
   };
 
   const ins={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 9px",fontSize:12,outline:"none",colorScheme:"dark",cursor:"pointer"};
-
   const TIP={
     contentStyle:{background:C.surface,border:`1px solid ${C.accentBorder}`,borderRadius:8,fontSize:11},
     labelStyle:{color:C.accent,fontWeight:700},
     itemStyle:{fontSize:11},
+    formatter:(val,name)=>{
+      const s=SERIES.find(x=>x.label===name);
+      return[s&&s.pct?`${val}%`:val,name];
+    },
   };
+
+  const showPct=visible.conv45||visible.conv56;
 
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14,height:"100%",overflowY:"auto"}}>
       {/* Header */}
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
-        <div style={{fontSize:16,fontWeight:700,color:C.text}}>◭ {t.dynTitle}</div>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <div style={{fontSize:16,fontWeight:700,color:C.text}}>◭ {t.dynTitle}</div>
+          <select value={mgr} onChange={e=>setMgr(e.target.value)}
+            style={{...ins,fontWeight:600,color:mgr==="all"?C.text:(MGR_COLOR[mgr]||C.accent)}}>
+            <option value="all">👥 {t.dynAllMgr}</option>
+            {MANAGERS.map(m=><option key={m} value={m}>🧑 {m}</option>)}
+          </select>
+        </div>
         <div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end"}}>
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
             <span style={{fontSize:11,color:C.muted}}>📅</span>
@@ -2325,22 +2372,23 @@ function DynamicsPage({leads,sales,t,lang}){
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+      {/* Summary */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
         {[
-          {label:t.dynQual,   val:totals.qual,   color:C.green},
-          {label:t.dynVisits, val:totals.visits, color:C.blue},
-          {label:t.dynSales,  val:totals.sales,  color:C.accent},
-          {label:t.dynAvg,    val:avgOverall,    color:C.purple},
+          {label:t.dynQual,   val:totals.qual,           color:C.green},
+          {label:t.dynVisits, val:totals.visits,         color:C.blue},
+          {label:t.dynSales,  val:totals.sales,          color:C.accent},
+          {label:t.dynConv45, val:`${conv45Total}%`,     color:C.cyan},
+          {label:t.dynConv56, val:`${conv56Total}%`,     color:C.yellow},
         ].map(s=>(
           <div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}>
             <div style={{fontSize:9,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{s.label}</div>
-            <div style={{fontSize:26,fontWeight:800,color:s.color}}>{s.val}</div>
+            <div style={{fontSize:24,fontWeight:800,color:s.color}}>{s.val}</div>
           </div>
         ))}
       </div>
 
-      {/* Series toggles */}
+      {/* Toggles */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
         {SERIES.map(s=>{
           const on=visible[s.key];
@@ -2360,26 +2408,29 @@ function DynamicsPage({leads,sales,t,lang}){
         </button>
       </div>
 
-      {/* Main chart */}
+      {/* Chart */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px 12px 8px",flex:1,minHeight:380}}>
         {data.length===0?(
           <div style={{height:340,display:"flex",alignItems:"center",justifyContent:"center",color:C.dim,fontSize:13}}>{t.dynNoData}</div>
         ):(
           <ResponsiveContainer width="100%" height={380}>
-            <LineChart data={data} margin={{top:6,right:14,left:-14,bottom:4}}>
+            <LineChart data={data} margin={{top:6,right:showPct?4:14,left:-14,bottom:4}}>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false}/>
               <XAxis dataKey="day" tick={{fill:C.muted,fontSize:10}} axisLine={{stroke:C.border}} tickLine={false}
                 interval={data.length>40?Math.floor(data.length/16):data.length>20?1:0} angle={data.length>25?-40:0}
                 textAnchor={data.length>25?"end":"middle"} height={data.length>25?46:26}/>
               <YAxis yAxisId="left" tick={{fill:C.muted,fontSize:10}} axisLine={false} tickLine={false} allowDecimals={false}
                 label={{value:t.dynCount,angle:-90,position:"insideLeft",fill:C.muted,fontSize:10,offset:18}}/>
-              <YAxis yAxisId="right" orientation="right" domain={[0,6]} tick={{fill:C.purple,fontSize:10}} axisLine={false} tickLine={false} width={30}/>
+              <YAxis yAxisId="pct" orientation="right" domain={[0,100]} hide={!showPct}
+                tick={{fill:C.cyan,fontSize:10}} axisLine={false} tickLine={false} width={38} unit="%"/>
+              <YAxis yAxisId="avg" orientation="right" domain={[0,6]} hide={true}/>
               <Tooltip {...TIP}/>
               <Legend wrapperStyle={{fontSize:11,paddingTop:6}} iconType="circle"/>
               {SERIES.filter(s=>visible[s.key]).map(s=>(
                 <Line key={s.key} yAxisId={s.axis} type={smooth?"monotone":"linear"} dataKey={s.key} name={s.label}
-                  stroke={s.color} strokeWidth={s.key==="avg"?2:2.4}
-                  strokeDasharray={s.key==="avg"?"5 4":undefined}
+                  stroke={s.color} strokeWidth={s.pct?2.2:s.key==="avg"?2:2.4}
+                  strokeDasharray={s.key==="avg"?"5 4":s.pct?"7 3":undefined}
+                  connectNulls={s.pct?true:undefined}
                   dot={data.length<=45?{r:2.5,fill:s.color,strokeWidth:0}:false}
                   activeDot={{r:5,strokeWidth:2,stroke:C.card}}/>
               ))}
@@ -2390,7 +2441,6 @@ function DynamicsPage({leads,sales,t,lang}){
     </div>
   );
 }
-
 function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang}){
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
