@@ -121,7 +121,7 @@ const T = {
     // dynamics
     dynQual:"Квалифицированные (4+)",dynVisits:"Визиты (5)",dynSales:"Продажи (6)",dynAvg:"Средняя оценка",
     dynTitle:"Динамика продаж",dynCount:"Количество событий",dynDays:"Дни",dynNoData:"Нет данных за выбранный период",
-    dynConv45:"4→5 (%)",dynConv56:"5→6 (%)",dynPct:"Конверсия, %",dynAllMgr:"Все менеджеры",
+    dynConv45:"4→5 (%)",dynConv56:"5→6 (%)",dynByCreated:"по дате добавления лида",dynByVisit:"по дате визита",dynBySale:"по дате продажи",dynPct:"Конверсия, %",dynAllMgr:"Все менеджеры",
   },
   pl:{
     dashboard:"Panel",leads:"Leady",calendar:"Kalendarz",analytics:"Analityka",ai:"Asystent AI",sales:"Sprzedaże",
@@ -172,7 +172,7 @@ const T = {
     totalRevenue:"Całkowity przychód",salesAppear:"Sprzedaże pojawią się przy ocenie 6",
     dynQual:"Kwalifikowane (4+)",dynVisits:"Wizyty (5)",dynSales:"Sprzedaże (6)",dynAvg:"Średnia ocena",
     dynTitle:"Dynamika sprzedaży",dynCount:"Liczba zdarzeń",dynDays:"Dni",dynNoData:"Brak danych za wybrany okres",
-    dynConv45:"4→5 (%)",dynConv56:"5→6 (%)",dynPct:"Konwersja, %",dynAllMgr:"Wszyscy menedżerowie",
+    dynConv45:"4→5 (%)",dynConv56:"5→6 (%)",dynByCreated:"wg daty dodania leada",dynByVisit:"wg daty wizyty",dynBySale:"wg daty sprzedaży",dynPct:"Konwersja, %",dynAllMgr:"Wszyscy menedżerowie",
   }
 };
 
@@ -464,6 +464,8 @@ function useDatabase(){
 
     // Events tombstone — deleted events never come back
     const deletedEventIds=new Set([...(local.deletedEventIds||[]),...(remote.deletedEventIds||[])]);
+    // Tasks tombstone — deleted tasks never come back
+    const deletedTaskIds=new Set([...(local.deletedTaskIds||[]),...(remote.deletedTaskIds||[])]);
     const mergedEventsFinal=mergedEvents.filter(e=>!deletedEventIds.has(e.id));
 
     // Domains are stored in a separate Supabase row (id=2) — not merged here
@@ -476,6 +478,7 @@ function useDatabase(){
       deletedLeadIds:[...deletedIds],
       deletedSaleIds:[...deletedSaleIds],
       deletedEventIds:[...deletedEventIds],
+      deletedTaskIds:[...deletedTaskIds],
       chat:local.chat,
       // domains are stored in row id=2, NOT here
       tasks:(()=>{
@@ -486,6 +489,8 @@ function useDatabase(){
           const ex=taskMap.get(t.id);
           if(!ex||(t.updatedAt||0)>=(ex.updatedAt||0))taskMap.set(t.id,t);
         });
+        // Tombstones — deleted tasks must never resurface from remote
+        deletedTaskIds.forEach(id=>taskMap.delete(id));
         return [...taskMap.values()].sort((a,b)=>(a.order||0)-(b.order||0));
       })(),
     };
@@ -2278,11 +2283,18 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
   const byCol=(col)=>filtered.filter(t=>(t.status||'all')===col).sort((a,b)=>(a.order||0)-(b.order||0));
 
   const saveTasks=(nt)=>updateDb(p=>({...p,tasks:nt}),true);
+  // Delete tasks WITH a tombstone so remote merge never brings them back.
+  // Computed from prev (p) inside the updater to avoid stale-closure races.
+  const deleteTasks=(ids)=>updateDb(p=>({
+    ...p,
+    tasks:(p.tasks||[]).filter(t=>!ids.includes(t.id)),
+    deletedTaskIds:[...new Set([...(p.deletedTaskIds||[]),...ids])],
+  }),true);
 
   const saveTask=(form,id)=>{
     const now=Date.now();
     if(id){
-      if(form._delete){saveTasks(tasks.filter(t=>t.id!==id));setModal(null);return;}
+      if(form._delete){deleteTasks([id]);setModal(null);return;}
       saveTasks(tasks.map(t=>t.id===id?{...t,...form,updatedAt:now}:t));
     }else{
       const maxOrd=tasks.length?Math.max(...tasks.map(t=>t.order||0))+10:0;
@@ -2303,7 +2315,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
     setQuickTitle('');setQuickAdd(null);
   };
 
-  const clearDone=()=>{setConfetti(true);setTimeout(()=>saveTasks(tasks.filter(t=>(t.status||'all')!=='done')),1400);};
+  const clearDone=()=>{const ids=tasks.filter(t=>(t.status||'all')==='done').map(t=>t.id);if(!ids.length)return;setConfetti(true);setTimeout(()=>deleteTasks(ids),1400);};
 
   // ════ POINTER DRAG ════
   // pending holds pointer-down info until movement exceeds threshold (click vs drag)
@@ -2374,8 +2386,11 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
               if(orig>-1&&orig<o.idx)idx=o.idx-1;
             }
             idx=Math.max(0,Math.min(idx,target.length));
-            target.splice(idx,0,{...dragged,status:o.col,updatedAt:Date.now()});
-            const reordered=target.map((t,i)=>({...t,order:i*10}));
+            target.splice(idx,0,{...dragged,status:o.col});
+            // Bump updatedAt on EVERY reindexed card so local always wins the
+            // timestamp-based merge — otherwise siblings teleport back to remote order.
+            const stamp=Date.now();
+            const reordered=target.map((t,i)=>({...t,order:i*10,updatedAt:stamp+i}));
             const others=tasks.filter(t=>(t.status||'all')!==o.col&&t.id!==p.id);
             saveTasks([...others,...reordered]);
           }
@@ -2520,12 +2535,12 @@ function DynamicsPage({leads,sales,t,lang}){
 
   // left = counts | pct = percentages 0-100 | avg = hidden axis 0-6
   const SERIES=[
-    {key:"qual",   label:t.dynQual,   color:C.green,  axis:"left"},
-    {key:"visits", label:t.dynVisits, color:C.blue,   axis:"left"},
-    {key:"sales",  label:t.dynSales,  color:C.accent, axis:"left"},
-    {key:"conv45", label:t.dynConv45, color:C.cyan,   axis:"pct", pct:true},
-    {key:"conv56", label:t.dynConv56, color:C.yellow, axis:"pct", pct:true},
-    {key:"avg",    label:t.dynAvg,    color:C.purple, axis:"avg"},
+    {key:"qual",   label:t.dynQual,   color:C.green,  axis:"left", hint:t.dynByCreated},
+    {key:"visits", label:t.dynVisits, color:C.blue,   axis:"left", hint:t.dynByVisit},
+    {key:"sales",  label:t.dynSales,  color:C.accent, axis:"left", hint:t.dynBySale},
+    {key:"conv45", label:t.dynConv45, color:C.cyan,   axis:"pct", pct:true, hint:t.dynByCreated},
+    {key:"conv56", label:t.dynConv56, color:C.yellow, axis:"pct", pct:true, hint:`${t.dynByVisit} / ${t.dynBySale}`},
+    {key:"avg",    label:t.dynAvg,    color:C.purple, axis:"avg",  hint:t.dynByCreated},
   ];
 
   const scoped=mgr==="all"?leads:leads.filter(l=>l.manager===mgr);
@@ -2549,6 +2564,9 @@ function DynamicsPage({leads,sales,t,lang}){
       const scored=dayLeads.filter(l=>typeof l.score==="number");
       const avg=scored.length?scored.reduce((a,l)=>a+l.score,0)/scored.length:0;
       const q=dayLeads.filter(l=>l.score>=4).length;
+      // 5+ по ДАТЕ ДОБАВЛЕНИЯ — используется только для конверсии 4→5,
+      // т.к. квалификация в 5 обычно происходит в день добавления лида
+      const q5=dayLeads.filter(l=>l.score>=5).length;
       // Визиты — по вручную введённой ДАТЕ ВИЗИТА
       const v=scoped.filter(l=>l.visitDate===iso&&(parseInt(l.score)||0)>=5).length;
       // Продажи — по вручную введённой ДАТЕ ПРОДАЖИ из раздела Продажи
@@ -2558,9 +2576,11 @@ function DynamicsPage({leads,sales,t,lang}){
       }).length;
       out.push({
         day:`${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}`,
-        qual:q, visits:v, sales:s,
-        conv45: q?+(v/q*100).toFixed(1):null,   // сколько % из 4+ дошли до 5+
-        conv56: s?+(v/s*100).toFixed(1):null,   // отношение 5+ к 6 (перевёрнуто)
+        qual:q, qual5:q5, visits:v, sales:s,
+        // 4→5: обе величины по ДАТЕ ДОБАВЛЕНИЯ лида
+        conv45: q?+(q5/q*100).toFixed(1):null,
+        // 5→6: реальная ДАТА ВИЗИТА против реальной ДАТЫ ПРОДАЖИ
+        conv56: s?+(v/s*100).toFixed(1):null,
         avg:+avg.toFixed(2),
         total:dayLeads.length,
       });
@@ -2569,12 +2589,12 @@ function DynamicsPage({leads,sales,t,lang}){
   })();
 
   const totals=data.reduce((a,d)=>({
-    qual:a.qual+d.qual, visits:a.visits+d.visits, sales:a.sales+d.sales,
+    qual:a.qual+d.qual, qual5:a.qual5+d.qual5, visits:a.visits+d.visits, sales:a.sales+d.sales,
     scoreSum:a.scoreSum+(d.avg*(d.total||0)), leadSum:a.leadSum+d.total,
-  }),{qual:0,visits:0,sales:0,scoreSum:0,leadSum:0});
+  }),{qual:0,qual5:0,visits:0,sales:0,scoreSum:0,leadSum:0});
   const avgOverall=totals.leadSum?(totals.scoreSum/totals.leadSum).toFixed(2):"0.00";
   // Итоговые конверсии считаем по сумме за период, а не как среднее дневных
-  const conv45Total=totals.qual?(totals.visits/totals.qual*100).toFixed(1):"0.0";
+  const conv45Total=totals.qual?(totals.qual5/totals.qual*100).toFixed(1):"0.0";
   const conv56Total=totals.sales?(totals.visits/totals.sales*100).toFixed(1):"0.0";
 
   const PRESETS=[
@@ -2653,7 +2673,7 @@ function DynamicsPage({leads,sales,t,lang}){
           const on=visible[s.key];
           return(
             <button key={s.key} onClick={()=>setVisible(p=>({...p,[s.key]:!p[s.key]}))}
-              onMouseEnter={()=>on&&setHoverKey(s.key)} onMouseLeave={()=>setHoverKey(null)}
+              onMouseEnter={()=>on&&setHoverKey(s.key)} onMouseLeave={()=>setHoverKey(null)} title={s.hint}
               style={{display:"flex",alignItems:"center",gap:6,
                 background:on?`${s.color}${hoverKey===s.key?"33":"18"}`:"transparent",
                 border:`1px solid ${on?s.color+(hoverKey===s.key?"":"60"):C.border}`,color:on?s.color:C.dim,
