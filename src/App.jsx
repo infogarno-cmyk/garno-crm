@@ -88,6 +88,7 @@ const T = {
     push:"Push",pushTab:"Пропушить",pushTitle:"Введите дату пуша",pushConfirm:"Подтвердить пуш",pushDate:"Дата пуша",pushTime:"Время",
     noPush:"Пушей пока нет",editPush:"Редактировать пуш",removePush:"Убрать из пушей",pushOverdue:"Просрочено",
     upcomingVisits:"Ближайшие визиты",noUpcomingVisits:"Ближайших визитов нет",sortPush:"По дате пуша",sortCreated:"По дате добавления",
+    pushSetDate:"назначить дату",pushNoDate:"без срока",pushFromLabel:"было",
     todaySection:"Сегодня",noToday:"Нет задач на сегодня",
     saleSectionTitle:"Все продажи",description:"Описание",
     deleteSelected:"Удалить выбранные",
@@ -151,6 +152,7 @@ const T = {
     push:"Push",pushTab:"Do pushu",pushTitle:"Wprowadź datę pushu",pushConfirm:"Potwierdź push",pushDate:"Data pushu",pushTime:"Godzina",
     noPush:"Brak pushy",editPush:"Edytuj push",removePush:"Usuń z pushy",pushOverdue:"Zaległe",
     upcomingVisits:"Nadchodzące wizyty",noUpcomingVisits:"Brak nadchodzących wizyt",sortPush:"Wg daty pushu",sortCreated:"Wg daty dodania",
+    pushSetDate:"ustaw datę",pushNoDate:"bez terminu",pushFromLabel:"było",
     todaySection:"Dzisiaj",noToday:"Brak zadań na dzisiaj",
     saleSectionTitle:"Wszystkie sprzedaże",description:"Opis",
     deleteSelected:"Usuń wybrane",
@@ -432,6 +434,14 @@ function useDatabase(){
       if(typeof updated.score!=="number"){updated={...updated,score:parseInt(updated.score)||0};}
       // Ensure qualification is consistent with score
       if(!updated.qualification||updated.qualification==="undefined"){updated={...updated,qualification:scoreToQual(updated.score)};}
+      // ── Разовый перевод в «Пропушить» ──────────────────────────
+      // Лиды с оценкой 2–5 и действием «Просчёт» / «Думает» переносятся
+      // в push-лист БЕЗ даты — срока у них нет, менеджер проставит её вручную.
+      // Флаг pushBackfilled гарантирует, что лид переносится ровно один раз:
+      // если менеджер потом вернёт его в «Думает» — миграция его больше не тронет.
+      if(!updated.pushBackfilled&&sc>=2&&sc<=5&&(updated.action==="quote"||updated.action==="thinking")){
+        updated={...updated,pushFrom:updated.action,action:"push",pushDate:null,pushTime:null,pushBackfilled:true};
+      }
       return updated;
     });
     const changed=leads.some((l,i)=>l!==data.leads[i]);
@@ -649,11 +659,18 @@ function useDatabase(){
           // Записываем в Supabase
           try{await sbWrite(data);}catch(e){console.error("First write failed:",e);}
         } else {
+          const pushBefore=(remote.leads||[]).filter(l=>l.pushBackfilled).length;
           data=migrateData(remote);
+          const hadBackup=backup&&backup.leads&&backup.leads.length>0;
           // Мёрджим с локальным backup если есть несохранённые изменения
-          if(backup&&backup.leads&&backup.leads.length>0){
-            data=mergeData(backup,data);
+          if(hadBackup){data=migrateData(mergeData(backup,data));}
+          const movedToPush=(data.leads||[]).filter(l=>l.pushBackfilled).length-pushBefore;
+          if(hadBackup||movedToPush>0){
             try{await sbWrite(data);localStorage.removeItem(LS_BACKUP);}catch{}
+          }
+          if(movedToPush>0){
+            setSyncError(`✅ Перенесено в «Пропушить» / Przeniesiono do push: ${movedToPush}`);
+            setTimeout(()=>setSyncError(""),7000);
           }
         }
         localRef.current=JSON.stringify(data);
@@ -1620,6 +1637,7 @@ function VisitsPanel({leads,updateDb,t,mgr,search,onOpen}){
                       <td style={{padding:"9px 12px",color:C.accent,fontFamily:"monospace",fontSize:10}}>{l.leadId}</td>
                       <td onClick={()=>onOpen(l)} style={{padding:"9px 12px",cursor:"pointer",fontWeight:600,color:C.text}}>
                         <span style={{marginRight:5}}>{l.clientLang==="ua"?"🇺🇦":l.clientLang==="en"?"🇬🇧":"🇵🇱"}</span>{l.name||"—"}
+                        {l.pushFrom&&<span title={t.pushFromLabel} style={{marginLeft:6,fontSize:9,color:ACT_COLOR[l.pushFrom]||C.dim,border:`1px solid ${ACT_COLOR[l.pushFrom]||C.border}55`,borderRadius:6,padding:"1px 6px",fontWeight:600}}>{t[l.pushFrom]||l.pushFrom}</span>}
                       </td>
                       <td style={{padding:"9px 12px",color:C.muted}}>{l.phone}</td>
                       <td style={{padding:"9px 12px"}}><span style={{color:MGR_COLOR[l.manager]||C.muted,fontWeight:600}}>{l.manager||"—"}</span></td>
@@ -1747,7 +1765,7 @@ function PushPanel({leads,updateDb,t,mgr,search,onOpen}){
                   ):(
                     <>
                       <td style={{padding:"9px 12px",fontWeight:700,color:c,whiteSpace:"nowrap"}}>
-                        {isoToDot(l.pushDate)}
+                        {l.pushDate?isoToDot(l.pushDate):<span style={{color:C.dim,fontWeight:600,fontStyle:"italic"}}>{t.pushNoDate}</span>}
                         {isToday&&<span style={{marginLeft:6,fontSize:9,background:C.blue,color:"#00132f",borderRadius:8,padding:"1px 6px",fontWeight:800}}>{t.todaySection}</span>}
                         {overdue&&<span style={{marginLeft:6,fontSize:9,background:"#ef4444",color:"#fff",borderRadius:8,padding:"1px 6px",fontWeight:800}}>{t.pushOverdue}</span>}
                       </td>
@@ -1937,7 +1955,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select>:<SrcBadge source={form.source}/>}</div><div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.clientLang}</div>{editing?<div style={{display:"flex",gap:4,marginTop:2}}>{[{v:"pl",flag:"🇵🇱",label:"PL"},{v:"ua",flag:"🇺🇦",label:"UA"},{v:"en",flag:"🇬🇧",label:"EN"}].map(({v,flag,label})=><button key={v} onClick={()=>set("clientLang",v)} style={{fontSize:16,padding:"3px 8px",borderRadius:6,border:`2px solid ${(form.clientLang||"pl")===v?C.accent:"transparent"}`,background:(form.clientLang||"pl")===v?C.accentDim:"transparent",cursor:"pointer",color:C.text,fontSize:11,display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:15}}>{flag}</span>{label}</button>)}</div>:<span style={{fontSize:16}}>{form.clientLang==="ua"?"🇺🇦 UA":form.clientLang==="en"?"🇬🇧 EN":"🇵🇱 PL"}</span>}</div>
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.date}</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
             </div>
-            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}{form.action==="push"&&form.pushDate&&<div style={{marginTop:5,fontSize:11,color:dateStateColor(form.pushDate),fontWeight:700}}>🚀 {isoToDot(form.pushDate)}{form.pushTime?` · ${form.pushTime}`:""}</div>}</div>
+            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}{form.action==="push"&&<div onClick={()=>{prevAction.current="push";setShowPush(true);}} title={t.editPush} style={{marginTop:5,fontSize:11,color:form.pushDate?dateStateColor(form.pushDate):PUSH_C,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5,border:`1px solid ${PUSH_C}44`,borderRadius:7,padding:"3px 9px"}}>🚀 {form.pushDate?`${isoToDot(form.pushDate)}${form.pushTime?` · ${form.pushTime}`:""}`:t.pushSetDate}</div>}</div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>:form.manager?<div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></div>:<span style={{color:C.dim}}>—</span>}</div>
           </div>
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
