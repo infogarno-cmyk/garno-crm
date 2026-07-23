@@ -52,7 +52,7 @@ let C = DARK; // mutable — updated by theme
 function syncColorMaps(){
   MGR_COLOR.Oleh=C.blue;MGR_COLOR.Dmytro=C.green;MGR_COLOR.Mateusz=C.purple;MGR_COLOR.Danya=C.cyan;
   QUAL_COLOR.unqualified=C.red;QUAL_COLOR.prequalified=C.yellow;QUAL_COLOR.qualified=C.green;QUAL_COLOR.salon=C.blue;QUAL_COLOR.sale=C.accent;
-  ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;
+  ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;ACT_COLOR.push=PUSH_C;
   BUD_COLOR.withinMonth=C.green;BUD_COLOR.within3m=C.cyan;BUD_COLOR.within6m=C.yellow;BUD_COLOR.year=C.purple;BUD_COLOR.justPrice=C.muted;
   EVENT_COLOR.visit=C.blue;EVENT_COLOR.measure=C.accent;EVENT_COLOR.contract=C.green;EVENT_COLOR.phone=C.purple;EVENT_COLOR.delivery=C.cyan;
 }
@@ -85,6 +85,9 @@ const T = {
     visitTitle:"Введите дату визита",visitConfirm:"Подтвердить визит",visitDate:"Дата визита",visitTime:"Время",
     visits_tab:"Визиты",autoDate:"дата = день добавления лида",leads_tab:"Лиды",salesTab:"Продажи",dynTab:"Динамика",meetings:"Встречи",
     noVisits:"Визитов пока нет",editVisit:"Редактировать визит",visitSaved:"Визит сохранён",
+    push:"Push",pushTab:"Пропушить",pushTitle:"Введите дату пуша",pushConfirm:"Подтвердить пуш",pushDate:"Дата пуша",pushTime:"Время",
+    noPush:"Пушей пока нет",editPush:"Редактировать пуш",removePush:"Убрать из пушей",pushOverdue:"Просрочено",
+    upcomingVisits:"Ближайшие визиты",noUpcomingVisits:"Ближайших визитов нет",sortPush:"По дате пуша",sortCreated:"По дате добавления",
     todaySection:"Сегодня",noToday:"Нет задач на сегодня",
     saleSectionTitle:"Все продажи",description:"Описание",
     deleteSelected:"Удалить выбранные",
@@ -145,6 +148,9 @@ const T = {
     visitTitle:"Wprowadź datę wizyty",visitConfirm:"Potwierdź wizytę",visitDate:"Data wizyty",visitTime:"Godzina",
     visits_tab:"Wizyty",autoDate:"data = dzień dodania leada",leads_tab:"Leady",salesTab:"Sprzedaże",dynTab:"Dynamika",meetings:"Spotkania",
     noVisits:"Brak wizyt",editVisit:"Edytuj wizytę",visitSaved:"Wizyta zapisana",
+    push:"Push",pushTab:"Do pushu",pushTitle:"Wprowadź datę pushu",pushConfirm:"Potwierdź push",pushDate:"Data pushu",pushTime:"Godzina",
+    noPush:"Brak pushy",editPush:"Edytuj push",removePush:"Usuń z pushy",pushOverdue:"Zaległe",
+    upcomingVisits:"Nadchodzące wizyty",noUpcomingVisits:"Brak nadchodzących wizyt",sortPush:"Wg daty pushu",sortCreated:"Wg daty dodania",
     todaySection:"Dzisiaj",noToday:"Brak zadań na dzisiaj",
     saleSectionTitle:"Wszystkie sprzedaże",description:"Opis",
     deleteSelected:"Usuń wybrane",
@@ -182,8 +188,9 @@ const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Mateusz:C.purple,Danya:C.cyan};
 function scoreToQual(s){const n=parseInt(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===5)return"salon";return"sale";}
 const QUALS=["unqualified","prequalified","qualified","salon","sale"];
 const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,salon:C.blue,sale:C.accent};
-const ACTIONS=["undefined","thinking","missedCall","cancelled","callback","quote"];
-const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple};
+const ACTIONS=["undefined","thinking","missedCall","cancelled","callback","quote","push"];
+const PUSH_C="#f97316";
+const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple,push:PUSH_C};
 const BUDGETS=["withinMonth","within3m","within6m","year","justPrice","unconfirmed"];
 const BUD_COLOR={withinMonth:C.green,within3m:C.cyan,within6m:C.yellow,year:C.purple,justPrice:C.muted,unconfirmed:"rgba(255,255,255,0.2)"};
 const SOURCES=["pl.calculatorkuchni.online","roda.calculatorkuchni.online","fast.calculatorkuchni.online","ua.calculatorkuchni.online","1.designkitchen.online","fillout","garnofurniture.ukr","garnofurniture.com","Instagram","Mail","Шоу Рум"];
@@ -229,6 +236,23 @@ function createdAtToIsoDate(str){
   return `${yr}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;
 }
 function leadsWithVisits(leads){return (leads||[]).filter(l=>l.visitDate&&(parseInt(l.score)||0)>=5);}
+// Colour coding shared by Visits and Push lists:
+// past = grey, today = blue, future = white
+function dateStateColor(iso){
+  if(!iso)return C.dim;
+  const td=getToday();
+  if(iso<td)return C.dim;
+  if(iso===td)return C.blue;
+  return C.text;
+}
+function isoToDot(iso){return iso?String(iso).split("-").reverse().join("."):"—";}
+// Leads currently queued for a push
+function leadsToPush(leads){return (leads||[]).filter(l=>l.action==="push");}
+// How many pushes are due (today or overdue)
+function pushDueCount(leads,mgr){
+  const td=getToday();
+  return leadsToPush(leads).filter(l=>(mgr==="all"||!mgr||l.manager===mgr)&&l.pushDate&&l.pushDate<=td).length;
+}
 function filterByCustomRange(items,dateFrom,dateTo){
   if(!dateFrom&&!dateTo)return items;
   return items.filter(l=>{
@@ -371,6 +395,7 @@ function useDatabase(){
   const saveTimer=useRef(null);
   const retryTimer=useRef(null);
   const retryCount=useRef(0);
+  const dirtyRef=useRef(false);
   const LS_BACKUP="garno_backup";
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -499,20 +524,29 @@ function useDatabase(){
   // ── MERGE-WRITE: read-fresh → merge local+remote → write back ──────────────
   // Каждый раз читает актуальный remote перед записью, поэтому не теряет
   // лиды добавленные другими пользователями пока шла запись.
-  const mergeWrite=async(localData)=>{
+  const mergeWrite=async()=>{
+    // Serialize writes: if one is already in flight, flag dirty and re-run after it.
+    // Without this, an older in-flight write can finish LAST and overwrite Supabase
+    // with its stale snapshot — resurrecting deleted tasks/leads.
+    if(savingRef.current){dirtyRef.current=true;return;}
     savingRef.current=true;
     setSyncError("");
     if(bgSyncRef.current){clearInterval(bgSyncRef.current);bgSyncRef.current=null;}
     setSyncLabel("⟳");
-    try{lsSet(LS_BACKUP,localData);}catch{}
     try{
       let remote;
       try{remote=await sbRead();}catch{remote=null;}
+      // Read the LATEST local state AFTER the network round-trip. A snapshot captured
+      // before the await may be missing changes made while it was in flight (e.g. a
+      // tombstone), which is exactly how deleted records used to come back.
+      const localData=JSON.parse(localRef.current||"{}");
+      try{lsSet(LS_BACKUP,localData);}catch{}
       const final=mergeData(localData,remote);
       await sbWrite(final);
       localRef.current=JSON.stringify(final);
       setDbState(final);
       setSyncLabel("✓");setSyncError("");
+      retryCount.current=0;
       setTimeout(()=>setSyncLabel("●"),2000);
       try{localStorage.removeItem(LS_BACKUP);}catch{}
       setTimeout(()=>startBgSync(),5000);
@@ -523,12 +557,16 @@ function useDatabase(){
       retryCount.current=(retryCount.current||0)+1;
       if(retryCount.current<=3){
         if(retryTimer.current)clearTimeout(retryTimer.current);
-        retryTimer.current=setTimeout(()=>{retryCount.current=0;mergeWrite(JSON.parse(localRef.current||"{}"));},15000);
+        retryTimer.current=setTimeout(()=>{retryCount.current=0;mergeWrite();},15000);
       } else {
         retryCount.current=0;
         setSyncError("⚠️ Supabase offline — dane lokalne / данные локально");
       }
-    }finally{savingRef.current=false;}
+    }finally{
+      savingRef.current=false;
+      // A change arrived while we were writing — flush it now.
+      if(dirtyRef.current){dirtyRef.current=false;mergeWrite();}
+    }
   };
 
   // ── Фоновый авто-мёрдж каждые 25 сек ────────────────────────────────────
@@ -557,7 +595,16 @@ function useDatabase(){
           const remoteNewEvs=(remote?.events||[]).filter(e=>!(local.events||[]).find(x=>x.id===e.id));
           const localSaleIds=new Set((local.sales||[]).map(s=>s.id));
           const remoteNewSales=(remote?.sales||[]).filter(s=>!localSaleIds.has(s.id));
-          if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0)return;
+          // Tasks: new or newer on remote (respecting local tombstones)
+          const deletedTasks=new Set(local.deletedTaskIds||[]);
+          const localTaskMap=new Map((local.tasks||[]).map(t=>[t.id,t]));
+          const remoteTaskChanges=(remote?.tasks||[]).filter(t=>{
+            if(deletedTasks.has(t.id))return false;
+            const loc=localTaskMap.get(t.id);
+            if(!loc)return true;
+            return (t.updatedAt||0)>(loc.updatedAt||0);
+          });
+          if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0&&remoteTaskChanges.length===0)return;
           // Build merged — deletedSet applied on both sides
           const merged=mergeData(local,remote);
           try{await sbWrite(merged);}catch{}
@@ -671,10 +718,10 @@ function useDatabase(){
       try{lsSet(LS_BACKUP,next);}catch{}
       if(immediate){
         if(saveTimer.current){clearTimeout(saveTimer.current);saveTimer.current=null;}
-        mergeWrite(next);
+        mergeWrite();
       } else {
         if(saveTimer.current)clearTimeout(saveTimer.current);
-        saveTimer.current=setTimeout(()=>{mergeWrite(JSON.parse(localRef.current||"{}"));},600);
+        saveTimer.current=setTimeout(()=>{mergeWrite();},600);
       }
       return next;
     });
@@ -1135,6 +1182,42 @@ function VisitModal({lead,t,initDate,initTime,onConfirm,onCancel}){
   );
 }
 
+function PushModal({lead,t,initDate,initTime,onConfirm,onCancel}){
+  const [pDate,setPDate]=useState(initDate||new Date().toISOString().slice(0,10));
+  const [pTime,setPTime]=useState(initTime||"12:00");
+  const ins={background:C.card,border:`2px solid ${PUSH_C}66`,color:C.text,borderRadius:9,padding:"12px 16px",fontSize:15,width:"100%",boxSizing:"border-box",outline:"none"};
+  const confirm=()=>{if(!pDate)return;onConfirm(pDate,pTime);};
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.87)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000}}>
+      <div style={{background:C.surface,borderRadius:16,border:`2px solid ${PUSH_C}`,width:"min(420px,95vw)",padding:32}}>
+        <div style={{fontSize:20,fontWeight:800,color:PUSH_C,marginBottom:4}}>🚀 {t.pushTitle}</div>
+        <div style={{fontSize:13,color:C.muted,marginBottom:20}}>{lead?.name||lead?.phone}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.pushDate}</div>
+            <input type="date" value={pDate} onChange={e=>setPDate(e.target.value)} autoFocus
+              onKeyDown={e=>e.key==="Enter"&&pDate&&confirm()}
+              style={{...ins,colorScheme:"dark",fontSize:16,fontWeight:700}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.pushTime}</div>
+            <input type="time" value={pTime} onChange={e=>setPTime(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&pDate&&confirm()}
+              style={{...ins,colorScheme:"dark",fontSize:14}}/>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:10,marginTop:20}}>
+          <Btn onClick={onCancel} variant="ghost">{t.cancel}</Btn>
+          <button onClick={confirm} disabled={!pDate}
+            style={{flex:1,background:`linear-gradient(135deg,${PUSH_C},#fdba74)`,color:"#00132f",border:"none",borderRadius:9,padding:"12px 0",fontSize:14,fontWeight:800,cursor:pDate?"pointer":"not-allowed",opacity:pDate?1:0.5}}>
+            ✓ {t.pushConfirm}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SaleModal({lead,t,onConfirm,onCancel}){
   const [amt,setAmt]=useState("");
   const [saleDate,setSaleDate]=useState(new Date().toISOString().slice(0,10));
@@ -1174,7 +1257,7 @@ function SaleModal({lead,t,onConfirm,onCancel}){
 function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
   const todayIso=new Date().toISOString().slice(0,10);
   const allDomains=normDoms(srcList&&srcList.length?srcList:SOURCES);
-  const [form,setForm]=useState({name:"",phone:"",action:"undefined",clientLang:"pl",source:(allDomains[0]&&(allDomains[0].name||allDomains[0]))||SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed",dateOverride:todayIso});
+  const [form,setForm]=useState({name:"",phone:"",action:"undefined",pushDate:todayIso,pushTime:"12:00",clientLang:"pl",source:(allDomains[0]&&(allDomains[0].name||allDomains[0]))||SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed",dateOverride:todayIso});
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
 
   const buildCreatedAt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("ru-RU");}catch{return new Date().toLocaleDateString("ru-RU");}};
@@ -1217,6 +1300,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
             <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.source}</div><select value={form.source} onChange={e=>set("source",e.target.value)} style={ins}>{allDomains.map(d=><option key={d.name||d} value={d.name||d}>{d.name||d}</option>)}</select></div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.action}</div><select value={form.action} onChange={e=>set("action",e.target.value)} style={{...ins,color:ACT_COLOR[form.action]||"#fff",borderColor:ACT_COLOR[form.action]||C.borderMd}}>{ACTIONS.map(a=><option key={a} value={a}>{t[a]||a}</option>)}</select></div>
           </div>
+          {form.action==="push"&&<div style={{background:"rgba(249,115,22,0.08)",border:`1px solid ${PUSH_C}55`,borderRadius:8,padding:"9px 11px"}}><div style={{fontSize:10,color:PUSH_C,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:700}}>🚀 {t.pushDate}</div><div style={{display:"flex",gap:8}}><input type="date" value={form.pushDate||""} onChange={e=>set("pushDate",e.target.value)} style={{...ins,colorScheme:"dark"}}/><input type="time" value={form.pushTime||"12:00"} onChange={e=>set("pushTime",e.target.value)} style={{...ins,colorScheme:"dark",maxWidth:110}}/></div></div>}
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.manager}</div><select value={form.manager} onChange={e=>set("manager",e.target.value)} style={ins}><option value="">{lang==="ru"?"— не назначен —":"— nieprzypisany —"}</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select></div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.period}</div><select value={form.budgetTimeline} onChange={e=>set("budgetTimeline",e.target.value)} style={{...ins,borderColor:BUD_COLOR[form.budgetTimeline]||C.borderMd}}>{BUDGETS.map(b=><option key={b} value={b}>{t[b]||b}</option>)}</select></div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.notes}</div><textarea value={form.notes} onChange={e=>set("notes",e.target.value)} rows={2} style={{...ins,resize:"vertical"}}/></div>
@@ -1235,7 +1319,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"ai",icon:"◆",ru:"AI Ассистент",pl:"Asystent AI"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"}];
-function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,t}){
+function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,t}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
       <div style={{padding:"14px 10px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
@@ -1243,7 +1327,7 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,t}){
         {!collapsed&&<span style={{color:C.accent,fontWeight:900,fontSize:14,letterSpacing:1.5}}>GARNO<span style={{color:"#fff"}}>CRM</span></span>}
       </div>
       <nav style={{flex:1,padding:"8px 6px",display:"flex",flexDirection:"column",gap:2,overflowY:"auto",overflowX:"hidden"}}>
-        {NAV.map(item=>{const active=page===item.key;return(<button key={item.key} onClick={()=>setPage(item.key)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:active?700:500,borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent"}}><span style={{fontSize:14,flexShrink:0}}>{item.icon}</span>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}</span>}</button>);})}
+        {NAV.map(item=>{const active=page===item.key;return(<button key={item.key} onClick={()=>setPage(item.key)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:active?700:500,borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent"}}><span style={{fontSize:14,flexShrink:0}}>{item.icon}</span>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}{item.key==="leads"&&pushDue>0?<span title={t.pushToday} style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {pushDue}</span>:null}</span>}</button>);})}
         {!collapsed&&page==="leads"&&(<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}}>{["all",...MANAGERS].map(m=>(<button key={m} onClick={()=>setMgr(m)} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderRadius:6,border:"none",background:mgr===m?`${MGR_COLOR[m]||C.accent}22`:"transparent",color:mgr===m?(MGR_COLOR[m]||C.accent):C.muted,cursor:"pointer",fontSize:12,fontWeight:mgr===m?600:400,width:"100%",textAlign:"left"}}>{m!=="all"&&<Avatar name={m} color={MGR_COLOR[m]} size={18}/>}{m==="all"?`◉ ${lang==="ru"?"Все":"Wszyscy"}`:m}</button>))}</div>)}
       </nav>
     </div>
@@ -1343,7 +1427,7 @@ function Dashboard({leads,events,t,lang}){
   // Встречи = лиды с оценкой 5+ у которых дата визита попадает в выбранный диапазон
   const rangeVisits=leadsWithVisits(leads).filter(l=>visitInRange(l,dateFrom,dateTo)).length;
   const todayEvs=[...events].filter(e=>e.date===TODAY).sort((a,b)=>a.time.localeCompare(b.time));
-  const upcoming=[...events].filter(e=>e.date>=getToday()).sort((a,b)=>a.date===b.date?a.time.localeCompare(b.time):a.date.localeCompare(b.date));
+  const upcomingVisits=leadsWithVisits(leads).filter(l=>l.visitDate>=getToday()).sort((a,b)=>a.visitDate.localeCompare(b.visitDate)||String(a.visitTime||"").localeCompare(String(b.visitTime||"")));
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
@@ -1367,8 +1451,17 @@ function Dashboard({leads,events,t,lang}){
           <ResponsiveContainer width="100%" height={150}><BarChart data={srcData.slice(0,7)} margin={{top:0,right:0,bottom:22,left:-20}}><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)"/><XAxis dataKey="name" tick={{fill:C.muted,fontSize:8}} axisLine={false} tickLine={false} angle={-28} textAnchor="end"/><YAxis tick={{fill:C.muted,fontSize:9}} axisLine={false} tickLine={false}/><Tooltip {...getTIP()}/><Bar dataKey="value" radius={[4,4,0,0]}>{srcData.slice(0,7).map((d,i)=><Cell key={i} fill={d.fill||C.accent}/>)}</Bar></BarChart></ResponsiveContainer>
         </div>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
-          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{t.upcoming}</div>
-          {upcoming.slice(0,5).map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(<div key={ev.id} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:`1px solid ${C.border}`}}><div style={{width:3,background:c,borderRadius:2,flexShrink:0}}/><div style={{flex:1}}><div style={{fontSize:11,color:C.text}}>{ev.title}</div><div style={{fontSize:10,color:C.muted}}>{ev.time}{ev.timeEnd?`–${ev.timeEnd}`:""} · <span style={{color:MGR_COLOR[ev.manager]}}>{ev.manager}</span></div></div><Badge label={ev.date.slice(5)} color={c} small/></div>);})}
+          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{t.upcomingVisits}</div>
+          {upcomingVisits.length===0?<div style={{fontSize:11,color:C.dim}}>{t.noUpcomingVisits}</div>:
+            upcomingVisits.slice(0,5).map(l=>{const c=dateStateColor(l.visitDate);return(
+              <div key={l.id} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:`1px solid ${C.border}`,alignItems:"center"}}>
+                <div style={{width:3,alignSelf:"stretch",background:c,borderRadius:2,flexShrink:0}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:11,color:c,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.name||l.phone}</div>
+                  <div style={{fontSize:10,color:C.muted}}>{l.visitTime||"—"} · <span style={{color:MGR_COLOR[l.manager]||C.muted}}>{l.manager||"—"}</span></div>
+                </div>
+                <span style={{fontSize:10,fontWeight:700,color:c,background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"2px 8px",whiteSpace:"nowrap"}}>{isoToDot(l.visitDate)}</span>
+              </div>);})}
         </div>
       </div>
       <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:14,padding:18}}>
@@ -1396,6 +1489,7 @@ function TabBar({tabs,active,onChange}){
               cursor:"pointer",marginBottom:-1,transition:"all .15s",display:"flex",alignItems:"center",gap:6}}>
             {tb.icon&&<span>{tb.icon}</span>}{tb.label}
             {tb.count!==undefined&&<span style={{fontSize:10,background:on?C.accentDim:C.surface,color:on?C.accent:C.dim,borderRadius:10,padding:"1px 7px",fontWeight:700}}>{tb.count}</span>}
+            {tb.alert>0&&<span title={tb.alertTitle||""} style={{display:"inline-flex",alignItems:"center",gap:3,background:"#ef4444",color:"#fff",borderRadius:10,padding:"1px 7px",fontSize:10,fontWeight:800,boxShadow:"0 0 0 2px rgba(239,68,68,0.25)"}}>⚠️ {tb.alert}</span>}
           </button>
         );
       })}
@@ -1408,13 +1502,18 @@ function LeadsSection(props){
   const [tab,setTab]=useState("leads");
   const {t,leads,mgr}=props;
   const visitCount=leadsWithVisits(leads).filter(l=>mgr==="all"||l.manager===mgr).length;
+  const pushCount=leadsToPush(leads).filter(l=>mgr==="all"||l.manager===mgr).length;
+  const pushDue=pushDueCount(leads,mgr); // сегодня + просроченные
   return(
     <div style={{height:"100%",overflowY:"auto"}}>
       <TabBar active={tab} onChange={setTab} tabs={[
         {key:"leads", icon:"◈", label:t.leads_tab||t.leads},
         {key:"visits",icon:"📅",label:t.visits_tab,count:visitCount},
+        {key:"push",  icon:"🚀",label:t.pushTab,count:pushCount,alert:pushDue,alertTitle:t.pushToday||""},
       ]}/>
-      {tab==="leads"?<LeadsPage {...props}/>:<VisitsPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>}
+      {tab==="leads"?<LeadsPage {...props}/>
+        :tab==="visits"?<VisitsPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>
+        :<PushPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>}
     </div>
   );
 }
@@ -1512,7 +1611,7 @@ function VisitsPanel({leads,updateDb,t,mgr,search,onOpen}){
                     </>
                   ):(
                     <>
-                      <td style={{padding:"9px 12px",fontWeight:700,color:isToday?C.blue:past?C.dim:C.text,whiteSpace:"nowrap"}}>
+                      <td style={{padding:"9px 12px",fontWeight:700,color:dateStateColor(l.visitDate),whiteSpace:"nowrap"}}>
                         {l.visitDate.split("-").reverse().join(".")}
                         {isToday&&<span style={{marginLeft:6,fontSize:9,background:C.blue,color:"#00132f",borderRadius:8,padding:"1px 6px",fontWeight:800}}>{t.todaySection}</span>}
                         {l.visitBackfilled&&<span title={t.autoDate} style={{marginLeft:6,fontSize:9,color:C.dim,border:`1px solid ${C.border}`,borderRadius:8,padding:"1px 6px",fontWeight:600}}>авто</span>}
@@ -1545,6 +1644,141 @@ function VisitsPanel({leads,updateDb,t,mgr,search,onOpen}){
   );
 }
 
+// ─── PUSH TAB (Пропушить) ───────────────────────────────────
+function PushPanel({leads,updateDb,t,mgr,search,onOpen}){
+  const [editing,setEditing]=useState(null);
+  const [dateFrom,setDateFrom]=useState("");
+  const [dateTo,setDateTo]=useState("");
+  const [sort,setSort]=useState("push");
+  const today=getToday();
+
+  const parseDot=(s)=>{if(!s)return 0;const p=String(s).split(".");return p.length===3?new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0:0;};
+
+  const list=leadsToPush(leads)
+    .filter(l=>mgr==="all"||l.manager===mgr)
+    .filter(l=>!search||(l.name||"").toLowerCase().includes(search.toLowerCase())||String(l.phone||"").includes(search)||String(l.leadId||"").includes(search))
+    .filter(l=>{
+      if(!dateFrom&&!dateTo)return true;
+      if(!l.pushDate)return false;
+      if(dateFrom&&l.pushDate<dateFrom)return false;
+      if(dateTo&&l.pushDate>dateTo)return false;
+      return true;
+    })
+    .sort((a,b)=>{
+      if(sort==="score")return (parseInt(b.score)||0)-(parseInt(a.score)||0);
+      if(sort==="id")return String(b.leadId||"").localeCompare(String(a.leadId||""));
+      if(sort==="created")return parseDot(b.createdAt)-parseDot(a.createdAt);
+      // default — ближайшие к актуальной дате сверху, без даты — в конец
+      return String(a.pushDate||"9999-99-99").localeCompare(String(b.pushDate||"9999-99-99"));
+    });
+
+  const dueCount=list.filter(l=>l.pushDate&&l.pushDate<=today).length;
+
+  const savePush=(id,pDate,pTime)=>{
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,pushDate:pDate,pushTime:pTime,updatedAt:Date.now()}:l)}),true);
+    setEditing(null);
+  };
+  // Снять с пуша — действие возвращается в "не определено"
+  const removePush=(id)=>{
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,action:"undefined",pushDate:null,pushTime:null,updatedAt:Date.now()}:l)}),true);
+    setEditing(null);
+  };
+
+  const ins={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 9px",fontSize:12,outline:"none",colorScheme:"dark",cursor:"pointer"};
+
+  return(
+    <div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{fontSize:16,fontWeight:700,color:C.text}}>🚀 {t.pushTab} <span style={{fontSize:12,color:C.muted}}>({list.length})</span></div>
+          {dueCount>0&&(
+            <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.5)",borderRadius:9,padding:"4px 12px"}}>
+              <span style={{fontSize:14}}>⚠️</span>
+              <span style={{fontSize:15,fontWeight:800,color:"#ef4444"}}>{dueCount}</span>
+              <span style={{fontSize:11,color:"#ef4444"}}>{t.pushToday}</span>
+            </div>
+          )}
+        </div>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+          <select value={sort} onChange={e=>setSort(e.target.value)} style={ins}>
+            <option value="push">{t.sortPush}</option>
+            <option value="created">{t.sortCreated}</option>
+            <option value="id">ID</option>
+            <option value="score">{t.score}</option>
+          </select>
+          <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={ins}/>
+          <span style={{color:C.dim,fontSize:12}}>—</span>
+          <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={ins}/>
+          {(dateFrom||dateTo)&&<button onClick={()=>{setDateFrom("");setDateTo("");}} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:14}}>✕</button>}
+        </div>
+      </div>
+
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead>
+            <tr style={{background:"rgba(249,115,22,0.08)",borderBottom:`1px solid ${C.border}`}}>
+              {[t.pushDate,t.pushTime,"ID",t.name,t.phone,t.manager,t.source,t.score,""].map((h,i)=>(
+                <th key={i} style={{padding:"9px 12px",color:PUSH_C,fontWeight:700,textAlign:"left",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((l,i)=>{
+              const isEdit=editing===l.id;
+              const c=dateStateColor(l.pushDate);
+              const isToday=l.pushDate===today;
+              const overdue=l.pushDate&&l.pushDate<today;
+              return(
+                <tr key={l.id} style={{borderBottom:`1px solid ${C.border}`,background:isToday?"rgba(96,165,250,0.07)":overdue?"rgba(239,68,68,0.05)":i%2?"rgba(255,255,255,0.02)":"transparent"}}>
+                  {isEdit?(
+                    <>
+                      <td style={{padding:"7px 12px"}}><input type="date" defaultValue={l.pushDate||today} id={`pd-${l.id}`} style={{...ins,padding:"4px 7px"}}/></td>
+                      <td style={{padding:"7px 12px"}}><input type="time" defaultValue={l.pushTime||"12:00"} id={`pt-${l.id}`} style={{...ins,padding:"4px 7px"}}/></td>
+                      <td colSpan={5} style={{padding:"7px 12px",color:C.muted,fontSize:11}}>{l.name||l.phone}</td>
+                      <td style={{padding:"7px 12px",whiteSpace:"nowrap"}}>
+                        <button onClick={()=>savePush(l.id,document.getElementById(`pd-${l.id}`).value,document.getElementById(`pt-${l.id}`).value)}
+                          style={{background:C.green,border:"none",color:"#00132f",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",marginRight:5}}>✓</button>
+                        <button onClick={()=>setEditing(null)}
+                          style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",marginRight:5}}>✕</button>
+                        <button onClick={()=>removePush(l.id)} title={t.removePush}
+                          style={{background:"transparent",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                      </td>
+                    </>
+                  ):(
+                    <>
+                      <td style={{padding:"9px 12px",fontWeight:700,color:c,whiteSpace:"nowrap"}}>
+                        {isoToDot(l.pushDate)}
+                        {isToday&&<span style={{marginLeft:6,fontSize:9,background:C.blue,color:"#00132f",borderRadius:8,padding:"1px 6px",fontWeight:800}}>{t.todaySection}</span>}
+                        {overdue&&<span style={{marginLeft:6,fontSize:9,background:"#ef4444",color:"#fff",borderRadius:8,padding:"1px 6px",fontWeight:800}}>{t.pushOverdue}</span>}
+                      </td>
+                      <td style={{padding:"9px 12px",color:C.muted}}>{l.pushTime||"—"}</td>
+                      <td style={{padding:"9px 12px",color:C.accent,fontFamily:"monospace",fontSize:10}}>{l.leadId}</td>
+                      <td onClick={()=>onOpen(l)} style={{padding:"9px 12px",cursor:"pointer",fontWeight:600,color:C.text}}>
+                        <span style={{marginRight:5}}>{l.clientLang==="ua"?"🇺🇦":l.clientLang==="en"?"🇬🇧":"🇵🇱"}</span>{l.name||"—"}
+                      </td>
+                      <td style={{padding:"9px 12px",color:C.muted}}>{l.phone}</td>
+                      <td style={{padding:"9px 12px"}}><span style={{color:MGR_COLOR[l.manager]||C.muted,fontWeight:600}}>{l.manager||"—"}</span></td>
+                      <td style={{padding:"9px 12px"}}><SrcBadge source={l.source}/></td>
+                      <td style={{padding:"9px 12px"}}><ScoreBar score={l.score}/></td>
+                      <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
+                        <button onClick={()=>setEditing(l.id)} title={t.editPush}
+                          style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>✎</button>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
+            {!list.length&&(
+              <tr><td colSpan={9} style={{padding:30,textAlign:"center",color:C.dim,fontSize:13}}>{t.noPush}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onOpen}){
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
@@ -1558,6 +1792,11 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
     if(sort==="date") return parseDate(b.createdAt)-parseDate(a.createdAt);
     return parseDate(b.createdAt)-parseDate(a.createdAt); // default also by date desc
   });
+  // Лиды с действием "не определено" подсвечиваются жёлтым, пока действие не сменят
+  const rowBg=(l,isSel)=>isSel?"rgba(191,164,126,0.1)"
+    :l.isFavorite?"rgba(251,191,36,0.22)"
+    :(!l.action||l.action==="undefined")?"rgba(245,158,11,0.15)"
+    :l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent";
   const toggleOne=(id,e)=>{e.stopPropagation();setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});};
   const toggleAll=()=>setSelected(selected.size===fl.length&&fl.length>0?new Set():new Set(fl.map(l=>l.id)));
   const deleteSelected=()=>{
@@ -1608,9 +1847,9 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
             </tr></thead>
             <tbody>{fl.map(l=>{const isSel=selected.has(l.id);return(
               <tr key={l.id} onClick={()=>onOpen(l)}
-                style={{borderBottom:`1px solid ${C.border}`,background:isSel?"rgba(191,164,126,0.1)":l.isFavorite?"rgba(251,191,36,0.22)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent",cursor:"pointer"}}
+                style={{borderBottom:`1px solid ${C.border}`,background:rowBg(l,isSel),cursor:"pointer"}}
                 onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=C.surface)}
-                onMouseLeave={e=>{e.currentTarget.style.background=isSel?"rgba(191,164,126,0.1)":l.isFavorite?"rgba(251,191,36,0.22)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent";}}>
+                onMouseLeave={e=>{e.currentTarget.style.background=rowBg(l,isSel);}}>
                 <td style={{padding:"8px 10px"}} onClick={e=>toggleOne(l.id,e)}><input type="checkbox" checked={isSel} onChange={()=>{}} onClick={e=>toggleOne(l.id,e)} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></td>
                 <td style={{padding:"8px 10px"}}><span style={{fontSize:10,color:C.accent,fontFamily:"monospace",fontWeight:600}}>{l.leadId||l.id}</span></td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
@@ -1639,8 +1878,12 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const [form,setForm]=useState({...lead});
   const [showSale,setShowSale]=useState(false);
   const [showVisit,setShowVisit]=useState(false);
+  const [showPush,setShowPush]=useState(false);
+  const prevAction=useRef(lead.action||"undefined");
   const set=(k,v)=>setForm(p=>{
     const u={...p,[k]:v};
+    // Действие → Push: спрашиваем дату пуша (аналогично визиту)
+    if(k==="action"&&v==="push"&&p.action!=="push"){prevAction.current=p.action||"undefined";setShowPush(true);}
     if(k==="score"){
       u.qualification=scoreToQual(v);
       const nv=parseInt(v),pv=parseInt(p.score);
@@ -1658,6 +1901,12 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     setForm(updLead);
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l)}),true);
     setShowVisit(false);
+  };
+  const confirmPush=(pDate,pTime)=>{
+    const updLead={...form,action:"push",pushDate:pDate,pushTime:pTime||"12:00",updatedAt:Date.now()};
+    setForm(updLead);
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l)}),true);
+    setShowPush(false);
   };
   const confirmSale=(amt,saleDate)=>{
     let createdAt=new Date().toLocaleDateString("ru-RU");
@@ -1688,7 +1937,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select>:<SrcBadge source={form.source}/>}</div><div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.clientLang}</div>{editing?<div style={{display:"flex",gap:4,marginTop:2}}>{[{v:"pl",flag:"🇵🇱",label:"PL"},{v:"ua",flag:"🇺🇦",label:"UA"},{v:"en",flag:"🇬🇧",label:"EN"}].map(({v,flag,label})=><button key={v} onClick={()=>set("clientLang",v)} style={{fontSize:16,padding:"3px 8px",borderRadius:6,border:`2px solid ${(form.clientLang||"pl")===v?C.accent:"transparent"}`,background:(form.clientLang||"pl")===v?C.accentDim:"transparent",cursor:"pointer",color:C.text,fontSize:11,display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:15}}>{flag}</span>{label}</button>)}</div>:<span style={{fontSize:16}}>{form.clientLang==="ua"?"🇺🇦 UA":form.clientLang==="en"?"🇬🇧 EN":"🇵🇱 PL"}</span>}</div>
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.date}</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
             </div>
-            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}</div>
+            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}{form.action==="push"&&form.pushDate&&<div style={{marginTop:5,fontSize:11,color:dateStateColor(form.pushDate),fontWeight:700}}>🚀 {isoToDot(form.pushDate)}{form.pushTime?` · ${form.pushTime}`:""}</div>}</div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>:form.manager?<div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></div>:<span style={{color:C.dim}}>—</span>}</div>
           </div>
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
@@ -1713,6 +1962,9 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     {showVisit&&<VisitModal lead={form} t={t} initDate={form.visitDate} initTime={form.visitTime}
       onConfirm={confirmVisit}
       onCancel={()=>{setShowVisit(false);setForm(p=>({...p,score:4,qualification:"qualified"}));}}/>}
+    {showPush&&<PushModal lead={form} t={t} initDate={form.pushDate} initTime={form.pushTime}
+      onConfirm={confirmPush}
+      onCancel={()=>{setShowPush(false);setForm(p=>({...p,action:prevAction.current}));}}/>}
     {showSale&&<SaleModal lead={form} t={t} onConfirm={confirmSale} onCancel={()=>{setShowSale(false);setForm(p=>({...p,score:5,qualification:"salon"}));}}/>}
   </>);
 }
@@ -2844,6 +3096,8 @@ function GarnoCRM(){
     t.assignee===currentUser &&
     !(t.seenBy||[]).includes(currentUser)
   ).length;
+  // Пуши, которые надо сделать сегодня (включая просроченные)
+  const pushDueTodayCount = pushDueCount(leads, mgr);
 
   const setLeads      = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}));
   const setLeadsNow   = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}),true);
@@ -2884,7 +3138,7 @@ function GarnoCRM(){
           * {-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
         }
       `}</style>
-      <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr} unreadTasks={unreadTasksCount} t={t}/>
+      <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr} unreadTasks={unreadTasksCount} pushDue={pushDueTodayCount} t={t}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} unreadTasks={unreadTasksCount} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
