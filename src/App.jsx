@@ -435,12 +435,17 @@ function useDatabase(){
       // Ensure qualification is consistent with score
       if(!updated.qualification||updated.qualification==="undefined"){updated={...updated,qualification:scoreToQual(updated.score)};}
       // ── Разовый перевод в «Пропушить» ──────────────────────────
-      // Лиды с оценкой 2–5 и действием «Просчёт» / «Думает» переносятся
+      // Лиды с оценкой 2–5 и действием «Думает» переносятся
       // в push-лист БЕЗ даты — срока у них нет, менеджер проставит её вручную.
       // Флаг pushBackfilled гарантирует, что лид переносится ровно один раз:
       // если менеджер потом вернёт его в «Думает» — миграция его больше не тронет.
-      if(!updated.pushBackfilled&&sc>=2&&sc<=5&&(updated.action==="quote"||updated.action==="thinking")){
+      if(!updated.pushBackfilled&&sc>=2&&sc<=5&&updated.action==="thinking"){
         updated={...updated,pushFrom:updated.action,action:"push",pushDate:null,pushTime:null,pushBackfilled:true};
+      }
+      // Откат: лиды с действием «Просчёт» возвращаются из push обратно.
+      // Самоограничивается: после отката action уже не "push", условие больше не сработает.
+      if(updated.action==="push"&&updated.pushFrom==="quote"){
+        updated={...updated,action:"quote",pushDate:null,pushTime:null,pushFrom:null,pushBackfilled:true};
       }
       return updated;
     });
@@ -660,16 +665,20 @@ function useDatabase(){
           try{await sbWrite(data);}catch(e){console.error("First write failed:",e);}
         } else {
           const pushBefore=(remote.leads||[]).filter(l=>l.pushBackfilled).length;
+          const rolledBack=(remote.leads||[]).filter(l=>l.action==="push"&&l.pushFrom==="quote").length;
           data=migrateData(remote);
           const hadBackup=backup&&backup.leads&&backup.leads.length>0;
           // Мёрджим с локальным backup если есть несохранённые изменения
           if(hadBackup){data=migrateData(mergeData(backup,data));}
           const movedToPush=(data.leads||[]).filter(l=>l.pushBackfilled).length-pushBefore;
-          if(hadBackup||movedToPush>0){
+          if(hadBackup||movedToPush>0||rolledBack>0){
             try{await sbWrite(data);localStorage.removeItem(LS_BACKUP);}catch{}
           }
-          if(movedToPush>0){
-            setSyncError(`✅ Перенесено в «Пропушить» / Przeniesiono do push: ${movedToPush}`);
+          const msgs=[];
+          if(movedToPush>0)msgs.push(`в «Пропушить»: ${movedToPush}`);
+          if(rolledBack>0)msgs.push(`возвращено в «Просчёт»: ${rolledBack}`);
+          if(msgs.length){
+            setSyncError("✅ "+msgs.join("  ·  "));
             setTimeout(()=>setSyncError(""),7000);
           }
         }
