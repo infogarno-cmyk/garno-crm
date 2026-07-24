@@ -187,6 +187,17 @@ const T = {
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const MANAGERS = ["Oleh","Dmytro","Mateusz","Danya"];
 const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Mateusz:C.purple,Danya:C.cyan};
+// Лидер продаж — обновляется в GarnoCRM на каждом рендере (как тема C).
+// Аватар этого менеджера получает медаль везде, где он отрисован.
+let SALES_LEADER = null;
+function computeSalesLeader(sales){
+  if(!sales||!sales.length)return null;
+  const rev={};
+  sales.forEach(s=>{if(s.manager)rev[s.manager]=(rev[s.manager]||0)+(parseInt(s.saleAmount)||0);});
+  let best=null,max=0;
+  Object.keys(rev).forEach(m=>{if(rev[m]>max){max=rev[m];best=m;}});
+  return max>0?best:null;
+}
 function scoreToQual(s){const n=parseInt(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===5)return"salon";return"sale";}
 const QUALS=["unqualified","prequalified","qualified","salon","sale"];
 const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,salon:C.blue,sale:C.accent};
@@ -765,6 +776,43 @@ function useDatabase(){
   return{db,status,syncLabel,syncError,refresh,updateDb,setDomains,domainsState};
 }
 
+// ─── AI REMINDERS ──────────────────────────────────────────────
+// Падают в чат AI-ассистента:
+//   • за сутки до визита — связаться и подтвердить
+//   • в 15:00 в день срока пуша — кого ещё надо пропушить сегодня
+// Каждое напоминание имеет ключ и отправляется ровно один раз (db.sentReminders).
+function buildReminders(db,lang){
+  const ru=lang!=="pl";
+  const today=getToday();
+  const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const sent=new Set(db.sentReminders||[]);
+  const out=[];
+
+  // 1. Завтрашние визиты — отдельное напоминание на каждый
+  leadsWithVisits(db.leads).filter(l=>l.visitDate===tomorrow).forEach(l=>{
+    const key=`v:${l.leadId||l.id}:${l.visitDate}`;
+    if(sent.has(key))return;
+    out.push({key,content: ru
+      ? `📅 Завтра визит — нужно подтвердить\n\n👤 ${l.name||"—"}\n📞 ${l.phone}\n🕐 ${l.visitTime||"время не указано"} · ${isoToDot(l.visitDate)}\n🧑 Менеджер: ${l.manager||"—"}\n\n→ Свяжитесь с клиентом и подтвердите визит.`
+      : `📅 Jutro wizyta — trzeba potwierdzić\n\n👤 ${l.name||"—"}\n📞 ${l.phone}\n🕐 ${l.visitTime||"brak godziny"} · ${isoToDot(l.visitDate)}\n🧑 Menedżer: ${l.manager||"—"}\n\n→ Skontaktuj się z klientem i potwierdź wizytę.`});
+  });
+
+  // 2. Пуши на сегодня — одно сводное сообщение в 15:00
+  if(new Date().getHours()>=15){
+    const key=`p:${today}`;
+    if(!sent.has(key)){
+      const due=leadsToPush(db.leads).filter(l=>l.pushDate===today);
+      if(due.length){
+        const lines=due.map(l=>`• ${l.name||"—"} · ${l.phone} · ${l.manager||"—"}`).join("\n");
+        out.push({key,content: ru
+          ? `🚀 15:00 — пора пушить!\n\nНа сегодня (${isoToDot(today)}) в «Пропушить»: ${due.length}\n\n${lines}\n\n→ Свяжитесь с клиентами.`
+          : `🚀 15:00 — czas na push!\n\nNa dziś (${isoToDot(today)}) w «Do pushu»: ${due.length}\n\n${lines}\n\n→ Skontaktuj się z klientami.`});
+      }
+    }
+  }
+  return out;
+}
+
 // ─── UI ATOMS ─────────────────────────────────────────────────────────────────
 function Badge({label,color=C.blue,small,action}){
   const isQuote=action==="quote";
@@ -781,7 +829,19 @@ function Badge({label,color=C.blue,small,action}){
     </span>
   );
 }
-function Avatar({name,color,size=32}){const ini=(name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();return <div style={{width:size,height:size,borderRadius:"50%",background:color?`${color}25`:C.accentDim,border:`1.5px solid ${color||C.accent}50`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:color||C.accent,flexShrink:0}}>{ini}</div>;}
+function Avatar({name,color,size=32,noMedal}){
+  const ini=(name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+  const av=<div style={{width:size,height:size,borderRadius:"50%",background:color?`${color}25`:C.accentDim,border:`1.5px solid ${color||C.accent}50`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:color||C.accent,flexShrink:0}}>{ini}</div>;
+  const isLeader=!noMedal&&name&&name===SALES_LEADER;
+  if(!isLeader)return av;
+  return(
+    <div title="MOLODEC" style={{position:"relative",width:size,height:size,flexShrink:0}}>
+      {av}
+      <div style={{position:"absolute",bottom:-4,left:"50%",transform:"translateX(-50%)",fontSize:Math.max(10,size*0.42),lineHeight:1,filter:"drop-shadow(0 1px 2px rgba(0,0,0,0.65))",pointerEvents:"none"}}>🏅</div>
+      {size>=40&&<div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",marginTop:6,fontSize:9,fontWeight:900,color:"#fbbf24",letterSpacing:1,whiteSpace:"nowrap",textShadow:"0 1px 3px rgba(0,0,0,0.7)",pointerEvents:"none"}}>MOLODEC</div>}
+    </div>
+  );
+}
 function Dot({color}){return <span style={{width:7,height:7,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>;}
 function SrcBadge({source,color}){const c=color||SRC_COLOR[source]||C.muted;return <span style={{fontSize:9,color:c,background:`${c}20`,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",display:"inline-block"}}>{srcShort(source)}</span>;}
 function ScoreBar({score}){const s=parseInt(score)||0;const c=s<=2?C.red:s===3?C.yellow:s===4?C.green:s===5?C.blue:C.accent;return <div style={{display:"flex",gap:2,alignItems:"center"}}>{Array.from({length:7}).map((_,i)=><div key={i} style={{width:7,height:7,borderRadius:2,background:i<=s?c:"rgba(255,255,255,0.12)"}}/>)}<span style={{fontSize:10,color:c,marginLeft:2,fontWeight:700}}>{s}</span></div>;}
@@ -1953,7 +2013,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:"16px 16px 0 0",border:`1px solid ${C.border}`,width:"100%",maxWidth:820,maxHeight:"90vh",overflow:"auto",padding:22}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44}/><div><div style={{fontSize:16,fontWeight:700,color:C.text}}>{lead.name||lead.phone}</div><div style={{fontSize:11,color:C.muted}}>ID: <b style={{color:C.accent,fontFamily:"monospace"}}>{lead.leadId||lead.id}</b> · {lead.phone}</div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
+          <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44} noMedal/><div><div style={{fontSize:16,fontWeight:700,color:C.text}}>{lead.name||lead.phone}</div><div style={{fontSize:11,color:C.muted}}>ID: <b style={{color:C.accent,fontFamily:"monospace"}}>{lead.leadId||lead.id}</b> · {lead.phone}</div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
           <div style={{display:"flex",gap:8}}>{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(false);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}<Btn onClick={onClose} variant="ghost" small>✕</Btn></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
@@ -3030,7 +3090,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t}/></div>
       <div style={{display:"grid",gridTemplateColumns:`1fr repeat(${MANAGERS.length},1fr)`,gap:10}}>
         <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:12,padding:"14px 16px"}}><div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{lang==="ru"?"Общая выручка":"Łączny przychód"}</div><div style={{fontSize:22,fontWeight:800,color:C.accent}}>{fmtM(totalRev)}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{fs.length} {t.many}</div></div>
-        {mRev.map(m=>(<div key={m.name} style={{background:C.card,border:`1px solid ${MGR_COLOR[m.name]}33`,borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><Avatar name={m.name} color={MGR_COLOR[m.name]} size={22}/><span style={{fontSize:11,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</span></div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m.name]}}>{fmtM(m.rev)}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{m.count} {t.many}</div></div>))}
+        {mRev.map(m=>(<div key={m.name} style={{background:C.card,border:`1px solid ${MGR_COLOR[m.name]}33`,borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><Avatar name={m.name} color={MGR_COLOR[m.name]} size={22}/><span style={{fontSize:11,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</span>{m.name===SALES_LEADER&&<span style={{marginLeft:"auto",fontSize:9,fontWeight:900,color:"#fbbf24",background:"rgba(251,191,36,0.15)",border:"1px solid rgba(251,191,36,0.5)",borderRadius:8,padding:"1px 7px",letterSpacing:0.5,whiteSpace:"nowrap"}}>🏅 MOLODEC</span>}</div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m.name]}}>{fmtM(m.rev)}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{m.count} {t.many}</div></div>))}
       </div>
       {fs.length===0?<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:40,textAlign:"center",color:C.muted}}><div style={{fontSize:32,marginBottom:10}}>★</div><div>{lang==="ru"?"{t.salesAppear}":"Sprzedaże pojawią się przy ocenie 6"}</div></div>:
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
@@ -3044,7 +3104,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang}){
             ):(
               <button onClick={()=>setConfirmId(s.id)} style={{position:"absolute",top:10,right:10,background:"rgba(248,113,113,0.15)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 8px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
             )}
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34}}><Avatar name={s.name||s.phone} color={C.accent} size={36}/><div><div style={{fontSize:13,color:C.text,fontWeight:700}}>{s.name||s.phone}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div><div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34}}><Avatar name={s.name||s.phone} color={C.accent} size={36} noMedal/><div><div style={{fontSize:13,color:C.text,fontWeight:700}}>{s.name||s.phone}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div><div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><SrcBadge source={s.source}/>{s.manager&&<div style={{display:"flex",alignItems:"center",gap:4}}><Avatar name={s.manager} color={MGR_COLOR[s.manager]} size={14}/><span style={{fontSize:10,color:MGR_COLOR[s.manager]}}>{s.manager}</span></div>}</div>{s.notes&&<div style={{fontSize:10,color:C.muted,marginTop:8,lineHeight:1.5}}>{s.notes}</div>}
           </div>))}
         </div>}
@@ -3071,6 +3131,32 @@ function GarnoCRM(){
 
   // Apply theme globally
   C = theme==="light" ? LIGHT : DARK; syncColorMaps();
+  // Лидер продаж — медаль MOLODEC на его аватаре во всём приложении
+  SALES_LEADER = computeSalesLeader(db?.sales);
+
+  // ── Планировщик напоминаний AI ──────────────────────────────────────────
+  const dbRef=useRef(db);      dbRef.current=db;
+  const updRef=useRef(updateDb); updRef.current=updateDb;
+  const langRef=useRef(lang);  langRef.current=lang;
+  useEffect(()=>{
+    const run=()=>{
+      const cur=dbRef.current;
+      if(!cur||!cur.leads)return;
+      const rems=buildReminders(cur,langRef.current);
+      if(!rems.length)return;
+      // Чистим ключи старше 60 дней, чтобы список не рос бесконечно
+      const cutoff=new Date(Date.now()-60*86400000).toISOString().slice(0,10);
+      updRef.current(prev=>({
+        ...prev,
+        chat:[...(prev.chat||[]),...rems.map(r=>({role:"assistant",content:r.content}))],
+        sentReminders:[...new Set([...(prev.sentReminders||[]),...rems.map(r=>r.key)])]
+          .filter(k=>{const m=String(k).match(/(\d{4}-\d{2}-\d{2})/);return !m||m[1]>=cutoff;}),
+      }),true);
+    };
+    const t0=setTimeout(run,4000);          // после первой загрузки
+    const id=setInterval(run,5*60*1000);    // и раз в 5 минут
+    return()=>{clearTimeout(t0);clearInterval(id);};
+  },[]);
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);localStorage.setItem("garno_theme",t);};
   const t=T[lang];
 
