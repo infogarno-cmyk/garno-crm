@@ -192,11 +192,51 @@ const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Mateusz:C.purple,Danya:C.cyan};
 let SALES_LEADER = null;
 function computeSalesLeader(sales){
   if(!sales||!sales.length)return null;
+  // Считаем суммарную выручку ЗА ПРОШЛЫЙ МЕСЯЦ
+  const now=new Date();
+  const pm=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const y=pm.getFullYear(), mo=pm.getMonth();
   const rev={};
-  sales.forEach(s=>{if(s.manager)rev[s.manager]=(rev[s.manager]||0)+(parseInt(s.saleAmount)||0);});
+  sales.forEach(s=>{
+    const d=parseCreatedAt(s.createdAt);
+    if(!d||d.getFullYear()!==y||d.getMonth()!==mo)return;
+    if(s.manager)rev[s.manager]=(rev[s.manager]||0)+(parseInt(s.saleAmount)||0);
+  });
   let best=null,max=0;
   Object.keys(rev).forEach(m=>{if(rev[m]>max){max=rev[m];best=m;}});
   return max>0?best:null;
+}
+
+// Золотой лавровый венок — обрамляет аватар, ничего не перекрывая
+function GoldWreath({size}){
+  const G="#f0c040", G2="#b8860b";
+  const cx=50, cy=53, R=37;
+  const pt=(a)=>[cx+R*Math.cos(a*Math.PI/180), cy+R*Math.sin(a*Math.PI/180)];
+  const leaves=[];
+  const build=(from,to,tag)=>{
+    const n=8;
+    for(let i=0;i<n;i++){
+      const t=i/(n-1);
+      const a=from+(to-from)*t;
+      const [x,y]=pt(a);
+      const len=10-Math.abs(t-0.45)*6;
+      leaves.push(<ellipse key={tag+i} cx={x} cy={y} rx={len} ry={3.3}
+        transform={`rotate(${a+90} ${x} ${y})`} fill={G}/>);
+    }
+  };
+  build(110,238,"L");
+  build(70,-58,"R");
+  const [lx,ly]=pt(238), [rx2,ry2]=pt(-58);
+  const [blx,bly]=pt(110), [brx,bry]=pt(70);
+  return(
+    <svg viewBox="0 0 100 100" width={size} height={size}
+      style={{position:"absolute",top:0,left:0,pointerEvents:"none",overflow:"visible"}}>
+      <path d={`M${blx} ${bly} A ${R} ${R} 0 0 1 ${lx} ${ly}`} fill="none" stroke={G2} strokeWidth="2.2" strokeLinecap="round"/>
+      <path d={`M${brx} ${bry} A ${R} ${R} 0 0 0 ${rx2} ${ry2}`} fill="none" stroke={G2} strokeWidth="2.2" strokeLinecap="round"/>
+      {leaves}
+      <circle cx={cx} cy={cy+R+1.5} r="3.4" fill={G} stroke={G2} strokeWidth="1"/>
+    </svg>
+  );
 }
 function scoreToQual(s){const n=parseInt(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===5)return"salon";return"sale";}
 const QUALS=["unqualified","prequalified","qualified","salon","sale"];
@@ -834,11 +874,12 @@ function Avatar({name,color,size=32,noMedal}){
   const av=<div style={{width:size,height:size,borderRadius:"50%",background:color?`${color}25`:C.accentDim,border:`1.5px solid ${color||C.accent}50`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:color||C.accent,flexShrink:0}}>{ini}</div>;
   const isLeader=!noMedal&&name&&name===SALES_LEADER;
   if(!isLeader)return av;
+  // Венок занимает место в потоке — соседние элементы раздвигаются сами
+  const box=Math.round(size*1.55);
   return(
-    <div title="MOLODEC" style={{position:"relative",width:size,height:size,flexShrink:0}}>
+    <div title="MOLODEC" style={{position:"relative",width:box,height:box,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <GoldWreath size={box}/>
       {av}
-      <div style={{position:"absolute",bottom:-4,left:"50%",transform:"translateX(-50%)",fontSize:Math.max(10,size*0.42),lineHeight:1,filter:"drop-shadow(0 1px 2px rgba(0,0,0,0.65))",pointerEvents:"none"}}>🏅</div>
-      {size>=40&&<div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",marginTop:6,fontSize:9,fontWeight:900,color:"#fbbf24",letterSpacing:1,whiteSpace:"nowrap",textShadow:"0 1px 3px rgba(0,0,0,0.7)",pointerEvents:"none"}}>MOLODEC</div>}
     </div>
   );
 }
@@ -2295,7 +2336,7 @@ function AnalyticsPage({leads,sales,srcList,setDomains,t,lang}){
       </div>
       <div style={{background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:12,padding:16}}>
         <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>{t.podium}</div>
-        <div style={{display:"flex",gap:20,alignItems:"flex-end",justifyContent:"center"}}>{podium.map((m,i)=>{const h=[120,90,70][i]||60;return(<div key={m.name} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}><div style={{fontSize:22}}>{medals[i]||"🏅"}</div><Avatar name={m.name} color={MGR_COLOR[m.name]} size={44}/><div style={{fontSize:13,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</div><div style={{fontSize:11,color:C.accent,fontWeight:700}}>{fmtM(m.salesRev)}</div><div style={{width:80,background:MGR_COLOR[m.name],borderRadius:"6px 6px 0 0",height:h,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:8}}><span style={{color:"rgba(255,255,255,0.9)",fontSize:16,fontWeight:900}}>{i+1}</span></div></div>);})}
+        <div style={{display:"flex",gap:20,alignItems:"flex-end",justifyContent:"center"}}>{podium.map((m,i)=>{const h=[120,90,70][i]||60;return(<div key={m.name} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}><div style={{fontSize:22}}>{medals[i]||"🏅"}</div><Avatar name={m.name} color={MGR_COLOR[m.name]} size={44}/><div style={{fontSize:13,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</div>{m.name===SALES_LEADER&&<div style={{fontSize:9,fontWeight:900,color:"#f0c040",letterSpacing:1.2,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.45)",borderRadius:20,padding:"2px 10px",whiteSpace:"nowrap"}}>MOLODEC</div>}<div style={{fontSize:11,color:C.accent,fontWeight:700}}>{fmtM(m.salesRev)}</div><div style={{width:80,background:MGR_COLOR[m.name],borderRadius:"6px 6px 0 0",height:h,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:8}}><span style={{color:"rgba(255,255,255,0.9)",fontSize:16,fontWeight:900}}>{i+1}</span></div></div>);})}
         </div>
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
@@ -3090,7 +3131,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t}/></div>
       <div style={{display:"grid",gridTemplateColumns:`1fr repeat(${MANAGERS.length},1fr)`,gap:10}}>
         <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:12,padding:"14px 16px"}}><div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{lang==="ru"?"Общая выручка":"Łączny przychód"}</div><div style={{fontSize:22,fontWeight:800,color:C.accent}}>{fmtM(totalRev)}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{fs.length} {t.many}</div></div>
-        {mRev.map(m=>(<div key={m.name} style={{background:C.card,border:`1px solid ${MGR_COLOR[m.name]}33`,borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><Avatar name={m.name} color={MGR_COLOR[m.name]} size={22}/><span style={{fontSize:11,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</span>{m.name===SALES_LEADER&&<span style={{marginLeft:"auto",fontSize:9,fontWeight:900,color:"#fbbf24",background:"rgba(251,191,36,0.15)",border:"1px solid rgba(251,191,36,0.5)",borderRadius:8,padding:"1px 7px",letterSpacing:0.5,whiteSpace:"nowrap"}}>🏅 MOLODEC</span>}</div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m.name]}}>{fmtM(m.rev)}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{m.count} {t.many}</div></div>))}
+        {mRev.map(m=>(<div key={m.name} style={{background:C.card,border:`1px solid ${MGR_COLOR[m.name]}33`,borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><Avatar name={m.name} color={MGR_COLOR[m.name]} size={22}/><span style={{fontSize:11,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</span>{m.name===SALES_LEADER&&<span style={{marginLeft:"auto",fontSize:9,fontWeight:900,color:"#f0c040",background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.45)",borderRadius:8,padding:"1px 7px",letterSpacing:0.5,whiteSpace:"nowrap"}}>MOLODEC</span>}</div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m.name]}}>{fmtM(m.rev)}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{m.count} {t.many}</div></div>))}
       </div>
       {fs.length===0?<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:40,textAlign:"center",color:C.muted}}><div style={{fontSize:32,marginBottom:10}}>★</div><div>{lang==="ru"?"{t.salesAppear}":"Sprzedaże pojawią się przy ocenie 6"}</div></div>:
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
