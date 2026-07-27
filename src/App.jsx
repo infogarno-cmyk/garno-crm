@@ -89,6 +89,10 @@ const T = {
     noPush:"Пушей пока нет",editPush:"Редактировать пуш",removePush:"Убрать из пушей",pushOverdue:"Просрочено",
     upcomingVisits:"Ближайшие визиты",noUpcomingVisits:"Ближайших визитов нет",sortPush:"По дате пуша",sortCreated:"По дате добавления",
     pushSetDate:"назначить дату",pushNoDate:"без срока",pushFromLabel:"было",
+    remVisitTitle:"Завтра визит — нужно подтвердить",remVisitCta:"Свяжитесь с клиентом и подтвердите визит.",remNoTime:"время не указано",
+    remPushTitle:"15:00 — пора пушить!",remPushLine:"На сегодня ({date}) в «Пропушить»: {n}",remPushCta:"Свяжитесь с клиентами.",
+    remQuoteTitle:"Просчёт висит больше суток",remQuoteFor:"в просчёте уже",remQuoteHrs:"ч",remQuoteCta:"Свяжитесь с клиентом или смените действие.",
+    ackBtn:"Принять",ackedBy:"Принято",aiUnread:"непринятых уведомлений",
     todaySection:"Сегодня",noToday:"Нет задач на сегодня",
     saleSectionTitle:"Все продажи",description:"Описание",
     deleteSelected:"Удалить выбранные",
@@ -153,6 +157,10 @@ const T = {
     noPush:"Brak pushy",editPush:"Edytuj push",removePush:"Usuń z pushy",pushOverdue:"Zaległe",
     upcomingVisits:"Nadchodzące wizyty",noUpcomingVisits:"Brak nadchodzących wizyt",sortPush:"Wg daty pushu",sortCreated:"Wg daty dodania",
     pushSetDate:"ustaw datę",pushNoDate:"bez terminu",pushFromLabel:"było",
+    remVisitTitle:"Jutro wizyta — trzeba potwierdzić",remVisitCta:"Skontaktuj się z klientem i potwierdź wizytę.",remNoTime:"brak godziny",
+    remPushTitle:"15:00 — czas na push!",remPushLine:"Na dziś ({date}) w «Do pushu»: {n}",remPushCta:"Skontaktuj się z klientami.",
+    remQuoteTitle:"Wycena wisi ponad dobę",remQuoteFor:"w wycenie już",remQuoteHrs:"godz.",remQuoteCta:"Skontaktuj się z klientem lub zmień działanie.",
+    ackBtn:"Przyjęte",ackedBy:"Przyjęte",aiUnread:"nieprzyjętych powiadomień",
     todaySection:"Dzisiaj",noToday:"Brak zadań na dzisiaj",
     saleSectionTitle:"Wszystkie sprzedaże",description:"Opis",
     deleteSelected:"Usuń wybrane",
@@ -498,6 +506,11 @@ function useDatabase(){
       if(updated.action==="push"&&updated.pushFrom==="quote"){
         updated={...updated,action:"quote",pushDate:null,pushTime:null,pushFrom:null,pushBackfilled:true};
       }
+      // Бэкфилл quoteSince для существующих «Просчётов» (от updatedAt/createdAt)
+      if(updated.action==="quote"&&!updated.quoteSince){
+        const c=parseCreatedAt(updated.createdAt);
+        updated={...updated,quoteSince:updated.updatedAt||(c?c.getTime():Date.now())};
+      }
       return updated;
     });
     const changed=leads.some((l,i)=>l!==data.leads[i]);
@@ -821,20 +834,17 @@ function useDatabase(){
 //   • за сутки до визита — связаться и подтвердить
 //   • в 15:00 в день срока пуша — кого ещё надо пропушить сегодня
 // Каждое напоминание имеет ключ и отправляется ровно один раз (db.sentReminders).
-function buildReminders(db,lang){
-  const ru=lang!=="pl";
+function buildReminders(db){
   const today=getToday();
   const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
   const sent=new Set(db.sentReminders||[]);
   const out=[];
 
-  // 1. Завтрашние визиты — отдельное напоминание на каждый
+  // 1. Визиты завтра — по одному напоминанию на клиента
   leadsWithVisits(db.leads).filter(l=>l.visitDate===tomorrow).forEach(l=>{
     const key=`v:${l.leadId||l.id}:${l.visitDate}`;
     if(sent.has(key))return;
-    out.push({key,content: ru
-      ? `📅 Завтра визит — нужно подтвердить\n\n👤 ${l.name||"—"}\n📞 ${l.phone}\n🕐 ${l.visitTime||"время не указано"} · ${isoToDot(l.visitDate)}\n🧑 Менеджер: ${l.manager||"—"}\n\n→ Свяжитесь с клиентом и подтвердите визит.`
-      : `📅 Jutro wizyta — trzeba potwierdzić\n\n👤 ${l.name||"—"}\n📞 ${l.phone}\n🕐 ${l.visitTime||"brak godziny"} · ${isoToDot(l.visitDate)}\n🧑 Menedżer: ${l.manager||"—"}\n\n→ Skontaktuj się z klientem i potwierdź wizytę.`});
+    out.push({key,rtype:"visit",data:{name:l.name||"",phone:l.phone||"",time:l.visitTime||"",date:l.visitDate,mgr:l.manager||""}});
   });
 
   // 2. Пуши на сегодня — одно сводное сообщение в 15:00
@@ -843,14 +853,59 @@ function buildReminders(db,lang){
     if(!sent.has(key)){
       const due=leadsToPush(db.leads).filter(l=>l.pushDate===today);
       if(due.length){
-        const lines=due.map(l=>`• ${l.name||"—"} · ${l.phone} · ${l.manager||"—"}`).join("\n");
-        out.push({key,content: ru
-          ? `🚀 15:00 — пора пушить!\n\nНа сегодня (${isoToDot(today)}) в «Пропушить»: ${due.length}\n\n${lines}\n\n→ Свяжитесь с клиентами.`
-          : `🚀 15:00 — czas na push!\n\nNa dziś (${isoToDot(today)}) w «Do pushu»: ${due.length}\n\n${lines}\n\n→ Skontaktuj się z klientami.`});
+        out.push({key,rtype:"push",data:{date:today,items:due.map(l=>({name:l.name||"",phone:l.phone||"",mgr:l.manager||""}))}});
       }
     }
   }
+
+  // 3. Wycena (Просчёт) висит > 24 часов — напоминать раз в день, пока действие не сменят
+  const DAY=86400000;
+  (db.leads||[]).filter(l=>l.action==="quote").forEach(l=>{
+    const since=l.quoteSince||0;
+    if(!since||(Date.now()-since)<DAY)return;
+    const key=`q:${l.leadId||l.id}:${today}`;
+    if(sent.has(key))return;
+    const hours=Math.floor((Date.now()-since)/3600000);
+    out.push({key,rtype:"quote",data:{name:l.name||"",phone:l.phone||"",mgr:l.manager||"",hours}});
+  });
+
   return out;
+}
+
+// Локализованный текст напоминания — рендерится под текущий язык CRM
+function formatReminder(m,t){
+  const d=m.data||{};
+  if(m.rtype==="visit"){
+    return `📅 ${t.remVisitTitle}
+
+👤 ${d.name||"—"}
+📞 ${d.phone}
+🕐 ${d.time||t.remNoTime} · ${isoToDot(d.date)}
+🧑 ${t.manager}: ${d.mgr||"—"}
+
+→ ${t.remVisitCta}`;
+  }
+  if(m.rtype==="push"){
+    const lines=(d.items||[]).map(x=>`• ${x.name||"—"} · ${x.phone} · ${x.mgr||"—"}`).join("\n");
+    return `🚀 ${t.remPushTitle}
+
+${t.remPushLine.replace("{date}",isoToDot(d.date)).replace("{n}",(d.items||[]).length)}
+
+${lines}
+
+→ ${t.remPushCta}`;
+  }
+  if(m.rtype==="quote"){
+    return `💰 ${t.remQuoteTitle}
+
+👤 ${d.name||"—"}
+📞 ${d.phone}
+🧑 ${t.manager}: ${d.mgr||"—"}
+⏱ ${t.remQuoteFor} ${d.hours} ${t.remQuoteHrs}
+
+→ ${t.remQuoteCta}`;
+  }
+  return m.content||"";
 }
 
 // ─── UI ATOMS ─────────────────────────────────────────────────────────────────
@@ -1446,7 +1501,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"ai",icon:"◆",ru:"AI Ассистент",pl:"Asystent AI"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"}];
-function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,t}){
+function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,aiUnread=0,t}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
       <div style={{padding:"14px 10px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
@@ -1454,7 +1509,7 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0
         {!collapsed&&<span style={{color:C.accent,fontWeight:900,fontSize:14,letterSpacing:1.5}}>GARNO<span style={{color:"#fff"}}>CRM</span></span>}
       </div>
       <nav style={{flex:1,padding:"8px 6px",display:"flex",flexDirection:"column",gap:2,overflowY:"auto",overflowX:"hidden"}}>
-        {NAV.map(item=>{const active=page===item.key;return(<button key={item.key} onClick={()=>setPage(item.key)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:active?700:500,borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent"}}><span style={{fontSize:14,flexShrink:0}}>{item.icon}</span>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}{item.key==="leads"&&pushDue>0?<span title={t.pushToday} style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {pushDue}</span>:null}</span>}</button>);})}
+        {NAV.map(item=>{const active=page===item.key;return(<button key={item.key} onClick={()=>setPage(item.key)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:active?700:500,borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent"}}><span style={{fontSize:14,flexShrink:0}}>{item.icon}</span>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}{item.key==="leads"&&pushDue>0?<span title={t.pushToday} style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {pushDue}</span>:null}{item.key==="ai"&&aiUnread>0?<span title={t.aiUnread} style={{display:"inline-flex",alignItems:"center",gap:2,background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {aiUnread}</span>:null}</span>}</button>);})}
         {!collapsed&&page==="leads"&&(<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}}>{["all",...MANAGERS].map(m=>(<button key={m} onClick={()=>setMgr(m)} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderRadius:6,border:"none",background:mgr===m?`${MGR_COLOR[m]||C.accent}22`:"transparent",color:mgr===m?(MGR_COLOR[m]||C.accent):C.muted,cursor:"pointer",fontSize:12,fontWeight:mgr===m?600:400,width:"100%",textAlign:"left"}}>{m!=="all"&&<Avatar name={m} color={MGR_COLOR[m]} size={18}/>}{m==="all"?`◉ ${lang==="ru"?"Все":"Wszyscy"}`:m}</button>))}</div>)}
       </nav>
     </div>
@@ -2012,6 +2067,11 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     const u={...p,[k]:v};
     // Действие → Push: спрашиваем дату пуша (аналогично визиту)
     if(k==="action"&&v==="push"&&p.action!=="push"){prevAction.current=p.action||"undefined";setShowPush(true);}
+    // Штамп начала «Просчёта» — от него считаем 24ч для напоминания
+    if(k==="action"){
+      if(v==="quote"&&p.action!=="quote")u.quoteSince=Date.now();
+      if(v!=="quote"&&p.action==="quote")u.quoteSince=null;
+    }
     if(k==="score"){
       u.qualification=scoreToQual(v);
       const nv=parseInt(v),pv=parseInt(p.score);
@@ -2468,7 +2528,8 @@ function localAns(q,leads,events){
   return`GarnoCRM: ${leads.length} лидов | Kwaly: ${leads.filter(l=>l.score>=4).length} | Продаж: ${leads.filter(l=>l.score===6).length} | AI avg: ${leads.length?(leads.reduce((a,l)=>a+l.score,0)/leads.length).toFixed(2):0}`;
 }
 
-function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
+function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory,currentUser}){
+  const ackReminder=(key)=>setChatHistory(p=>p.map(m=>(m.key===key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m));
   const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [apiOk,setApiOk]=useState(true);const [showApiStatus,setShowApiStatus]=useState(false);const [kpData,setKpData]=useState(null);const [showKPWizard,setShowKPWizard]=useState(false);const ref=useRef(null);
   // Memory persisted in chatHistory prefixed entries
   const memory=chatHistory.filter(m=>m.role==="memory").map(m=>m.content);
@@ -2515,7 +2576,24 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
           
         </div>
         <div style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
-          {chatHistory.map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}><div style={{maxWidth:"82%",padding:"10px 14px",background:m.role==="user"?C.accentDim:C.surface,border:`1px solid ${m.role==="user"?C.accentBorder:C.border}`,borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",fontSize:12,color:C.text,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{m.content}</div></div>))}
+          {chatHistory.map((m,i)=>{
+            if(m.kind==="reminder"){
+              const unacked=!m.ackBy;
+              return(
+                <div key={i} style={{display:"flex",justifyContent:"flex-start"}}>
+                  <div style={{maxWidth:"88%",padding:"12px 15px",background:unacked?"rgba(240,192,64,0.09)":C.surface,border:`1px solid ${unacked?"rgba(240,192,64,0.55)":C.border}`,borderRadius:"14px 14px 14px 4px",fontSize:12,color:C.text,lineHeight:1.6,whiteSpace:"pre-wrap",boxShadow:unacked?"0 0 0 3px rgba(240,192,64,0.10)":"none"}}>
+                    {formatReminder(m,t)}
+                    <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
+                      {unacked
+                        ? <button onClick={()=>ackReminder(m.key)} style={{background:C.green,border:"none",color:"#00132f",borderRadius:8,padding:"7px 16px",fontSize:12,fontWeight:800,cursor:"pointer"}}>✓ {t.ackBtn}</button>
+                        : <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11,fontWeight:700,color:C.green}}>✓ {t.ackedBy} · {m.ackBy}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return(<div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}><div style={{maxWidth:"82%",padding:"10px 14px",background:m.role==="user"?C.accentDim:C.surface,border:`1px solid ${m.role==="user"?C.accentBorder:C.border}`,borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",fontSize:12,color:C.text,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{m.content}</div></div>);
+          })}
           {loading&&<div style={{display:"flex",gap:5,padding:"10px 14px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px 14px 14px 4px",width:"fit-content"}}>{[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:C.accent,animation:"pulse 1s infinite",animationDelay:`${i*0.2}s`}}/>)}</div>}
           <div ref={ref}/>
         </div>
@@ -3183,13 +3261,13 @@ function GarnoCRM(){
     const run=()=>{
       const cur=dbRef.current;
       if(!cur||!cur.leads)return;
-      const rems=buildReminders(cur,langRef.current);
+      const rems=buildReminders(cur);
       if(!rems.length)return;
       // Чистим ключи старше 60 дней, чтобы список не рос бесконечно
       const cutoff=new Date(Date.now()-60*86400000).toISOString().slice(0,10);
       updRef.current(prev=>({
         ...prev,
-        chat:[...(prev.chat||[]),...rems.map(r=>({role:"assistant",content:r.content}))],
+        chat:[...(prev.chat||[]),...rems.map(r=>({role:"assistant",kind:"reminder",rtype:r.rtype,key:r.key,data:r.data,ackBy:null,ackAt:null}))],
         sentReminders:[...new Set([...(prev.sentReminders||[]),...rems.map(r=>r.key)])]
           .filter(k=>{const m=String(k).match(/(\d{4}-\d{2}-\d{2})/);return !m||m[1]>=cutoff;}),
       }),true);
@@ -3252,6 +3330,8 @@ function GarnoCRM(){
   ).length;
   // Пуши, которые надо сделать сегодня (включая просроченные)
   const pushDueTodayCount = pushDueCount(leads, mgr);
+  // Непринятые уведомления AI (карточки-напоминания без ackBy)
+  const aiUnreadCount = (db.chat||[]).filter(m=>m.kind==="reminder"&&!m.ackBy).length;
 
   const setLeads      = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}));
   const setLeadsNow   = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}),true);
@@ -3292,7 +3372,7 @@ function GarnoCRM(){
           * {-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
         }
       `}</style>
-      <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr} unreadTasks={unreadTasksCount} pushDue={pushDueTodayCount} t={t}/>
+      <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr} unreadTasks={unreadTasksCount} pushDue={pushDueTodayCount} aiUnread={aiUnreadCount} t={t}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} unreadTasks={unreadTasksCount} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
@@ -3301,7 +3381,7 @@ function GarnoCRM(){
           {page==="leads"      && <LeadsSection leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} srcList={srcList} setDomains={setDomains} t={t} lang={lang}/>}
-          {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory}/>}
+          {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory} currentUser={currentUser}/>}
           {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="tasks"      && <TasksPage tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t}/>}
         </div>
