@@ -50,7 +50,7 @@ const LIGHT = {
 };
 let C = DARK; // mutable — updated by theme
 function syncColorMaps(){
-  MGR_COLOR.Oleh=C.blue;MGR_COLOR.Dmytro=C.green;MGR_COLOR.Mateusz=C.purple;MGR_COLOR.Danya=C.cyan;
+  MGR_COLOR.Oleh=C.blue;MGR_COLOR.Dmytro=C.green;MGR_COLOR.Mateusz=C.purple;MGR_COLOR.Danya=C.cyan;MGR_COLOR.Taras=C.yellow;
   QUAL_COLOR.unqualified=C.red;QUAL_COLOR.prequalified=C.yellow;QUAL_COLOR.qualified=C.green;QUAL_COLOR.salon=C.blue;QUAL_COLOR.sale=C.accent;
   ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;ACT_COLOR.push=PUSH_C;
   BUD_COLOR.withinMonth=C.green;BUD_COLOR.within3m=C.cyan;BUD_COLOR.within6m=C.yellow;BUD_COLOR.year=C.purple;BUD_COLOR.justPrice=C.muted;
@@ -92,7 +92,7 @@ const T = {
     remVisitTitle:"Завтра визит — нужно подтвердить",remVisitCta:"Свяжитесь с клиентом и подтвердите визит.",remNoTime:"время не указано",
     remPushTitle:"15:00 — пора пушить!",remPushLine:"На сегодня ({date}) в «Пропушить»: {n}",remPushCta:"Свяжитесь с клиентами.",
     remQuoteTitle:"Просчёт висит больше суток",remQuoteFor:"в просчёте уже",remQuoteHrs:"ч",remQuoteCta:"Свяжитесь с клиентом или смените действие.",
-    ackBtn:"Принять",ackedBy:"Принято",aiUnread:"непринятых уведомлений",
+    ackBtn:"Принять",ackedBy:"Принято",aiUnread:"непринятых уведомлений",taskFrom:"от",
     todaySection:"Сегодня",noToday:"Нет задач на сегодня",
     saleSectionTitle:"Все продажи",description:"Описание",
     deleteSelected:"Удалить выбранные",
@@ -160,7 +160,7 @@ const T = {
     remVisitTitle:"Jutro wizyta — trzeba potwierdzić",remVisitCta:"Skontaktuj się z klientem i potwierdź wizytę.",remNoTime:"brak godziny",
     remPushTitle:"15:00 — czas na push!",remPushLine:"Na dziś ({date}) w «Do pushu»: {n}",remPushCta:"Skontaktuj się z klientami.",
     remQuoteTitle:"Wycena wisi ponad dobę",remQuoteFor:"w wycenie już",remQuoteHrs:"godz.",remQuoteCta:"Skontaktuj się z klientem lub zmień działanie.",
-    ackBtn:"Przyjęte",ackedBy:"Przyjęte",aiUnread:"nieprzyjętych powiadomień",
+    ackBtn:"Przyjęte",ackedBy:"Przyjęte",aiUnread:"nieprzyjętych powiadomień",taskFrom:"od",
     todaySection:"Dzisiaj",noToday:"Brak zadań na dzisiaj",
     saleSectionTitle:"Wszystkie sprzedaże",description:"Opis",
     deleteSelected:"Usuń wybrane",
@@ -193,8 +193,8 @@ const T = {
 };
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const MANAGERS = ["Oleh","Dmytro","Mateusz","Danya"];
-const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Mateusz:C.purple,Danya:C.cyan};
+const MANAGERS = ["Oleh","Dmytro","Mateusz","Danya","Taras"];
+const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Mateusz:C.purple,Danya:C.cyan,Taras:C.yellow};
 // Лидер продаж — обновляется в GarnoCRM на каждом рендере (как тема C).
 // Аватар этого менеджера получает медаль везде, где он отрисован.
 let SALES_LEADER = null;
@@ -2720,22 +2720,22 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
   const [quickAdd,setQuickAdd]=useState(null);
   const [quickTitle,setQuickTitle]=useState('');
   // Pointer-drag state
-  const [drag,setDrag]=useState(null);       // {id, w, offX, offY}
-  const [pos,setPos]=useState({x:0,y:0});     // cursor pos
+  const [drag,setDrag]=useState(null);       // {id, w, offX, offY, x0, y0}
   const [over,setOver]=useState(null);        // {col, idx}
   const dragRef=useRef(null);
   const boardRef=useRef(null);
+  const ghostRef=useRef(null);               // плавающая карточка двигается императивно (без ререндера)
 
   useEffect(()=>{if(currentUser)setViewUser(currentUser);},[currentUser]);
 
-  useEffect(()=>{
-    if(!currentUser)return;
-    const unseen=tasks.filter(t=>t.assignee===currentUser&&!(t.seenBy||[]).includes(currentUser));
-    if(!unseen.length)return;
-    updateDb(p=>({...p,tasks:tasks.map(t=>
-      t.assignee===currentUser&&!(t.seenBy||[]).includes(currentUser)
+  // Пометить задачу просмотренной — вызывается при ОТКРЫТИИ задачи получателем,
+  // чтобы подсветка «тебе закинули» держалась, пока не откроешь именно это задание.
+  const markSeen=(id)=>{
+    if(!currentUser||currentUser==='all')return;
+    updateDb(prev=>({...prev,tasks:(prev.tasks||[]).map(t=>
+      (t.id===id&&t.assignee===currentUser&&!(t.seenBy||[]).includes(currentUser))
         ?{...t,seenBy:[...(t.seenBy||[]),currentUser]}:t)}),true);
-  },[currentUser]);
+  };
 
   const filtered=viewUser==='all'?tasks:tasks.filter(t=>t.assignee===viewUser);
   const byCol=(col)=>filtered.filter(t=>(t.status||'all')===col).sort((a,b)=>(a.order||0)-(b.order||0));
@@ -2749,15 +2749,31 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
     deletedTaskIds:[...new Set([...(p.deletedTaskIds||[]),...ids])],
   }),true);
 
+  const creator=(currentUser&&currentUser!=='all')?currentUser:null;
   const saveTask=(form,id)=>{
     const now=Date.now();
     if(id){
       if(form._delete){deleteTasks([id]);setModal(null);return;}
-      saveTasks(tasks.map(t=>t.id===id?{...t,...form,updatedAt:now}:t));
+      saveTasks(tasks.map(t=>{
+        if(t.id!==id)return t;
+        const upd={...t,...form,updatedAt:now};
+        const newAsg=form.assignee!==undefined?form.assignee:t.assignee;
+        // Переназначили другому менеджеру → отмечаем «от кого» и сбрасываем просмотр (чтобы получатель увидел как новое)
+        if(creator&&newAsg&&newAsg!==t.assignee&&newAsg!==creator){
+          upd.from=creator;
+          upd.seenBy=[creator];
+        } else if(newAsg===creator){
+          upd.from=null; // вернули себе — ярлык снимаем
+        }
+        return upd;
+      }));
     }else{
       const maxOrd=tasks.length?Math.max(...tasks.map(t=>t.order||0))+10:0;
       const asg=form.assignee||'—';
-      saveTasks([...tasks,{...form,id:now,status:form.status||'all',createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,seenBy:[asg]}]);
+      // Закинул другому → from=создатель, seenBy=создатель (получатель ещё не видел)
+      const from=(creator&&asg!=='—'&&asg!==creator)?creator:null;
+      const seed=creator?[creator]:(asg!=='—'?[asg]:[]);
+      saveTasks([...tasks,{...form,id:now,status:form.status||'all',createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,from,seenBy:seed}]);
     }
     setModal(null);
   };
@@ -2769,7 +2785,10 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
     const ct=tasks.filter(t=>(t.status||'all')===colId);
     const maxOrd=ct.length?Math.max(...ct.map(t=>t.order||0))+10:0;
     const asg=(currentUser&&currentUser!=='all')?currentUser:(viewUser!=='all'?viewUser:'—');
-    saveTasks([...tasks,{id:now,title,status:colId,priority:'MID',assignee:asg,deadline:'',createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,seenBy:[asg]}]);
+    const cr=(currentUser&&currentUser!=='all')?currentUser:null;
+    const from=(cr&&asg!=='—'&&asg!==cr)?cr:null;
+    const seed=cr?[cr]:(asg!=='—'?[asg]:[]);
+    saveTasks([...tasks,{id:now,title,status:colId,priority:'MID',assignee:asg,deadline:'',createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,from,seenBy:seed}]);
     setQuickTitle('');setQuickAdd(null);
   };
 
@@ -2802,10 +2821,11 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
         const dx=e.clientX-p.startX, dy=e.clientY-p.startY;
         if(Math.hypot(dx,dy)<DRAG_THRESHOLD)return;
         p.moved=true;
-        setDrag({id:p.id,w:p.w,h:p.h,offX:p.offX,offY:p.offY,fromCol:p.fromCol});
+        setDrag({id:p.id,w:p.w,h:p.h,offX:p.offX,offY:p.offY,fromCol:p.fromCol,x0:e.clientX-p.offX,y0:e.clientY-p.offY});
         setOver({col:p.fromCol,idx:byCol(p.fromCol).findIndex(t=>t.id===p.id)});
       }
-      setPos({x:e.clientX,y:e.clientY});
+      // Двигаем призрак напрямую через DOM — без setState → без ререндера доски на каждый move (это и убирает мигание)
+      if(ghostRef.current){ghostRef.current.style.left=(e.clientX-p.offX)+'px';ghostRef.current.style.top=(e.clientY-p.offY)+'px';}
       const cols=boardRef.current?.querySelectorAll('[data-col]');
       if(!cols)return;
       for(const colEl of cols){
@@ -2818,7 +2838,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
             const r=cards[i].getBoundingClientRect();
             if(e.clientY<r.top+r.height/2){idx=i;break;}
           }
-          setOver({col:colId,idx});
+          setOver(prev=>(prev&&prev.col===colId&&prev.idx===idx)?prev:{col:colId,idx});
           break;
         }
       }
@@ -2830,7 +2850,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
       if(!p)return;
 
       // No movement → plain click → open the edit modal
-      if(!p.moved){ setModal({task:p.task}); return; }
+      if(!p.moved){ markSeen(p.task.id); setModal({task:p.task}); return; }
 
       // Movement → commit the drop using latest over-target
       setOver(o=>{
@@ -2868,13 +2888,16 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
   const Card=({task,ghost})=>{
     const pc=TASK_PRIO_COLORS[task.priority]||'#aaa';
     const isNew=task.assignee===currentUser&&!(task.seenBy||[]).includes(currentUser);
+    const fromOther=task.from&&task.from!==task.assignee; // задачу закинул другой менеджер
+    const hot=isNew&&fromOther; // «тебе только что закинули» — самая заметная подсветка
     const overdue=task.deadline&&new Date(task.deadline)<new Date()&&(task.status||'all')!=='done';
     return(
       <div data-card={ghost?undefined:task.id}
         onPointerDown={ghost?undefined:e=>onPointerDown(e,task,e.currentTarget)}
         style={{
-          background:isNew?'rgba(239,68,68,0.08)':'rgba(255,255,255,0.04)',
-          border:`1px solid ${isNew?'rgba(239,68,68,0.3)':'rgba(255,255,255,0.09)'}`,
+          background:hot?'rgba(245,158,11,0.12)':isNew?'rgba(239,68,68,0.08)':'rgba(255,255,255,0.04)',
+          border:`1px solid ${hot?'rgba(245,158,11,0.6)':isNew?'rgba(239,68,68,0.3)':'rgba(255,255,255,0.09)'}`,
+          boxShadow:hot?'0 0 0 3px rgba(245,158,11,0.15)':'none',
           borderLeft:`3px solid ${pc}`,borderRadius:8,padding:'10px 12px',
           cursor:drag&&drag.id===task.id?'grabbing':'pointer',marginBottom:6,userSelect:'none',touchAction:'none',
           width:ghost?drag.w:'auto',
@@ -2884,11 +2907,12 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
         }}>
         <div style={{display:'flex',gap:6}}>
           <div style={{fontSize:13,fontWeight:600,color:'#fff',flex:1,lineHeight:1.4}}>{task.title}</div>
-          {isNew&&<span style={{background:'#ef4444',color:'#fff',borderRadius:8,fontSize:9,fontWeight:800,padding:'1px 5px',flexShrink:0,height:'fit-content'}}>NEW</span>}
+          {isNew&&<span style={{background:hot?'#f59e0b':'#ef4444',color:'#fff',borderRadius:8,fontSize:9,fontWeight:800,padding:'1px 5px',flexShrink:0,height:'fit-content'}}>NEW</span>}
         </div>
         <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap',marginTop:6}}>
           <span style={{fontSize:10,fontWeight:700,color:pc,background:`${pc}20`,border:`1px solid ${pc}40`,borderRadius:10,padding:'1px 8px'}}>{task.priority}</span>
           {task.assignee&&task.assignee!=='—'&&<span style={{fontSize:10,color:'rgba(255,255,255,0.45)',background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'1px 8px'}}>{task.assignee}</span>}
+          {fromOther&&<span title={`${t.taskFrom} ${task.from}`} style={{fontSize:10,fontWeight:700,color:'#f59e0b',background:'rgba(245,158,11,0.12)',border:'1px solid rgba(245,158,11,0.4)',borderRadius:10,padding:'1px 8px'}}>← {t.taskFrom} {task.from}</span>}
           {task.deadline&&<span style={{fontSize:10,color:overdue?'#ef4444':'rgba(255,255,255,0.3)',marginLeft:'auto'}}>{overdue?'⚠️':'📅'} {task.deadline.split('-').reverse().join('.')}</span>}
         </div>
       </div>
@@ -2928,8 +2952,8 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
 
       {/* Floating drag ghost */}
       {draggedTask&&(
-        <div style={{position:'fixed',left:pos.x-drag.offX,top:pos.y-drag.offY,zIndex:9998,width:drag.w,pointerEvents:'none'}}>
-          <Card task={draggedTask} ghost={true}/>
+        <div ref={ghostRef} style={{position:'fixed',left:drag.x0,top:drag.y0,zIndex:9998,width:drag.w,pointerEvents:'none'}}>
+          {Card({task:draggedTask,ghost:true})}
         </div>
       )}
 
@@ -2964,14 +2988,14 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
               <div style={{overflowY:'auto',flex:1,minHeight:60}}>
                 {visible.map((task,i)=>(
                   <div key={task.id}>
-                    {isOver&&over.idx===i&&<Placeholder/>}
-                    <Card task={task}/>
+                    {isOver&&over.idx===i&&Placeholder()}
+                    {Card({task})}
                   </div>
                 ))}
-                {isOver&&over.idx>=visible.length&&<Placeholder/>}
+                {isOver&&over.idx>=visible.length&&Placeholder()}
                 {visible.length===0&&!isOver&&<div style={{minHeight:60,display:'flex',alignItems:'center',justifyContent:'center',color:'rgba(255,255,255,0.15)',fontSize:11}}>{t.dblClickCreate}</div>}
               </div>
-              {quickAdd===col.id?<QuickForm colId={col.id}/>:<AddBtn colId={col.id}/>}
+              {quickAdd===col.id?QuickForm({colId:col.id}):AddBtn({colId:col.id})}
             </div>
           );
         })}
