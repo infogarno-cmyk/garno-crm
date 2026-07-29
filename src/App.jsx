@@ -427,6 +427,54 @@ async function sbWrite(data){
   });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
 }
+// ── OPTIMISTIC CONCURRENCY (compare-and-swap) ─────────────────────────────
+// Читаем данные ВМЕСТЕ с версией строки (updated_at). Записываем только если
+// версия в базе не изменилась с момента чтения. Если кто-то записал раньше —
+// база вернёт 0 строк, и вызывающий перечитает + перемёржит. Так параллельные
+// сохранения НЕ МОГУТ затирать друг друга (это и была причина пропажи лидов).
+async function sbReadV(){
+  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&select=data,updated_at`,{headers:SB_HDR,cache:"no-store"});
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  const j=await r.json();
+  if(!j||j.length===0)throw new Error("empty");
+  return {data:j[0].data, ver:j[0].updated_at};
+}
+// Возвращает true при успехе, false при конфликте версий (кто-то записал первым).
+async function sbWriteCAS(data, ver){
+  const now=new Date().toISOString();
+  if(!ver){
+    // Версия неизвестна (пустая строка) — затирать нечего, обычная запись.
+    const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1`,{
+      method:"PATCH",headers:{...SB_HDR,"Prefer":"return=minimal"},
+      body:JSON.stringify({data,updated_at:now})
+    });
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    return true;
+  }
+  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&updated_at=eq.${encodeURIComponent(ver)}`,{
+    method:"PATCH",headers:{...SB_HDR,"Prefer":"return=representation"},
+    body:JSON.stringify({data,updated_at:now})
+  });
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  const j=await r.json().catch(()=>[]);
+  return Array.isArray(j)&&j.length>0; // 0 строк → версия сменилась → конфликт
+}
+// Безопасный коммит: читает свежий remote+версию, применяет transform(remote)→данные,
+// пишет через CAS. При конфликте перечитывает и повторяет. При СБОЕ ЧТЕНИЯ (сеть) —
+// пробрасывает ошибку, поэтому вызывающий НЕ перезапишет базу вслепую (напр. демо-данными).
+// transform может вернуть null → «писать нечего».
+async function casCommit(transform){
+  for(let attempt=0; attempt<6; attempt++){
+    let remote=null, ver=null;
+    try{const rv=await sbReadV(); remote=rv.data; ver=rv.ver;}
+    catch(e){ if(String(e.message)==="empty"){remote=null;ver=null;} else throw e; }
+    const final=transform(remote);
+    if(final==null) return null;
+    if(await sbWriteCAS(final, ver)) return final;
+    await new Promise(r=>setTimeout(r, 120+Math.random()*200));
+  }
+  throw new Error("CAS: слишком много конфликтов подряд");
+}
 // Domains stored in separate row (id=2) — never mixed with leads/events/sales
 async function sbReadDomains(){
   const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.2&select=data`,{headers:SB_HDR,cache:"no-store"});
@@ -457,6 +505,7 @@ function useDatabase(){
   const retryTimer=useRef(null);
   const retryCount=useRef(0);
   const dirtyRef=useRef(false);
+  const provisionalRef=useRef(false); // true = база не прочитана при старте → запись заблокирована (защита от подмешивания демо-данных в реальную базу)
   const LS_BACKUP="garno_backup";
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -604,26 +653,29 @@ function useDatabase(){
   // Каждый раз читает актуальный remote перед записью, поэтому не теряет
   // лиды добавленные другими пользователями пока шла запись.
   const mergeWrite=async()=>{
+    // Блок записи, если база не была прочитана при старте — иначе рискуем
+    // записать демо/неполный набор поверх реальных данных.
+    if(provisionalRef.current){
+      setSyncLabel("!");
+      setSyncError("⚠️ Нет связи с базой — изменения НЕ сохранены. Обновите страницу. / Brak połączenia — odśwież stronę.");
+      return;
+    }
     // Serialize writes: if one is already in flight, flag dirty and re-run after it.
-    // Without this, an older in-flight write can finish LAST and overwrite Supabase
-    // with its stale snapshot — resurrecting deleted tasks/leads.
     if(savingRef.current){dirtyRef.current=true;return;}
     savingRef.current=true;
     setSyncError("");
     if(bgSyncRef.current){clearInterval(bgSyncRef.current);bgSyncRef.current=null;}
     setSyncLabel("⟳");
     try{
-      let remote;
-      try{remote=await sbRead();}catch{remote=null;}
-      // Read the LATEST local state AFTER the network round-trip. A snapshot captured
-      // before the await may be missing changes made while it was in flight (e.g. a
-      // tombstone), which is exactly how deleted records used to come back.
-      const localData=JSON.parse(localRef.current||"{}");
-      try{lsSet(LS_BACKUP,localData);}catch{}
-      const final=mergeData(localData,remote);
-      await sbWrite(final);
-      localRef.current=JSON.stringify(final);
-      setDbState(final);
+      // Единая безопасная запись: casCommit читает свежий remote+версию, мёржит
+      // с АКТУАЛЬНЫМ локальным стейтом (внутри transform на каждой попытке) и
+      // пишет через compare-and-swap. При конфликте — перечитывает и повторяет.
+      const final=await casCommit((remote)=>{
+        const localData=JSON.parse(localRef.current||"{}");
+        try{lsSet(LS_BACKUP,localData);}catch{}
+        return mergeData(localData,remote);
+      });
+      if(final){localRef.current=JSON.stringify(final);setDbState(final);}
       setSyncLabel("✓");setSyncError("");
       retryCount.current=0;
       setTimeout(()=>setSyncLabel("●"),2000);
@@ -653,10 +705,12 @@ function useDatabase(){
   const startBgSync=()=>{
     if(bgSyncRef.current)clearInterval(bgSyncRef.current);
     bgSyncRef.current=setInterval(()=>{
-      if(savingRef.current)return;
+      if(savingRef.current||provisionalRef.current)return;
       (async()=>{
         try{
           const remote=await sbRead();
+          // Пока шло чтение мог начаться пользовательский save — не мешаем ему
+          if(savingRef.current||provisionalRef.current)return;
           // Always read local AFTER the network call — captures latest deletedLeadIds
           const local=JSON.parse(localRef.current||"{}");
           if(!local.leads)return;
@@ -684,9 +738,10 @@ function useDatabase(){
             return (t.updatedAt||0)>(loc.updatedAt||0);
           });
           if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0&&remoteTaskChanges.length===0)return;
-          // Build merged — deletedSet applied on both sides
+          // Только ПОДТЯГИВАЕМ удалённые изменения в локальный вид. НЕ пишем в базу
+          // из bgSync — любая запись должна идти через mergeWrite с compare-and-swap,
+          // иначе фоновая запись могла бы затирать чужие правки.
           const merged=mergeData(local,remote);
-          try{await sbWrite(merged);}catch{}
           localRef.current=JSON.stringify(merged);
           setDbState(merged);
         }catch{}
@@ -699,25 +754,59 @@ function useDatabase(){
     (async()=>{
       try{
         setSyncLabel("⟳");
-        let remote=null;
-        try{remote=await sbRead();}catch{}
+        let remote=null, readOk=false;
+        // 3 попытки прочитать базу — сеть на free-плане может моргать
+        for(let a=0;a<3&&!readOk;a++){
+          try{remote=await sbRead();readOk=true;}
+          catch{ if(a<2) await new Promise(r=>setTimeout(r,800)); }
+        }
+        // База так и не прочиталась → НЕ грузим демо в рабочий стейт (правка могла бы
+        // подмешать демо-лиды в реальную базу). Показываем реальный кэш для просмотра,
+        // блокируем запись, и в фоне пробуем перечитать, чтобы разблокировать.
+        if(!readOk){
+          const bk=lsGet(LS_BACKUP);
+          const view=(bk&&bk.leads&&bk.leads.length>0)?migrateData(bk):INIT_DB();
+          localRef.current=JSON.stringify(view);
+          setDbState(view);
+          provisionalRef.current=true;
+          setStatus("ready");
+          setSyncLabel("!");
+          setSyncError("⚠️ Нет связи с базой — режим просмотра, изменения не сохраняются. Обновите страницу. / Brak połączenia — tryb podglądu.");
+          try{const dr=await sbReadDomains();setDomainsState(normDoms(dr?.domains?.length?dr.domains:(lsGet("garno_domains_v2")||SOURCES)));}catch{setDomainsState(normDoms(SOURCES));}
+          // Фоновый повтор: как только база ответит — грузим реальные данные и снимаем блок
+          const unblock=setInterval(async()=>{
+            try{
+              const r2=await sbRead();
+              clearInterval(unblock);
+              const d2=migrateData(r2&&r2.leads?r2:INIT_DB());
+              localRef.current=JSON.stringify(d2);
+              setDbState(d2);
+              provisionalRef.current=false;
+              setSyncLabel("●");setSyncError("✅ Связь восстановлена");
+              setTimeout(()=>setSyncError(""),4000);
+              startBgSync();
+            }catch{}
+          },8000);
+          return; // дальше нормальную логику не выполняем
+        }
         const backup=lsGet(LS_BACKUP);
         // Если remote пустой ({}) — это первый запуск, грузим seed
         const isFirstRun=!remote||!remote.leads||remote.leads.length===0;
         let data;
         if(isFirstRun){
+          let dataIsReal=false; // true только если данные из JSONBin/backup, а НЕ демо
           // 1. Пробуем достать данные из JSONBin (миграция)
           const jbData=await tryMigrateFromJsonBin();
           if(jbData&&jbData.leads&&jbData.leads.length>0){
             // Мёрджим JSONBin + локальный backup чтобы ничего не потерять
             const merged=backup&&backup.leads&&backup.leads.length>0?mergeData(jbData,backup):jbData;
-            data=migrateData(merged);
+            data=migrateData(merged);dataIsReal=true;
             setSyncError("✅ Данные перенесены из JSONBin → Supabase! Лидов: "+data.leads.length);
             setTimeout(()=>setSyncError(""),8000);
             localStorage.setItem(JB_MIGRATED_KEY,"1");
           // 2. Есть ли локальный backup с данными?
           } else if(backup&&backup.leads&&backup.leads.length>0){
-            data=migrateData(backup);
+            data=migrateData(backup);dataIsReal=true;
             setSyncError("✅ Данные восстановлены из локального кэша. Лидов: "+data.leads.length);
             setTimeout(()=>setSyncError(""),5000);
           } else {
@@ -725,18 +814,38 @@ function useDatabase(){
             data=INIT_DB();
             setSyncError("⏳ JSONBin пока недоступен. CRM запущена с демо-данными. Как только JSONBin поднимется — обнови страницу и данные перенесутся автоматически.");
           }
-          // Записываем в Supabase
-          try{await sbWrite(data);}catch(e){console.error("First write failed:",e);}
+          // Записываем через CAS. Если за это время кто-то уже залил реальные лиды —
+          // НЕ затираем: реальный локальный набор мёржим, демо — отбрасываем.
+          try{
+            const committed=await casCommit((rem)=>{
+              if(rem&&rem.leads&&rem.leads.length>0){
+                return dataIsReal?migrateData(mergeData(data,rem)):migrateData(rem);
+              }
+              return data;
+            });
+            if(committed) data=committed;
+          }catch(e){console.error("First write failed (не перезаписываю базу):",e);}
         } else {
           const pushBefore=(remote.leads||[]).filter(l=>l.pushBackfilled).length;
           const rolledBack=(remote.leads||[]).filter(l=>l.action==="push"&&l.pushFrom==="quote").length;
-          data=migrateData(remote);
           const hadBackup=backup&&backup.leads&&backup.leads.length>0;
-          // Мёрджим с локальным backup если есть несохранённые изменения
-          if(hadBackup){data=migrateData(mergeData(backup,data));}
-          const movedToPush=(data.leads||[]).filter(l=>l.pushBackfilled).length-pushBefore;
-          if(hadBackup||movedToPush>0||rolledBack>0){
-            try{await sbWrite(data);localStorage.removeItem(LS_BACKUP);}catch{}
+          // transform пересчитывается от СВЕЖЕГО remote на каждой попытке CAS
+          const transform=(rem)=>{
+            let d=migrateData(rem||remote||{});
+            if(hadBackup) d=migrateData(mergeData(backup,d));
+            return d;
+          };
+          const d0=transform(remote);
+          const movedToPush=(d0.leads||[]).filter(l=>l.pushBackfilled).length-pushBefore;
+          const willWrite=hadBackup||movedToPush>0||rolledBack>0;
+          if(willWrite){
+            try{
+              const committed=await casCommit(transform);
+              data=committed||d0;
+              try{localStorage.removeItem(LS_BACKUP);}catch{}
+            }catch(e){console.error("mount write failed (не перезаписываю базу):",e);data=d0;}
+          } else {
+            data=d0; // ничего не изменилось — не пишем лишний раз (меньше конфликтов)
           }
           const msgs=[];
           if(movedToPush>0)msgs.push(`в «Пропушить»: ${movedToPush}`);
@@ -784,7 +893,7 @@ function useDatabase(){
 
   // ── Manual refresh — merge, не перезапись ────────────────────────────────
   const refresh=async()=>{
-    if(savingRef.current)return;
+    if(savingRef.current||provisionalRef.current)return;
     setSyncLabel("⟳");
     try{
       const remote=await sbRead();
@@ -1446,8 +1555,9 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 
   const submit=()=>{
     const createdAt=buildCreatedAt(form.dateOverride);
-    // Use nextNum-based short ID to avoid 13-digit Date.now() IDs
-    const shortId=nextNum*1000+Math.floor(Math.random()*999)+1;
+    // Глобально уникальный id (время+рандом): при одновременном создании на разных
+    // устройствах ключ слияния не может совпасть, поэтому лид не потеряется при merge.
+    const shortId=Date.now()*1000+Math.floor(Math.random()*1000);
     onAdd({...form,id:shortId,leadId:makeLeadId(nextNum,createdAt),score:0,qualification:"unqualified",createdAt,updatedAt:Date.now(),isDone:false,quoteAmt:null,clientLang:form.clientLang||"pl",
       history:[{date:nowStr(),action:lang==="ru"?"Лид добавлен":"Lead dodany",by:currentUser||"Admin"}]});
     onClose();
@@ -2083,7 +2193,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   });
   const createdAtToIso=(str)=>{if(!str)return new Date().toISOString().slice(0,10);const p=str.split(".");if(p.length!==3)return new Date().toISOString().slice(0,10);return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;};
   const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);if(isNaN(d))return iso;return d.toLocaleDateString("ru-RU");}catch{return iso;}};
-  const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
+  const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),entry]};setLeadsNow(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
   const confirmVisit=(vDate,vTime)=>{
     const updLead={...form,visitDate:vDate,visitTime:vTime||"12:00",visitBackfilled:false,score:5,qualification:"salon",updatedAt:Date.now()};
     setForm(updLead);
@@ -3364,7 +3474,15 @@ function GarnoCRM(){
   const setSales      = upd => updateDb(p=>({...p,sales:  typeof upd==="function"?upd(p.sales  ??[]):upd}));
   const setSalesNow   = upd => updateDb(p=>({...p,sales:  typeof upd==="function"?upd(p.sales  ??[]):upd}),true);
   const setChatHistory= upd => updateDb(p=>({...p,chat:   typeof upd==="function"?upd(p.chat   ??[]):upd}));
-  const addLead=(l)=>{updateDb(p=>({...p,leads:[l,...(p.leads??[])],nextNum:(p.nextNum??leads.length+1)+1}),true);};
+  const addLead=(l)=>{updateDb(p=>{
+    // Гарантируем ГЛОБАЛЬНО уникальный id: против текущих лидов И тумбстонов.
+    // Раньше id=nextNum*1000+rand(1..999) — свежие лиды сталкивались друг с другом
+    // и с удалёнными, и тихо выпадали при слиянии. Теперь коллизия невозможна.
+    const used=new Set([...(p.leads||[]).map(x=>x.id),...(p.deletedLeadIds||[])]);
+    let id=l.id;
+    while(id==null||used.has(id)) id=Date.now()*1000+Math.floor(Math.random()*1000);
+    return {...p,leads:[{...l,id},...(p.leads??[])],nextNum:(p.nextNum??leads.length+1)+1};
+  },true);};
   const addSale=(s)=>setSalesNow(p=>[s,...p]);
 
   return(
