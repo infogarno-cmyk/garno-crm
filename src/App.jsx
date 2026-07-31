@@ -52,7 +52,7 @@ let C = DARK; // mutable — updated by theme
 function syncColorMaps(){
   MGR_COLOR.Oleh=C.blue;MGR_COLOR.Dmytro=C.green;MGR_COLOR.Mateusz=C.purple;MGR_COLOR.Danya=C.cyan;MGR_COLOR.Taras=C.yellow;
   QUAL_COLOR.unqualified=C.red;QUAL_COLOR.prequalified=C.yellow;QUAL_COLOR.qualified=C.green;QUAL_COLOR.salon=C.blue;QUAL_COLOR.sale=C.accent;
-  ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;ACT_COLOR.push=PUSH_C;
+  ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;ACT_COLOR.push=PUSH_C;ACT_COLOR.waitingInfo="#38bdf8";ACT_COLOR.visit="#f0c040";ACT_COLOR.sale="#22c55e";
   BUD_COLOR.withinMonth=C.green;BUD_COLOR.within3m=C.cyan;BUD_COLOR.within6m=C.yellow;BUD_COLOR.year=C.purple;BUD_COLOR.justPrice=C.muted;
   EVENT_COLOR.visit=C.blue;EVENT_COLOR.measure=C.accent;EVENT_COLOR.contract=C.green;EVENT_COLOR.phone=C.purple;EVENT_COLOR.delivery=C.cyan;
 }
@@ -75,7 +75,7 @@ const T = {
     convRate:"Конверсия",revenue:"Выручка",many:"Продаж",totalSales:"Выручка",salesCount:"Продаж",
     podium:"Пьедестал",visits:"Визиты",source_label:"Источник",
     unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",salon:"Визит в салон",sale:"Продажа",
-    thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",quote:"Просчёт",undefined:"Не определено",
+    thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",quote:"Просчёт",undefined:"Не определено",waitingInfo:"Ждём инфо",visit:"Визит",sale:"Продажа",
     withinMonth:"В теч. месяца",within3m:"В теч. 3 мес.",within6m:"В теч. полугода",year:"Год",
     justPrice:"Только цена",unconfirmed:"Срок не подтвержден",
     evVisit:"Визит",evMeasure:"Замер",evContract:"Договор",evPhone:"Телефон",evDelivery:"Доставка",
@@ -92,7 +92,7 @@ const T = {
     remVisitTitle:"Завтра визит — нужно подтвердить",remVisitCta:"Свяжитесь с клиентом и подтвердите визит.",remNoTime:"время не указано",
     remPushTitle:"15:00 — пора пушить!",remPushLine:"На сегодня ({date}) в «Пропушить»: {n}",remPushCta:"Свяжитесь с клиентами.",
     remQuoteTitle:"Просчёт висит больше суток",remQuoteFor:"в просчёте уже",remQuoteHrs:"ч",remQuoteCta:"Свяжитесь с клиентом или смените действие.",
-    ackBtn:"Принять",ackedBy:"Принято",aiUnread:"непринятых уведомлений",taskFrom:"от",
+    ackBtn:"Принять",ackedBy:"Принято",aiUnread:"непринятых уведомлений",taskFrom:"от",stickers:"Стикеры",addSticker:"Добавить стикер",stickerPh:"Напишите заметку…",noStickers:"Стикеров пока нет",stickerBy:"написал",dblClickSticker:"2 клика — стикер",
     todaySection:"Сегодня",noToday:"Нет задач на сегодня",
     saleSectionTitle:"Все продажи",description:"Описание",
     deleteSelected:"Удалить выбранные",
@@ -143,7 +143,7 @@ const T = {
     convRate:"Konwersja",revenue:"Przychód",many:"Sprzedaży",totalSales:"Przychód",salesCount:"Sprzedaży",
     podium:"Podium",visits:"Wizyty",source_label:"Źródło",
     unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",salon:"Wizyta w salonie",sale:"Sprzedaż",
-    thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",quote:"Wycena",undefined:"Nieokreślone",
+    thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",quote:"Wycena",undefined:"Nieokreślone",waitingInfo:"Czekamy na info",visit:"Wizyta",sale:"Sprzedaż",
     withinMonth:"W ciągu miesiąca",within3m:"W ciągu 3 mies.",within6m:"W ciągu pół roku",year:"Rok",
     justPrice:"Chce tylko cenę",unconfirmed:"Termin niepotwierdzony",
     evVisit:"Wizyta",evMeasure:"Pomiar",evContract:"Umowa",evPhone:"Telefon",evDelivery:"Dostawa",
@@ -160,7 +160,7 @@ const T = {
     remVisitTitle:"Jutro wizyta — trzeba potwierdzić",remVisitCta:"Skontaktuj się z klientem i potwierdź wizytę.",remNoTime:"brak godziny",
     remPushTitle:"15:00 — czas na push!",remPushLine:"Na dziś ({date}) w «Do pushu»: {n}",remPushCta:"Skontaktuj się z klientami.",
     remQuoteTitle:"Wycena wisi ponad dobę",remQuoteFor:"w wycenie już",remQuoteHrs:"godz.",remQuoteCta:"Skontaktuj się z klientem lub zmień działanie.",
-    ackBtn:"Przyjęte",ackedBy:"Przyjęte",aiUnread:"nieprzyjętych powiadomień",taskFrom:"od",
+    ackBtn:"Przyjęte",ackedBy:"Przyjęte",aiUnread:"nieprzyjętych powiadomień",taskFrom:"od",stickers:"Naklejki",addSticker:"Dodaj naklejkę",stickerPh:"Napisz notatkę…",noStickers:"Brak naklejek",stickerBy:"napisał",dblClickSticker:"2 kliknięcia — naklejka",
     todaySection:"Dzisiaj",noToday:"Brak zadań na dzisiaj",
     saleSectionTitle:"Wszystkie sprzedaże",description:"Opis",
     deleteSelected:"Usuń wybrane",
@@ -249,9 +249,9 @@ function GoldWreath({size}){
 function scoreToQual(s){const n=parseInt(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===5)return"salon";return"sale";}
 const QUALS=["unqualified","prequalified","qualified","salon","sale"];
 const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,salon:C.blue,sale:C.accent};
-const ACTIONS=["undefined","thinking","missedCall","cancelled","callback","quote","push"];
+const ACTIONS=["undefined","waitingInfo","thinking","missedCall","cancelled","callback","quote","push","visit","sale"];
 const PUSH_C="#f97316";
-const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple,push:PUSH_C};
+const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple,push:PUSH_C,waitingInfo:"#38bdf8",visit:"#f0c040",sale:"#22c55e"};
 const BUDGETS=["withinMonth","within3m","within6m","year","justPrice","unconfirmed"];
 const BUD_COLOR={withinMonth:C.green,within3m:C.cyan,within6m:C.yellow,year:C.purple,justPrice:C.muted,unconfirmed:"rgba(255,255,255,0.2)"};
 const SOURCES=["pl.calculatorkuchni.online","roda.calculatorkuchni.online","fast.calculatorkuchni.online","ua.calculatorkuchni.online","1.designkitchen.online","fillout","garnofurniture.ukr","garnofurniture.com","Instagram","Mail","Шоу Рум"];
@@ -982,6 +982,16 @@ function buildReminders(db){
 }
 
 // Локализованный текст напоминания — рендерится под текущий язык CRM
+// Системное (нативное) уведомление ОС. Появляется, пока вкладка CRM открыта
+// (в т.ч. в фоне/свёрнута). Тихо ничего не делает, если нет разрешения.
+function showDesktopNotif(title,body,onClick){
+  try{
+    if(typeof Notification==="undefined"||Notification.permission!=="granted")return;
+    const n=new Notification(title,{body:body||"",tag:title});
+    n.onclick=()=>{ try{window.focus();}catch{} if(onClick)onClick(); try{n.close();}catch{} };
+    setTimeout(()=>{try{n.close();}catch{}},12000);
+  }catch{}
+}
 function formatReminder(m,t){
   const d=m.data||{};
   if(m.rtype==="visit"){
@@ -1467,6 +1477,43 @@ function VisitModal({lead,t,initDate,initTime,onConfirm,onCancel}){
             style={{flex:1,background:`linear-gradient(135deg,${C.blue},#7cc4ff)`,color:"#00132f",border:"none",borderRadius:9,padding:"12px 0",fontSize:14,fontWeight:800,cursor:vDate?"pointer":"not-allowed",opacity:vDate?1:0.5}}>
             ✓ {t.visitConfirm}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Быстрое добавление стикера (двойной клик по лиду) + просмотр существующих
+function StickerModal({lead,t,currentUser,onSave,onClose}){
+  const [text,setText]=useState("");
+  const stickers=lead.stickers||[];
+  const add=()=>{ const v=text.trim(); if(!v)return; onSave(v); setText(""); };
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4200}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,border:`1px solid ${C.border}`,width:"min(460px,95vw)",maxHeight:"85vh",overflow:"auto",padding:24}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+          <div style={{fontSize:17,fontWeight:800,color:C.text}}>📝 {t.stickers}</div>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:C.muted,fontSize:18,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{fontSize:12,color:C.muted,marginBottom:14}}>{lead.name||lead.phone}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <textarea value={text} onChange={e=>setText(e.target.value)} placeholder={t.stickerPh} autoFocus rows={3}
+            onKeyDown={e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter")add();}}
+            style={{background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:10,padding:"10px 12px",fontSize:13,resize:"vertical",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:10,color:C.dim}}>{currentUser?`${t.stickerBy}: ${currentUser}`:""}</span>
+            <button onClick={add} disabled={!text.trim()} style={{background:C.accent,color:"#00132f",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,fontWeight:800,cursor:text.trim()?"pointer":"not-allowed",opacity:text.trim()?1:0.5}}>＋ {t.addSticker}</button>
+          </div>
+        </div>
+        <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
+          {stickers.length===0
+            ? <div style={{fontSize:12,color:C.dim,textAlign:"center",padding:"10px 0"}}>{t.noStickers}</div>
+            : [...stickers].reverse().map((st,i)=>(
+              <div key={st.id||i} style={{background:"rgba(240,192,64,0.08)",border:"1px solid rgba(240,192,64,0.35)",borderRadius:10,padding:"10px 12px"}}>
+                <div style={{fontSize:13,color:C.text,whiteSpace:"pre-wrap",lineHeight:1.5}}>{st.text}</div>
+                <div style={{fontSize:10,color:"#f0c040",fontWeight:700,marginTop:6}}>— {st.by||"—"}{st.at?` · ${new Date(st.at).toLocaleDateString("ru-RU")}`:""}</div>
+              </div>
+            ))}
         </div>
       </div>
     </div>
@@ -2072,7 +2119,15 @@ function PushPanel({leads,updateDb,t,mgr,search,onOpen}){
   );
 }
 
-function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onOpen}){
+function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onOpen,currentUser}){
+  const [stickerLead,setStickerLead]=useState(null);
+  const addSticker=(text)=>{
+    if(!stickerLead)return;
+    const st={id:Date.now()+Math.floor(Math.random()*1000),text,by:currentUser||"—",at:Date.now()};
+    const nStickers=[...(stickerLead.stickers||[]),st];
+    setStickerLead({...stickerLead,stickers:nStickers});
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===stickerLead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
+  };
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
   const [fQ,setFQ]=useState("all");const [fA,setFA]=useState("all");const [fS,setFS]=useState("all");const [sort,setSort]=useState("date");
@@ -2136,7 +2191,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead><tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
               <th style={{padding:"9px 10px",width:36}}><input type="checkbox" checked={allChecked} ref={el=>{if(el)el.indeterminate=someChecked;}} onChange={toggleAll} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></th>
-              {["ID",t.date,t.name,t.phone,t.score,t.qualification,t.period,t.action,t.manager,t.source,""].map((h,i)=><th key={i} style={{padding:"9px 10px",color:C.muted,fontWeight:600,textAlign:"left",whiteSpace:"nowrap",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>)}
+              {["📝",t.date,t.name,t.phone,t.score,t.qualification,t.period,t.action,t.manager,t.source,""].map((h,i)=><th key={i} style={{padding:"9px 10px",color:C.muted,fontWeight:600,textAlign:"left",whiteSpace:"nowrap",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>)}
             </tr></thead>
             <tbody>{fl.map(l=>{const isSel=selected.has(l.id);return(
               <tr key={l.id} onClick={()=>onOpen(l)}
@@ -2144,7 +2199,11 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                 onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=C.surface)}
                 onMouseLeave={e=>{e.currentTarget.style.background=rowBg(l,isSel);}}>
                 <td style={{padding:"8px 10px"}} onClick={e=>toggleOne(l.id,e)}><input type="checkbox" checked={isSel} onChange={()=>{}} onClick={e=>toggleOne(l.id,e)} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></td>
-                <td style={{padding:"8px 10px"}}><span style={{fontSize:10,color:C.accent,fontFamily:"monospace",fontWeight:600}}>{l.leadId||l.id}</span></td>
+                <td style={{padding:"8px 10px"}} title={t.dblClickSticker} onClick={e=>e.stopPropagation()} onDoubleClick={e=>{e.stopPropagation();setStickerLead(l);}}>
+                  {(l.stickers&&l.stickers.length>0)
+                    ? <span style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.14)",border:"1px solid rgba(240,192,64,0.45)",borderRadius:8,padding:"2px 7px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {l.stickers.length}</span>
+                    : <span style={{color:C.dim,fontSize:13,cursor:"pointer",opacity:0.55}}>＋📝</span>}
+                </td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
                 <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span></td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
@@ -2161,6 +2220,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
           {fl.length===0&&<div style={{padding:40,textAlign:"center",color:C.muted}}>Нет лидов</div>}
         </div>
       </div>
+      {stickerLead&&<StickerModal lead={stickerLead} t={t} currentUser={currentUser} onSave={addSticker} onClose={()=>setStickerLead(null)}/>}
     </div>
   );
 }
@@ -2172,6 +2232,13 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const [showSale,setShowSale]=useState(false);
   const [showVisit,setShowVisit]=useState(false);
   const [showPush,setShowPush]=useState(false);
+  const [showStickers,setShowStickers]=useState(false);
+  const addStickerLD=(text)=>{
+    const st={id:Date.now()+Math.floor(Math.random()*1000),text,by:currentUser||"—",at:Date.now()};
+    const nStickers=[...(form.stickers||[]),st];
+    setForm(f=>({...f,stickers:nStickers}));
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
+  };
   const prevAction=useRef(lead.action||"undefined");
   const set=(k,v)=>setForm(p=>{
     const u={...p,[k]:v};
@@ -2185,6 +2252,9 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     if(k==="score"){
       u.qualification=scoreToQual(v);
       const nv=parseInt(v),pv=parseInt(p.score);
+      // Авто-действие: оценка 5 → «Визит», оценка 6 → «Продажа»
+      if(nv===5)u.action="visit";
+      if(nv===6)u.action="sale";
       if(nv===6&&pv!==6)setShowSale(true);
       // Визит: оценка стала 5 — спросить дату визита
       if(nv===5&&pv!==5)setShowVisit(true);
@@ -2195,7 +2265,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);if(isNaN(d))return iso;return d.toLocaleDateString("ru-RU");}catch{return iso;}};
   const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
   const confirmVisit=(vDate,vTime)=>{
-    const updLead={...form,visitDate:vDate,visitTime:vTime||"12:00",visitBackfilled:false,score:5,qualification:"salon",updatedAt:Date.now()};
+    const updLead={...form,visitDate:vDate,visitTime:vTime||"12:00",visitBackfilled:false,score:5,qualification:"salon",action:"visit",updatedAt:Date.now()};
     setForm(updLead);
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l)}),true);
     setShowVisit(false);
@@ -2210,7 +2280,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     let createdAt=new Date().toLocaleDateString("ru-RU");
     if(saleDate){try{const d=new Date(saleDate);createdAt=d.toLocaleDateString("ru-RU");}catch{}}
     const newSale={id:Date.now(),leadId:lead.leadId||lead.id,name:form.name,phone:form.phone,manager:form.manager||"—",source:form.source,createdAt,saleAmount:amt,notes:form.notes};
-    const updLead={...form,saleAmount:amt,isDone:true,updatedAt:Date.now()};
+    const updLead={...form,saleAmount:amt,isDone:true,action:"sale",updatedAt:Date.now()};
     // Атомарно: лид + продажа в одном updateDb → один save в Supabase
     updateDb(p=>({
       ...p,
@@ -2224,7 +2294,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:"16px 16px 0 0",border:`1px solid ${C.border}`,width:"100%",maxWidth:820,maxHeight:"90vh",overflow:"auto",padding:22}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44} noMedal/><div><div style={{fontSize:16,fontWeight:700,color:C.text}}>{lead.name||lead.phone}</div><div style={{fontSize:11,color:C.muted}}>ID: <b style={{color:C.accent,fontFamily:"monospace"}}>{lead.leadId||lead.id}</b> · {lead.phone}</div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
+          <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44} noMedal/><div><div style={{fontSize:16,fontWeight:700,color:C.text}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
           <div style={{display:"flex",gap:8}}>{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(false);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}<Btn onClick={onClose} variant="ghost" small>✕</Btn></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
@@ -2260,6 +2330,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     {showVisit&&<VisitModal lead={form} t={t} initDate={form.visitDate} initTime={form.visitTime}
       onConfirm={confirmVisit}
       onCancel={()=>{setShowVisit(false);setForm(p=>({...p,score:4,qualification:"qualified"}));}}/>}
+    {showStickers&&<StickerModal lead={form} t={t} currentUser={currentUser} onSave={addStickerLD} onClose={()=>setShowStickers(false)}/>}
     {showPush&&<PushModal lead={form} t={t} initDate={form.pushDate} initTime={form.pushTime}
       onConfirm={confirmPush}
       onCancel={()=>{setShowPush(false);setForm(p=>({...p,action:prevAction.current}));}}/>}
@@ -3391,12 +3462,31 @@ function GarnoCRM(){
   const dbRef=useRef(db);      dbRef.current=db;
   const updRef=useRef(updateDb); updRef.current=updateDb;
   const langRef=useRef(lang);  langRef.current=lang;
+  const currentUserRef=useRef(currentUser); currentUserRef.current=currentUser;
+  // Разрешение на системные уведомления: пробуем сразу и по первому клику (часть браузеров требует жест)
+  useEffect(()=>{
+    const ask=()=>{try{if(typeof Notification!=="undefined"&&Notification.permission==="default")Notification.requestPermission().catch(()=>{});}catch{}};
+    ask();
+    const onClick=()=>{ask();window.removeEventListener("click",onClick);};
+    window.addEventListener("click",onClick,{once:true});
+    return()=>window.removeEventListener("click",onClick);
+  },[]);
   useEffect(()=>{
     const run=()=>{
       const cur=dbRef.current;
       if(!cur||!cur.leads)return;
       const rems=buildReminders(cur);
       if(!rems.length)return;
+      // Системный поп-ап на рабочий стол по каждому новому напоминанию (кроме Danya)
+      if(currentUserRef.current!=="Danya"){
+        rems.forEach(r=>{
+          const txt=formatReminder({rtype:r.rtype,data:r.data},T[langRef.current]||T.ru);
+          const nl=txt.indexOf("\n");
+          const title=nl>0?txt.slice(0,nl):txt;
+          const body=nl>0?txt.slice(nl+1).replace(/\n+/g," ").trim().slice(0,180):"";
+          showDesktopNotif(title,body,()=>setPage("ai"));
+        });
+      }
       // Чистим ключи старше 60 дней, чтобы список не рос бесконечно
       const cutoff=new Date(Date.now()-60*86400000).toISOString().slice(0,10);
       updRef.current(prev=>({
@@ -3414,6 +3504,8 @@ function GarnoCRM(){
   const t=T[lang];
 
   const saveUser=(u)=>{localStorage.setItem("garno_user",u);setCurrentUser(u);};
+  // Язык CRM по менеджеру: Mateusz — польский, остальные — русский (можно переключить вручную)
+  useEffect(()=>{ setLang(currentUser==="Mateusz"?"pl":"ru"); },[currentUser]);
 
   if(status==="loading") return(
     <div style={{display:"flex",height:"100vh",background:C.bg,alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
@@ -3520,7 +3612,7 @@ function GarnoCRM(){
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
-          {page==="leads"      && <LeadsSection leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
+          {page==="leads"      && <LeadsSection leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} srcList={srcList} setDomains={setDomains} t={t} lang={lang}/>}
           {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory} currentUser={currentUser}/>}
