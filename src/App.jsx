@@ -1484,7 +1484,7 @@ function VisitModal({lead,t,initDate,initTime,onConfirm,onCancel}){
 }
 
 // Быстрое добавление стикера (двойной клик по лиду) + просмотр существующих
-function StickerModal({lead,t,currentUser,onSave,onClose}){
+function StickerModal({lead,t,currentUser,onSave,onDelete,onClose}){
   const [text,setText]=useState("");
   const stickers=lead.stickers||[];
   const add=()=>{ const v=text.trim(); if(!v)return; onSave(v); setText(""); };
@@ -1498,10 +1498,10 @@ function StickerModal({lead,t,currentUser,onSave,onClose}){
         <div style={{fontSize:12,color:C.muted,marginBottom:14}}>{lead.name||lead.phone}</div>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           <textarea value={text} onChange={e=>setText(e.target.value)} placeholder={t.stickerPh} autoFocus rows={3}
-            onKeyDown={e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter")add();}}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();add();}}}
             style={{background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:10,padding:"10px 12px",fontSize:13,resize:"vertical",outline:"none",width:"100%",boxSizing:"border-box"}}/>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:10,color:C.dim}}>{currentUser?`${t.stickerBy}: ${currentUser}`:""}</span>
+            <span style={{fontSize:10,color:C.dim}}>{currentUser?`${t.stickerBy}: ${currentUser} · Enter ↵`:"Enter ↵"}</span>
             <button onClick={add} disabled={!text.trim()} style={{background:C.accent,color:"#00132f",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,fontWeight:800,cursor:text.trim()?"pointer":"not-allowed",opacity:text.trim()?1:0.5}}>＋ {t.addSticker}</button>
           </div>
         </div>
@@ -1509,8 +1509,9 @@ function StickerModal({lead,t,currentUser,onSave,onClose}){
           {stickers.length===0
             ? <div style={{fontSize:12,color:C.dim,textAlign:"center",padding:"10px 0"}}>{t.noStickers}</div>
             : [...stickers].reverse().map((st,i)=>(
-              <div key={st.id||i} style={{background:"rgba(240,192,64,0.08)",border:"1px solid rgba(240,192,64,0.35)",borderRadius:10,padding:"10px 12px"}}>
-                <div style={{fontSize:13,color:C.text,whiteSpace:"pre-wrap",lineHeight:1.5}}>{st.text}</div>
+              <div key={st.id||i} style={{background:"rgba(240,192,64,0.08)",border:"1px solid rgba(240,192,64,0.35)",borderRadius:10,padding:"10px 12px",position:"relative"}}>
+                {onDelete&&<button onClick={()=>onDelete(st)} title={t.delete} style={{position:"absolute",top:8,right:8,background:"transparent",border:"none",color:C.red,fontSize:13,cursor:"pointer",opacity:0.7,padding:2,lineHeight:1}}>🗑</button>}
+                <div style={{fontSize:13,color:C.text,whiteSpace:"pre-wrap",lineHeight:1.5,paddingRight:22}}>{st.text}</div>
                 <div style={{fontSize:10,color:"#f0c040",fontWeight:700,marginTop:6}}>— {st.by||"—"}{st.at?` · ${new Date(st.at).toLocaleDateString("ru-RU")}`:""}</div>
               </div>
             ))}
@@ -2128,6 +2129,12 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
     setStickerLead({...stickerLead,stickers:nStickers});
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===stickerLead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
   };
+  const deleteSticker=(st)=>{
+    if(!stickerLead)return;
+    const nStickers=(stickerLead.stickers||[]).filter(s=>s!==st&&!(st.id!=null&&s.id===st.id));
+    setStickerLead({...stickerLead,stickers:nStickers});
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===stickerLead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
+  };
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
   const [fQ,setFQ]=useState("all");const [fA,setFA]=useState("all");const [fS,setFS]=useState("all");const [sort,setSort]=useState("date");
@@ -2220,7 +2227,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
           {fl.length===0&&<div style={{padding:40,textAlign:"center",color:C.muted}}>Нет лидов</div>}
         </div>
       </div>
-      {stickerLead&&<StickerModal lead={stickerLead} t={t} currentUser={currentUser} onSave={addSticker} onClose={()=>setStickerLead(null)}/>}
+      {stickerLead&&<StickerModal lead={stickerLead} t={t} currentUser={currentUser} onSave={addSticker} onDelete={deleteSticker} onClose={()=>setStickerLead(null)}/>}
     </div>
   );
 }
@@ -2236,6 +2243,11 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const addStickerLD=(text)=>{
     const st={id:Date.now()+Math.floor(Math.random()*1000),text,by:currentUser||"—",at:Date.now()};
     const nStickers=[...(form.stickers||[]),st];
+    setForm(f=>({...f,stickers:nStickers}));
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
+  };
+  const deleteStickerLD=(st)=>{
+    const nStickers=(form.stickers||[]).filter(s=>s!==st&&!(st.id!=null&&s.id===st.id));
     setForm(f=>({...f,stickers:nStickers}));
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
   };
@@ -2330,7 +2342,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     {showVisit&&<VisitModal lead={form} t={t} initDate={form.visitDate} initTime={form.visitTime}
       onConfirm={confirmVisit}
       onCancel={()=>{setShowVisit(false);setForm(p=>({...p,score:4,qualification:"qualified"}));}}/>}
-    {showStickers&&<StickerModal lead={form} t={t} currentUser={currentUser} onSave={addStickerLD} onClose={()=>setShowStickers(false)}/>}
+    {showStickers&&<StickerModal lead={form} t={t} currentUser={currentUser} onSave={addStickerLD} onDelete={deleteStickerLD} onClose={()=>setShowStickers(false)}/>}
     {showPush&&<PushModal lead={form} t={t} initDate={form.pushDate} initTime={form.pushTime}
       onConfirm={confirmPush}
       onCancel={()=>{setShowPush(false);setForm(p=>({...p,action:prevAction.current}));}}/>}
