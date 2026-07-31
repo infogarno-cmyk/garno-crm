@@ -2198,7 +2198,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead><tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
               <th style={{padding:"9px 10px",width:36}}><input type="checkbox" checked={allChecked} ref={el=>{if(el)el.indeterminate=someChecked;}} onChange={toggleAll} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></th>
-              {["📝",t.date,t.name,t.phone,t.score,t.qualification,t.period,t.action,t.manager,t.source,""].map((h,i)=><th key={i} style={{padding:"9px 10px",color:C.muted,fontWeight:600,textAlign:"left",whiteSpace:"nowrap",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>)}
+              {[t.stickers,t.date,t.name,t.phone,t.score,t.qualification,t.period,t.action,t.manager,t.source,""].map((h,i)=><th key={i} style={{padding:"9px 10px",color:C.muted,fontWeight:600,textAlign:"left",whiteSpace:"nowrap",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>)}
             </tr></thead>
             <tbody>{fl.map(l=>{const isSel=selected.has(l.id);return(
               <tr key={l.id} onClick={()=>onOpen(l)}
@@ -2206,10 +2206,14 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                 onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=C.surface)}
                 onMouseLeave={e=>{e.currentTarget.style.background=rowBg(l,isSel);}}>
                 <td style={{padding:"8px 10px"}} onClick={e=>toggleOne(l.id,e)}><input type="checkbox" checked={isSel} onChange={()=>{}} onClick={e=>toggleOne(l.id,e)} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></td>
-                <td style={{padding:"8px 10px"}} title={t.dblClickSticker} onClick={e=>e.stopPropagation()} onDoubleClick={e=>{e.stopPropagation();setStickerLead(l);}}>
+                <td style={{padding:"8px 10px",maxWidth:230,minWidth:150}} title={t.dblClickSticker} onClick={e=>e.stopPropagation()} onDoubleClick={e=>{e.stopPropagation();setStickerLead(l);}}>
                   {(l.stickers&&l.stickers.length>0)
-                    ? <span style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.14)",border:"1px solid rgba(240,192,64,0.45)",borderRadius:8,padding:"2px 7px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {l.stickers.length}</span>
-                    : <span style={{color:C.dim,fontSize:13,cursor:"pointer",opacity:0.55}}>＋📝</span>}
+                    ? (()=>{const last=l.stickers[l.stickers.length-1];const more=l.stickers.length-1;return(
+                        <div style={{cursor:"pointer",background:"rgba(240,192,64,0.07)",border:"1px solid rgba(240,192,64,0.28)",borderRadius:8,padding:"5px 8px"}}>
+                          <div style={{fontSize:11,color:C.text,lineHeight:1.35,whiteSpace:"normal",wordBreak:"break-word",display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{last.text}</div>
+                          <div style={{fontSize:9,fontWeight:700,color:"#f0c040",marginTop:3}}>— {last.by||"—"}{last.at?` · ${new Date(last.at).toLocaleDateString("ru-RU")}`:""}{more>0?`  ·  +${more}`:""}</div>
+                        </div>);})()
+                    : <span style={{color:C.dim,fontSize:15,opacity:0.3,cursor:"pointer"}}>＋</span>}
                 </td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
                 <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span></td>
