@@ -633,6 +633,9 @@ function useDatabase(){
       deletedEventIds:[...deletedEventIds],
       deletedTaskIds:[...deletedTaskIds],
       chat:local.chat,
+      // Ключи «напоминание уже отправлено» — ОБЪЕДИНЯЕМ с обеих сторон, иначе запись
+      // одного менеджера затирает ключи другого и ассистент шлёт пуши повторно.
+      sentReminders:[...new Set([...(local.sentReminders||[]),...(remote.sentReminders||[])])],
       // domains are stored in row id=2, NOT here
       tasks:(()=>{
         // Merge tasks by ID, latest updatedAt wins
