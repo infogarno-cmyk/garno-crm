@@ -74,7 +74,7 @@ const T = {
     avgScore:"Средний AI",qualityLeads:"Kwaly",qualityPct:"Kwaly%",conv4to5:"4→5",conv5toSell:"5→Продажа",
     convRate:"Конверсия",revenue:"Выручка",many:"Продаж",totalSales:"Выручка",salesCount:"Продаж",
     podium:"Пьедестал",visits:"Визиты",source_label:"Источник",
-    unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",salon:"Визит в салон",sale:"Продажа",
+    unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",mwp:"MWP квал",salon:"Визит в салон",sale:"Продажа",
     thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",quote:"Просчёт",undefined:"Не определено",waitingInfo:"Ждём инфо",visit:"Визит",sale:"Продажа",
     withinMonth:"В теч. месяца",within3m:"В теч. 3 мес.",within6m:"В теч. полугода",year:"Год",
     justPrice:"Только цена",unconfirmed:"Срок не подтвержден",
@@ -142,7 +142,7 @@ const T = {
     avgScore:"Śr. AI",qualityLeads:"Kwaly",qualityPct:"Kwaly%",conv4to5:"4→5",conv5toSell:"5→Sprzedaż",
     convRate:"Konwersja",revenue:"Przychód",many:"Sprzedaży",totalSales:"Przychód",salesCount:"Sprzedaży",
     podium:"Podium",visits:"Wizyty",source_label:"Źródło",
-    unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",salon:"Wizyta w salonie",sale:"Sprzedaż",
+    unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",mwp:"MWP kwal",salon:"Wizyta w salonie",sale:"Sprzedaż",
     thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",quote:"Wycena",undefined:"Nieokreślone",waitingInfo:"Czekamy na info",visit:"Wizyta",sale:"Sprzedaż",
     withinMonth:"W ciągu miesiąca",within3m:"W ciągu 3 mies.",within6m:"W ciągu pół roku",year:"Rok",
     justPrice:"Chce tylko cenę",unconfirmed:"Termin niepotwierdzony",
@@ -246,9 +246,9 @@ function GoldWreath({size}){
     </svg>
   );
 }
-function scoreToQual(s){const n=parseInt(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===5)return"salon";return"sale";}
-const QUALS=["unqualified","prequalified","qualified","salon","sale"];
-const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,salon:C.blue,sale:C.accent};
+function scoreToQual(s){const n=parseFloat(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===4.5)return"mwp";if(n===5)return"salon";return"sale";}
+const QUALS=["unqualified","prequalified","qualified","mwp","salon","sale"];
+const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,mwp:"#2dd4bf",salon:C.blue,sale:C.accent};
 const ACTIONS=["undefined","waitingInfo","thinking","missedCall","cancelled","callback","quote","push","visit","sale"];
 const PUSH_C="#f97316";
 const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple,push:PUSH_C,waitingInfo:"#38bdf8",visit:"#f0c040",sale:"#22c55e"};
@@ -539,7 +539,7 @@ function useDatabase(){
         if(iso)updated={...updated,visitDate:iso,visitBackfilled:true};
       }
       // Ensure score is always a number, not a string from JSON
-      if(typeof updated.score!=="number"){updated={...updated,score:parseInt(updated.score)||0};}
+      if(typeof updated.score!=="number"){updated={...updated,score:parseFloat(updated.score)||0};}
       // Ensure qualification is consistent with score
       if(!updated.qualification||updated.qualification==="undefined"){updated={...updated,qualification:scoreToQual(updated.score)};}
       // ── Разовый перевод в «Пропушить» ──────────────────────────
@@ -1062,7 +1062,7 @@ function Avatar({name,color,size=32,noMedal}){
 }
 function Dot({color}){return <span style={{width:7,height:7,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>;}
 function SrcBadge({source,color}){const c=color||SRC_COLOR[source]||C.muted;return <span style={{fontSize:9,color:c,background:`${c}20`,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",display:"inline-block"}}>{srcShort(source)}</span>;}
-function ScoreBar({score}){const s=parseInt(score)||0;const c=s<=2?C.red:s===3?C.yellow:s===4?C.green:s===5?C.blue:C.accent;return <div style={{display:"flex",gap:2,alignItems:"center"}}>{Array.from({length:7}).map((_,i)=><div key={i} style={{width:7,height:7,borderRadius:2,background:i<=s?c:"rgba(255,255,255,0.12)"}}/>)}<span style={{fontSize:10,color:c,marginLeft:2,fontWeight:700}}>{s}</span></div>;}
+function ScoreBar({score}){const s=parseFloat(score)||0;const c=QUAL_COLOR[scoreToQual(s)]||C.accent;return <div style={{display:"flex",gap:2,alignItems:"center"}}>{Array.from({length:7}).map((_,i)=>{const half=(s%1!==0)&&(i===Math.ceil(s));return <div key={i} style={{width:7,height:7,borderRadius:2,background:i<Math.ceil(s)?c:"rgba(255,255,255,0.12)",opacity:half?0.5:1}}/>;})}<span style={{fontSize:10,color:c,marginLeft:2,fontWeight:700}}>{s}</span></div>;}
 function Btn({children,onClick,variant="primary",small,disabled}){const s={primary:{background:C.accent,color:"#00132f",border:"none"},ghost:{background:"transparent",color:C.muted,border:`1px solid ${C.border}`},danger:{background:"rgba(248,113,113,0.15)",color:C.red,border:`1px solid ${C.red}44`}};return <button onClick={onClick} disabled={disabled} style={{...s[variant],padding:small?"5px 12px":"8px 18px",borderRadius:8,fontSize:small?12:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:6}}>{children}</button>;}
 function DateRangeBar({range,setRange,t}){return <div style={{display:"flex",gap:2,background:C.card,borderRadius:9,padding:3,border:`1px solid ${C.border}`,flexWrap:"wrap"}}>{DATE_RANGES.map(d=>{const lk=`period${d.key.charAt(0).toUpperCase()+d.key.slice(1)}`;const active=range===d.key;return <button key={d.key} onClick={()=>setRange(d.key)} style={{padding:"4px 9px",borderRadius:7,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",fontSize:10,fontWeight:active?700:500,whiteSpace:"nowrap"}}>{t[lk]||d.key}</button>;})}</div>;}
 
@@ -2329,7 +2329,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           </div>
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>◈ Оценка 0–6</div>
-            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{[0,1,2,3,4,5,6].map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} style={{width:34,height:34,borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{[0,1,2,3,4,4.5,5,6].map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} title={s===4.5?"MWP — только вручную":""} style={{minWidth:34,height:34,padding:s===4.5?"0 6px":0,borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
             <div style={{background:`${QUAL_COLOR[form.qualification]}18`,border:`1px solid ${QUAL_COLOR[form.qualification]}44`,borderRadius:8,padding:"7px 12px",marginBottom:10}}><div style={{fontSize:11,color:QUAL_COLOR[form.qualification],fontWeight:700}}>→ {t[form.qualification]}</div></div>
           </div>
         </div>
@@ -2734,7 +2734,15 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory,currentUse
   // Memory persisted in chatHistory prefixed entries
   const memory=chatHistory.filter(m=>m.role==="memory").map(m=>m.content);
   const addMemory=(info)=>setChatHistory(p=>[...p,{role:"memory",content:info}]);
-  useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[chatHistory]);
+  const [filterMgr,setFilterMgr]=useState("all");
+  const [filterType,setFilterType]=useState("all");
+  const prevLenRef=useRef(chatHistory.length);
+  useEffect(()=>{
+    // Скроллим вниз только при НОВОМ сообщении, а не при изменении существующего
+    // (например при нажатии «Принять») — иначе принятие телепортирует вниз.
+    if(chatHistory.length>prevLenRef.current){ref.current?.scrollIntoView({behavior:"smooth"});}
+    prevLenRef.current=chatHistory.length;
+  },[chatHistory]);
   const QUICK_RU=["Задачи Dmytro сегодня","Задачи Oleh сегодня","Задачи Mateusz сегодня","Статистика менеджеров","Незаконченные задачи","Все события сегодня","Итог дня","Лучший по конверсии?"];
   const QUICK_PL=["Zadania Dmytro dziś","Zadania Oleh dziś","Zadania Mateusz dziś","Statystyki menedżerów","Niedokończone zadania","Wszystkie wydarzenia dziś","Podsumowanie dnia","Najlepszy w konwersji?"];
   const QUICK=lang==="pl"?QUICK_PL:QUICK_RU;
@@ -2773,11 +2781,29 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory,currentUse
           <span style={{fontSize:13,fontWeight:700,color:"#fff"}}>GarnoAI</span>
           <span style={{fontSize:10,color:C.muted}}>claude-sonnet · {leads.length} leads</span>
           {memory.length>0&&<span style={{fontSize:10,color:C.blue}}>📚 {memory.length} фактов</span>}
+          <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
+            <span style={{fontSize:10,color:C.dim}}>🔔</span>
+            <select value={filterMgr} onChange={e=>setFilterMgr(e.target.value)} title={t.manager} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"3px 6px",fontSize:10,outline:"none",cursor:"pointer"}}>
+              <option value="all">{lang==="pl"?"Wszyscy":"Все"}</option>
+              {MANAGERS.map(mn=><option key={mn} value={mn}>{mn}</option>)}
+            </select>
+            <select value={filterType} onChange={e=>setFilterType(e.target.value)} title={lang==="pl"?"Powód":"Повод"} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"3px 6px",fontSize:10,outline:"none",cursor:"pointer"}}>
+              <option value="all">{lang==="pl"?"Wszystkie":"Все поводы"}</option>
+              <option value="visit">📅 {t.visit}</option>
+              <option value="push">🚀 Push</option>
+              <option value="quote">💰 {t.quote}</option>
+            </select>
+          </div>
           
         </div>
         <div style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
           {chatHistory.map((m,i)=>{
             if(m.kind==="reminder"){
+              // Фильтр уведомлений: по менеджеру и по поводу (визит / push / просчёт)
+              const mgrs=m.rtype==="push"?((m.data.items||[]).map(x=>x.mgr)):[m.data.mgr];
+              const matchMgr=filterMgr==="all"||mgrs.includes(filterMgr);
+              const matchType=filterType==="all"||m.rtype===filterType;
+              if(!matchMgr||!matchType) return null;
               const unacked=!m.ackBy;
               return(
                 <div key={i} style={{display:"flex",justifyContent:"flex-start"}}>
