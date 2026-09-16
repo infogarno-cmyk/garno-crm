@@ -50,9 +50,9 @@ const LIGHT = {
 };
 let C = DARK; // mutable — updated by theme
 function syncColorMaps(){
-  MGR_COLOR.Oleh=C.blue;MGR_COLOR.Dmytro=C.green;MGR_COLOR.Mateusz=C.purple;MGR_COLOR.Danya=C.cyan;MGR_COLOR.Taras=C.yellow;
+  MGR_COLOR.Oleh=C.blue;MGR_COLOR.Dmytro=C.green;MGR_COLOR.Mateusz=C.purple;MGR_COLOR.Danya=C.cyan;
   QUAL_COLOR.unqualified=C.red;QUAL_COLOR.prequalified=C.yellow;QUAL_COLOR.qualified=C.green;QUAL_COLOR.salon=C.blue;QUAL_COLOR.sale=C.accent;
-  ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;ACT_COLOR.push=PUSH_C;ACT_COLOR.waitingInfo="#38bdf8";ACT_COLOR.visit="#f0c040";ACT_COLOR.sale="#22c55e";
+  ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;
   BUD_COLOR.withinMonth=C.green;BUD_COLOR.within3m=C.cyan;BUD_COLOR.within6m=C.yellow;BUD_COLOR.year=C.purple;BUD_COLOR.justPrice=C.muted;
   EVENT_COLOR.visit=C.blue;EVENT_COLOR.measure=C.accent;EVENT_COLOR.contract=C.green;EVENT_COLOR.phone=C.purple;EVENT_COLOR.delivery=C.cyan;
 }
@@ -74,8 +74,8 @@ const T = {
     avgScore:"Средний AI",qualityLeads:"Kwaly",qualityPct:"Kwaly%",conv4to5:"4→5",conv5toSell:"5→Продажа",
     convRate:"Конверсия",revenue:"Выручка",many:"Продаж",totalSales:"Выручка",salesCount:"Продаж",
     podium:"Пьедестал",visits:"Визиты",source_label:"Источник",
-    unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",mwp:"MWP квал",salon:"Визит в салон",sale:"Продажа",
-    thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",quote:"Просчёт",undefined:"Не определено",waitingInfo:"Ждём инфо",visit:"Визит",sale:"Продажа",
+    unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",salon:"Визит в салон",sale:"Продажа",
+    thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",quote:"Просчёт",undefined:"Не определено",
     withinMonth:"В теч. месяца",within3m:"В теч. 3 мес.",within6m:"В теч. полугода",year:"Год",
     justPrice:"Только цена",unconfirmed:"Срок не подтвержден",
     evVisit:"Визит",evMeasure:"Замер",evContract:"Договор",evPhone:"Телефон",evDelivery:"Доставка",
@@ -85,14 +85,6 @@ const T = {
     visitTitle:"Введите дату визита",visitConfirm:"Подтвердить визит",visitDate:"Дата визита",visitTime:"Время",
     visits_tab:"Визиты",autoDate:"дата = день добавления лида",leads_tab:"Лиды",salesTab:"Продажи",dynTab:"Динамика",meetings:"Встречи",
     noVisits:"Визитов пока нет",editVisit:"Редактировать визит",visitSaved:"Визит сохранён",
-    push:"Push",pushTab:"Пропушить",pushTitle:"Введите дату пуша",pushConfirm:"Подтвердить пуш",pushDate:"Дата пуша",pushTime:"Время",
-    noPush:"Пушей пока нет",editPush:"Редактировать пуш",removePush:"Убрать из пушей",pushOverdue:"Просрочено",
-    upcomingVisits:"Ближайшие визиты",noUpcomingVisits:"Ближайших визитов нет",sortPush:"По дате пуша",sortCreated:"По дате добавления",
-    pushSetDate:"назначить дату",pushNoDate:"без срока",pushFromLabel:"было",
-    remVisitTitle:"Завтра визит — нужно подтвердить",remVisitCta:"Свяжитесь с клиентом и подтвердите визит.",remNoTime:"время не указано",
-    remPushTitle:"15:00 — пора пушить!",remPushLine:"На сегодня ({date}) в «Пропушить»: {n}",remPushCta:"Свяжитесь с клиентами.",
-    remQuoteTitle:"Просчёт висит больше суток",remQuoteFor:"в просчёте уже",remQuoteHrs:"ч",remQuoteCta:"Свяжитесь с клиентом или смените действие.",
-    ackBtn:"Принять",ackedBy:"Принято",aiUnread:"непринятых уведомлений",taskFrom:"от",stickers:"Стикеры",addSticker:"Добавить стикер",stickerPh:"Напишите заметку…",noStickers:"Стикеров пока нет",stickerBy:"написал",dblClickSticker:"2 клика — стикер",
     todaySection:"Сегодня",noToday:"Нет задач на сегодня",
     saleSectionTitle:"Все продажи",description:"Описание",
     deleteSelected:"Удалить выбранные",
@@ -142,8 +134,8 @@ const T = {
     avgScore:"Śr. AI",qualityLeads:"Kwaly",qualityPct:"Kwaly%",conv4to5:"4→5",conv5toSell:"5→Sprzedaż",
     convRate:"Konwersja",revenue:"Przychód",many:"Sprzedaży",totalSales:"Przychód",salesCount:"Sprzedaży",
     podium:"Podium",visits:"Wizyty",source_label:"Źródło",
-    unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",mwp:"MWP kwal",salon:"Wizyta w salonie",sale:"Sprzedaż",
-    thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",quote:"Wycena",undefined:"Nieokreślone",waitingInfo:"Czekamy na info",visit:"Wizyta",sale:"Sprzedaż",
+    unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",salon:"Wizyta w salonie",sale:"Sprzedaż",
+    thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",quote:"Wycena",undefined:"Nieokreślone",
     withinMonth:"W ciągu miesiąca",within3m:"W ciągu 3 mies.",within6m:"W ciągu pół roku",year:"Rok",
     justPrice:"Chce tylko cenę",unconfirmed:"Termin niepotwierdzony",
     evVisit:"Wizyta",evMeasure:"Pomiar",evContract:"Umowa",evPhone:"Telefon",evDelivery:"Dostawa",
@@ -153,14 +145,6 @@ const T = {
     visitTitle:"Wprowadź datę wizyty",visitConfirm:"Potwierdź wizytę",visitDate:"Data wizyty",visitTime:"Godzina",
     visits_tab:"Wizyty",autoDate:"data = dzień dodania leada",leads_tab:"Leady",salesTab:"Sprzedaże",dynTab:"Dynamika",meetings:"Spotkania",
     noVisits:"Brak wizyt",editVisit:"Edytuj wizytę",visitSaved:"Wizyta zapisana",
-    push:"Push",pushTab:"Do pushu",pushTitle:"Wprowadź datę pushu",pushConfirm:"Potwierdź push",pushDate:"Data pushu",pushTime:"Godzina",
-    noPush:"Brak pushy",editPush:"Edytuj push",removePush:"Usuń z pushy",pushOverdue:"Zaległe",
-    upcomingVisits:"Nadchodzące wizyty",noUpcomingVisits:"Brak nadchodzących wizyt",sortPush:"Wg daty pushu",sortCreated:"Wg daty dodania",
-    pushSetDate:"ustaw datę",pushNoDate:"bez terminu",pushFromLabel:"było",
-    remVisitTitle:"Jutro wizyta — trzeba potwierdzić",remVisitCta:"Skontaktuj się z klientem i potwierdź wizytę.",remNoTime:"brak godziny",
-    remPushTitle:"15:00 — czas na push!",remPushLine:"Na dziś ({date}) w «Do pushu»: {n}",remPushCta:"Skontaktuj się z klientami.",
-    remQuoteTitle:"Wycena wisi ponad dobę",remQuoteFor:"w wycenie już",remQuoteHrs:"godz.",remQuoteCta:"Skontaktuj się z klientem lub zmień działanie.",
-    ackBtn:"Przyjęte",ackedBy:"Przyjęte",aiUnread:"nieprzyjętych powiadomień",taskFrom:"od",stickers:"Naklejki",addSticker:"Dodaj naklejkę",stickerPh:"Napisz notatkę…",noStickers:"Brak naklejek",stickerBy:"napisał",dblClickSticker:"2 kliknięcia — naklejka",
     todaySection:"Dzisiaj",noToday:"Brak zadań na dzisiaj",
     saleSectionTitle:"Wszystkie sprzedaże",description:"Opis",
     deleteSelected:"Usuń wybrane",
@@ -193,65 +177,13 @@ const T = {
 };
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const MANAGERS = ["Oleh","Dmytro","Mateusz","Danya","Taras"];
-const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Mateusz:C.purple,Danya:C.cyan,Taras:C.yellow};
-// Лидер продаж — обновляется в GarnoCRM на каждом рендере (как тема C).
-// Аватар этого менеджера получает медаль везде, где он отрисован.
-let SALES_LEADER = null;
-function computeSalesLeader(sales){
-  if(!sales||!sales.length)return null;
-  // Считаем суммарную выручку ЗА ПРОШЛЫЙ МЕСЯЦ
-  const now=new Date();
-  const pm=new Date(now.getFullYear(),now.getMonth()-1,1);
-  const y=pm.getFullYear(), mo=pm.getMonth();
-  const rev={};
-  sales.forEach(s=>{
-    const d=parseCreatedAt(s.createdAt);
-    if(!d||d.getFullYear()!==y||d.getMonth()!==mo)return;
-    if(s.manager)rev[s.manager]=(rev[s.manager]||0)+(parseInt(s.saleAmount)||0);
-  });
-  let best=null,max=0;
-  Object.keys(rev).forEach(m=>{if(rev[m]>max){max=rev[m];best=m;}});
-  return max>0?best:null;
-}
-
-// Золотой лавровый венок — обрамляет аватар, ничего не перекрывая
-function GoldWreath({size}){
-  const G="#f0c040", G2="#b8860b";
-  const cx=50, cy=53, R=37;
-  const pt=(a)=>[cx+R*Math.cos(a*Math.PI/180), cy+R*Math.sin(a*Math.PI/180)];
-  const leaves=[];
-  const build=(from,to,tag)=>{
-    const n=8;
-    for(let i=0;i<n;i++){
-      const t=i/(n-1);
-      const a=from+(to-from)*t;
-      const [x,y]=pt(a);
-      const len=10-Math.abs(t-0.45)*6;
-      leaves.push(<ellipse key={tag+i} cx={x} cy={y} rx={len} ry={3.3}
-        transform={`rotate(${a+90} ${x} ${y})`} fill={G}/>);
-    }
-  };
-  build(110,238,"L");
-  build(70,-58,"R");
-  const [lx,ly]=pt(238), [rx2,ry2]=pt(-58);
-  const [blx,bly]=pt(110), [brx,bry]=pt(70);
-  return(
-    <svg viewBox="0 0 100 100" width={size} height={size}
-      style={{position:"absolute",top:0,left:0,pointerEvents:"none",overflow:"visible"}}>
-      <path d={`M${blx} ${bly} A ${R} ${R} 0 0 1 ${lx} ${ly}`} fill="none" stroke={G2} strokeWidth="2.2" strokeLinecap="round"/>
-      <path d={`M${brx} ${bry} A ${R} ${R} 0 0 0 ${rx2} ${ry2}`} fill="none" stroke={G2} strokeWidth="2.2" strokeLinecap="round"/>
-      {leaves}
-      <circle cx={cx} cy={cy+R+1.5} r="3.4" fill={G} stroke={G2} strokeWidth="1"/>
-    </svg>
-  );
-}
-function scoreToQual(s){const n=parseFloat(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===4.5)return"mwp";if(n===5)return"salon";return"sale";}
-const QUALS=["unqualified","prequalified","qualified","mwp","salon","sale"];
-const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,mwp:"#2dd4bf",salon:C.blue,sale:C.accent};
-const ACTIONS=["undefined","waitingInfo","thinking","missedCall","cancelled","callback","quote","push","visit","sale"];
-const PUSH_C="#f97316";
-const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple,push:PUSH_C,waitingInfo:"#38bdf8",visit:"#f0c040",sale:"#22c55e"};
+const MANAGERS = ["Oleh","Dmytro","Mateusz","Danya"];
+const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Mateusz:C.purple,Danya:C.cyan};
+function scoreToQual(s){const n=parseInt(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===5)return"salon";return"sale";}
+const QUALS=["unqualified","prequalified","qualified","salon","sale"];
+const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,salon:C.blue,sale:C.accent};
+const ACTIONS=["undefined","thinking","missedCall","cancelled","callback","quote"];
+const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple};
 const BUDGETS=["withinMonth","within3m","within6m","year","justPrice","unconfirmed"];
 const BUD_COLOR={withinMonth:C.green,within3m:C.cyan,within6m:C.yellow,year:C.purple,justPrice:C.muted,unconfirmed:"rgba(255,255,255,0.2)"};
 const SOURCES=["pl.calculatorkuchni.online","roda.calculatorkuchni.online","fast.calculatorkuchni.online","ua.calculatorkuchni.online","1.designkitchen.online","fillout","garnofurniture.ukr","garnofurniture.com","Instagram","Mail","Шоу Рум"];
@@ -297,23 +229,6 @@ function createdAtToIsoDate(str){
   return `${yr}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;
 }
 function leadsWithVisits(leads){return (leads||[]).filter(l=>l.visitDate&&(parseInt(l.score)||0)>=5);}
-// Colour coding shared by Visits and Push lists:
-// past = grey, today = blue, future = white
-function dateStateColor(iso){
-  if(!iso)return C.dim;
-  const td=getToday();
-  if(iso<td)return C.dim;
-  if(iso===td)return C.blue;
-  return C.text;
-}
-function isoToDot(iso){return iso?String(iso).split("-").reverse().join("."):"—";}
-// Leads currently queued for a push
-function leadsToPush(leads){return (leads||[]).filter(l=>l.action==="push");}
-// How many pushes are due (today or overdue)
-function pushDueCount(leads,mgr){
-  const td=getToday();
-  return leadsToPush(leads).filter(l=>(mgr==="all"||!mgr||l.manager===mgr)&&l.pushDate&&l.pushDate<=td).length;
-}
 function filterByCustomRange(items,dateFrom,dateTo){
   if(!dateFrom&&!dateTo)return items;
   return items.filter(l=>{
@@ -427,54 +342,6 @@ async function sbWrite(data){
   });
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
 }
-// ── OPTIMISTIC CONCURRENCY (compare-and-swap) ─────────────────────────────
-// Читаем данные ВМЕСТЕ с версией строки (updated_at). Записываем только если
-// версия в базе не изменилась с момента чтения. Если кто-то записал раньше —
-// база вернёт 0 строк, и вызывающий перечитает + перемёржит. Так параллельные
-// сохранения НЕ МОГУТ затирать друг друга (это и была причина пропажи лидов).
-async function sbReadV(){
-  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&select=data,updated_at`,{headers:SB_HDR,cache:"no-store"});
-  if(!r.ok)throw new Error(`HTTP ${r.status}`);
-  const j=await r.json();
-  if(!j||j.length===0)throw new Error("empty");
-  return {data:j[0].data, ver:j[0].updated_at};
-}
-// Возвращает true при успехе, false при конфликте версий (кто-то записал первым).
-async function sbWriteCAS(data, ver){
-  const now=new Date().toISOString();
-  if(!ver){
-    // Версия неизвестна (пустая строка) — затирать нечего, обычная запись.
-    const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1`,{
-      method:"PATCH",headers:{...SB_HDR,"Prefer":"return=minimal"},
-      body:JSON.stringify({data,updated_at:now})
-    });
-    if(!r.ok)throw new Error(`HTTP ${r.status}`);
-    return true;
-  }
-  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&updated_at=eq.${encodeURIComponent(ver)}`,{
-    method:"PATCH",headers:{...SB_HDR,"Prefer":"return=representation"},
-    body:JSON.stringify({data,updated_at:now})
-  });
-  if(!r.ok)throw new Error(`HTTP ${r.status}`);
-  const j=await r.json().catch(()=>[]);
-  return Array.isArray(j)&&j.length>0; // 0 строк → версия сменилась → конфликт
-}
-// Безопасный коммит: читает свежий remote+версию, применяет transform(remote)→данные,
-// пишет через CAS. При конфликте перечитывает и повторяет. При СБОЕ ЧТЕНИЯ (сеть) —
-// пробрасывает ошибку, поэтому вызывающий НЕ перезапишет базу вслепую (напр. демо-данными).
-// transform может вернуть null → «писать нечего».
-async function casCommit(transform){
-  for(let attempt=0; attempt<6; attempt++){
-    let remote=null, ver=null;
-    try{const rv=await sbReadV(); remote=rv.data; ver=rv.ver;}
-    catch(e){ if(String(e.message)==="empty"){remote=null;ver=null;} else throw e; }
-    const final=transform(remote);
-    if(final==null) return null;
-    if(await sbWriteCAS(final, ver)) return final;
-    await new Promise(r=>setTimeout(r, 120+Math.random()*200));
-  }
-  throw new Error("CAS: слишком много конфликтов подряд");
-}
 // Domains stored in separate row (id=2) — never mixed with leads/events/sales
 async function sbReadDomains(){
   const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.2&select=data`,{headers:SB_HDR,cache:"no-store"});
@@ -504,8 +371,6 @@ function useDatabase(){
   const saveTimer=useRef(null);
   const retryTimer=useRef(null);
   const retryCount=useRef(0);
-  const dirtyRef=useRef(false);
-  const provisionalRef=useRef(false); // true = база не прочитана при старте → запись заблокирована (защита от подмешивания демо-данных в реальную базу)
   const LS_BACKUP="garno_backup";
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -539,27 +404,9 @@ function useDatabase(){
         if(iso)updated={...updated,visitDate:iso,visitBackfilled:true};
       }
       // Ensure score is always a number, not a string from JSON
-      if(typeof updated.score!=="number"){updated={...updated,score:parseFloat(updated.score)||0};}
+      if(typeof updated.score!=="number"){updated={...updated,score:parseInt(updated.score)||0};}
       // Ensure qualification is consistent with score
       if(!updated.qualification||updated.qualification==="undefined"){updated={...updated,qualification:scoreToQual(updated.score)};}
-      // ── Разовый перевод в «Пропушить» ──────────────────────────
-      // Лиды с оценкой 2–5 и действием «Думает» переносятся
-      // в push-лист БЕЗ даты — срока у них нет, менеджер проставит её вручную.
-      // Флаг pushBackfilled гарантирует, что лид переносится ровно один раз:
-      // если менеджер потом вернёт его в «Думает» — миграция его больше не тронет.
-      if(!updated.pushBackfilled&&sc>=2&&sc<=5&&updated.action==="thinking"){
-        updated={...updated,pushFrom:updated.action,action:"push",pushDate:null,pushTime:null,pushBackfilled:true};
-      }
-      // Откат: лиды с действием «Просчёт» возвращаются из push обратно.
-      // Самоограничивается: после отката action уже не "push", условие больше не сработает.
-      if(updated.action==="push"&&updated.pushFrom==="quote"){
-        updated={...updated,action:"quote",pushDate:null,pushTime:null,pushFrom:null,pushBackfilled:true};
-      }
-      // Бэкфилл quoteSince для существующих «Просчётов» (от updatedAt/createdAt)
-      if(updated.action==="quote"&&!updated.quoteSince){
-        const c=parseCreatedAt(updated.createdAt);
-        updated={...updated,quoteSince:updated.updatedAt||(c?c.getTime():Date.now())};
-      }
       return updated;
     });
     const changed=leads.some((l,i)=>l!==data.leads[i]);
@@ -617,8 +464,6 @@ function useDatabase(){
 
     // Events tombstone — deleted events never come back
     const deletedEventIds=new Set([...(local.deletedEventIds||[]),...(remote.deletedEventIds||[])]);
-    // Tasks tombstone — deleted tasks never come back
-    const deletedTaskIds=new Set([...(local.deletedTaskIds||[]),...(remote.deletedTaskIds||[])]);
     const mergedEventsFinal=mergedEvents.filter(e=>!deletedEventIds.has(e.id));
 
     // Domains are stored in a separate Supabase row (id=2) — not merged here
@@ -631,11 +476,7 @@ function useDatabase(){
       deletedLeadIds:[...deletedIds],
       deletedSaleIds:[...deletedSaleIds],
       deletedEventIds:[...deletedEventIds],
-      deletedTaskIds:[...deletedTaskIds],
       chat:local.chat,
-      // Ключи «напоминание уже отправлено» — ОБЪЕДИНЯЕМ с обеих сторон, иначе запись
-      // одного менеджера затирает ключи другого и ассистент шлёт пуши повторно.
-      sentReminders:[...new Set([...(local.sentReminders||[]),...(remote.sentReminders||[])])],
       // domains are stored in row id=2, NOT here
       tasks:(()=>{
         // Merge tasks by ID, latest updatedAt wins
@@ -645,8 +486,6 @@ function useDatabase(){
           const ex=taskMap.get(t.id);
           if(!ex||(t.updatedAt||0)>=(ex.updatedAt||0))taskMap.set(t.id,t);
         });
-        // Tombstones — deleted tasks must never resurface from remote
-        deletedTaskIds.forEach(id=>taskMap.delete(id));
         return [...taskMap.values()].sort((a,b)=>(a.order||0)-(b.order||0));
       })(),
     };
@@ -655,32 +494,20 @@ function useDatabase(){
   // ── MERGE-WRITE: read-fresh → merge local+remote → write back ──────────────
   // Каждый раз читает актуальный remote перед записью, поэтому не теряет
   // лиды добавленные другими пользователями пока шла запись.
-  const mergeWrite=async()=>{
-    // Блок записи, если база не была прочитана при старте — иначе рискуем
-    // записать демо/неполный набор поверх реальных данных.
-    if(provisionalRef.current){
-      setSyncLabel("!");
-      setSyncError("⚠️ Нет связи с базой — изменения НЕ сохранены. Обновите страницу. / Brak połączenia — odśwież stronę.");
-      return;
-    }
-    // Serialize writes: if one is already in flight, flag dirty and re-run after it.
-    if(savingRef.current){dirtyRef.current=true;return;}
+  const mergeWrite=async(localData)=>{
     savingRef.current=true;
     setSyncError("");
     if(bgSyncRef.current){clearInterval(bgSyncRef.current);bgSyncRef.current=null;}
     setSyncLabel("⟳");
+    try{lsSet(LS_BACKUP,localData);}catch{}
     try{
-      // Единая безопасная запись: casCommit читает свежий remote+версию, мёржит
-      // с АКТУАЛЬНЫМ локальным стейтом (внутри transform на каждой попытке) и
-      // пишет через compare-and-swap. При конфликте — перечитывает и повторяет.
-      const final=await casCommit((remote)=>{
-        const localData=JSON.parse(localRef.current||"{}");
-        try{lsSet(LS_BACKUP,localData);}catch{}
-        return mergeData(localData,remote);
-      });
-      if(final){localRef.current=JSON.stringify(final);setDbState(final);}
+      let remote;
+      try{remote=await sbRead();}catch{remote=null;}
+      const final=mergeData(localData,remote);
+      await sbWrite(final);
+      localRef.current=JSON.stringify(final);
+      setDbState(final);
       setSyncLabel("✓");setSyncError("");
-      retryCount.current=0;
       setTimeout(()=>setSyncLabel("●"),2000);
       try{localStorage.removeItem(LS_BACKUP);}catch{}
       setTimeout(()=>startBgSync(),5000);
@@ -691,16 +518,12 @@ function useDatabase(){
       retryCount.current=(retryCount.current||0)+1;
       if(retryCount.current<=3){
         if(retryTimer.current)clearTimeout(retryTimer.current);
-        retryTimer.current=setTimeout(()=>{retryCount.current=0;mergeWrite();},15000);
+        retryTimer.current=setTimeout(()=>{retryCount.current=0;mergeWrite(JSON.parse(localRef.current||"{}"));},15000);
       } else {
         retryCount.current=0;
         setSyncError("⚠️ Supabase offline — dane lokalne / данные локально");
       }
-    }finally{
-      savingRef.current=false;
-      // A change arrived while we were writing — flush it now.
-      if(dirtyRef.current){dirtyRef.current=false;mergeWrite();}
-    }
+    }finally{savingRef.current=false;}
   };
 
   // ── Фоновый авто-мёрдж каждые 25 сек ────────────────────────────────────
@@ -708,12 +531,10 @@ function useDatabase(){
   const startBgSync=()=>{
     if(bgSyncRef.current)clearInterval(bgSyncRef.current);
     bgSyncRef.current=setInterval(()=>{
-      if(savingRef.current||provisionalRef.current)return;
+      if(savingRef.current)return;
       (async()=>{
         try{
           const remote=await sbRead();
-          // Пока шло чтение мог начаться пользовательский save — не мешаем ему
-          if(savingRef.current||provisionalRef.current)return;
           // Always read local AFTER the network call — captures latest deletedLeadIds
           const local=JSON.parse(localRef.current||"{}");
           if(!local.leads)return;
@@ -731,20 +552,10 @@ function useDatabase(){
           const remoteNewEvs=(remote?.events||[]).filter(e=>!(local.events||[]).find(x=>x.id===e.id));
           const localSaleIds=new Set((local.sales||[]).map(s=>s.id));
           const remoteNewSales=(remote?.sales||[]).filter(s=>!localSaleIds.has(s.id));
-          // Tasks: new or newer on remote (respecting local tombstones)
-          const deletedTasks=new Set(local.deletedTaskIds||[]);
-          const localTaskMap=new Map((local.tasks||[]).map(t=>[t.id,t]));
-          const remoteTaskChanges=(remote?.tasks||[]).filter(t=>{
-            if(deletedTasks.has(t.id))return false;
-            const loc=localTaskMap.get(t.id);
-            if(!loc)return true;
-            return (t.updatedAt||0)>(loc.updatedAt||0);
-          });
-          if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0&&remoteTaskChanges.length===0)return;
-          // Только ПОДТЯГИВАЕМ удалённые изменения в локальный вид. НЕ пишем в базу
-          // из bgSync — любая запись должна идти через mergeWrite с compare-and-swap,
-          // иначе фоновая запись могла бы затирать чужие правки.
+          if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0)return;
+          // Build merged — deletedSet applied on both sides
           const merged=mergeData(local,remote);
+          try{await sbWrite(merged);}catch{}
           localRef.current=JSON.stringify(merged);
           setDbState(merged);
         }catch{}
@@ -757,59 +568,25 @@ function useDatabase(){
     (async()=>{
       try{
         setSyncLabel("⟳");
-        let remote=null, readOk=false;
-        // 3 попытки прочитать базу — сеть на free-плане может моргать
-        for(let a=0;a<3&&!readOk;a++){
-          try{remote=await sbRead();readOk=true;}
-          catch{ if(a<2) await new Promise(r=>setTimeout(r,800)); }
-        }
-        // База так и не прочиталась → НЕ грузим демо в рабочий стейт (правка могла бы
-        // подмешать демо-лиды в реальную базу). Показываем реальный кэш для просмотра,
-        // блокируем запись, и в фоне пробуем перечитать, чтобы разблокировать.
-        if(!readOk){
-          const bk=lsGet(LS_BACKUP);
-          const view=(bk&&bk.leads&&bk.leads.length>0)?migrateData(bk):INIT_DB();
-          localRef.current=JSON.stringify(view);
-          setDbState(view);
-          provisionalRef.current=true;
-          setStatus("ready");
-          setSyncLabel("!");
-          setSyncError("⚠️ Нет связи с базой — режим просмотра, изменения не сохраняются. Обновите страницу. / Brak połączenia — tryb podglądu.");
-          try{const dr=await sbReadDomains();setDomainsState(normDoms(dr?.domains?.length?dr.domains:(lsGet("garno_domains_v2")||SOURCES)));}catch{setDomainsState(normDoms(SOURCES));}
-          // Фоновый повтор: как только база ответит — грузим реальные данные и снимаем блок
-          const unblock=setInterval(async()=>{
-            try{
-              const r2=await sbRead();
-              clearInterval(unblock);
-              const d2=migrateData(r2&&r2.leads?r2:INIT_DB());
-              localRef.current=JSON.stringify(d2);
-              setDbState(d2);
-              provisionalRef.current=false;
-              setSyncLabel("●");setSyncError("✅ Связь восстановлена");
-              setTimeout(()=>setSyncError(""),4000);
-              startBgSync();
-            }catch{}
-          },8000);
-          return; // дальше нормальную логику не выполняем
-        }
+        let remote=null;
+        try{remote=await sbRead();}catch{}
         const backup=lsGet(LS_BACKUP);
         // Если remote пустой ({}) — это первый запуск, грузим seed
         const isFirstRun=!remote||!remote.leads||remote.leads.length===0;
         let data;
         if(isFirstRun){
-          let dataIsReal=false; // true только если данные из JSONBin/backup, а НЕ демо
           // 1. Пробуем достать данные из JSONBin (миграция)
           const jbData=await tryMigrateFromJsonBin();
           if(jbData&&jbData.leads&&jbData.leads.length>0){
             // Мёрджим JSONBin + локальный backup чтобы ничего не потерять
             const merged=backup&&backup.leads&&backup.leads.length>0?mergeData(jbData,backup):jbData;
-            data=migrateData(merged);dataIsReal=true;
+            data=migrateData(merged);
             setSyncError("✅ Данные перенесены из JSONBin → Supabase! Лидов: "+data.leads.length);
             setTimeout(()=>setSyncError(""),8000);
             localStorage.setItem(JB_MIGRATED_KEY,"1");
           // 2. Есть ли локальный backup с данными?
           } else if(backup&&backup.leads&&backup.leads.length>0){
-            data=migrateData(backup);dataIsReal=true;
+            data=migrateData(backup);
             setSyncError("✅ Данные восстановлены из локального кэша. Лидов: "+data.leads.length);
             setTimeout(()=>setSyncError(""),5000);
           } else {
@@ -817,45 +594,14 @@ function useDatabase(){
             data=INIT_DB();
             setSyncError("⏳ JSONBin пока недоступен. CRM запущена с демо-данными. Как только JSONBin поднимется — обнови страницу и данные перенесутся автоматически.");
           }
-          // Записываем через CAS. Если за это время кто-то уже залил реальные лиды —
-          // НЕ затираем: реальный локальный набор мёржим, демо — отбрасываем.
-          try{
-            const committed=await casCommit((rem)=>{
-              if(rem&&rem.leads&&rem.leads.length>0){
-                return dataIsReal?migrateData(mergeData(data,rem)):migrateData(rem);
-              }
-              return data;
-            });
-            if(committed) data=committed;
-          }catch(e){console.error("First write failed (не перезаписываю базу):",e);}
+          // Записываем в Supabase
+          try{await sbWrite(data);}catch(e){console.error("First write failed:",e);}
         } else {
-          const pushBefore=(remote.leads||[]).filter(l=>l.pushBackfilled).length;
-          const rolledBack=(remote.leads||[]).filter(l=>l.action==="push"&&l.pushFrom==="quote").length;
-          const hadBackup=backup&&backup.leads&&backup.leads.length>0;
-          // transform пересчитывается от СВЕЖЕГО remote на каждой попытке CAS
-          const transform=(rem)=>{
-            let d=migrateData(rem||remote||{});
-            if(hadBackup) d=migrateData(mergeData(backup,d));
-            return d;
-          };
-          const d0=transform(remote);
-          const movedToPush=(d0.leads||[]).filter(l=>l.pushBackfilled).length-pushBefore;
-          const willWrite=hadBackup||movedToPush>0||rolledBack>0;
-          if(willWrite){
-            try{
-              const committed=await casCommit(transform);
-              data=committed||d0;
-              try{localStorage.removeItem(LS_BACKUP);}catch{}
-            }catch(e){console.error("mount write failed (не перезаписываю базу):",e);data=d0;}
-          } else {
-            data=d0; // ничего не изменилось — не пишем лишний раз (меньше конфликтов)
-          }
-          const msgs=[];
-          if(movedToPush>0)msgs.push(`в «Пропушить»: ${movedToPush}`);
-          if(rolledBack>0)msgs.push(`возвращено в «Просчёт»: ${rolledBack}`);
-          if(msgs.length){
-            setSyncError("✅ "+msgs.join("  ·  "));
-            setTimeout(()=>setSyncError(""),7000);
+          data=migrateData(remote);
+          // Мёрджим с локальным backup если есть несохранённые изменения
+          if(backup&&backup.leads&&backup.leads.length>0){
+            data=mergeData(backup,data);
+            try{await sbWrite(data);localStorage.removeItem(LS_BACKUP);}catch{}
           }
         }
         localRef.current=JSON.stringify(data);
@@ -896,7 +642,7 @@ function useDatabase(){
 
   // ── Manual refresh — merge, не перезапись ────────────────────────────────
   const refresh=async()=>{
-    if(savingRef.current||provisionalRef.current)return;
+    if(savingRef.current)return;
     setSyncLabel("⟳");
     try{
       const remote=await sbRead();
@@ -920,10 +666,10 @@ function useDatabase(){
       try{lsSet(LS_BACKUP,next);}catch{}
       if(immediate){
         if(saveTimer.current){clearTimeout(saveTimer.current);saveTimer.current=null;}
-        mergeWrite();
+        mergeWrite(next);
       } else {
         if(saveTimer.current)clearTimeout(saveTimer.current);
-        saveTimer.current=setTimeout(()=>{mergeWrite();},600);
+        saveTimer.current=setTimeout(()=>{mergeWrite(JSON.parse(localRef.current||"{}"));},600);
       }
       return next;
     });
@@ -939,95 +685,6 @@ function useDatabase(){
   };
 
   return{db,status,syncLabel,syncError,refresh,updateDb,setDomains,domainsState};
-}
-
-// ─── AI REMINDERS ──────────────────────────────────────────────
-// Падают в чат AI-ассистента:
-//   • за сутки до визита — связаться и подтвердить
-//   • в 15:00 в день срока пуша — кого ещё надо пропушить сегодня
-// Каждое напоминание имеет ключ и отправляется ровно один раз (db.sentReminders).
-function buildReminders(db){
-  const today=getToday();
-  const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
-  const sent=new Set(db.sentReminders||[]);
-  const out=[];
-
-  // 1. Визиты завтра — по одному напоминанию на клиента
-  leadsWithVisits(db.leads).filter(l=>l.visitDate===tomorrow).forEach(l=>{
-    const key=`v:${l.leadId||l.id}:${l.visitDate}`;
-    if(sent.has(key))return;
-    out.push({key,rtype:"visit",data:{name:l.name||"",phone:l.phone||"",time:l.visitTime||"",date:l.visitDate,mgr:l.manager||""}});
-  });
-
-  // 2. Пуши на сегодня — одно сводное сообщение в 15:00
-  if(new Date().getHours()>=15){
-    const key=`p:${today}`;
-    if(!sent.has(key)){
-      const due=leadsToPush(db.leads).filter(l=>l.pushDate===today);
-      if(due.length){
-        out.push({key,rtype:"push",data:{date:today,items:due.map(l=>({name:l.name||"",phone:l.phone||"",mgr:l.manager||""}))}});
-      }
-    }
-  }
-
-  // 3. Wycena (Просчёт) висит > 24 часов — напоминать раз в день, пока действие не сменят
-  const DAY=86400000;
-  (db.leads||[]).filter(l=>l.action==="quote").forEach(l=>{
-    const since=l.quoteSince||0;
-    if(!since||(Date.now()-since)<DAY)return;
-    const key=`q:${l.leadId||l.id}:${today}`;
-    if(sent.has(key))return;
-    const hours=Math.floor((Date.now()-since)/3600000);
-    out.push({key,rtype:"quote",data:{name:l.name||"",phone:l.phone||"",mgr:l.manager||"",hours}});
-  });
-
-  return out;
-}
-
-// Локализованный текст напоминания — рендерится под текущий язык CRM
-// Системное (нативное) уведомление ОС. Появляется, пока вкладка CRM открыта
-// (в т.ч. в фоне/свёрнута). Тихо ничего не делает, если нет разрешения.
-function showDesktopNotif(title,body,onClick){
-  try{
-    if(typeof Notification==="undefined"||Notification.permission!=="granted")return;
-    const n=new Notification(title,{body:body||"",tag:title});
-    n.onclick=()=>{ try{window.focus();}catch{} if(onClick)onClick(); try{n.close();}catch{} };
-    setTimeout(()=>{try{n.close();}catch{}},12000);
-  }catch{}
-}
-function formatReminder(m,t){
-  const d=m.data||{};
-  if(m.rtype==="visit"){
-    return `📅 ${t.remVisitTitle}
-
-👤 ${d.name||"—"}
-📞 ${d.phone}
-🕐 ${d.time||t.remNoTime} · ${isoToDot(d.date)}
-🧑 ${t.manager}: ${d.mgr||"—"}
-
-→ ${t.remVisitCta}`;
-  }
-  if(m.rtype==="push"){
-    const lines=(d.items||[]).map(x=>`• ${x.name||"—"} · ${x.phone} · ${x.mgr||"—"}`).join("\n");
-    return `🚀 ${t.remPushTitle}
-
-${t.remPushLine.replace("{date}",isoToDot(d.date)).replace("{n}",(d.items||[]).length)}
-
-${lines}
-
-→ ${t.remPushCta}`;
-  }
-  if(m.rtype==="quote"){
-    return `💰 ${t.remQuoteTitle}
-
-👤 ${d.name||"—"}
-📞 ${d.phone}
-🧑 ${t.manager}: ${d.mgr||"—"}
-⏱ ${t.remQuoteFor} ${d.hours} ${t.remQuoteHrs}
-
-→ ${t.remQuoteCta}`;
-  }
-  return m.content||"";
 }
 
 // ─── UI ATOMS ─────────────────────────────────────────────────────────────────
@@ -1046,23 +703,10 @@ function Badge({label,color=C.blue,small,action}){
     </span>
   );
 }
-function Avatar({name,color,size=32,noMedal}){
-  const ini=(name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
-  const av=<div style={{width:size,height:size,borderRadius:"50%",background:color?`${color}25`:C.accentDim,border:`1.5px solid ${color||C.accent}50`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:color||C.accent,flexShrink:0}}>{ini}</div>;
-  const isLeader=!noMedal&&name&&name===SALES_LEADER;
-  if(!isLeader)return av;
-  // Венок занимает место в потоке — соседние элементы раздвигаются сами
-  const box=Math.round(size*1.55);
-  return(
-    <div title="MOLODEC" style={{position:"relative",width:box,height:box,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <GoldWreath size={box}/>
-      {av}
-    </div>
-  );
-}
+function Avatar({name,color,size=32}){const ini=(name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();return <div style={{width:size,height:size,borderRadius:"50%",background:color?`${color}25`:C.accentDim,border:`1.5px solid ${color||C.accent}50`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:color||C.accent,flexShrink:0}}>{ini}</div>;}
 function Dot({color}){return <span style={{width:7,height:7,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>;}
 function SrcBadge({source,color}){const c=color||SRC_COLOR[source]||C.muted;return <span style={{fontSize:9,color:c,background:`${c}20`,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",display:"inline-block"}}>{srcShort(source)}</span>;}
-function ScoreBar({score}){const s=parseFloat(score)||0;const c=QUAL_COLOR[scoreToQual(s)]||C.accent;return <div style={{display:"flex",gap:2,alignItems:"center"}}>{Array.from({length:7}).map((_,i)=>{const half=(s%1!==0)&&(i===Math.ceil(s));return <div key={i} style={{width:7,height:7,borderRadius:2,background:i<Math.ceil(s)?c:"rgba(255,255,255,0.12)",opacity:half?0.5:1}}/>;})}<span style={{fontSize:10,color:c,marginLeft:2,fontWeight:700}}>{s}</span></div>;}
+function ScoreBar({score}){const s=parseInt(score)||0;const c=s<=2?C.red:s===3?C.yellow:s===4?C.green:s===5?C.blue:C.accent;return <div style={{display:"flex",gap:2,alignItems:"center"}}>{Array.from({length:7}).map((_,i)=><div key={i} style={{width:7,height:7,borderRadius:2,background:i<=s?c:"rgba(255,255,255,0.12)"}}/>)}<span style={{fontSize:10,color:c,marginLeft:2,fontWeight:700}}>{s}</span></div>;}
 function Btn({children,onClick,variant="primary",small,disabled}){const s={primary:{background:C.accent,color:"#00132f",border:"none"},ghost:{background:"transparent",color:C.muted,border:`1px solid ${C.border}`},danger:{background:"rgba(248,113,113,0.15)",color:C.red,border:`1px solid ${C.red}44`}};return <button onClick={onClick} disabled={disabled} style={{...s[variant],padding:small?"5px 12px":"8px 18px",borderRadius:8,fontSize:small?12:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:6}}>{children}</button>;}
 function DateRangeBar({range,setRange,t}){return <div style={{display:"flex",gap:2,background:C.card,borderRadius:9,padding:3,border:`1px solid ${C.border}`,flexWrap:"wrap"}}>{DATE_RANGES.map(d=>{const lk=`period${d.key.charAt(0).toUpperCase()+d.key.slice(1)}`;const active=range===d.key;return <button key={d.key} onClick={()=>setRange(d.key)} style={{padding:"4px 9px",borderRadius:7,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",fontSize:10,fontWeight:active?700:500,whiteSpace:"nowrap"}}>{t[lk]||d.key}</button>;})}</div>;}
 
@@ -1486,80 +1130,6 @@ function VisitModal({lead,t,initDate,initTime,onConfirm,onCancel}){
   );
 }
 
-// Быстрое добавление стикера (двойной клик по лиду) + просмотр существующих
-function StickerModal({lead,t,currentUser,onSave,onDelete,onClose}){
-  const [text,setText]=useState("");
-  const stickers=lead.stickers||[];
-  const add=()=>{ const v=text.trim(); if(!v)return; onSave(v); setText(""); };
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4200}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:16,border:`1px solid ${C.border}`,width:"min(460px,95vw)",maxHeight:"85vh",overflow:"auto",padding:24}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-          <div style={{fontSize:17,fontWeight:800,color:C.text}}>📝 {t.stickers}</div>
-          <button onClick={onClose} style={{background:"transparent",border:"none",color:C.muted,fontSize:18,cursor:"pointer"}}>✕</button>
-        </div>
-        <div style={{fontSize:12,color:C.muted,marginBottom:14}}>{lead.name||lead.phone}</div>
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          <textarea value={text} onChange={e=>setText(e.target.value)} placeholder={t.stickerPh} autoFocus rows={3}
-            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();add();}}}
-            style={{background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:10,padding:"10px 12px",fontSize:13,resize:"vertical",outline:"none",width:"100%",boxSizing:"border-box"}}/>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:10,color:C.dim}}>{currentUser?`${t.stickerBy}: ${currentUser} · Enter ↵`:"Enter ↵"}</span>
-            <button onClick={add} disabled={!text.trim()} style={{background:C.accent,color:"#00132f",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,fontWeight:800,cursor:text.trim()?"pointer":"not-allowed",opacity:text.trim()?1:0.5}}>＋ {t.addSticker}</button>
-          </div>
-        </div>
-        <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
-          {stickers.length===0
-            ? <div style={{fontSize:12,color:C.dim,textAlign:"center",padding:"10px 0"}}>{t.noStickers}</div>
-            : [...stickers].reverse().map((st,i)=>(
-              <div key={st.id||i} style={{background:"rgba(240,192,64,0.08)",border:"1px solid rgba(240,192,64,0.35)",borderRadius:10,padding:"10px 12px",position:"relative"}}>
-                {onDelete&&<button onClick={()=>onDelete(st)} title={t.delete} style={{position:"absolute",top:8,right:8,background:"transparent",border:"none",color:C.red,fontSize:13,cursor:"pointer",opacity:0.7,padding:2,lineHeight:1}}>🗑</button>}
-                <div style={{fontSize:13,color:C.text,whiteSpace:"pre-wrap",lineHeight:1.5,paddingRight:22}}>{st.text}</div>
-                <div style={{fontSize:10,color:"#f0c040",fontWeight:700,marginTop:6}}>— {st.by||"—"}{st.at?` · ${new Date(st.at).toLocaleDateString("ru-RU")}`:""}</div>
-              </div>
-            ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PushModal({lead,t,initDate,initTime,onConfirm,onCancel}){
-  const [pDate,setPDate]=useState(initDate||new Date().toISOString().slice(0,10));
-  const [pTime,setPTime]=useState(initTime||"12:00");
-  const ins={background:C.card,border:`2px solid ${PUSH_C}66`,color:C.text,borderRadius:9,padding:"12px 16px",fontSize:15,width:"100%",boxSizing:"border-box",outline:"none"};
-  const confirm=()=>{if(!pDate)return;onConfirm(pDate,pTime);};
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.87)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000}}>
-      <div style={{background:C.surface,borderRadius:16,border:`2px solid ${PUSH_C}`,width:"min(420px,95vw)",padding:32}}>
-        <div style={{fontSize:20,fontWeight:800,color:PUSH_C,marginBottom:4}}>🚀 {t.pushTitle}</div>
-        <div style={{fontSize:13,color:C.muted,marginBottom:20}}>{lead?.name||lead?.phone}</div>
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div>
-            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.pushDate}</div>
-            <input type="date" value={pDate} onChange={e=>setPDate(e.target.value)} autoFocus
-              onKeyDown={e=>e.key==="Enter"&&pDate&&confirm()}
-              style={{...ins,colorScheme:"dark",fontSize:16,fontWeight:700}}/>
-          </div>
-          <div>
-            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{t.pushTime}</div>
-            <input type="time" value={pTime} onChange={e=>setPTime(e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&pDate&&confirm()}
-              style={{...ins,colorScheme:"dark",fontSize:14}}/>
-          </div>
-        </div>
-        <div style={{display:"flex",gap:10,marginTop:20}}>
-          <Btn onClick={onCancel} variant="ghost">{t.cancel}</Btn>
-          <button onClick={confirm} disabled={!pDate}
-            style={{flex:1,background:`linear-gradient(135deg,${PUSH_C},#fdba74)`,color:"#00132f",border:"none",borderRadius:9,padding:"12px 0",fontSize:14,fontWeight:800,cursor:pDate?"pointer":"not-allowed",opacity:pDate?1:0.5}}>
-            ✓ {t.pushConfirm}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function SaleModal({lead,t,onConfirm,onCancel}){
   const [amt,setAmt]=useState("");
   const [saleDate,setSaleDate]=useState(new Date().toISOString().slice(0,10));
@@ -1599,16 +1169,15 @@ function SaleModal({lead,t,onConfirm,onCancel}){
 function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
   const todayIso=new Date().toISOString().slice(0,10);
   const allDomains=normDoms(srcList&&srcList.length?srcList:SOURCES);
-  const [form,setForm]=useState({name:"",phone:"",action:"undefined",pushDate:todayIso,pushTime:"12:00",clientLang:"pl",source:(allDomains[0]&&(allDomains[0].name||allDomains[0]))||SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed",dateOverride:todayIso});
+  const [form,setForm]=useState({name:"",phone:"",action:"undefined",clientLang:"pl",source:(allDomains[0]&&(allDomains[0].name||allDomains[0]))||SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed",dateOverride:todayIso});
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
 
   const buildCreatedAt=(iso)=>{try{const d=new Date(iso);return d.toLocaleDateString("ru-RU");}catch{return new Date().toLocaleDateString("ru-RU");}};
 
   const submit=()=>{
     const createdAt=buildCreatedAt(form.dateOverride);
-    // Глобально уникальный id (время+рандом): при одновременном создании на разных
-    // устройствах ключ слияния не может совпасть, поэтому лид не потеряется при merge.
-    const shortId=Date.now()*1000+Math.floor(Math.random()*1000);
+    // Use nextNum-based short ID to avoid 13-digit Date.now() IDs
+    const shortId=nextNum*1000+Math.floor(Math.random()*999)+1;
     onAdd({...form,id:shortId,leadId:makeLeadId(nextNum,createdAt),score:0,qualification:"unqualified",createdAt,updatedAt:Date.now(),isDone:false,quoteAmt:null,clientLang:form.clientLang||"pl",
       history:[{date:nowStr(),action:lang==="ru"?"Лид добавлен":"Lead dodany",by:currentUser||"Admin"}]});
     onClose();
@@ -1643,7 +1212,6 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
             <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.source}</div><select value={form.source} onChange={e=>set("source",e.target.value)} style={ins}>{allDomains.map(d=><option key={d.name||d} value={d.name||d}>{d.name||d}</option>)}</select></div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.action}</div><select value={form.action} onChange={e=>set("action",e.target.value)} style={{...ins,color:ACT_COLOR[form.action]||"#fff",borderColor:ACT_COLOR[form.action]||C.borderMd}}>{ACTIONS.map(a=><option key={a} value={a}>{t[a]||a}</option>)}</select></div>
           </div>
-          {form.action==="push"&&<div style={{background:"rgba(249,115,22,0.08)",border:`1px solid ${PUSH_C}55`,borderRadius:8,padding:"9px 11px"}}><div style={{fontSize:10,color:PUSH_C,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:700}}>🚀 {t.pushDate}</div><div style={{display:"flex",gap:8}}><input type="date" value={form.pushDate||""} onChange={e=>set("pushDate",e.target.value)} style={{...ins,colorScheme:"dark"}}/><input type="time" value={form.pushTime||"12:00"} onChange={e=>set("pushTime",e.target.value)} style={{...ins,colorScheme:"dark",maxWidth:110}}/></div></div>}
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.manager}</div><select value={form.manager} onChange={e=>set("manager",e.target.value)} style={ins}><option value="">{lang==="ru"?"— не назначен —":"— nieprzypisany —"}</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select></div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.period}</div><select value={form.budgetTimeline} onChange={e=>set("budgetTimeline",e.target.value)} style={{...ins,borderColor:BUD_COLOR[form.budgetTimeline]||C.borderMd}}>{BUDGETS.map(b=><option key={b} value={b}>{t[b]||b}</option>)}</select></div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.notes}</div><textarea value={form.notes} onChange={e=>set("notes",e.target.value)} rows={2} style={{...ins,resize:"vertical"}}/></div>
@@ -1662,7 +1230,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"ai",icon:"◆",ru:"AI Ассистент",pl:"Asystent AI"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"}];
-function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,aiUnread=0,t}){
+function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,t}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
       <div style={{padding:"14px 10px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
@@ -1670,7 +1238,7 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0
         {!collapsed&&<span style={{color:C.accent,fontWeight:900,fontSize:14,letterSpacing:1.5}}>GARNO<span style={{color:"#fff"}}>CRM</span></span>}
       </div>
       <nav style={{flex:1,padding:"8px 6px",display:"flex",flexDirection:"column",gap:2,overflowY:"auto",overflowX:"hidden"}}>
-        {NAV.map(item=>{const active=page===item.key;return(<button key={item.key} onClick={()=>setPage(item.key)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:active?700:500,borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent"}}><span style={{fontSize:14,flexShrink:0}}>{item.icon}</span>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}{item.key==="leads"&&pushDue>0?<span title={t.pushToday} style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {pushDue}</span>:null}{item.key==="ai"&&aiUnread>0?<span title={t.aiUnread} style={{display:"inline-flex",alignItems:"center",gap:2,background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {aiUnread}</span>:null}</span>}</button>);})}
+        {NAV.map(item=>{const active=page===item.key;return(<button key={item.key} onClick={()=>setPage(item.key)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:active?700:500,borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent"}}><span style={{fontSize:14,flexShrink:0}}>{item.icon}</span>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}</span>}</button>);})}
         {!collapsed&&page==="leads"&&(<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}}>{["all",...MANAGERS].map(m=>(<button key={m} onClick={()=>setMgr(m)} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderRadius:6,border:"none",background:mgr===m?`${MGR_COLOR[m]||C.accent}22`:"transparent",color:mgr===m?(MGR_COLOR[m]||C.accent):C.muted,cursor:"pointer",fontSize:12,fontWeight:mgr===m?600:400,width:"100%",textAlign:"left"}}>{m!=="all"&&<Avatar name={m} color={MGR_COLOR[m]} size={18}/>}{m==="all"?`◉ ${lang==="ru"?"Все":"Wszyscy"}`:m}</button>))}</div>)}
       </nav>
     </div>
@@ -1770,7 +1338,7 @@ function Dashboard({leads,events,t,lang}){
   // Встречи = лиды с оценкой 5+ у которых дата визита попадает в выбранный диапазон
   const rangeVisits=leadsWithVisits(leads).filter(l=>visitInRange(l,dateFrom,dateTo)).length;
   const todayEvs=[...events].filter(e=>e.date===TODAY).sort((a,b)=>a.time.localeCompare(b.time));
-  const upcomingVisits=leadsWithVisits(leads).filter(l=>l.visitDate>=getToday()).sort((a,b)=>a.visitDate.localeCompare(b.visitDate)||String(a.visitTime||"").localeCompare(String(b.visitTime||"")));
+  const upcoming=[...events].filter(e=>e.date>=getToday()).sort((a,b)=>a.date===b.date?a.time.localeCompare(b.time):a.date.localeCompare(b.date));
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
@@ -1794,17 +1362,8 @@ function Dashboard({leads,events,t,lang}){
           <ResponsiveContainer width="100%" height={150}><BarChart data={srcData.slice(0,7)} margin={{top:0,right:0,bottom:22,left:-20}}><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)"/><XAxis dataKey="name" tick={{fill:C.muted,fontSize:8}} axisLine={false} tickLine={false} angle={-28} textAnchor="end"/><YAxis tick={{fill:C.muted,fontSize:9}} axisLine={false} tickLine={false}/><Tooltip {...getTIP()}/><Bar dataKey="value" radius={[4,4,0,0]}>{srcData.slice(0,7).map((d,i)=><Cell key={i} fill={d.fill||C.accent}/>)}</Bar></BarChart></ResponsiveContainer>
         </div>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
-          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{t.upcomingVisits}</div>
-          {upcomingVisits.length===0?<div style={{fontSize:11,color:C.dim}}>{t.noUpcomingVisits}</div>:
-            upcomingVisits.slice(0,5).map(l=>{const c=dateStateColor(l.visitDate);return(
-              <div key={l.id} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:`1px solid ${C.border}`,alignItems:"center"}}>
-                <div style={{width:3,alignSelf:"stretch",background:c,borderRadius:2,flexShrink:0}}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:11,color:c,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.name||l.phone}</div>
-                  <div style={{fontSize:10,color:C.muted}}>{l.visitTime||"—"} · <span style={{color:MGR_COLOR[l.manager]||C.muted}}>{l.manager||"—"}</span></div>
-                </div>
-                <span style={{fontSize:10,fontWeight:700,color:c,background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"2px 8px",whiteSpace:"nowrap"}}>{isoToDot(l.visitDate)}</span>
-              </div>);})}
+          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{t.upcoming}</div>
+          {upcoming.slice(0,5).map(ev=>{const c=EVENT_COLOR[ev.type]||C.muted;return(<div key={ev.id} style={{display:"flex",gap:10,padding:"6px 0",borderBottom:`1px solid ${C.border}`}}><div style={{width:3,background:c,borderRadius:2,flexShrink:0}}/><div style={{flex:1}}><div style={{fontSize:11,color:C.text}}>{ev.title}</div><div style={{fontSize:10,color:C.muted}}>{ev.time}{ev.timeEnd?`–${ev.timeEnd}`:""} · <span style={{color:MGR_COLOR[ev.manager]}}>{ev.manager}</span></div></div><Badge label={ev.date.slice(5)} color={c} small/></div>);})}
         </div>
       </div>
       <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:14,padding:18}}>
@@ -1832,7 +1391,6 @@ function TabBar({tabs,active,onChange}){
               cursor:"pointer",marginBottom:-1,transition:"all .15s",display:"flex",alignItems:"center",gap:6}}>
             {tb.icon&&<span>{tb.icon}</span>}{tb.label}
             {tb.count!==undefined&&<span style={{fontSize:10,background:on?C.accentDim:C.surface,color:on?C.accent:C.dim,borderRadius:10,padding:"1px 7px",fontWeight:700}}>{tb.count}</span>}
-            {tb.alert>0&&<span title={tb.alertTitle||""} style={{display:"inline-flex",alignItems:"center",gap:3,background:"#ef4444",color:"#fff",borderRadius:10,padding:"1px 7px",fontSize:10,fontWeight:800,boxShadow:"0 0 0 2px rgba(239,68,68,0.25)"}}>⚠️ {tb.alert}</span>}
           </button>
         );
       })}
@@ -1845,18 +1403,13 @@ function LeadsSection(props){
   const [tab,setTab]=useState("leads");
   const {t,leads,mgr}=props;
   const visitCount=leadsWithVisits(leads).filter(l=>mgr==="all"||l.manager===mgr).length;
-  const pushCount=leadsToPush(leads).filter(l=>mgr==="all"||l.manager===mgr).length;
-  const pushDue=pushDueCount(leads,mgr); // сегодня + просроченные
   return(
     <div style={{height:"100%",overflowY:"auto"}}>
       <TabBar active={tab} onChange={setTab} tabs={[
         {key:"leads", icon:"◈", label:t.leads_tab||t.leads},
         {key:"visits",icon:"📅",label:t.visits_tab,count:visitCount},
-        {key:"push",  icon:"🚀",label:t.pushTab,count:pushCount,alert:pushDue,alertTitle:t.pushToday||""},
       ]}/>
-      {tab==="leads"?<LeadsPage {...props}/>
-        :tab==="visits"?<VisitsPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>
-        :<PushPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>}
+      {tab==="leads"?<LeadsPage {...props}/>:<VisitsPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>}
     </div>
   );
 }
@@ -1954,7 +1507,7 @@ function VisitsPanel({leads,updateDb,t,mgr,search,onOpen}){
                     </>
                   ):(
                     <>
-                      <td style={{padding:"9px 12px",fontWeight:700,color:dateStateColor(l.visitDate),whiteSpace:"nowrap"}}>
+                      <td style={{padding:"9px 12px",fontWeight:700,color:isToday?C.blue:past?C.dim:C.text,whiteSpace:"nowrap"}}>
                         {l.visitDate.split("-").reverse().join(".")}
                         {isToday&&<span style={{marginLeft:6,fontSize:9,background:C.blue,color:"#00132f",borderRadius:8,padding:"1px 6px",fontWeight:800}}>{t.todaySection}</span>}
                         {l.visitBackfilled&&<span title={t.autoDate} style={{marginLeft:6,fontSize:9,color:C.dim,border:`1px solid ${C.border}`,borderRadius:8,padding:"1px 6px",fontWeight:600}}>авто</span>}
@@ -1963,7 +1516,6 @@ function VisitsPanel({leads,updateDb,t,mgr,search,onOpen}){
                       <td style={{padding:"9px 12px",color:C.accent,fontFamily:"monospace",fontSize:10}}>{l.leadId}</td>
                       <td onClick={()=>onOpen(l)} style={{padding:"9px 12px",cursor:"pointer",fontWeight:600,color:C.text}}>
                         <span style={{marginRight:5}}>{l.clientLang==="ua"?"🇺🇦":l.clientLang==="en"?"🇬🇧":"🇵🇱"}</span>{l.name||"—"}
-                        {l.pushFrom&&<span title={t.pushFromLabel} style={{marginLeft:6,fontSize:9,color:ACT_COLOR[l.pushFrom]||C.dim,border:`1px solid ${ACT_COLOR[l.pushFrom]||C.border}55`,borderRadius:6,padding:"1px 6px",fontWeight:600}}>{t[l.pushFrom]||l.pushFrom}</span>}
                       </td>
                       <td style={{padding:"9px 12px",color:C.muted}}>{l.phone}</td>
                       <td style={{padding:"9px 12px"}}><span style={{color:MGR_COLOR[l.manager]||C.muted,fontWeight:600}}>{l.manager||"—"}</span></td>
@@ -1988,156 +1540,7 @@ function VisitsPanel({leads,updateDb,t,mgr,search,onOpen}){
   );
 }
 
-// ─── PUSH TAB (Пропушить) ───────────────────────────────────
-function PushPanel({leads,updateDb,t,mgr,search,onOpen}){
-  const [editing,setEditing]=useState(null);
-  const [dateFrom,setDateFrom]=useState("");
-  const [dateTo,setDateTo]=useState("");
-  const [sort,setSort]=useState("push");
-  const today=getToday();
-
-  const parseDot=(s)=>{if(!s)return 0;const p=String(s).split(".");return p.length===3?new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0:0;};
-
-  const list=leadsToPush(leads)
-    .filter(l=>mgr==="all"||l.manager===mgr)
-    .filter(l=>!search||(l.name||"").toLowerCase().includes(search.toLowerCase())||String(l.phone||"").includes(search)||String(l.leadId||"").includes(search))
-    .filter(l=>{
-      if(!dateFrom&&!dateTo)return true;
-      if(!l.pushDate)return false;
-      if(dateFrom&&l.pushDate<dateFrom)return false;
-      if(dateTo&&l.pushDate>dateTo)return false;
-      return true;
-    })
-    .sort((a,b)=>{
-      if(sort==="score")return (parseInt(b.score)||0)-(parseInt(a.score)||0);
-      if(sort==="id")return String(b.leadId||"").localeCompare(String(a.leadId||""));
-      if(sort==="created")return parseDot(b.createdAt)-parseDot(a.createdAt);
-      // default — ближайшие к актуальной дате сверху, без даты — в конец
-      return String(a.pushDate||"9999-99-99").localeCompare(String(b.pushDate||"9999-99-99"));
-    });
-
-  const dueCount=list.filter(l=>l.pushDate&&l.pushDate<=today).length;
-
-  const savePush=(id,pDate,pTime)=>{
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,pushDate:pDate,pushTime:pTime,updatedAt:Date.now()}:l)}),true);
-    setEditing(null);
-  };
-  // Снять с пуша — действие возвращается в "не определено"
-  const removePush=(id)=>{
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,action:"undefined",pushDate:null,pushTime:null,updatedAt:Date.now()}:l)}),true);
-    setEditing(null);
-  };
-
-  const ins={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 9px",fontSize:12,outline:"none",colorScheme:"dark",cursor:"pointer"};
-
-  return(
-    <div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{fontSize:16,fontWeight:700,color:C.text}}>🚀 {t.pushTab} <span style={{fontSize:12,color:C.muted}}>({list.length})</span></div>
-          {dueCount>0&&(
-            <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.5)",borderRadius:9,padding:"4px 12px"}}>
-              <span style={{fontSize:14}}>⚠️</span>
-              <span style={{fontSize:15,fontWeight:800,color:"#ef4444"}}>{dueCount}</span>
-              <span style={{fontSize:11,color:"#ef4444"}}>{t.pushToday}</span>
-            </div>
-          )}
-        </div>
-        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-          <select value={sort} onChange={e=>setSort(e.target.value)} style={ins}>
-            <option value="push">{t.sortPush}</option>
-            <option value="created">{t.sortCreated}</option>
-            <option value="id">ID</option>
-            <option value="score">{t.score}</option>
-          </select>
-          <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={ins}/>
-          <span style={{color:C.dim,fontSize:12}}>—</span>
-          <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={ins}/>
-          {(dateFrom||dateTo)&&<button onClick={()=>{setDateFrom("");setDateTo("");}} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:14}}>✕</button>}
-        </div>
-      </div>
-
-      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-          <thead>
-            <tr style={{background:"rgba(249,115,22,0.08)",borderBottom:`1px solid ${C.border}`}}>
-              {[t.pushDate,t.pushTime,"ID",t.name,t.phone,t.manager,t.source,t.score,""].map((h,i)=>(
-                <th key={i} style={{padding:"9px 12px",color:PUSH_C,fontWeight:700,textAlign:"left",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((l,i)=>{
-              const isEdit=editing===l.id;
-              const c=dateStateColor(l.pushDate);
-              const isToday=l.pushDate===today;
-              const overdue=l.pushDate&&l.pushDate<today;
-              return(
-                <tr key={l.id} style={{borderBottom:`1px solid ${C.border}`,background:isToday?"rgba(96,165,250,0.07)":overdue?"rgba(239,68,68,0.05)":i%2?"rgba(255,255,255,0.02)":"transparent"}}>
-                  {isEdit?(
-                    <>
-                      <td style={{padding:"7px 12px"}}><input type="date" defaultValue={l.pushDate||today} id={`pd-${l.id}`} style={{...ins,padding:"4px 7px"}}/></td>
-                      <td style={{padding:"7px 12px"}}><input type="time" defaultValue={l.pushTime||"12:00"} id={`pt-${l.id}`} style={{...ins,padding:"4px 7px"}}/></td>
-                      <td colSpan={5} style={{padding:"7px 12px",color:C.muted,fontSize:11}}>{l.name||l.phone}</td>
-                      <td style={{padding:"7px 12px",whiteSpace:"nowrap"}}>
-                        <button onClick={()=>savePush(l.id,document.getElementById(`pd-${l.id}`).value,document.getElementById(`pt-${l.id}`).value)}
-                          style={{background:C.green,border:"none",color:"#00132f",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",marginRight:5}}>✓</button>
-                        <button onClick={()=>setEditing(null)}
-                          style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",marginRight:5}}>✕</button>
-                        <button onClick={()=>removePush(l.id)} title={t.removePush}
-                          style={{background:"transparent",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>🗑</button>
-                      </td>
-                    </>
-                  ):(
-                    <>
-                      <td style={{padding:"9px 12px",fontWeight:700,color:c,whiteSpace:"nowrap"}}>
-                        {l.pushDate?isoToDot(l.pushDate):<span style={{color:C.dim,fontWeight:600,fontStyle:"italic"}}>{t.pushNoDate}</span>}
-                        {isToday&&<span style={{marginLeft:6,fontSize:9,background:C.blue,color:"#00132f",borderRadius:8,padding:"1px 6px",fontWeight:800}}>{t.todaySection}</span>}
-                        {overdue&&<span style={{marginLeft:6,fontSize:9,background:"#ef4444",color:"#fff",borderRadius:8,padding:"1px 6px",fontWeight:800}}>{t.pushOverdue}</span>}
-                      </td>
-                      <td style={{padding:"9px 12px",color:C.muted}}>{l.pushTime||"—"}</td>
-                      <td style={{padding:"9px 12px",color:C.accent,fontFamily:"monospace",fontSize:10}}>{l.leadId}</td>
-                      <td onClick={()=>onOpen(l)} style={{padding:"9px 12px",cursor:"pointer",fontWeight:600,color:C.text}}>
-                        <span style={{marginRight:5}}>{l.clientLang==="ua"?"🇺🇦":l.clientLang==="en"?"🇬🇧":"🇵🇱"}</span>{l.name||"—"}
-                      </td>
-                      <td style={{padding:"9px 12px",color:C.muted}}>{l.phone}</td>
-                      <td style={{padding:"9px 12px"}}><span style={{color:MGR_COLOR[l.manager]||C.muted,fontWeight:600}}>{l.manager||"—"}</span></td>
-                      <td style={{padding:"9px 12px"}}><SrcBadge source={l.source}/></td>
-                      <td style={{padding:"9px 12px"}}><ScoreBar score={l.score}/></td>
-                      <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
-                        <button onClick={()=>setEditing(l.id)} title={t.editPush}
-                          style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>✎</button>
-                      </td>
-                    </>
-                  )}
-                </tr>
-              );
-            })}
-            {!list.length&&(
-              <tr><td colSpan={9} style={{padding:30,textAlign:"center",color:C.dim,fontSize:13}}>{t.noPush}</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onOpen,currentUser}){
-  const [stickerLead,setStickerLead]=useState(null);
-  const addSticker=(text)=>{
-    if(!stickerLead)return;
-    const st={id:Date.now()+Math.floor(Math.random()*1000),text,by:currentUser||"—",at:Date.now()};
-    const nStickers=[...(stickerLead.stickers||[]),st];
-    setStickerLead({...stickerLead,stickers:nStickers});
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===stickerLead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
-  };
-  const deleteSticker=(st)=>{
-    if(!stickerLead)return;
-    const nStickers=(stickerLead.stickers||[]).filter(s=>s!==st&&!(st.id!=null&&s.id===st.id));
-    setStickerLead({...stickerLead,stickers:nStickers});
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===stickerLead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
-  };
+function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onOpen}){
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
   const [fQ,setFQ]=useState("all");const [fA,setFA]=useState("all");const [fS,setFS]=useState("all");const [sort,setSort]=useState("date");
@@ -2150,11 +1553,6 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
     if(sort==="date") return parseDate(b.createdAt)-parseDate(a.createdAt);
     return parseDate(b.createdAt)-parseDate(a.createdAt); // default also by date desc
   });
-  // Лиды с действием "не определено" подсвечиваются жёлтым, пока действие не сменят
-  const rowBg=(l,isSel)=>isSel?"rgba(191,164,126,0.1)"
-    :l.isFavorite?"rgba(251,191,36,0.22)"
-    :(!l.action||l.action==="undefined")?"rgba(245,158,11,0.15)"
-    :l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent";
   const toggleOne=(id,e)=>{e.stopPropagation();setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});};
   const toggleAll=()=>setSelected(selected.size===fl.length&&fl.length>0?new Set():new Set(fl.map(l=>l.id)));
   const deleteSelected=()=>{
@@ -2201,23 +1599,15 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead><tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
               <th style={{padding:"9px 10px",width:36}}><input type="checkbox" checked={allChecked} ref={el=>{if(el)el.indeterminate=someChecked;}} onChange={toggleAll} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></th>
-              {[t.stickers,t.date,t.name,t.phone,t.score,t.qualification,t.period,t.action,t.manager,t.source,""].map((h,i)=><th key={i} style={{padding:"9px 10px",color:C.muted,fontWeight:600,textAlign:"left",whiteSpace:"nowrap",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>)}
+              {["ID",t.date,t.name,t.phone,t.score,t.qualification,t.period,t.action,t.manager,t.source,""].map((h,i)=><th key={i} style={{padding:"9px 10px",color:C.muted,fontWeight:600,textAlign:"left",whiteSpace:"nowrap",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>)}
             </tr></thead>
             <tbody>{fl.map(l=>{const isSel=selected.has(l.id);return(
               <tr key={l.id} onClick={()=>onOpen(l)}
-                style={{borderBottom:`1px solid ${C.border}`,background:rowBg(l,isSel),cursor:"pointer"}}
+                style={{borderBottom:`1px solid ${C.border}`,background:isSel?"rgba(191,164,126,0.1)":l.isFavorite?"rgba(251,191,36,0.22)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent",cursor:"pointer"}}
                 onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=C.surface)}
-                onMouseLeave={e=>{e.currentTarget.style.background=rowBg(l,isSel);}}>
+                onMouseLeave={e=>{e.currentTarget.style.background=isSel?"rgba(191,164,126,0.1)":l.isFavorite?"rgba(251,191,36,0.22)":l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent";}}>
                 <td style={{padding:"8px 10px"}} onClick={e=>toggleOne(l.id,e)}><input type="checkbox" checked={isSel} onChange={()=>{}} onClick={e=>toggleOne(l.id,e)} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></td>
-                <td style={{padding:"8px 10px",maxWidth:230,minWidth:150}} title={t.dblClickSticker} onClick={e=>e.stopPropagation()} onDoubleClick={e=>{e.stopPropagation();setStickerLead(l);}}>
-                  {(l.stickers&&l.stickers.length>0)
-                    ? (()=>{const last=l.stickers[l.stickers.length-1];const more=l.stickers.length-1;return(
-                        <div style={{cursor:"pointer",background:"rgba(240,192,64,0.07)",border:"1px solid rgba(240,192,64,0.28)",borderRadius:8,padding:"5px 8px"}}>
-                          <div style={{fontSize:11,color:C.text,lineHeight:1.35,whiteSpace:"normal",wordBreak:"break-word",display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{last.text}</div>
-                          <div style={{fontSize:9,fontWeight:700,color:"#f0c040",marginTop:3}}>— {last.by||"—"}{last.at?` · ${new Date(last.at).toLocaleDateString("ru-RU")}`:""}{more>0?`  ·  +${more}`:""}</div>
-                        </div>);})()
-                    : <span style={{color:C.dim,fontSize:15,opacity:0.3,cursor:"pointer"}}>＋</span>}
-                </td>
+                <td style={{padding:"8px 10px"}}><span style={{fontSize:10,color:C.accent,fontFamily:"monospace",fontWeight:600}}>{l.leadId||l.id}</span></td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
                 <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span></td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
@@ -2234,7 +1624,6 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
           {fl.length===0&&<div style={{padding:40,textAlign:"center",color:C.muted}}>Нет лидов</div>}
         </div>
       </div>
-      {stickerLead&&<StickerModal lead={stickerLead} t={t} currentUser={currentUser} onSave={addSticker} onDelete={deleteSticker} onClose={()=>setStickerLead(null)}/>}
     </div>
   );
 }
@@ -2245,35 +1634,11 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const [form,setForm]=useState({...lead});
   const [showSale,setShowSale]=useState(false);
   const [showVisit,setShowVisit]=useState(false);
-  const [showPush,setShowPush]=useState(false);
-  const [showStickers,setShowStickers]=useState(false);
-  const addStickerLD=(text)=>{
-    const st={id:Date.now()+Math.floor(Math.random()*1000),text,by:currentUser||"—",at:Date.now()};
-    const nStickers=[...(form.stickers||[]),st];
-    setForm(f=>({...f,stickers:nStickers}));
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
-  };
-  const deleteStickerLD=(st)=>{
-    const nStickers=(form.stickers||[]).filter(s=>s!==st&&!(st.id!=null&&s.id===st.id));
-    setForm(f=>({...f,stickers:nStickers}));
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
-  };
-  const prevAction=useRef(lead.action||"undefined");
   const set=(k,v)=>setForm(p=>{
     const u={...p,[k]:v};
-    // Действие → Push: спрашиваем дату пуша (аналогично визиту)
-    if(k==="action"&&v==="push"&&p.action!=="push"){prevAction.current=p.action||"undefined";setShowPush(true);}
-    // Штамп начала «Просчёта» — от него считаем 24ч для напоминания
-    if(k==="action"){
-      if(v==="quote"&&p.action!=="quote")u.quoteSince=Date.now();
-      if(v!=="quote"&&p.action==="quote")u.quoteSince=null;
-    }
     if(k==="score"){
       u.qualification=scoreToQual(v);
       const nv=parseInt(v),pv=parseInt(p.score);
-      // Авто-действие: оценка 5 → «Визит», оценка 6 → «Продажа»
-      if(nv===5)u.action="visit";
-      if(nv===6)u.action="sale";
       if(nv===6&&pv!==6)setShowSale(true);
       // Визит: оценка стала 5 — спросить дату визита
       if(nv===5&&pv!==5)setShowVisit(true);
@@ -2284,22 +1649,16 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);if(isNaN(d))return iso;return d.toLocaleDateString("ru-RU");}catch{return iso;}};
   const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
   const confirmVisit=(vDate,vTime)=>{
-    const updLead={...form,visitDate:vDate,visitTime:vTime||"12:00",visitBackfilled:false,score:5,qualification:"salon",action:"visit",updatedAt:Date.now()};
+    const updLead={...form,visitDate:vDate,visitTime:vTime||"12:00",visitBackfilled:false,score:5,qualification:"salon",updatedAt:Date.now()};
     setForm(updLead);
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l)}),true);
     setShowVisit(false);
-  };
-  const confirmPush=(pDate,pTime)=>{
-    const updLead={...form,action:"push",pushDate:pDate,pushTime:pTime||"12:00",updatedAt:Date.now()};
-    setForm(updLead);
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l)}),true);
-    setShowPush(false);
   };
   const confirmSale=(amt,saleDate)=>{
     let createdAt=new Date().toLocaleDateString("ru-RU");
     if(saleDate){try{const d=new Date(saleDate);createdAt=d.toLocaleDateString("ru-RU");}catch{}}
     const newSale={id:Date.now(),leadId:lead.leadId||lead.id,name:form.name,phone:form.phone,manager:form.manager||"—",source:form.source,createdAt,saleAmount:amt,notes:form.notes};
-    const updLead={...form,saleAmount:amt,isDone:true,action:"sale",updatedAt:Date.now()};
+    const updLead={...form,saleAmount:amt,isDone:true,updatedAt:Date.now()};
     // Атомарно: лид + продажа в одном updateDb → один save в Supabase
     updateDb(p=>({
       ...p,
@@ -2313,7 +1672,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:"16px 16px 0 0",border:`1px solid ${C.border}`,width:"100%",maxWidth:820,maxHeight:"90vh",overflow:"auto",padding:22}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44} noMedal/><div><div style={{fontSize:16,fontWeight:700,color:C.text}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
+          <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44}/><div><div style={{fontSize:16,fontWeight:700,color:C.text}}>{lead.name||lead.phone}</div><div style={{fontSize:11,color:C.muted}}>ID: <b style={{color:C.accent,fontFamily:"monospace"}}>{lead.leadId||lead.id}</b> · {lead.phone}</div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
           <div style={{display:"flex",gap:8}}>{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(false);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}<Btn onClick={onClose} variant="ghost" small>✕</Btn></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
@@ -2324,12 +1683,12 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select>:<SrcBadge source={form.source}/>}</div><div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.clientLang}</div>{editing?<div style={{display:"flex",gap:4,marginTop:2}}>{[{v:"pl",flag:"🇵🇱",label:"PL"},{v:"ua",flag:"🇺🇦",label:"UA"},{v:"en",flag:"🇬🇧",label:"EN"}].map(({v,flag,label})=><button key={v} onClick={()=>set("clientLang",v)} style={{fontSize:16,padding:"3px 8px",borderRadius:6,border:`2px solid ${(form.clientLang||"pl")===v?C.accent:"transparent"}`,background:(form.clientLang||"pl")===v?C.accentDim:"transparent",cursor:"pointer",color:C.text,fontSize:11,display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:15}}>{flag}</span>{label}</button>)}</div>:<span style={{fontSize:16}}>{form.clientLang==="ua"?"🇺🇦 UA":form.clientLang==="en"?"🇬🇧 EN":"🇵🇱 PL"}</span>}</div>
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.date}</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
             </div>
-            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}{form.action==="push"&&<div onClick={()=>{prevAction.current="push";setShowPush(true);}} title={t.editPush} style={{marginTop:5,fontSize:11,color:form.pushDate?dateStateColor(form.pushDate):PUSH_C,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5,border:`1px solid ${PUSH_C}44`,borderRadius:7,padding:"3px 9px"}}>🚀 {form.pushDate?`${isoToDot(form.pushDate)}${form.pushTime?` · ${form.pushTime}`:""}`:t.pushSetDate}</div>}</div>
+            <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}</div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>:form.manager?<div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></div>:<span style={{color:C.dim}}>—</span>}</div>
           </div>
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>◈ Оценка 0–6</div>
-            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{[0,1,2,3,4,4.5,5,6].map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} title={s===4.5?"MWP — только вручную":""} style={{minWidth:34,height:34,padding:s===4.5?"0 6px":0,borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{[0,1,2,3,4,5,6].map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} style={{width:34,height:34,borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
             <div style={{background:`${QUAL_COLOR[form.qualification]}18`,border:`1px solid ${QUAL_COLOR[form.qualification]}44`,borderRadius:8,padding:"7px 12px",marginBottom:10}}><div style={{fontSize:11,color:QUAL_COLOR[form.qualification],fontWeight:700}}>→ {t[form.qualification]}</div></div>
           </div>
         </div>
@@ -2349,10 +1708,6 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     {showVisit&&<VisitModal lead={form} t={t} initDate={form.visitDate} initTime={form.visitTime}
       onConfirm={confirmVisit}
       onCancel={()=>{setShowVisit(false);setForm(p=>({...p,score:4,qualification:"qualified"}));}}/>}
-    {showStickers&&<StickerModal lead={form} t={t} currentUser={currentUser} onSave={addStickerLD} onDelete={deleteStickerLD} onClose={()=>setShowStickers(false)}/>}
-    {showPush&&<PushModal lead={form} t={t} initDate={form.pushDate} initTime={form.pushTime}
-      onConfirm={confirmPush}
-      onCancel={()=>{setShowPush(false);setForm(p=>({...p,action:prevAction.current}));}}/>}
     {showSale&&<SaleModal lead={form} t={t} onConfirm={confirmSale} onCancel={()=>{setShowSale(false);setForm(p=>({...p,score:5,qualification:"salon"}));}}/>}
   </>);
 }
@@ -2596,7 +1951,7 @@ function AnalyticsPage({leads,sales,srcList,setDomains,t,lang}){
       </div>
       <div style={{background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:12,padding:16}}>
         <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>{t.podium}</div>
-        <div style={{display:"flex",gap:20,alignItems:"flex-end",justifyContent:"center"}}>{podium.map((m,i)=>{const h=[120,90,70][i]||60;return(<div key={m.name} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}><div style={{fontSize:22}}>{medals[i]||"🏅"}</div><Avatar name={m.name} color={MGR_COLOR[m.name]} size={44}/><div style={{fontSize:13,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</div>{m.name===SALES_LEADER&&<div style={{fontSize:9,fontWeight:900,color:"#f0c040",letterSpacing:1.2,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.45)",borderRadius:20,padding:"2px 10px",whiteSpace:"nowrap"}}>MOLODEC</div>}<div style={{fontSize:11,color:C.accent,fontWeight:700}}>{fmtM(m.salesRev)}</div><div style={{width:80,background:MGR_COLOR[m.name],borderRadius:"6px 6px 0 0",height:h,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:8}}><span style={{color:"rgba(255,255,255,0.9)",fontSize:16,fontWeight:900}}>{i+1}</span></div></div>);})}
+        <div style={{display:"flex",gap:20,alignItems:"flex-end",justifyContent:"center"}}>{podium.map((m,i)=>{const h=[120,90,70][i]||60;return(<div key={m.name} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}><div style={{fontSize:22}}>{medals[i]||"🏅"}</div><Avatar name={m.name} color={MGR_COLOR[m.name]} size={44}/><div style={{fontSize:13,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</div><div style={{fontSize:11,color:C.accent,fontWeight:700}}>{fmtM(m.salesRev)}</div><div style={{width:80,background:MGR_COLOR[m.name],borderRadius:"6px 6px 0 0",height:h,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:8}}><span style={{color:"rgba(255,255,255,0.9)",fontSize:16,fontWeight:900}}>{i+1}</span></div></div>);})}
         </div>
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
@@ -2728,21 +2083,12 @@ function localAns(q,leads,events){
   return`GarnoCRM: ${leads.length} лидов | Kwaly: ${leads.filter(l=>l.score>=4).length} | Продаж: ${leads.filter(l=>l.score===6).length} | AI avg: ${leads.length?(leads.reduce((a,l)=>a+l.score,0)/leads.length).toFixed(2):0}`;
 }
 
-function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory,currentUser}){
-  const ackReminder=(key)=>setChatHistory(p=>p.map(m=>(m.key===key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m));
+function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory}){
   const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [apiOk,setApiOk]=useState(true);const [showApiStatus,setShowApiStatus]=useState(false);const [kpData,setKpData]=useState(null);const [showKPWizard,setShowKPWizard]=useState(false);const ref=useRef(null);
   // Memory persisted in chatHistory prefixed entries
   const memory=chatHistory.filter(m=>m.role==="memory").map(m=>m.content);
   const addMemory=(info)=>setChatHistory(p=>[...p,{role:"memory",content:info}]);
-  const [filterMgr,setFilterMgr]=useState("all");
-  const [filterType,setFilterType]=useState("all");
-  const prevLenRef=useRef(chatHistory.length);
-  useEffect(()=>{
-    // Скроллим вниз только при НОВОМ сообщении, а не при изменении существующего
-    // (например при нажатии «Принять») — иначе принятие телепортирует вниз.
-    if(chatHistory.length>prevLenRef.current){ref.current?.scrollIntoView({behavior:"smooth"});}
-    prevLenRef.current=chatHistory.length;
-  },[chatHistory]);
+  useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[chatHistory]);
   const QUICK_RU=["Задачи Dmytro сегодня","Задачи Oleh сегодня","Задачи Mateusz сегодня","Статистика менеджеров","Незаконченные задачи","Все события сегодня","Итог дня","Лучший по конверсии?"];
   const QUICK_PL=["Zadania Dmytro dziś","Zadania Oleh dziś","Zadania Mateusz dziś","Statystyki menedżerów","Niedokończone zadania","Wszystkie wydarzenia dziś","Podsumowanie dnia","Najlepszy w konwersji?"];
   const QUICK=lang==="pl"?QUICK_PL:QUICK_RU;
@@ -2781,45 +2127,10 @@ function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory,currentUse
           <span style={{fontSize:13,fontWeight:700,color:"#fff"}}>GarnoAI</span>
           <span style={{fontSize:10,color:C.muted}}>claude-sonnet · {leads.length} leads</span>
           {memory.length>0&&<span style={{fontSize:10,color:C.blue}}>📚 {memory.length} фактов</span>}
-          <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
-            <span style={{fontSize:10,color:C.dim}}>🔔</span>
-            <select value={filterMgr} onChange={e=>setFilterMgr(e.target.value)} title={t.manager} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"3px 6px",fontSize:10,outline:"none",cursor:"pointer"}}>
-              <option value="all">{lang==="pl"?"Wszyscy":"Все"}</option>
-              {MANAGERS.map(mn=><option key={mn} value={mn}>{mn}</option>)}
-            </select>
-            <select value={filterType} onChange={e=>setFilterType(e.target.value)} title={lang==="pl"?"Powód":"Повод"} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"3px 6px",fontSize:10,outline:"none",cursor:"pointer"}}>
-              <option value="all">{lang==="pl"?"Wszystkie":"Все поводы"}</option>
-              <option value="visit">📅 {t.visit}</option>
-              <option value="push">🚀 Push</option>
-              <option value="quote">💰 {t.quote}</option>
-            </select>
-          </div>
           
         </div>
         <div style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
-          {chatHistory.map((m,i)=>{
-            if(m.kind==="reminder"){
-              // Фильтр уведомлений: по менеджеру и по поводу (визит / push / просчёт)
-              const mgrs=m.rtype==="push"?((m.data.items||[]).map(x=>x.mgr)):[m.data.mgr];
-              const matchMgr=filterMgr==="all"||mgrs.includes(filterMgr);
-              const matchType=filterType==="all"||m.rtype===filterType;
-              if(!matchMgr||!matchType) return null;
-              const unacked=!m.ackBy;
-              return(
-                <div key={i} style={{display:"flex",justifyContent:"flex-start"}}>
-                  <div style={{maxWidth:"88%",padding:"12px 15px",background:unacked?"rgba(240,192,64,0.09)":C.surface,border:`1px solid ${unacked?"rgba(240,192,64,0.55)":C.border}`,borderRadius:"14px 14px 14px 4px",fontSize:12,color:C.text,lineHeight:1.6,whiteSpace:"pre-wrap",boxShadow:unacked?"0 0 0 3px rgba(240,192,64,0.10)":"none"}}>
-                    {formatReminder(m,t)}
-                    <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
-                      {unacked
-                        ? <button onClick={()=>ackReminder(m.key)} style={{background:C.green,border:"none",color:"#00132f",borderRadius:8,padding:"7px 16px",fontSize:12,fontWeight:800,cursor:"pointer"}}>✓ {t.ackBtn}</button>
-                        : <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11,fontWeight:700,color:C.green}}>✓ {t.ackedBy} · {m.ackBy}</span>}
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-            return(<div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}><div style={{maxWidth:"82%",padding:"10px 14px",background:m.role==="user"?C.accentDim:C.surface,border:`1px solid ${m.role==="user"?C.accentBorder:C.border}`,borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",fontSize:12,color:C.text,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{m.content}</div></div>);
-          })}
+          {chatHistory.map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}><div style={{maxWidth:"82%",padding:"10px 14px",background:m.role==="user"?C.accentDim:C.surface,border:`1px solid ${m.role==="user"?C.accentBorder:C.border}`,borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",fontSize:12,color:C.text,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{m.content}</div></div>))}
           {loading&&<div style={{display:"flex",gap:5,padding:"10px 14px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px 14px 14px 4px",width:"fit-content"}}>{[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:C.accent,animation:"pulse 1s infinite",animationDelay:`${i*0.2}s`}}/>)}</div>}
           <div ref={ref}/>
         </div>
@@ -2946,60 +2257,37 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
   const [quickAdd,setQuickAdd]=useState(null);
   const [quickTitle,setQuickTitle]=useState('');
   // Pointer-drag state
-  const [drag,setDrag]=useState(null);       // {id, w, offX, offY, x0, y0}
+  const [drag,setDrag]=useState(null);       // {id, w, offX, offY}
+  const [pos,setPos]=useState({x:0,y:0});     // cursor pos
   const [over,setOver]=useState(null);        // {col, idx}
   const dragRef=useRef(null);
   const boardRef=useRef(null);
-  const ghostRef=useRef(null);               // плавающая карточка двигается императивно (без ререндера)
 
   useEffect(()=>{if(currentUser)setViewUser(currentUser);},[currentUser]);
 
-  // Пометить задачу просмотренной — вызывается при ОТКРЫТИИ задачи получателем,
-  // чтобы подсветка «тебе закинули» держалась, пока не откроешь именно это задание.
-  const markSeen=(id)=>{
-    if(!currentUser||currentUser==='all')return;
-    updateDb(prev=>({...prev,tasks:(prev.tasks||[]).map(t=>
-      (t.id===id&&t.assignee===currentUser&&!(t.seenBy||[]).includes(currentUser))
+  useEffect(()=>{
+    if(!currentUser)return;
+    const unseen=tasks.filter(t=>t.assignee===currentUser&&!(t.seenBy||[]).includes(currentUser));
+    if(!unseen.length)return;
+    updateDb(p=>({...p,tasks:tasks.map(t=>
+      t.assignee===currentUser&&!(t.seenBy||[]).includes(currentUser)
         ?{...t,seenBy:[...(t.seenBy||[]),currentUser]}:t)}),true);
-  };
+  },[currentUser]);
 
   const filtered=viewUser==='all'?tasks:tasks.filter(t=>t.assignee===viewUser);
   const byCol=(col)=>filtered.filter(t=>(t.status||'all')===col).sort((a,b)=>(a.order||0)-(b.order||0));
 
   const saveTasks=(nt)=>updateDb(p=>({...p,tasks:nt}),true);
-  // Delete tasks WITH a tombstone so remote merge never brings them back.
-  // Computed from prev (p) inside the updater to avoid stale-closure races.
-  const deleteTasks=(ids)=>updateDb(p=>({
-    ...p,
-    tasks:(p.tasks||[]).filter(t=>!ids.includes(t.id)),
-    deletedTaskIds:[...new Set([...(p.deletedTaskIds||[]),...ids])],
-  }),true);
 
-  const creator=(currentUser&&currentUser!=='all')?currentUser:null;
   const saveTask=(form,id)=>{
     const now=Date.now();
     if(id){
-      if(form._delete){deleteTasks([id]);setModal(null);return;}
-      saveTasks(tasks.map(t=>{
-        if(t.id!==id)return t;
-        const upd={...t,...form,updatedAt:now};
-        const newAsg=form.assignee!==undefined?form.assignee:t.assignee;
-        // Переназначили другому менеджеру → отмечаем «от кого» и сбрасываем просмотр (чтобы получатель увидел как новое)
-        if(creator&&newAsg&&newAsg!==t.assignee&&newAsg!==creator){
-          upd.from=creator;
-          upd.seenBy=[creator];
-        } else if(newAsg===creator){
-          upd.from=null; // вернули себе — ярлык снимаем
-        }
-        return upd;
-      }));
+      if(form._delete){saveTasks(tasks.filter(t=>t.id!==id));setModal(null);return;}
+      saveTasks(tasks.map(t=>t.id===id?{...t,...form,updatedAt:now}:t));
     }else{
       const maxOrd=tasks.length?Math.max(...tasks.map(t=>t.order||0))+10:0;
       const asg=form.assignee||'—';
-      // Закинул другому → from=создатель, seenBy=создатель (получатель ещё не видел)
-      const from=(creator&&asg!=='—'&&asg!==creator)?creator:null;
-      const seed=creator?[creator]:(asg!=='—'?[asg]:[]);
-      saveTasks([...tasks,{...form,id:now,status:form.status||'all',createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,from,seenBy:seed}]);
+      saveTasks([...tasks,{...form,id:now,status:form.status||'all',createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,seenBy:[asg]}]);
     }
     setModal(null);
   };
@@ -3011,14 +2299,11 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
     const ct=tasks.filter(t=>(t.status||'all')===colId);
     const maxOrd=ct.length?Math.max(...ct.map(t=>t.order||0))+10:0;
     const asg=(currentUser&&currentUser!=='all')?currentUser:(viewUser!=='all'?viewUser:'—');
-    const cr=(currentUser&&currentUser!=='all')?currentUser:null;
-    const from=(cr&&asg!=='—'&&asg!==cr)?cr:null;
-    const seed=cr?[cr]:(asg!=='—'?[asg]:[]);
-    saveTasks([...tasks,{id:now,title,status:colId,priority:'MID',assignee:asg,deadline:'',createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,from,seenBy:seed}]);
+    saveTasks([...tasks,{id:now,title,status:colId,priority:'MID',assignee:asg,deadline:'',createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,seenBy:[asg]}]);
     setQuickTitle('');setQuickAdd(null);
   };
 
-  const clearDone=()=>{const ids=tasks.filter(t=>(t.status||'all')==='done').map(t=>t.id);if(!ids.length)return;setConfetti(true);setTimeout(()=>deleteTasks(ids),1400);};
+  const clearDone=()=>{setConfetti(true);setTimeout(()=>saveTasks(tasks.filter(t=>(t.status||'all')!=='done')),1400);};
 
   // ════ POINTER DRAG ════
   // pending holds pointer-down info until movement exceeds threshold (click vs drag)
@@ -3047,11 +2332,10 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
         const dx=e.clientX-p.startX, dy=e.clientY-p.startY;
         if(Math.hypot(dx,dy)<DRAG_THRESHOLD)return;
         p.moved=true;
-        setDrag({id:p.id,w:p.w,h:p.h,offX:p.offX,offY:p.offY,fromCol:p.fromCol,x0:e.clientX-p.offX,y0:e.clientY-p.offY});
+        setDrag({id:p.id,w:p.w,h:p.h,offX:p.offX,offY:p.offY,fromCol:p.fromCol});
         setOver({col:p.fromCol,idx:byCol(p.fromCol).findIndex(t=>t.id===p.id)});
       }
-      // Двигаем призрак напрямую через DOM — без setState → без ререндера доски на каждый move (это и убирает мигание)
-      if(ghostRef.current){ghostRef.current.style.left=(e.clientX-p.offX)+'px';ghostRef.current.style.top=(e.clientY-p.offY)+'px';}
+      setPos({x:e.clientX,y:e.clientY});
       const cols=boardRef.current?.querySelectorAll('[data-col]');
       if(!cols)return;
       for(const colEl of cols){
@@ -3064,7 +2348,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
             const r=cards[i].getBoundingClientRect();
             if(e.clientY<r.top+r.height/2){idx=i;break;}
           }
-          setOver(prev=>(prev&&prev.col===colId&&prev.idx===idx)?prev:{col:colId,idx});
+          setOver({col:colId,idx});
           break;
         }
       }
@@ -3076,7 +2360,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
       if(!p)return;
 
       // No movement → plain click → open the edit modal
-      if(!p.moved){ markSeen(p.task.id); setModal({task:p.task}); return; }
+      if(!p.moved){ setModal({task:p.task}); return; }
 
       // Movement → commit the drop using latest over-target
       setOver(o=>{
@@ -3090,11 +2374,8 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
               if(orig>-1&&orig<o.idx)idx=o.idx-1;
             }
             idx=Math.max(0,Math.min(idx,target.length));
-            target.splice(idx,0,{...dragged,status:o.col});
-            // Bump updatedAt on EVERY reindexed card so local always wins the
-            // timestamp-based merge — otherwise siblings teleport back to remote order.
-            const stamp=Date.now();
-            const reordered=target.map((t,i)=>({...t,order:i*10,updatedAt:stamp+i}));
+            target.splice(idx,0,{...dragged,status:o.col,updatedAt:Date.now()});
+            const reordered=target.map((t,i)=>({...t,order:i*10}));
             const others=tasks.filter(t=>(t.status||'all')!==o.col&&t.id!==p.id);
             saveTasks([...others,...reordered]);
           }
@@ -3114,16 +2395,13 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
   const Card=({task,ghost})=>{
     const pc=TASK_PRIO_COLORS[task.priority]||'#aaa';
     const isNew=task.assignee===currentUser&&!(task.seenBy||[]).includes(currentUser);
-    const fromOther=task.from&&task.from!==task.assignee; // задачу закинул другой менеджер
-    const hot=isNew&&fromOther; // «тебе только что закинули» — самая заметная подсветка
     const overdue=task.deadline&&new Date(task.deadline)<new Date()&&(task.status||'all')!=='done';
     return(
       <div data-card={ghost?undefined:task.id}
         onPointerDown={ghost?undefined:e=>onPointerDown(e,task,e.currentTarget)}
         style={{
-          background:hot?'rgba(245,158,11,0.12)':isNew?'rgba(239,68,68,0.08)':'rgba(255,255,255,0.04)',
-          border:`1px solid ${hot?'rgba(245,158,11,0.6)':isNew?'rgba(239,68,68,0.3)':'rgba(255,255,255,0.09)'}`,
-          boxShadow:hot?'0 0 0 3px rgba(245,158,11,0.15)':'none',
+          background:isNew?'rgba(239,68,68,0.08)':'rgba(255,255,255,0.04)',
+          border:`1px solid ${isNew?'rgba(239,68,68,0.3)':'rgba(255,255,255,0.09)'}`,
           borderLeft:`3px solid ${pc}`,borderRadius:8,padding:'10px 12px',
           cursor:drag&&drag.id===task.id?'grabbing':'pointer',marginBottom:6,userSelect:'none',touchAction:'none',
           width:ghost?drag.w:'auto',
@@ -3133,12 +2411,11 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
         }}>
         <div style={{display:'flex',gap:6}}>
           <div style={{fontSize:13,fontWeight:600,color:'#fff',flex:1,lineHeight:1.4}}>{task.title}</div>
-          {isNew&&<span style={{background:hot?'#f59e0b':'#ef4444',color:'#fff',borderRadius:8,fontSize:9,fontWeight:800,padding:'1px 5px',flexShrink:0,height:'fit-content'}}>NEW</span>}
+          {isNew&&<span style={{background:'#ef4444',color:'#fff',borderRadius:8,fontSize:9,fontWeight:800,padding:'1px 5px',flexShrink:0,height:'fit-content'}}>NEW</span>}
         </div>
         <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap',marginTop:6}}>
           <span style={{fontSize:10,fontWeight:700,color:pc,background:`${pc}20`,border:`1px solid ${pc}40`,borderRadius:10,padding:'1px 8px'}}>{task.priority}</span>
           {task.assignee&&task.assignee!=='—'&&<span style={{fontSize:10,color:'rgba(255,255,255,0.45)',background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'1px 8px'}}>{task.assignee}</span>}
-          {fromOther&&<span title={`${t.taskFrom} ${task.from}`} style={{fontSize:10,fontWeight:700,color:'#f59e0b',background:'rgba(245,158,11,0.12)',border:'1px solid rgba(245,158,11,0.4)',borderRadius:10,padding:'1px 8px'}}>← {t.taskFrom} {task.from}</span>}
           {task.deadline&&<span style={{fontSize:10,color:overdue?'#ef4444':'rgba(255,255,255,0.3)',marginLeft:'auto'}}>{overdue?'⚠️':'📅'} {task.deadline.split('-').reverse().join('.')}</span>}
         </div>
       </div>
@@ -3178,8 +2455,8 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
 
       {/* Floating drag ghost */}
       {draggedTask&&(
-        <div ref={ghostRef} style={{position:'fixed',left:drag.x0,top:drag.y0,zIndex:9998,width:drag.w,pointerEvents:'none'}}>
-          {Card({task:draggedTask,ghost:true})}
+        <div style={{position:'fixed',left:pos.x-drag.offX,top:pos.y-drag.offY,zIndex:9998,width:drag.w,pointerEvents:'none'}}>
+          <Card task={draggedTask} ghost={true}/>
         </div>
       )}
 
@@ -3214,14 +2491,14 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
               <div style={{overflowY:'auto',flex:1,minHeight:60}}>
                 {visible.map((task,i)=>(
                   <div key={task.id}>
-                    {isOver&&over.idx===i&&Placeholder()}
-                    {Card({task})}
+                    {isOver&&over.idx===i&&<Placeholder/>}
+                    <Card task={task}/>
                   </div>
                 ))}
-                {isOver&&over.idx>=visible.length&&Placeholder()}
+                {isOver&&over.idx>=visible.length&&<Placeholder/>}
                 {visible.length===0&&!isOver&&<div style={{minHeight:60,display:'flex',alignItems:'center',justifyContent:'center',color:'rgba(255,255,255,0.15)',fontSize:11}}>{t.dblClickCreate}</div>}
               </div>
-              {quickAdd===col.id?QuickForm({colId:col.id}):AddBtn({colId:col.id})}
+              {quickAdd===col.id?<QuickForm colId={col.id}/>:<AddBtn colId={col.id}/>}
             </div>
           );
         })}
@@ -3459,7 +2736,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t}/></div>
       <div style={{display:"grid",gridTemplateColumns:`1fr repeat(${MANAGERS.length},1fr)`,gap:10}}>
         <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:12,padding:"14px 16px"}}><div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{lang==="ru"?"Общая выручка":"Łączny przychód"}</div><div style={{fontSize:22,fontWeight:800,color:C.accent}}>{fmtM(totalRev)}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{fs.length} {t.many}</div></div>
-        {mRev.map(m=>(<div key={m.name} style={{background:C.card,border:`1px solid ${MGR_COLOR[m.name]}33`,borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><Avatar name={m.name} color={MGR_COLOR[m.name]} size={22}/><span style={{fontSize:11,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</span>{m.name===SALES_LEADER&&<span style={{marginLeft:"auto",fontSize:9,fontWeight:900,color:"#f0c040",background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.45)",borderRadius:8,padding:"1px 7px",letterSpacing:0.5,whiteSpace:"nowrap"}}>MOLODEC</span>}</div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m.name]}}>{fmtM(m.rev)}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{m.count} {t.many}</div></div>))}
+        {mRev.map(m=>(<div key={m.name} style={{background:C.card,border:`1px solid ${MGR_COLOR[m.name]}33`,borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><Avatar name={m.name} color={MGR_COLOR[m.name]} size={22}/><span style={{fontSize:11,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</span></div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m.name]}}>{fmtM(m.rev)}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{m.count} {t.many}</div></div>))}
       </div>
       {fs.length===0?<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:40,textAlign:"center",color:C.muted}}><div style={{fontSize:32,marginBottom:10}}>★</div><div>{lang==="ru"?"{t.salesAppear}":"Sprzedaże pojawią się przy ocenie 6"}</div></div>:
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
@@ -3473,7 +2750,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang}){
             ):(
               <button onClick={()=>setConfirmId(s.id)} style={{position:"absolute",top:10,right:10,background:"rgba(248,113,113,0.15)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 8px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
             )}
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34}}><Avatar name={s.name||s.phone} color={C.accent} size={36} noMedal/><div><div style={{fontSize:13,color:C.text,fontWeight:700}}>{s.name||s.phone}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div><div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34}}><Avatar name={s.name||s.phone} color={C.accent} size={36}/><div><div style={{fontSize:13,color:C.text,fontWeight:700}}>{s.name||s.phone}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div><div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><SrcBadge source={s.source}/>{s.manager&&<div style={{display:"flex",alignItems:"center",gap:4}}><Avatar name={s.manager} color={MGR_COLOR[s.manager]} size={14}/><span style={{fontSize:10,color:MGR_COLOR[s.manager]}}>{s.manager}</span></div>}</div>{s.notes&&<div style={{fontSize:10,color:C.muted,marginTop:8,lineHeight:1.5}}>{s.notes}</div>}
           </div>))}
         </div>}
@@ -3500,57 +2777,10 @@ function GarnoCRM(){
 
   // Apply theme globally
   C = theme==="light" ? LIGHT : DARK; syncColorMaps();
-  // Лидер продаж — медаль MOLODEC на его аватаре во всём приложении
-  SALES_LEADER = computeSalesLeader(db?.sales);
-
-  // ── Планировщик напоминаний AI ──────────────────────────────────────────
-  const dbRef=useRef(db);      dbRef.current=db;
-  const updRef=useRef(updateDb); updRef.current=updateDb;
-  const langRef=useRef(lang);  langRef.current=lang;
-  const currentUserRef=useRef(currentUser); currentUserRef.current=currentUser;
-  // Разрешение на системные уведомления: пробуем сразу и по первому клику (часть браузеров требует жест)
-  useEffect(()=>{
-    const ask=()=>{try{if(typeof Notification!=="undefined"&&Notification.permission==="default")Notification.requestPermission().catch(()=>{});}catch{}};
-    ask();
-    const onClick=()=>{ask();window.removeEventListener("click",onClick);};
-    window.addEventListener("click",onClick,{once:true});
-    return()=>window.removeEventListener("click",onClick);
-  },[]);
-  useEffect(()=>{
-    const run=()=>{
-      const cur=dbRef.current;
-      if(!cur||!cur.leads)return;
-      const rems=buildReminders(cur);
-      if(!rems.length)return;
-      // Системный поп-ап на рабочий стол по каждому новому напоминанию (кроме Danya)
-      if(currentUserRef.current!=="Danya"){
-        rems.forEach(r=>{
-          const txt=formatReminder({rtype:r.rtype,data:r.data},T[langRef.current]||T.ru);
-          const nl=txt.indexOf("\n");
-          const title=nl>0?txt.slice(0,nl):txt;
-          const body=nl>0?txt.slice(nl+1).replace(/\n+/g," ").trim().slice(0,180):"";
-          showDesktopNotif(title,body,()=>setPage("ai"));
-        });
-      }
-      // Чистим ключи старше 60 дней, чтобы список не рос бесконечно
-      const cutoff=new Date(Date.now()-60*86400000).toISOString().slice(0,10);
-      updRef.current(prev=>({
-        ...prev,
-        chat:[...(prev.chat||[]),...rems.map(r=>({role:"assistant",kind:"reminder",rtype:r.rtype,key:r.key,data:r.data,ackBy:null,ackAt:null}))],
-        sentReminders:[...new Set([...(prev.sentReminders||[]),...rems.map(r=>r.key)])]
-          .filter(k=>{const m=String(k).match(/(\d{4}-\d{2}-\d{2})/);return !m||m[1]>=cutoff;}),
-      }),true);
-    };
-    const t0=setTimeout(run,4000);          // после первой загрузки
-    const id=setInterval(run,5*60*1000);    // и раз в 5 минут
-    return()=>{clearTimeout(t0);clearInterval(id);};
-  },[]);
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);localStorage.setItem("garno_theme",t);};
   const t=T[lang];
 
   const saveUser=(u)=>{localStorage.setItem("garno_user",u);setCurrentUser(u);};
-  // Язык CRM по менеджеру: Mateusz — польский, остальные — русский (можно переключить вручную)
-  useEffect(()=>{ setLang(currentUser==="Mateusz"?"pl":"ru"); },[currentUser]);
 
   if(status==="loading") return(
     <div style={{display:"flex",height:"100vh",background:C.bg,alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
@@ -3599,10 +2829,6 @@ function GarnoCRM(){
     t.assignee===currentUser &&
     !(t.seenBy||[]).includes(currentUser)
   ).length;
-  // Пуши, которые надо сделать сегодня (включая просроченные)
-  const pushDueTodayCount = pushDueCount(leads, mgr);
-  // Непринятые уведомления AI (карточки-напоминания без ackBy)
-  const aiUnreadCount = (db.chat||[]).filter(m=>m.kind==="reminder"&&!m.ackBy).length;
 
   const setLeads      = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}));
   const setLeadsNow   = upd => updateDb(p=>({...p,leads:  typeof upd==="function"?upd(p.leads  ??[]):upd}),true);
@@ -3611,15 +2837,7 @@ function GarnoCRM(){
   const setSales      = upd => updateDb(p=>({...p,sales:  typeof upd==="function"?upd(p.sales  ??[]):upd}));
   const setSalesNow   = upd => updateDb(p=>({...p,sales:  typeof upd==="function"?upd(p.sales  ??[]):upd}),true);
   const setChatHistory= upd => updateDb(p=>({...p,chat:   typeof upd==="function"?upd(p.chat   ??[]):upd}));
-  const addLead=(l)=>{updateDb(p=>{
-    // Гарантируем ГЛОБАЛЬНО уникальный id: против текущих лидов И тумбстонов.
-    // Раньше id=nextNum*1000+rand(1..999) — свежие лиды сталкивались друг с другом
-    // и с удалёнными, и тихо выпадали при слиянии. Теперь коллизия невозможна.
-    const used=new Set([...(p.leads||[]).map(x=>x.id),...(p.deletedLeadIds||[])]);
-    let id=l.id;
-    while(id==null||used.has(id)) id=Date.now()*1000+Math.floor(Math.random()*1000);
-    return {...p,leads:[{...l,id},...(p.leads??[])],nextNum:(p.nextNum??leads.length+1)+1};
-  },true);};
+  const addLead=(l)=>{updateDb(p=>({...p,leads:[l,...(p.leads??[])],nextNum:(p.nextNum??leads.length+1)+1}),true);};
   const addSale=(s)=>setSalesNow(p=>[s,...p]);
 
   return(
@@ -3651,16 +2869,16 @@ function GarnoCRM(){
           * {-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
         }
       `}</style>
-      <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr} unreadTasks={unreadTasksCount} pushDue={pushDueTodayCount} aiUnread={aiUnreadCount} t={t}/>
+      <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr} unreadTasks={unreadTasksCount} t={t}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} unreadTasks={unreadTasksCount} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
-          {page==="leads"      && <LeadsSection leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
+          {page==="leads"      && <LeadsSection leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} srcList={srcList} setDomains={setDomains} t={t} lang={lang}/>}
-          {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory} currentUser={currentUser}/>}
+          {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory}/>}
           {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="tasks"      && <TasksPage tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t}/>}
         </div>
