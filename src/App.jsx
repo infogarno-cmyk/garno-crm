@@ -570,6 +570,8 @@ function useDatabase(){
         const c=parseCreatedAt(updated.createdAt);
         updated={...updated,quoteSince:updated.updatedAt||(c?c.getTime():Date.now())};
       }
+      // Переименование источников: kalkulatorN → DkalkulatorN
+      if(updated.source&&/^kalkulator\d*$/i.test(updated.source)){updated={...updated,source:"D"+updated.source};}
       return updated;
     });
     const changed=leads.some((l,i)=>l!==data.leads[i]);
@@ -636,7 +638,7 @@ function useDatabase(){
       ...local,
       leads:sortLeads(mergedLeads),
       events:mergedEventsFinal.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)),
-      sales:[...(local.sales||[]).filter(s=>!deletedSaleIds.has(s.id)),...remoteOnlySales],
+      sales:[...(local.sales||[]).filter(s=>!deletedSaleIds.has(s.id)),...remoteOnlySales].map(s=>s.source&&/^kalkulator\d*$/i.test(s.source)?{...s,source:"D"+s.source}:s),
       nextNum:Math.max(local.nextNum||0,remote.nextNum||0),
       deletedLeadIds:[...deletedIds],
       deletedSaleIds:[...deletedSaleIds],
