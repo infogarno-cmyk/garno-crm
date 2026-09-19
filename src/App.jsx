@@ -690,7 +690,8 @@ function useDatabase(){
       // одного менеджера затирает ключи другого и ассистент шлёт пуши повторно.
       sentReminders:[...new Set([...(local.sentReminders||[]),...(remote.sentReminders||[])])],
       // domains are stored in row id=2, NOT here
-      taskTypes:(()=>{const m=new Map();(remote?.taskTypes||[]).forEach(x=>m.set(x.id,x));(local.taskTypes||[]).forEach(x=>m.set(x.id,x));return [...m.values()];})(),
+      deletedTaskTypeIds:[...new Set([...(local.deletedTaskTypeIds||[]),...(remote?.deletedTaskTypeIds||[])])],
+      taskTypes:(()=>{const dead=new Set([...(local.deletedTaskTypeIds||[]),...(remote?.deletedTaskTypeIds||[])]);const m=new Map();(remote?.taskTypes||[]).forEach(x=>m.set(x.id,x));(local.taskTypes||[]).forEach(x=>m.set(x.id,x));return [...m.values()].filter(x=>!dead.has(x.id));})(),
       tasks:(()=>{
         // Merge tasks by ID, latest updatedAt wins
         const taskMap=new Map();
@@ -799,6 +800,8 @@ function useDatabase(){
           if(remoteNewLeads.length>0){
             markFresh(remoteNewLeads.map(l=>l.id));
             playSiren(3);
+            startTitleStrobe(freshCount,"новых заявок");
+            showDesktopNotif(`🔔 ${remoteNewLeads.length===1?"Новая заявка":"Новые заявки: "+remoteNewLeads.length}`,remoteNewLeads.slice(0,3).map(l=>`${l.name||"—"} · ${l.phone||""}`).join("\n"),()=>{try{window.__garnoGoLeads&&window.__garnoGoLeads();}catch{}});
             const first=remoteNewLeads[0];
             showDesktopNotif(`🚨 ${remoteNewLeads.length===1?"Новая заявка":"Новых заявок: "+remoteNewLeads.length}`,`${first.name||first.phone||""}${first.source?" · "+srcShort(first.source):""}`,()=>{try{window.__garnoGoLeads&&window.__garnoGoLeads();}catch{}});
           }
@@ -1071,10 +1074,15 @@ function checkFreshEscalation(){
 }
 // Сирена через Web Audio (без внешних файлов): 3 цикла двухтонового сигнала
 let _audioCtx=null;
+function _ctx(){ _audioCtx=_audioCtx||new (window.AudioContext||window.webkitAudioContext)(); if(_audioCtx.state==="suspended"){try{_audioCtx.resume();}catch{}} return _audioCtx; }
+// Браузер даёт звук только после жеста пользователя: первый клик/клавиша разблокирует аудио на всю сессию
+if(typeof window!=="undefined"){
+  const _unlock=()=>{try{_ctx();}catch{} window.removeEventListener("pointerdown",_unlock,true); window.removeEventListener("keydown",_unlock,true);};
+  window.addEventListener("pointerdown",_unlock,true); window.addEventListener("keydown",_unlock,true);
+}
 function playSiren(cycles=3){
   try{
-    _audioCtx=_audioCtx||new (window.AudioContext||window.webkitAudioContext)();
-    const ctx=_audioCtx; const t0=ctx.currentTime;
+    const ctx=_ctx(); const t0=ctx.currentTime+0.05;
     for(let i=0;i<cycles;i++){
       const o=ctx.createOscillator(); const g=ctx.createGain();
       o.type="square"; o.connect(g); g.connect(ctx.destination);
@@ -1088,8 +1096,7 @@ function playSiren(cycles=3){
 // Короткий «динь» для задач
 function playDing(){
   try{
-    _audioCtx=_audioCtx||new (window.AudioContext||window.webkitAudioContext)();
-    const ctx=_audioCtx,t0=ctx.currentTime;
+    const ctx=_ctx(),t0=ctx.currentTime+0.05;
     [[880,0],[1320,0.12]].forEach(([f,d])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.connect(g);g.connect(ctx.destination);o.frequency.value=f;g.gain.setValueAtTime(0.0001,t0+d);g.gain.exponentialRampToValueAtTime(0.3,t0+d+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t0+d+0.35);o.start(t0+d);o.stop(t0+d+0.4);});
   }catch{}
 }
@@ -1778,7 +1785,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"}];
+const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
 function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,aiUnread=0,freshLeads=0,t}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
@@ -3043,18 +3050,26 @@ function AlertsPage({chatHistory,setChatHistory,tasks,updateDb,currentUser,t,lan
 
 // ─── ЦЕНТР ПРОДАЖ ────────────────────────────────────────────────────────────
 // Анализ паттернов продаж: какие признаки лидов чаще приводят к продаже
+// Поведенческие факторы продажи (без источников — они слишком индивидуальны):
+// срок покупки, визит в шоурум, просчёт, инфо по кухне, расстояние, квартира.
+const SALE_ATTR_FN={
+  budget:l=>l.budget||null,
+  hadVisit:l=>l.visitDate?"yes":"no",
+  hadQuote:l=>(l.action==="quote"||l.quoteSince||(l.history||[]).some(h=>/просч|wycena|quote/i.test(String(h.action||""))))?"yes":"no",
+  kitchenInfo:l=>l.kitchenInfo||null,
+  distance:l=>l.distance||null,
+  apartment:l=>l.apartment||null,
+};
 function analyzeSalePatterns(leads){
-  const sold=leads.filter(l=>l.score===6||l.qualification==="sale");
+  const isSold=l=>l.score===6||l.qualification==="sale";
+  const sold=leads.filter(isSold);
   if(sold.length<3)return {top:[],soldCount:sold.length};
-  const attrs=[
-    ["source",l=>l.source],["budget",l=>l.budget],["kitchenInfo",l=>l.kitchenInfo],["distance",l=>l.distance],["apartment",l=>l.apartment],["clientLang",l=>l.clientLang],
-  ];
   const base=sold.length/leads.length;
   const rows=[];
-  attrs.forEach(([name,fn])=>{
+  Object.entries(SALE_ATTR_FN).forEach(([name,fn])=>{
     const groups={};
-    leads.forEach(l=>{const v=fn(l);if(!v)return;(groups[v]=groups[v]||{n:0,s:0});groups[v].n++;if(l.score===6||l.qualification==="sale")groups[v].s++;});
-    Object.entries(groups).forEach(([v,g])=>{if(g.n>=4&&g.s>=2){const rate=g.s/g.n;if(rate>base*1.25)rows.push({attr:name,value:v,rate,n:g.n,s:g.s,lift:rate/Math.max(base,0.001)});}});
+    leads.forEach(l=>{const v=fn(l);if(!v)return;(groups[v]=groups[v]||{n:0,s:0});groups[v].n++;if(isSold(l))groups[v].s++;});
+    Object.entries(groups).forEach(([v,g])=>{if(g.n>=4&&g.s>=2){const rate=g.s/g.n;if(rate>base*1.25)rows.push({attr:name,value:v,rate,n:g.n,s:g.s,lift:rate/Math.max(base,0.0001)});}});
   });
   return {top:rows.sort((a,b)=>b.lift-a.lift).slice(0,5),soldCount:sold.length,base};
 }
@@ -3075,10 +3090,10 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
   const monthRev=monthSales.reduce((a,x)=>a+(x.saleAmount||0),0);
   const L=my(leads).filter(l=>l.action!=="cancelled");
   const pat=analyzeSalePatterns(leads||[]);
-  const attrLabel={source:t.source,budget:t.period||"Срок",kitchenInfo:t.kitchenInfo,distance:t.distance,apartment:t.apartment,clientLang:ru?"Язык":"Język"};
-  const valLabel=(a,v)=>({kitchenInfo:{yes:t.kiYes,no:t.kiNo},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld}}[a]?.[v]||t[v]||v);
+  const attrLabel={budget:t.period||"Срок",hadVisit:ru?"Визит в шоурум":"Wizyta w salonie",hadQuote:ru?"Просчёт":"Wycena",kitchenInfo:t.kitchenInfo,distance:t.distance,apartment:t.apartment};
+  const valLabel=(a,v)=>({kitchenInfo:{yes:t.kiYes,no:t.kiNo},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld},hadVisit:{yes:ru?"был":"była",no:ru?"не было":"nie było"},hadQuote:{yes:ru?"был":"była",no:ru?"не было":"nie było"}}[a]?.[v]||t[v]||v);
   // Рекомендации: не проданные лиды, совпадающие ≥2 сильных признаков
-  const recs=pat.top.length?L.filter(l=>l.score<6&&l.score>=2).map(l=>({l,hits:pat.top.filter(r=>(l[r.attr]===r.value)).length})).filter(x=>x.hits>=Math.min(2,pat.top.length)).sort((a,b)=>b.hits-a.hits).slice(0,12):[];
+  const recs=pat.top.length?L.filter(l=>l.score<6&&l.score>=2).map(l=>({l,hits:pat.top.filter(r=>(SALE_ATTR_FN[r.attr]?SALE_ATTR_FN[r.attr](l):l[r.attr])===r.value).length})).filter(x=>x.hits>=Math.min(2,pat.top.length)).sort((a,b)=>b.hits-a.hits).slice(0,12):[];
   // 3.2 Оценка 2 + думают, поставлены ≥3 мес назад
   const ripe=L.filter(l=>l.score===2&&l.action==="thinking").map(l=>({l,m:monthsAgo(l.createdAt)})).filter(x=>x.m!==null&&x.m>=3&&x.m<=6).sort((a,b)=>b.m-a.m);
   // 3.3 Оценка 4/4.5 в прошлом месяце без отмены
@@ -3114,6 +3129,53 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
         <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5}}>★ {ru?"Продажи за месяц":"Sprzedaże w miesiącu"}</div><div style={{fontSize:24,fontWeight:900,color:C.accent}}>{fmtM(monthRev)}</div><div style={{fontSize:11,color:C.muted}}>{monthSales.length} {t.many}</div></div>
         {(mgr==="all"?MANAGERS:[mgr]).map(m=>{const ms=monthSales.filter(x=>x.manager===m);const rv=ms.reduce((a,x)=>a+(x.saleAmount||0),0);return(<div key={m} style={{background:C.card,border:`1px solid ${MGR_COLOR[m]}44`,borderRadius:12,padding:"12px 14px"}}><div style={{display:"flex",alignItems:"center",gap:6}}><Avatar name={m} color={MGR_COLOR[m]} size={20}/><span style={{fontSize:11,fontWeight:700,color:MGR_COLOR[m]}}>{m}</span></div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m]}}>{fmtM(rv)}</div><div style={{fontSize:10,color:C.muted}}>{ms.length} {t.many}</div></div>);})}
+      </div>
+
+      {/* Пьедестал месяца — MOLODEC */}
+      {(()=>{
+        const rev={};monthSales.forEach(x=>{if(x.manager)rev[x.manager]=(rev[x.manager]||0)+(x.saleAmount||0);});
+        const podium=MANAGERS.filter(m=>m!=="Danya").map(m=>({name:m,rev:rev[m]||0,cnt:monthSales.filter(x=>x.manager===m).length})).sort((a,b)=>b.rev-a.rev).slice(0,3);
+        if(!podium.some(p=>p.rev>0))return null;
+        const order=podium.length>=3?[podium[1],podium[0],podium[2]]:podium;
+        const hgt={0:110,1:80,2:60};const medal=["🥇","🥈","🥉"];
+        return(
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px"}}>
+          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>🏆 {t.podium} · {ru?"этот месяц":"ten miesiąc"}</div>
+          <div style={{display:"flex",gap:16,alignItems:"flex-end",justifyContent:"center"}}>
+            {order.map(m=>{const rank=podium.indexOf(m);const c=MGR_COLOR[m.name]||C.accent;const lead=rank===0;return(
+              <div key={m.name} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,flex:"0 0 140px"}}>
+                <div style={{fontSize:18}}>{medal[rank]}</div>
+                <Avatar name={m.name} color={c} size={lead?56:40}/>
+                <div style={{fontSize:13,fontWeight:800,color:c}}>{m.name}</div>
+                {lead&&<div style={{fontSize:9,fontWeight:900,color:"#f0c040",letterSpacing:1.5,background:"rgba(240,192,64,0.14)",border:"1px solid rgba(240,192,64,0.5)",borderRadius:20,padding:"2px 10px"}}>MOLODEC</div>}
+                <div style={{fontSize:11,color:C.accent,fontWeight:700}}>{fmtM(m.rev)} <span style={{color:C.muted}}>· {m.cnt}</span></div>
+                <div style={{width:"100%",height:hgt[rank],background:`linear-gradient(180deg,${c}cc,${c}44)`,borderRadius:"10px 10px 0 0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:900,color:"#fff"}}>{rank+1}</div>
+              </div>);})}
+          </div>
+        </div>);
+      })()}
+
+      {/* Сделки месяца — кому продали, клик → карточка лида */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
+        <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
+          <div style={{fontSize:11,color:C.accent,textTransform:"uppercase",letterSpacing:1,fontWeight:800}}>★ {ru?"Сделки за месяц":"Sprzedaże miesiąca"}</div>
+          <span style={{fontSize:11,color:C.muted}}>({monthSales.length})</span>
+          <button onClick={()=>setPage("sales")} style={{marginLeft:"auto",background:"transparent",border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:8,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>{ru?"Все продажи →":"Wszystkie →"}</button>
+        </div>
+        {monthSales.length===0?<div style={{padding:16,fontSize:12,color:C.dim,textAlign:"center"}}>{ru?"Продаж в этом месяце пока нет":"Brak sprzedaży w tym miesiącu"}</div>
+        :[...monthSales].sort((a,b)=>(parseCreatedAt(b.createdAt)?.getTime()||0)-(parseCreatedAt(a.createdAt)?.getTime()||0)).map(x=>{
+          const l=(leads||[]).find(q=>q.leadId===x.leadId)||(leads||[]).find(q=>q.phone===x.phone);
+          return(
+          <div key={x.id} onClick={()=>{if(l)onOpenLead(l);}} title={l?(ru?"Открыть лида":"Otwórz leada"):""} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:`1px solid ${C.border}`,cursor:l?"pointer":"default"}}>
+            <Avatar name={x.name||x.phone} color={C.accent} size={32} noMedal/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{x.name||"—"}</div>
+              <div style={{fontSize:11,color:C.muted}}>{x.phone||"—"} · {x.createdAt||"—"}{x.source?` · ${srcShort(x.source)}`:""}</div>
+            </div>
+            <span style={{fontSize:11,fontWeight:700,color:MGR_COLOR[x.manager]||C.muted}}>{x.manager||"—"}</span>
+            <span style={{fontSize:14,fontWeight:900,color:C.accent,whiteSpace:"nowrap"}}>{fmtM(x.saleAmount)}</span>
+            {l&&<span style={{color:C.dim,fontSize:12}}>→</span>}
+          </div>);})}
       </div>
 
       {/* Рекомендации по паттерну */}
@@ -3205,6 +3267,23 @@ function buildNewTask(form,creator,tasks){
   return t;
 }
 
+// Выпадающий список лидов с фильтром — сразу показывает список, не требует набора текста
+function LeadDropdown({leads,value,onChange,lang,ins}){
+  const ru=lang!=="pl";
+  const [q,setQ]=useState("");
+  const list=(leads||[]).filter(l=>!q||(l.name||"").toLowerCase().includes(q.toLowerCase())||String(l.phone||"").includes(q)).slice(0,300);
+  const base=ins||{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.15)',color:'#fff',borderRadius:8,padding:'8px 10px',fontSize:12,outline:'none',width:'100%',boxSizing:'border-box'};
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder={ru?'Фильтр: имя / телефон…':'Filtr: imię / telefon…'} style={base}/>
+      <select value={value||""} onChange={e=>{const id=e.target.value;const l=(leads||[]).find(x=>String(x.id)===id);onChange(l||null);}} size={Math.min(8,Math.max(3,list.length+1))} style={{...base,padding:'4px',colorScheme:'dark'}}>
+        <option value="">— {ru?'без лида':'bez leada'} —</option>
+        {list.map(l=><option key={l.id} value={String(l.id)}>{(l.name||'—')} · {l.phone||''}{l.manager?` · ${l.manager}`:''}</option>)}
+      </select>
+    </div>
+  );
+}
+
 function TaskModal({task,onSave,onClose,t,taskTypes=[],leads=[],onAddType,presetLead,lang}){
   const [form,setForm]=useState({
     title:task?.title||'',assignee:task?.assignee||'—',
@@ -3235,22 +3314,13 @@ function TaskModal({task,onSave,onClose,t,taskTypes=[],leads=[],onAddType,preset
             <button onClick={()=>set('typeId',null)} style={{padding:'6px 11px',borderRadius:8,border:!form.typeId?'2px solid #94a3b8':'1px solid rgba(255,255,255,0.15)',background:!form.typeId?'rgba(148,163,184,0.2)':'rgba(255,255,255,0.05)',color:'rgba(255,255,255,0.7)',fontSize:12,fontWeight:700,cursor:'pointer'}}>—</button>
             {(taskTypes||[]).map(tt=>{const on=form.typeId===tt.id;return <button key={tt.id} onClick={()=>set('typeId',tt.id)} style={{padding:'6px 11px',borderRadius:8,border:on?`2px solid ${tt.color}`:'1px solid rgba(255,255,255,0.15)',background:on?`${tt.color}30`:'rgba(255,255,255,0.05)',color:on?tt.color:'rgba(255,255,255,0.7)',fontSize:12,fontWeight:700,cursor:'pointer'}}>{tt.name}</button>;})}
           </div>
-          {onAddType&&<div style={{display:'flex',gap:6}}>
-            <input value={newType} onChange={e=>setNewType(e.target.value)} placeholder={ru?'+ новый тип…':'+ nowy typ…'} onKeyDown={e=>{if(e.key==='Enter'&&newType.trim()){const id=onAddType(newType.trim());setNewType('');if(id)set('typeId',id);}}} style={{...ins,padding:'7px 10px',fontSize:12}}/>
-            <button onClick={()=>{if(newType.trim()){const id=onAddType(newType.trim());setNewType('');if(id)set('typeId',id);}}} style={{padding:'0 14px',borderRadius:8,border:'none',background:'rgba(255,255,255,0.12)',color:'#fff',fontWeight:700,cursor:'pointer'}}>＋</button>
-          </div>}
         </div>
 
         {/* ЛИД */}
         <div style={{marginBottom:14}}>{lbl(ru?'ЛИД (к кому применить)':'LEAD')}
           {form.leadId
             ? <div style={{display:'flex',alignItems:'center',gap:8,background:'rgba(191,164,126,0.12)',border:'1px solid rgba(191,164,126,0.4)',borderRadius:8,padding:'8px 12px'}}><span style={{color:'#bfa47e',fontWeight:700,fontSize:13}}>◈ {form.leadName}</span><button onClick={()=>{set('leadId',null);set('leadName',null);}} style={{marginLeft:'auto',background:'transparent',border:'none',color:'rgba(255,255,255,0.5)',cursor:'pointer'}}>✕</button></div>
-            : <div style={{position:'relative'}}>
-                <input value={leadQ} onChange={e=>setLeadQ(e.target.value)} placeholder={ru?'Поиск лида по имени / телефону…':'Szukaj leada…'} style={ins}/>
-                {leadMatches.length>0&&<div style={{position:'absolute',left:0,right:0,top:'100%',background:'#0d1527',border:'1px solid rgba(255,255,255,0.15)',borderRadius:8,marginTop:4,zIndex:5,maxHeight:200,overflowY:'auto'}}>
-                  {leadMatches.map(l=><div key={l.id} onClick={()=>{set('leadId',l.id);set('leadName',l.name||l.phone);setLeadQ('');}} style={{padding:'8px 12px',cursor:'pointer',borderBottom:'1px solid rgba(255,255,255,0.06)',fontSize:12,color:'#fff'}}>{l.name||'—'} <span style={{color:'rgba(255,255,255,0.45)'}}>· {l.phone}</span>{l.manager&&<span style={{marginLeft:6,color:MGR_COLOR[l.manager]||'#aaa',fontSize:11}}>{l.manager}</span>}</div>)}
-                </div>}
-              </div>}
+            : <LeadDropdown leads={leads} value={form.leadId} onChange={l=>{set('leadId',l?l.id:null);set('leadName',l?(l.name||l.phone):null);}} lang={lang} ins={ins}/>}
         </div>
 
         <div style={{marginBottom:14}}>{lbl(t.assignee.toUpperCase())}
@@ -3382,6 +3452,41 @@ function TaskReport({tasks,taskTypes,lang,t}){
     </div>);
 }
 
+// ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
+// Единственное место, где управляют типами задач (в задачах — только выбор из списка).
+function SettingsPage({db,updateDb,lang,t}){
+  const ru=lang!=="pl";
+  const [name,setName]=useState("");
+  const types=db.taskTypes||[];
+  const add=()=>{const v=name.trim();if(!v)return;const id=Date.now();updateDb(p=>({...p,taskTypes:[...(p.taskTypes||[]),{id,name:v,color:TASK_TYPE_COLORS[(p.taskTypes||[]).length%TASK_TYPE_COLORS.length]}]}),true);setName("");};
+  const del=(id)=>{if(!confirm(ru?"Удалить тип задачи?":"Usunąć typ zadania?"))return;updateDb(p=>({...p,taskTypes:(p.taskTypes||[]).filter(x=>x.id!==id),deletedTaskTypeIds:[...new Set([...(p.deletedTaskTypeIds||[]),id])]}),true);};
+  const rename=(id,v)=>updateDb(p=>({...p,taskTypes:(p.taskTypes||[]).map(x=>x.id===id?{...x,name:v}:x)}),true);
+  const ins={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:9,padding:"9px 12px",fontSize:13,outline:"none"};
+  return(
+    <div style={{padding:22,maxWidth:760}}>
+      <div style={{fontSize:20,fontWeight:800,color:C.text,marginBottom:4}}>⚙ {ru?"Настройки":"Ustawienia"}</div>
+      <div style={{fontSize:12,color:C.muted,marginBottom:22}}>{ru?"Справочники CRM":"Słowniki CRM"}</div>
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18}}>
+        <div style={{fontSize:11,color:C.accent,textTransform:"uppercase",letterSpacing:1,fontWeight:800,marginBottom:12}}>☰ {ru?"Типы задач":"Typy zadań"} <span style={{color:C.muted,fontWeight:600}}>({types.length})</span></div>
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          <input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder={ru?"Новый тип задачи…":"Nowy typ zadania…"} style={{...ins,flex:1}}/>
+          <button onClick={add} disabled={!name.trim()} style={{background:C.accent,color:"#00132f",border:"none",borderRadius:9,padding:"9px 16px",fontSize:13,fontWeight:800,cursor:name.trim()?"pointer":"not-allowed",opacity:name.trim()?1:0.5}}>＋ {ru?"Добавить":"Dodaj"}</button>
+        </div>
+        {types.length===0?<div style={{fontSize:12,color:C.dim,padding:"10px 0"}}>{ru?"Типов пока нет — добавь первый":"Brak typów — dodaj pierwszy"}</div>
+        :<div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {types.map(tt=>(
+            <div key={tt.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:10}}>
+              <div style={{width:12,height:12,borderRadius:4,background:tt.color||C.accent,flexShrink:0}}/>
+              <input defaultValue={tt.name} onBlur={e=>{const v=e.target.value.trim();if(v&&v!==tt.name)rename(tt.id,v);}} style={{...ins,flex:1,padding:"6px 10px",background:"transparent",border:"1px solid transparent"}}/>
+              <button onClick={()=>del(tt.id)} title={ru?"Удалить":"Usuń"} style={{background:"transparent",border:`1px solid ${C.red}55`,color:C.red,borderRadius:8,padding:"5px 10px",fontSize:12,cursor:"pointer"}}>🗑</button>
+            </div>))}
+        </div>}
+        <div style={{fontSize:11,color:C.dim,marginTop:12}}>{ru?"Удалённый тип не вернётся при синхронизации. Задачи с этим типом останутся, но без типа.":"Usunięty typ nie wróci po synchronizacji."}</div>
+      </div>
+    </div>
+  );
+}
+
 function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOpenLead,initialModal}){
   const [viewUser,setViewUser]=useState(currentUser||'all');
   const [view,setView]=useState('board'); // board | calendar | report
@@ -3392,13 +3497,17 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
   useEffect(()=>{const anyProc=(tasks||[]).some(x=>(x.status||'all')==='process');if(!anyProc)return;const id=setInterval(()=>tick(x=>x+1),30000);return()=>clearInterval(id);},[tasks]);
   // Типы задач: добавить/удалить (хранятся в db.taskTypes)
   const addType=(name)=>{const id=Date.now();updateDb(p=>({...p,taskTypes:[...(p.taskTypes||[]),{id,name,color:TASK_TYPE_COLORS[(p.taskTypes||[]).length%TASK_TYPE_COLORS.length]}]}),true);return id;};
-  const delType=(id)=>updateDb(p=>({...p,taskTypes:(p.taskTypes||[]).filter(x=>x.id!==id)}),true);
+  const delType=(id)=>updateDb(p=>({...p,taskTypes:(p.taskTypes||[]).filter(x=>x.id!==id),deletedTaskTypeIds:[...new Set([...(p.deletedTaskTypeIds||[]),id])]}),true);
   const typeOf=(id)=>(taskTypes||[]).find(x=>x.id===id);
   const [modal,setModal]=useState(null);
   useEffect(()=>{if(initialModal)setModal(initialModal);},[initialModal]);
   const [confetti,setConfetti]=useState(false);
   const [quickAdd,setQuickAdd]=useState(null);
   const [quickTitle,setQuickTitle]=useState('');
+  const [quickType,setQuickType]=useState(null);      // null = «Другое»
+  const [quickDeadline,setQuickDeadline]=useState('');
+  const [quickLead,setQuickLead]=useState(null);
+  const resetQuick=()=>{resetQuick();setQuickType(null);setQuickDeadline('');setQuickLead(null);};
   // Pointer-drag state
   const [drag,setDrag]=useState(null);       // {id, w, offX, offY, x0, y0}
   const [over,setOver]=useState(null);        // {col, idx}
@@ -3455,14 +3564,14 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
 
   const quickCreate=(colId)=>{
     const title=quickTitle.trim();
-    if(!title){setQuickAdd(null);setQuickTitle('');return;}
-    const now=Date.now();
-    const ct=tasks.filter(t=>(t.status||'all')===colId);
-    const maxOrd=ct.length?Math.max(...ct.map(t=>t.order||0))+10:0;
-    const asg=(currentUser&&currentUser!=='all')?currentUser:(viewUser!=='all'?viewUser:'—');
+    if(!title){resetQuick();return;}
     const cr=(currentUser&&currentUser!=='all')?currentUser:null;
-    saveTasks([...tasks,buildNewTask({title,status:colId,priority:'MID',assignee:asg,deadline:''},cr,tasks)]);
-    setQuickTitle('');setQuickAdd(null);
+    const asg=cr||(viewUser!=='all'?viewUser:'—'); // задача автоматом на того, кто её создаёт
+    saveTasks([...tasks,buildNewTask({
+      title,status:colId,priority:'MID',assignee:asg,deadline:quickDeadline||'',
+      typeId:quickType||null,leadId:quickLead?quickLead.id:null,leadName:quickLead?(quickLead.name||quickLead.phone):null
+    },cr,tasks)]);
+    resetQuick();
   };
 
   const clearDone=()=>{const ids=tasks.filter(t=>(t.status||'all')==='done').map(t=>t.id);if(!ids.length)return;setConfetti(true);setTimeout(()=>deleteTasks(ids),1400);};
@@ -3600,18 +3709,40 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
   // placeholder gap that opens where the card will drop
   const Placeholder=()=><div style={{height:drag?drag.h:60,marginBottom:6,borderRadius:8,border:'2px dashed rgba(96,165,250,0.5)',background:'rgba(96,165,250,0.08)'}}/>;
 
-  const QuickForm=({colId})=>(
-    <div style={{marginTop:6}}>
+  const QuickForm=({colId})=>{
+    const ru=lang!=='pl';
+    const inp={width:'100%',boxSizing:'border-box',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(239,68,68,0.4)',color:'#fff',borderRadius:8,padding:'8px 10px',fontSize:12,outline:'none'};
+    const chip=(on,color)=>({padding:'5px 9px',borderRadius:8,border:on?`2px solid ${color}`:'1px solid rgba(255,255,255,0.15)',background:on?`${color}26`:'transparent',color:on?color:'rgba(255,255,255,0.7)',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'});
+    const dl=(v)=>chip(quickDeadline===v,'#38bdf8');
+    return(
+    <div style={{marginTop:6,background:'rgba(0,0,0,0.25)',border:'1px solid rgba(239,68,68,0.35)',borderRadius:10,padding:8,display:'flex',flexDirection:'column',gap:7}}>
       <input autoFocus value={quickTitle} onChange={e=>setQuickTitle(e.target.value)}
-        onKeyDown={e=>{if(e.key==='Enter')quickCreate(colId);if(e.key==='Escape'){setQuickAdd(null);setQuickTitle('');}}}
-        placeholder={t.taskTitle}
-        style={{width:'100%',boxSizing:'border-box',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(239,68,68,0.4)',color:'#fff',borderRadius:8,padding:'10px 12px',fontSize:13,outline:'none',marginBottom:6}}/>
-      <div style={{display:'flex',gap:6}}>
-        <button onClick={()=>quickCreate(colId)} style={{flex:1,background:'#7f1d1d',border:'1px solid rgba(239,68,68,0.4)',color:'#fff',borderRadius:8,padding:'9px',fontSize:12,fontWeight:700,cursor:'pointer'}}>{t.create}</button>
-        <button onClick={()=>{setQuickAdd(null);setQuickTitle('');}} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.5)',borderRadius:8,padding:'9px 14px',fontSize:14,cursor:'pointer'}}>✕</button>
+        onKeyDown={e=>{if(e.key==='Enter')quickCreate(colId);if(e.key==='Escape')resetQuick();}}
+        placeholder={t.taskTitle} style={inp}/>
+      <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+        <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.8,marginRight:2}}>{ru?'Тип':'Typ'}</span>
+        <button onClick={()=>{setQuickType(null);setQuickLead(null);}} style={chip(!quickType,'#a1a1aa')}>{ru?'Другое':'Inne'}</button>
+        {(taskTypes||[]).map(tt=><button key={tt.id} onClick={()=>setQuickType(tt.id)} style={chip(quickType===tt.id,tt.color||'#bfa47e')}>{tt.name}</button>)}
+      </div>
+      <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+        <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.8,marginRight:2}}>{ru?'Срок':'Termin'}</span>
+        <button onClick={()=>setQuickDeadline(dayPlus(0))} style={dl(dayPlus(0))}>{ru?'Сегодня':'Dziś'}</button>
+        <button onClick={()=>setQuickDeadline(dayPlus(1))} style={dl(dayPlus(1))}>{ru?'Завтра':'Jutro'}</button>
+        <input type="date" value={quickDeadline} onChange={e=>setQuickDeadline(e.target.value)} style={{...inp,width:'auto',padding:'4px 8px',colorScheme:'dark'}}/>
+        {quickDeadline&&<button onClick={()=>setQuickDeadline('')} style={chip(false,'#aaa')}>✕</button>}
+      </div>
+      {quickType&&<div>
+        <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.8,marginBottom:4}}>◈ {ru?'Лид':'Lead'}</div>
+        <LeadDropdown leads={leads} value={quickLead?quickLead.id:null} onChange={setQuickLead} lang={lang} ins={inp}/>
+      </div>}
+      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+        <span style={{fontSize:10,color:'rgba(255,255,255,0.45)'}}>→ {currentUser&&currentUser!=='all'?currentUser:'—'}</span>
+        <button onClick={()=>quickCreate(colId)} style={{marginLeft:'auto',background:'#7f1d1d',border:'1px solid rgba(239,68,68,0.4)',color:'#fff',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:800,cursor:'pointer'}}>＋ {ru?'Создать':'Utwórz'}</button>
+        <button onClick={resetQuick} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.6)',borderRadius:8,padding:'7px 10px',fontSize:12,cursor:'pointer'}}>✕</button>
       </div>
     </div>
-  );
+    );
+  };
 
   const AddBtn=({colId})=>(
     <button onClick={()=>{setQuickAdd(colId);setQuickTitle('');}}
@@ -3659,7 +3790,6 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:'10px 14px',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',flexShrink:0}}>
           <span style={{fontSize:11,color:C.muted,fontWeight:700}}>◆ {lang==='pl'?'Typy zadań':'Типы задач'}:</span>
           {(taskTypes||[]).map(tt=><span key={tt.id} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,fontWeight:700,color:tt.color,background:`${tt.color}18`,border:`1px solid ${tt.color}55`,borderRadius:10,padding:'3px 9px'}}>{tt.name}<button onClick={()=>delType(tt.id)} style={{background:'transparent',border:'none',color:C.dim,cursor:'pointer',fontSize:11,padding:0}}>✕</button></span>)}
-          <TypeAdder onAdd={addType} lang={lang}/>
         </div>)}
 
       {/* ── ОТЧЁТ ── */}
@@ -4212,9 +4342,6 @@ function GarnoCRM(){
         ::-webkit-scrollbar-thumb{background:rgba(191,164,126,0.35);border-radius:3px;}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-        @keyframes garnoFresh{0%,100%{background:rgba(250,204,21,0.10)}50%{background:rgba(250,204,21,0.55)}}
-        tr.garno-fresh{animation:garnoFresh 0.9s ease-in-out infinite;}
-        tr.garno-fresh td:first-child{box-shadow:inset 4px 0 0 #facc15;}
         @keyframes garnoShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
         @keyframes garnoPop{from{transform:scale(0.92);opacity:0}to{transform:scale(1);opacity:1}}
         input::placeholder,textarea::placeholder{color:${C.dim};}
@@ -4228,6 +4355,9 @@ function GarnoCRM(){
           td, th { font-weight: 600 !important; }
           .crm-muted { font-weight: 600; }
         ` : ""}
+        @keyframes garnoFresh{0%,100%{background:rgba(250,204,21,0.12)}50%{background:rgba(250,204,21,0.60)}}
+        tr.garno-fresh, tr.garno-fresh td{animation:garnoFresh 0.8s ease-in-out infinite !important;}
+        tr.garno-fresh td:first-child{box-shadow:inset 4px 0 0 #facc15;}
         @media print{
           .no-print{display:none!important;}
           html,body{margin:0!important;padding:0!important;background:#fff!important;}
@@ -4249,6 +4379,7 @@ function GarnoCRM(){
           {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
           {page==="salescenter"&& <SalesCenterPage leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage}/>}
           {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={setSelLead}/>}
+          {page==="settings"   && <SettingsPage db={db} updateDb={updateDb} lang={lang} t={t}/>}
           {page==="tasks"      && <TasksPage tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t} leads={leads} taskTypes={db.taskTypes||[]} onOpenLead={setSelLead} initialModal={taskPreset} />}
         </div>
       </div>
