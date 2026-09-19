@@ -52,7 +52,7 @@ let C = DARK; // mutable — updated by theme
 function syncColorMaps(){
   MGR_COLOR.Oleh=C.blue;MGR_COLOR.Dmytro=C.green;MGR_COLOR.Mateusz=C.purple;MGR_COLOR.Danya=C.cyan;MGR_COLOR.Taras=C.yellow;
   QUAL_COLOR.unqualified=C.red;QUAL_COLOR.prequalified=C.yellow;QUAL_COLOR.qualified=C.green;QUAL_COLOR.salon=C.blue;QUAL_COLOR.sale=C.accent;
-  ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;ACT_COLOR.push=PUSH_C;ACT_COLOR.waitingInfo="#38bdf8";ACT_COLOR.visit="#f0c040";ACT_COLOR.sale="#22c55e";
+  ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;ACT_COLOR.push=PUSH_C;ACT_COLOR.waitingInfo="#38bdf8";ACT_COLOR.visit="#f0c040";ACT_COLOR.sale="#22c55e";ACT_COLOR.inWork="#a3e635";
   BUD_COLOR.withinMonth=C.green;BUD_COLOR.within3m=C.cyan;BUD_COLOR.within6m=C.yellow;BUD_COLOR.year=C.purple;BUD_COLOR.justPrice=C.muted;
   EVENT_COLOR.visit=C.blue;EVENT_COLOR.measure=C.accent;EVENT_COLOR.contract=C.green;EVENT_COLOR.phone=C.purple;EVENT_COLOR.delivery=C.cyan;
 }
@@ -75,7 +75,9 @@ const T = {
     convRate:"Конверсия",revenue:"Выручка",many:"Продаж",totalSales:"Выручка",salesCount:"Продаж",
     podium:"Пьедестал",visits:"Визиты",source_label:"Источник",
     unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",mwp:"MWP квал",salon:"Визит в салон",sale:"Продажа",
-    thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",quote:"Просчёт",undefined:"Не определено",waitingInfo:"Ждём инфо",visit:"Визит",sale:"Продажа",
+    thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",quote:"Просчёт",undefined:"Не определено",waitingInfo:"Ждём инфо",visit:"Визит",inWork:"Лид в работе",
+    kitchenInfo:"Инфо по кухне",kiYes:"Есть",kiNo:"Нет",distance:"Расстояние",dNear:"30 км −",dFar:"30 км +",apartment:"Квартира",aNew:"Новая",aOld:"Старая",
+    qualPairs:"Квалификация (обязательно)",fillPairs:"Заполните все 3 пары",whyNoVisit:"Почему не визит",rPrice:"Цена",rDistance:"Расстояние",rThinking:"Думают",autoScoreHint:"Оценка выставлена автоматически по парам",
     withinMonth:"В теч. месяца",within3m:"В теч. 3 мес.",within6m:"В теч. полугода",year:"Год",
     justPrice:"Только цена",unconfirmed:"Срок не подтвержден",
     evVisit:"Визит",evMeasure:"Замер",evContract:"Договор",evPhone:"Телефон",evDelivery:"Доставка",
@@ -88,7 +90,7 @@ const T = {
     push:"Push",pushTab:"Пропушить",pushTitle:"Введите дату пуша",pushConfirm:"Подтвердить пуш",pushDate:"Дата пуша",pushTime:"Время",
     noPush:"Пушей пока нет",editPush:"Редактировать пуш",removePush:"Убрать из пушей",pushOverdue:"Просрочено",
     upcomingVisits:"Ближайшие визиты",noUpcomingVisits:"Ближайших визитов нет",sortPush:"По дате пуша",sortCreated:"По дате добавления",
-    pushSetDate:"назначить дату",pushNoDate:"без срока",pushFromLabel:"было",
+    pushSetDate:"назначить дату",pushNoDate:"без срока",pushFromLabel:"было",pushToday:"нужно пропушить сегодня",
     remVisitTitle:"Завтра визит — нужно подтвердить",remVisitCta:"Свяжитесь с клиентом и подтвердите визит.",remNoTime:"время не указано",
     remPushTitle:"15:00 — пора пушить!",remPushLine:"На сегодня ({date}) в «Пропушить»: {n}",remPushCta:"Свяжитесь с клиентами.",
     remQuoteTitle:"Просчёт висит больше суток",remQuoteFor:"в просчёте уже",remQuoteHrs:"ч",remQuoteCta:"Свяжитесь с клиентом или смените действие.",
@@ -119,7 +121,7 @@ const T = {
     fillAll:"Заполни все поля ↑",selected:"Выбран",kpLangLabel:"КП на языке",leadsNotFound:"Лиды не найдены",
     stoneHint:"Будет показана как скидка 50% (цена × 2 → ваша сумма)",
     // AI
-    aiReady:"GarnoAI готов.",clear:"Очистить",
+    clear:"Очистить",
     // tasks
     taskTitle:"Название задачи...",nobody:"— Никто",create:"Создать",task:"Задача",
     dblClickCreate:"2× клик — создать",noTasks:"Нет задач",addCard:"+ Добавить карточку",
@@ -143,7 +145,9 @@ const T = {
     convRate:"Konwersja",revenue:"Przychód",many:"Sprzedaży",totalSales:"Przychód",salesCount:"Sprzedaży",
     podium:"Podium",visits:"Wizyty",source_label:"Źródło",
     unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",mwp:"MWP kwal",salon:"Wizyta w salonie",sale:"Sprzedaż",
-    thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",quote:"Wycena",undefined:"Nieokreślone",waitingInfo:"Czekamy na info",visit:"Wizyta",sale:"Sprzedaż",
+    thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",quote:"Wycena",undefined:"Nieokreślone",waitingInfo:"Czekamy na info",visit:"Wizyta",inWork:"Lead w pracy",
+    kitchenInfo:"Info o kuchni",kiYes:"Jest",kiNo:"Brak",distance:"Odległość",dNear:"30 km −",dFar:"30 km +",apartment:"Mieszkanie",aNew:"Nowe",aOld:"Stare",
+    qualPairs:"Kwalifikacja (wymagane)",fillPairs:"Uzupełnij wszystkie 3 pary",whyNoVisit:"Dlaczego nie wizyta",rPrice:"Cena",rDistance:"Odległość",rThinking:"Myślą",autoScoreHint:"Ocena ustawiona automatycznie wg par",
     withinMonth:"W ciągu miesiąca",within3m:"W ciągu 3 mies.",within6m:"W ciągu pół roku",year:"Rok",
     justPrice:"Chce tylko cenę",unconfirmed:"Termin niepotwierdzony",
     evVisit:"Wizyta",evMeasure:"Pomiar",evContract:"Umowa",evPhone:"Telefon",evDelivery:"Dostawa",
@@ -156,7 +160,7 @@ const T = {
     push:"Push",pushTab:"Do pushu",pushTitle:"Wprowadź datę pushu",pushConfirm:"Potwierdź push",pushDate:"Data pushu",pushTime:"Godzina",
     noPush:"Brak pushy",editPush:"Edytuj push",removePush:"Usuń z pushy",pushOverdue:"Zaległe",
     upcomingVisits:"Nadchodzące wizyty",noUpcomingVisits:"Brak nadchodzących wizyt",sortPush:"Wg daty pushu",sortCreated:"Wg daty dodania",
-    pushSetDate:"ustaw datę",pushNoDate:"bez terminu",pushFromLabel:"było",
+    pushSetDate:"ustaw datę",pushNoDate:"bez terminu",pushFromLabel:"było",pushToday:"do pushu dzisiaj",
     remVisitTitle:"Jutro wizyta — trzeba potwierdzić",remVisitCta:"Skontaktuj się z klientem i potwierdź wizytę.",remNoTime:"brak godziny",
     remPushTitle:"15:00 — czas na push!",remPushLine:"Na dziś ({date}) w «Do pushu»: {n}",remPushCta:"Skontaktuj się z klientami.",
     remQuoteTitle:"Wycena wisi ponad dobę",remQuoteFor:"w wycenie już",remQuoteHrs:"godz.",remQuoteCta:"Skontaktuj się z klientem lub zmień działanie.",
@@ -181,7 +185,7 @@ const T = {
     furnAmount:"Kwota mebli (zł)",stoneTop:"Blat kamienny (Blat premium)",stoneAmount:"Kwota blatu (zł)",
     fillAll:"Wypełnij wszystkie pola ↑",selected:"Wybrano",kpLangLabel:"Oferta w języku",leadsNotFound:"Nie znaleziono leadów",
     stoneHint:"Zostanie pokazany jako rabat 50% (cena × 2 → twoja kwota)",
-    aiReady:"GarnoAI gotowy.",clear:"Wyczyść",
+    clear:"Wyczyść",
     taskTitle:"Nazwa zadania...",nobody:"— Nikt",create:"Utwórz",task:"Zadanie",
     dblClickCreate:"2× klik — utwórz",noTasks:"Brak zadań",addCard:"+ Dodaj kartę",
     assignee:"Wykonawca",priority:"Priorytet",deadline:"Termin",done:"Gotowe",
@@ -246,12 +250,24 @@ function GoldWreath({size}){
     </svg>
   );
 }
+// Авто-оценка по парам квалификации:
+//  4.5 — инфо по кухне ЕСТЬ + расстояние 30км− + квартира новая
+//  4.5 — исключение: инфо по кухне ЕСТЬ + срок «в теч. 3 мес.» (даже если остальное не сходится)
+//  4   — любое условие не выполнено (и не исключение)
+//  null — пары заполнены не все → не трогаем оценку
+function autoScoreFromPairs(l){
+  if(!l||!l.kitchenInfo||!l.distance||!l.apartment)return null;
+  const ki=l.kitchenInfo==="yes",near=l.distance==="near",fresh=l.apartment==="new";
+  if(ki&&near&&fresh)return 4.5;
+  if(ki&&l.budget==="within3m")return 4.5;
+  return 4;
+}
 function scoreToQual(s){const n=parseFloat(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===4.5)return"mwp";if(n===5)return"salon";return"sale";}
 const QUALS=["unqualified","prequalified","qualified","mwp","salon","sale"];
 const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,mwp:"#2dd4bf",salon:C.blue,sale:C.accent};
-const ACTIONS=["undefined","waitingInfo","thinking","missedCall","cancelled","callback","quote","push","visit","sale"];
+const ACTIONS=["undefined","inWork","waitingInfo","thinking","missedCall","cancelled","callback","quote","push","visit","sale"];
 const PUSH_C="#f97316";
-const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple,push:PUSH_C,waitingInfo:"#38bdf8",visit:"#f0c040",sale:"#22c55e"};
+const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple,push:PUSH_C,waitingInfo:"#38bdf8",visit:"#f0c040",sale:"#22c55e",inWork:"#a3e635"};
 const BUDGETS=["withinMonth","within3m","within6m","year","justPrice","unconfirmed"];
 const BUD_COLOR={withinMonth:C.green,within3m:C.cyan,within6m:C.yellow,year:C.purple,justPrice:C.muted,unconfirmed:"rgba(255,255,255,0.2)"};
 const D_KALK=["Dkalkulator",...Array.from({length:20},(_,i)=>`Dkalkulator${i+1}`)];
@@ -395,29 +411,44 @@ const SB_URL="https://bnyjwjuejrfalbubdbcv.supabase.co";
 const SB_KEY="sb_publishable_frwr6x08dbBL1tfFlkb9iw_-egAa2Cm";
 const SB_HDR={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`};
 
-// ─── JSONBIN MIGRATION (one-time) ─────────────────────────────────────────────
-const JB_BIN_ID="6a08675badc21f119aabd73e";
-const JB_MASTER_KEY="$2a$10$bk7OT8Sf080sRLiypGChtOXjBoaV61S289jKScNs2xjRyChedniFa";
-const JB_MIGRATED_KEY="garno_jb_migrated";
-async function tryMigrateFromJsonBin(){
-  // Skip if already migrated
-  if(localStorage.getItem(JB_MIGRATED_KEY)==="1")return null;
-  try{
-    const r=await fetch(`https://api.jsonbin.io/v3/b/${JB_BIN_ID}/latest`,{
-      headers:{"X-Master-Key":JB_MASTER_KEY,"X-Bin-Meta":"false"},
-      cache:"no-store",
-      signal:AbortSignal.timeout(8000)
-    });
-    if(!r.ok)return null;
-    const j=await r.json();
-    const data=j?.record??j;
-    if(!data||!data.leads||data.leads.length===0)return null;
-    console.log("✅ JSONBin migration: found",data.leads.length,"leads");
-    return data;
-  }catch(e){
-    console.log("JSONBin still unavailable:",e.message);
-    return null;
-  }
+// ─── AUTH (Supabase Auth, email+password) ─────────────────────────────────
+// Публичный ключ сам по себе больше не даёт доступ к данным: RLS пускает только
+// authenticated. Все запросы идут с Bearer <access_token> сессии менеджера.
+const SB_SESSION_KEY="garno_session";
+function setAuthToken(tok){ SB_HDR.Authorization=`Bearer ${tok||SB_KEY}`; }
+function authSave(sess){ try{localStorage.setItem(SB_SESSION_KEY,JSON.stringify(sess));}catch{} setAuthToken(sess?.access_token); }
+function authClear(){ try{localStorage.removeItem(SB_SESSION_KEY);}catch{} setAuthToken(null); }
+async function authLogin(email,password){
+  const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify({email,password})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||!j.access_token) throw new Error(j.error_description||j.msg||j.error||"Неверный email или пароль");
+  const sess={access_token:j.access_token,refresh_token:j.refresh_token,expires_at:Math.floor(Date.now()/1000)+(j.expires_in||3600),email};
+  authSave(sess); return sess;
+}
+async function authRefresh(){
+  let sess=null; try{sess=JSON.parse(localStorage.getItem(SB_SESSION_KEY)||"null");}catch{}
+  if(!sess||!sess.refresh_token) return null;
+  const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify({refresh_token:sess.refresh_token})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||!j.access_token){ authClear(); return null; }
+  const ns={access_token:j.access_token,refresh_token:j.refresh_token||sess.refresh_token,expires_at:Math.floor(Date.now()/1000)+(j.expires_in||3600),email:sess.email};
+  authSave(ns); return ns;
+}
+// Восстановить сессию при загрузке. true = авторизован.
+async function authRestore(){
+  let sess=null; try{sess=JSON.parse(localStorage.getItem(SB_SESSION_KEY)||"null");}catch{}
+  if(!sess||!sess.access_token) return false;
+  const now=Math.floor(Date.now()/1000);
+  if((sess.expires_at||0)-now<300){ const ns=await authRefresh(); return !!ns; }
+  setAuthToken(sess.access_token); return true;
+}
+// Проактивное обновление токена, пока вкладка открыта
+function authKeepAlive(){
+  return setInterval(async()=>{
+    let sess=null; try{sess=JSON.parse(localStorage.getItem(SB_SESSION_KEY)||"null");}catch{}
+    if(!sess) return;
+    if((sess.expires_at||0)-Math.floor(Date.now()/1000)<900) await authRefresh();
+  },5*60*1000);
 }
 
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}
@@ -501,7 +532,7 @@ async function sbWriteDomains(domains){
   });
   if(!r.ok){const t=await r.text();throw new Error(`HTTP ${r.status}: ${t.slice(0,100)}`);}
 }
-const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,/* domains in row id=2 */tasks:[],chat:[{role:"assistant",content:`Привет! Я GarnoAI 👋\nЛидов: ${SEED_LEADS.length} | Kwaly: ${SEED_LEADS.filter(l=>l.score>=4).length} | Продаж: ${SEED_LEADS.filter(l=>l.score===6).length}\n\nКоманды:\n• "Задачи Dmytro сегодня"\n• "Сгенерируй КП для id=${SEED_LEADS[0]?.leadId} сумма 23250"\n• "Запомни: факт для обучения"\n• "Статистика менеджеров"`}]});
+const INIT_DB=()=>({leads:SEED_LEADS,events:SEED_EVENTS,sales:SEED_SALES,nextNum:SEED_LEADS.length+1,/* domains in row id=2 */tasks:[],chat:[]});
 
 function useDatabase(){
   const [db,setDbState]=useState(null);
@@ -520,6 +551,14 @@ function useDatabase(){
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const migrateData=(data)=>{
+    // Разовая чистка аллертов v1: AI-чат удалён, старые/принятые напоминания — мусор.
+    // Оставляем только НЕпринятые напоминания с датой >= сегодня (или без даты).
+    if(!data.alertsPurgedV1){
+      const td=getToday();
+      data={...data,
+        chat:(data.chat||[]).filter(m=>m.kind==="reminder"&&!m.ackBy&&(!m.data?.date||m.data.date>=td)),
+        alertsPurgedV1:true};
+    }
     // Rename legacy manager Patryk -> Mateusz across all records
     const fixMgr=(v)=>v==="Patryk"?"Mateusz":v;
     if(data.leads) data={...data,leads:data.leads.map(l=>l.manager==="Patryk"?{...l,manager:"Mateusz"}:l)};
@@ -649,6 +688,7 @@ function useDatabase(){
       // одного менеджера затирает ключи другого и ассистент шлёт пуши повторно.
       sentReminders:[...new Set([...(local.sentReminders||[]),...(remote.sentReminders||[])])],
       // domains are stored in row id=2, NOT here
+      taskTypes:(()=>{const m=new Map();(remote?.taskTypes||[]).forEach(x=>m.set(x.id,x));(local.taskTypes||[]).forEach(x=>m.set(x.id,x));return [...m.values()];})(),
       tasks:(()=>{
         // Merge tasks by ID, latest updatedAt wins
         const taskMap=new Map();
@@ -753,6 +793,13 @@ function useDatabase(){
             return (t.updatedAt||0)>(loc.updatedAt||0);
           });
           if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0&&remoteTaskChanges.length===0)return;
+          // 🚨 Новые заявки прилетели извне (лендинг/другой менеджер) — тревога
+          if(remoteNewLeads.length>0){
+            markFresh(remoteNewLeads.map(l=>l.id));
+            playSiren(3);
+            const first=remoteNewLeads[0];
+            showDesktopNotif(`🚨 ${remoteNewLeads.length===1?"Новая заявка":"Новых заявок: "+remoteNewLeads.length}`,`${first.name||first.phone||""}${first.source?" · "+srcShort(first.source):""}`,()=>{try{window.__garnoGoLeads&&window.__garnoGoLeads();}catch{}});
+          }
           // Только ПОДТЯГИВАЕМ удалённые изменения в локальный вид. НЕ пишем в базу
           // из bgSync — любая запись должна идти через mergeWrite с compare-and-swap,
           // иначе фоновая запись могла бы затирать чужие правки.
@@ -809,25 +856,13 @@ function useDatabase(){
         const isFirstRun=!remote||!remote.leads||remote.leads.length===0;
         let data;
         if(isFirstRun){
-          let dataIsReal=false; // true только если данные из JSONBin/backup, а НЕ демо
-          // 1. Пробуем достать данные из JSONBin (миграция)
-          const jbData=await tryMigrateFromJsonBin();
-          if(jbData&&jbData.leads&&jbData.leads.length>0){
-            // Мёрджим JSONBin + локальный backup чтобы ничего не потерять
-            const merged=backup&&backup.leads&&backup.leads.length>0?mergeData(jbData,backup):jbData;
-            data=migrateData(merged);dataIsReal=true;
-            setSyncError("✅ Данные перенесены из JSONBin → Supabase! Лидов: "+data.leads.length);
-            setTimeout(()=>setSyncError(""),8000);
-            localStorage.setItem(JB_MIGRATED_KEY,"1");
-          // 2. Есть ли локальный backup с данными?
-          } else if(backup&&backup.leads&&backup.leads.length>0){
+          let dataIsReal=false; // true только если данные из backup, а НЕ демо
+          if(backup&&backup.leads&&backup.leads.length>0){
             data=migrateData(backup);dataIsReal=true;
             setSyncError("✅ Данные восстановлены из локального кэша. Лидов: "+data.leads.length);
             setTimeout(()=>setSyncError(""),5000);
           } else {
-            // 3. JSONBin ещё лежит и кэша нет — показываем предупреждение
             data=INIT_DB();
-            setSyncError("⏳ JSONBin пока недоступен. CRM запущена с демо-данными. Как только JSONBin поднимется — обнови страницу и данные перенесутся автоматически.");
           }
           // Записываем через CAS. Если за это время кто-то уже залил реальные лиды —
           // НЕ затираем: реальный локальный набор мёржим, демо — отбрасываем.
@@ -999,6 +1034,74 @@ function buildReminders(db){
 // Локализованный текст напоминания — рендерится под текущий язык CRM
 // Системное (нативное) уведомление ОС. Появляется, пока вкладка CRM открыта
 // (в т.ч. в фоне/свёрнута). Тихо ничего не делает, если нет разрешения.
+// ─── ТРЕВОГА ПО НОВЫМ ЗАЯВКАМ ───────────────────────────────────────────────
+// Набор «свежих» (ещё не открытых менеджером) лидов. Хранится в localStorage,
+// чтобы мигание не пропадало при перезагрузке вкладки.
+const FRESH_KEY="garno_fresh_leads";
+// FRESH: id → время прихода (мс). Нужно для эскалации: если заявку никто не открыл
+// дольше SIREN_AFTER_MIN минут — сирена повторяется каждые SIREN_REPEAT_MIN, пока не откроют.
+const SIREN_AFTER_MIN=10, SIREN_REPEAT_MIN=5;
+let FRESH=new Map();
+try{
+  const raw=JSON.parse(localStorage.getItem(FRESH_KEY)||"[]");
+  // совместимость: раньше хранился массив id
+  if(Array.isArray(raw)) raw.forEach(x=>Array.isArray(x)?FRESH.set(x[0],x[1]):FRESH.set(x,Date.now()));
+}catch{}
+let FRESH_LISTENERS=[];
+function _freshSave(){try{localStorage.setItem(FRESH_KEY,JSON.stringify([...FRESH.entries()]));}catch{} FRESH_LISTENERS.forEach(f=>{try{f();}catch{}});}
+function markFresh(ids){const now=Date.now();ids.forEach(id=>{if(!FRESH.has(id))FRESH.set(id,now);});_freshSave();}
+function unmarkFresh(id){if(FRESH.has(id)){FRESH.delete(id);_freshSave();}}
+function freshCount(){return FRESH.size;}
+function isFresh(id){return FRESH.has(id);}
+// Сколько минут самая старая непросмотренная заявка висит без реакции
+function freshOldestMin(){let m=0;const now=Date.now();FRESH.forEach(t=>{const mm=(now-t)/60000;if(mm>m)m=mm;});return m;}
+// Эскалация: проверяется раз в минуту. Сирена повторяется, пока не откроют.
+let _lastSirenAt=0;
+function checkFreshEscalation(){
+  if(FRESH.size===0)return;
+  const oldest=freshOldestMin();
+  if(oldest<SIREN_AFTER_MIN)return;
+  const sinceLast=(Date.now()-_lastSirenAt)/60000;
+  if(sinceLast<SIREN_REPEAT_MIN)return;
+  _lastSirenAt=Date.now();
+  playSiren(5);
+  showDesktopNotif(`🚨 ЗАЯВКА БЕЗ РЕАКЦИИ ${Math.round(oldest)} мин`,`Непросмотренных заявок: ${FRESH.size}. Откройте лида!`,()=>{try{window.__garnoGoLeads&&window.__garnoGoLeads();}catch{}});
+}
+// Сирена через Web Audio (без внешних файлов): 3 цикла двухтонового сигнала
+let _audioCtx=null;
+function playSiren(cycles=3){
+  try{
+    _audioCtx=_audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    const ctx=_audioCtx; const t0=ctx.currentTime;
+    for(let i=0;i<cycles;i++){
+      const o=ctx.createOscillator(); const g=ctx.createGain();
+      o.type="square"; o.connect(g); g.connect(ctx.destination);
+      const st=t0+i*0.55;
+      o.frequency.setValueAtTime(880,st); o.frequency.linearRampToValueAtTime(1320,st+0.25); o.frequency.linearRampToValueAtTime(880,st+0.5);
+      g.gain.setValueAtTime(0.0001,st); g.gain.exponentialRampToValueAtTime(0.25,st+0.03); g.gain.exponentialRampToValueAtTime(0.0001,st+0.5);
+      o.start(st); o.stop(st+0.52);
+    }
+  }catch{}
+}
+// Короткий «динь» для задач
+function playDing(){
+  try{
+    _audioCtx=_audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    const ctx=_audioCtx,t0=ctx.currentTime;
+    [[880,0],[1320,0.12]].forEach(([f,d])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.connect(g);g.connect(ctx.destination);o.frequency.value=f;g.gain.setValueAtTime(0.0001,t0+d);g.gain.exponentialRampToValueAtTime(0.3,t0+d+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t0+d+0.35);o.start(t0+d);o.stop(t0+d+0.4);});
+  }catch{}
+}
+// Стробоскоп заголовка вкладки: «(N) новых заявок» ⇄ «GarnoCRM»
+let _titleTimer=null,_titleBase="GarnoCRM";
+function startTitleStrobe(getCount,label){
+  if(_titleTimer)return;
+  let flip=false;
+  _titleTimer=setInterval(()=>{
+    const n=getCount();
+    if(n<=0){clearInterval(_titleTimer);_titleTimer=null;document.title=_titleBase;return;}
+    flip=!flip; document.title=flip?`(${n}) ${label}`:_titleBase;
+  },900);
+}
 function showDesktopNotif(title,body,onClick){
   try{
     if(typeof Notification==="undefined"||Notification.permission!=="granted")return;
@@ -1241,7 +1344,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           const doc=document.getElementById("kp-doc");
           if(!doc)return;
           const w=window.open("","_blank","width=900,height=800");
-          if(!w){alert(lang==="pl"?"Zezwól na wyskakujące okna dla tej strony":"Разрешите всплывающие окна для этого сайта");return;}
+          if(!w){alert(kpLang==="pl"?"Zezwól na wyskakujące okna dla tej strony":"Разрешите всплывающие окна для этого сайта");return;}
           const safeHtml=doc.outerHTML.replace(/<script[\s\S]*?<\/script>/gi,"");
           w.document.write("<!DOCTYPE html><html><head><meta charset=utf-8><style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'DM Sans','Segoe UI',sans-serif;background:#fff;font-size:12px;}@media print{@page{margin:0;size:A4 portrait;}body{margin:0;padding:0;}#kp-page1{page-break-after:always;break-after:page;height:297mm;overflow:hidden;}#kp-page2{page-break-before:always;break-before:page;height:297mm;overflow:hidden;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}}#kp-doc{max-width:210mm!important;margin:0 auto!important;border-radius:0!important;box-shadow:none!important;}/* PAGE 1 compact */#kp-page1{display:flex;flex-direction:column;}/* Banner */#kp-page1>div:first-child{padding:10px 32px!important;}#kp-page1>div:first-child img{width:72px!important;height:72px!important;}#kp-page1>div:first-child>div>div:first-child{font-size:18px!important;margin-bottom:2px!important;}#kp-page1>div:first-child>div>div:nth-child(2){font-size:13px!important;}/* Header dark */#kp-page1>div:nth-child(2){padding:18px 36px!important;}#kp-page1>div:nth-child(2) div:first-child{font-size:24px!important;}/* Client info */#kp-page1 div[style*='grid-template-columns: 1fr 1fr']{padding:14px 36px!important;gap:16px!important;}#kp-page1 div[style*='grid-template-columns: 1fr 1fr']>div>div:first-child{font-size:9px!important;margin-bottom:4px!important;}#kp-page1 div[style*='grid-template-columns: 1fr 1fr']>div>div:nth-child(2){font-size:16px!important;}/* Pricing */#kp-page1 div[style*='SZCZEG']{padding:14px 36px 10px!important;}#kp-page1 div[style*='SZCZEG']>div:first-child{margin-bottom:8px!important;}/* Pricing rows */div[style*='border-bottom: 1px solid #f0ebe2']{padding:7px 0!important;}/* Total block */div[style*='background: #00132f'][style*='border-radius: 12px']{margin-top:10px!important;padding:14px 22px!important;}div[style*='background: #00132f'][style*='border-radius: 12px'] div:first-child{font-size:17px!important;}div[style*='background: #00132f'][style*='border-radius: 12px'] div:last-child{font-size:30px!important;}/* Stone block */div[style*='gradient(135deg,#7f1d1d']{margin-top:8px!important;padding:10px 16px!important;}/* Materials */div[style*='MATERI']{padding:10px 36px 14px!important;}div[style*='MATERI']>div:first-child{margin-bottom:8px!important;}div[style*='grid-template-columns: 1fr 1fr'][style*='gap: 14px'] > div,div[style*='grid-template-columns: 1fr 1fr'][style*='gap:14px'] > div{padding:10px!important;}div[style*='grid-template-columns: 1fr 1fr'][style*='gap: 14px'] img,div[style*='grid-template-columns: 1fr 1fr'][style*='gap:14px'] img{height:60px!important;margin-top:4px!important;}/* PAGE 2 compact */#kp-page2{display:flex;flex-direction:column;}/* Co dalej */#kp-page2>div:first-child{padding:18px 36px!important;flex:1;}#kp-page2>div:first-child>div:first-child{font-size:20px!important;margin-bottom:2px!important;}#kp-page2>div:first-child>div:nth-child(2){font-size:10px!important;margin-bottom:16px!important;}#kp-page2>div:first-child>div:nth-child(3){padding-left:32px!important;}div[style*='position: relative'][style*='padding-bottom: 28px'],div[style*='position:relative'][style*='padding-bottom:28px']{padding-bottom:14px!important;}div[style*='position: relative'][style*='padding-bottom: 20px'],div[style*='position:relative'][style*='padding-bottom:20px']{padding-bottom:10px!important;}div[style*='padding-bottom: 28px']{padding-bottom:14px!important;}div[style*='padding-bottom: 20px']{padding-bottom:10px!important;}/* Showroom block */#kp-page2>div:nth-child(2){padding:14px 36px!important;}#kp-page2>div:nth-child(2)>div:first-child{font-size:14px!important;}#kp-page2>div:nth-child(2)>div:nth-child(2){font-size:11px!important;margin-bottom:8px!important;}#kp-page2>div:nth-child(2)>div:nth-child(3){gap:6px!important;margin-bottom:10px!important;}#kp-page2>div:nth-child(2)>div:nth-child(3)>div{padding:4px 10px!important;font-size:10px!important;}/* Showroom photos 3-in-row */div[style*='grid-template-columns: 1fr 1fr 1fr']{gap:6px!important;margin-bottom:10px!important;}div[style*='grid-template-columns: 1fr 1fr 1fr'] img{height:100px!important;}/* Footer */#kp-page2>div:last-child{padding:10px 36px!important;margin-top:auto;}</style></head><body>"+doc.outerHTML+"</body></html>");
           w.document.close();
@@ -1673,8 +1776,8 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"ai",icon:"◆",ru:"AI Ассистент",pl:"Asystent AI"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"}];
-function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,aiUnread=0,t}){
+const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"}];
+function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,aiUnread=0,freshLeads=0,t}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
       <div style={{padding:"14px 10px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
@@ -1682,7 +1785,7 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0
         {!collapsed&&<span style={{color:C.accent,fontWeight:900,fontSize:14,letterSpacing:1.5}}>GARNO<span style={{color:"#fff"}}>CRM</span></span>}
       </div>
       <nav style={{flex:1,padding:"8px 6px",display:"flex",flexDirection:"column",gap:2,overflowY:"auto",overflowX:"hidden"}}>
-        {NAV.map(item=>{const active=page===item.key;return(<button key={item.key} onClick={()=>setPage(item.key)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:active?700:500,borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent"}}><span style={{fontSize:14,flexShrink:0}}>{item.icon}</span>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}{item.key==="leads"&&pushDue>0?<span title={t.pushToday} style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {pushDue}</span>:null}{item.key==="ai"&&aiUnread>0?<span title={t.aiUnread} style={{display:"inline-flex",alignItems:"center",gap:2,background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {aiUnread}</span>:null}</span>}</button>);})}
+        {NAV.map(item=>{const active=page===item.key;return(<button key={item.key} onClick={()=>setPage(item.key)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:active?700:500,borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent"}}><span style={{fontSize:14,flexShrink:0}}>{item.icon}</span>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}{item.key==="leads"&&freshLeads>0?<span style={{background:"#facc15",color:"#00132f",borderRadius:10,fontSize:9,fontWeight:900,padding:"0 6px",lineHeight:"14px",animation:"pulse 0.9s infinite"}}>🚨 {freshLeads}</span>:null}{item.key==="leads"&&pushDue>0?<span title={t.pushToday} style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {pushDue}</span>:null}{item.key==="alerts"&&aiUnread>0?<span title={t.aiUnread} style={{display:"inline-flex",alignItems:"center",gap:2,background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {aiUnread}</span>:null}</span>}</button>);})}
         {!collapsed&&page==="leads"&&(<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}}>{["all",...MANAGERS].map(m=>(<button key={m} onClick={()=>setMgr(m)} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderRadius:6,border:"none",background:mgr===m?`${MGR_COLOR[m]||C.accent}22`:"transparent",color:mgr===m?(MGR_COLOR[m]||C.accent):C.muted,cursor:"pointer",fontSize:12,fontWeight:mgr===m?600:400,width:"100%",textAlign:"left"}}>{m!=="all"&&<Avatar name={m} color={MGR_COLOR[m]} size={18}/>}{m==="all"?`◉ ${lang==="ru"?"Все":"Wszyscy"}`:m}</button>))}</div>)}
       </nav>
     </div>
@@ -1692,7 +1795,6 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0
 // ─── TOPBAR ───────────────────────────────────────────────────────────────────
 function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,onRefresh,theme,toggleTheme}){
   const [showUsers,setShowUsers]=useState(false);
-  const [showBinId,setShowBinId]=useState(false);
   const syncColor=syncLabel==="✓"?C.green:syncLabel==="!"?C.red:syncLabel==="⟳"?C.yellow:syncLabel==="offline"?C.yellow:C.green;
   const isDark=theme==="dark";
   return(
@@ -1711,32 +1813,6 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
         </span>
         {syncLabel==="⟳"?t.refreshing:syncLabel==="✓"?t.refreshed:syncLabel==="!"?t.refreshErr:syncLabel==="offline"?t.offline:t.refresh}
       </button>
-      {/* Bin ID share button */}
-      <div style={{position:"relative"}}>
-        <button onClick={()=>setShowBinId(p=>!p)} title="Bin ID"
-          style={{background:C.card,border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"4px 10px",fontSize:10,cursor:"pointer",fontWeight:600}}>
-          ⚙ Bin ID
-        </button>
-        {showBinId&&(
-          <>
-            <div onClick={()=>setShowBinId(false)} style={{position:"fixed",inset:0,zIndex:1999}}/>
-            <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:C.surface,border:`1px solid ${C.accentBorder}`,borderRadius:12,padding:16,zIndex:2000,minWidth:340,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
-              <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:10}}>📋 Данные для подключения команды</div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:6}}>1. Bin ID (отправьте всем менеджерам):</div>
-              <div style={{background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:8,padding:"10px 12px",fontFamily:"monospace",fontSize:12,color:C.accent,wordBreak:"break-all",marginBottom:12}}>
-                {binId||"—"}
-              </div>
-              <div style={{fontSize:11,color:C.yellow,marginBottom:10,background:"rgba(251,191,36,0.08)",borderRadius:8,padding:"8px 10px",lineHeight:1.6}}>
-                ✅ База данных: <b style={{color:"#fff"}}>Supabase</b> (Frankfurt). Синхронизация работает автоматически.
-              </div>
-              <button onClick={()=>{navigator.clipboard?.writeText(binId||"");setShowBinId(false);}}
-                style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",width:"100%"}}>
-                📋 Скопировать Bin ID
-              </button>
-            </div>
-          </>
-        )}
-      </div>
       <button onClick={onAddLead} style={{background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",gap:8,boxShadow:`0 2px 14px rgba(191,164,126,0.4)`}}><span style={{fontSize:16,fontWeight:900}}>+</span> {t.addLead}</button>
       <div style={{display:"flex",gap:2,background:C.card,borderRadius:8,padding:3,border:`1px solid ${C.border}`}}>{["ru","pl"].map(l=><button key={l} onClick={()=>setLang(l)} style={{padding:"4px 10px",borderRadius:6,border:"none",background:lang===l?C.accentDim:"transparent",color:lang===l?C.accent:C.muted,cursor:"pointer",fontSize:11,fontWeight:700}}>{l.toUpperCase()}</button>)}</div>
       {/* Theme toggle */}
@@ -1762,6 +1838,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
                 {active&&<div style={{marginLeft:"auto",width:8,height:8,borderRadius:"50%",background:MGR_COLOR[m]}}/>}
               </button>
             );})}
+            <button onClick={()=>{authClear();window.location.reload();}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",marginTop:4,background:"transparent",border:"none",borderTop:`1px solid ${C.border}`,color:C.red,cursor:"pointer",fontSize:12,fontWeight:700,textAlign:"left"}}>⎋ Выйти из аккаунта</button>
           </div>
         )}
       </div>
@@ -1885,7 +1962,7 @@ function SalesSection(props){
       ]}/>
       <div style={{flex:1,minHeight:0,overflowY:"auto"}}>
         {tab==="sales"
-          ?<SalesPage sales={props.sales} setSales={props.setSales} setSalesNow={props.setSalesNow} updateDb={props.updateDb} t={t} lang={props.lang}/>
+          ?<SalesPage sales={props.sales} setSales={props.setSales} setSalesNow={props.setSalesNow} updateDb={props.updateDb} t={t} lang={props.lang} leads={props.leads} onOpenLead={props.onOpenLead}/>
           :<DynamicsPage leads={props.leads} sales={props.sales} t={t} lang={props.lang}/>}
       </div>
     </div>
@@ -2153,9 +2230,10 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
   const [fQ,setFQ]=useState("all");const [fA,setFA]=useState("all");const [fS,setFS]=useState("all");const [sort,setSort]=useState("date");
+  const [fKI,setFKI]=useState("all");const [fDist,setFDist]=useState("all");const [fApt,setFApt]=useState("all");const [fWhy,setFWhy]=useState("all");
   const [selected,setSelected]=useState(new Set());
   const ss={background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
-  const fl=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||l.name.toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).filter(l=>fQ==="all"||l.qualification===fQ).filter(l=>fA==="all"||l.action===fA).filter(l=>fS==="all"||l.source===fS).sort((a,b)=>{
+  const fl=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||l.name.toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).filter(l=>fQ==="all"||l.qualification===fQ).filter(l=>fA==="all"||l.action===fA).filter(l=>fS==="all"||l.source===fS).filter(l=>fKI==="all"||(l.kitchenInfo||"")===fKI).filter(l=>fDist==="all"||(l.distance||"")===fDist).filter(l=>fApt==="all"||(l.apartment||"")===fApt).filter(l=>fWhy==="all"||(l.noVisitReason||"")===fWhy).sort((a,b)=>{
     if(sort==="score") return b.score-a.score;
     // Parse DD.MM.YYYY date for proper sorting
     const parseDate=(s)=>{if(!s)return 0;const p=s.split(".");if(p.length===3)return new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0;return 0;};
@@ -2163,7 +2241,10 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
     return parseDate(b.createdAt)-parseDate(a.createdAt); // default also by date desc
   });
   // Лиды с действием "не определено" подсвечиваются жёлтым, пока действие не сменят
+  const [,freshTick]=useState(0);
+  useEffect(()=>{const f=()=>freshTick(x=>x+1);FRESH_LISTENERS.push(f);return()=>{FRESH_LISTENERS=FRESH_LISTENERS.filter(x=>x!==f);};},[]);
   const rowBg=(l,isSel)=>isSel?"rgba(191,164,126,0.1)"
+    :isFresh(l.id)?"rgba(250,204,21,0.28)"
     :l.isFavorite?"rgba(251,191,36,0.22)"
     :(!l.action||l.action==="undefined")?"rgba(245,158,11,0.15)"
     :l.qualification==="sale"?"rgba(191,164,126,0.06)":"transparent";
@@ -2206,6 +2287,10 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
         <select value={fQ} onChange={e=>setFQ(e.target.value)} style={ss}><option value="all">{t.qualification}</option>{QUALS.map(q=><option key={q} value={q}>{t[q]}</option>)}</select>
         <select value={fA} onChange={e=>setFA(e.target.value)} style={ss}><option value="all">{t.action}</option>{ACTIONS.map(a=><option key={a} value={a}>{t[a]}</option>)}</select>
         <select value={fS} onChange={e=>setFS(e.target.value)} style={ss}><option value="all">{t.source}</option>{normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{srcShort(d.name)}</option>)}</select>
+        <select value={fKI} onChange={e=>setFKI(e.target.value)} style={ss}><option value="all">{t.kitchenInfo}</option><option value="yes">{t.kiYes}</option><option value="no">{t.kiNo}</option><option value="">—</option></select>
+        <select value={fDist} onChange={e=>setFDist(e.target.value)} style={ss}><option value="all">{t.distance}</option><option value="near">{t.dNear}</option><option value="far">{t.dFar}</option><option value="">—</option></select>
+        <select value={fApt} onChange={e=>setFApt(e.target.value)} style={ss}><option value="all">{t.apartment}</option><option value="new">{t.aNew}</option><option value="old">{t.aOld}</option><option value="">—</option></select>
+        <select value={fWhy} onChange={e=>setFWhy(e.target.value)} style={ss}><option value="all">{t.whyNoVisit}</option><option value="price">{t.rPrice}</option><option value="distance">{t.rDistance}</option><option value="thinking">{t.rThinking}</option></select>
         <select value={sort} onChange={e=>setSort(e.target.value)} style={ss}><option value="date">{t.date}</option><option value="id">ID</option><option value="score">{t.score} ↓</option></select>
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
@@ -2217,7 +2302,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
             </tr></thead>
             <tbody>{fl.map(l=>{const isSel=selected.has(l.id);return(
               <tr key={l.id} onClick={()=>onOpen(l)}
-                style={{borderBottom:`1px solid ${C.border}`,background:rowBg(l,isSel),cursor:"pointer"}}
+                className={FRESH.has(l.id)?"garno-fresh":""} style={{borderBottom:`1px solid ${C.border}`,background:rowBg(l,isSel),cursor:"pointer"}}
                 onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=C.surface)}
                 onMouseLeave={e=>{e.currentTarget.style.background=rowBg(l,isSel);}}>
                 <td style={{padding:"8px 10px"}} onClick={e=>toggleOne(l.id,e)}><input type="checkbox" checked={isSel} onChange={()=>{}} onClick={e=>toggleOne(l.id,e)} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></td>
@@ -2252,7 +2337,16 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
 }
 
 // ─── LEAD DETAIL ──────────────────────────────────────────────────────────────
-function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,currentUser}){
+function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,currentUser,taskTypes=[],tasks=[]}){
+  useEffect(()=>{unmarkFresh(lead.id);},[lead.id]);
+  const [showTask,setShowTask]=useState(false);
+  const creatorLD=(currentUser&&currentUser!=='all')?currentUser:null;
+  const addTaskForLead=(form)=>{
+    updateDb(p=>({...p,tasks:[...(p.tasks||[]),buildNewTask({...form,leadId:lead.id,leadName:lead.name||lead.phone},creatorLD,p.tasks||[])]}),true);
+    setShowTask(false);
+  };
+  const addTypeLD=(name)=>{const id=Date.now();updateDb(p=>({...p,taskTypes:[...(p.taskTypes||[]),{id,name,color:TASK_TYPE_COLORS[(p.taskTypes||[]).length%TASK_TYPE_COLORS.length]}]}),true);return id;};
+  const leadTasks=(tasks||[]).filter(x=>x.leadId===lead.id&&(x.status||'all')!=='done');
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({...lead});
   const [showSale,setShowSale]=useState(false);
@@ -2280,7 +2374,13 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
       if(v==="quote"&&p.action!=="quote")u.quoteSince=Date.now();
       if(v!=="quote"&&p.action==="quote")u.quoteSince=null;
     }
+    // Пары квалификации / срок → авто-оценка 4 или 4.5 (только если лид ещё не визит/продажа)
+    if(["kitchenInfo","distance","apartment","budget"].includes(k)){
+      const auto=autoScoreFromPairs(u);
+      if(auto!==null&&(parseFloat(u.score)||0)<5){u.score=auto;u.qualification=scoreToQual(auto);u.autoScored=true;}
+    }
     if(k==="score"){
+      u.autoScored=false;
       u.qualification=scoreToQual(v);
       const nv=parseInt(v),pv=parseInt(p.score);
       // Авто-действие: оценка 5 → «Визит», оценка 6 → «Продажа»
@@ -2325,7 +2425,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:"16px 16px 0 0",border:`1px solid ${C.border}`,width:"100%",maxWidth:820,maxHeight:"90vh",overflow:"auto",padding:22}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44} noMedal/><div><div style={{fontSize:16,fontWeight:700,color:C.text}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
+          <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44} noMedal/><div><div style={{fontSize:16,fontWeight:700,color:C.text}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowTask(true)} title={lang==="pl"?"Nowe zadanie":"Новая задача"} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#ef4444",cursor:"pointer"}}>☰ {leadTasks.length>0?leadTasks.length:"+"}</button><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
           <div style={{display:"flex",gap:8}}>{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(false);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}<Btn onClick={onClose} variant="ghost" small>✕</Btn></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
@@ -2333,7 +2433,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📞 Контакт</div>
             {inp("name",t.name)}{inp("phone",t.phone)}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select>:<SrcBadge source={form.source}/>}</div><div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.clientLang}</div>{editing?<div style={{display:"flex",gap:4,marginTop:2}}>{[{v:"pl",flag:"🇵🇱",label:"PL"},{v:"ua",flag:"🇺🇦",label:"UA"},{v:"en",flag:"🇬🇧",label:"EN"}].map(({v,flag,label})=><button key={v} onClick={()=>set("clientLang",v)} style={{fontSize:16,padding:"3px 8px",borderRadius:6,border:`2px solid ${(form.clientLang||"pl")===v?C.accent:"transparent"}`,background:(form.clientLang||"pl")===v?C.accentDim:"transparent",cursor:"pointer",color:C.text,fontSize:11,display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:15}}>{flag}</span>{label}</button>)}</div>:<span style={{fontSize:16}}>{form.clientLang==="ua"?"🇺🇦 UA":form.clientLang==="en"?"🇬🇧 EN":"🇵🇱 PL"}</span>}</div>
+              <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.source||"Источник"}</div>{editing?<select value={form.source||""} onChange={e=>set("source",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:11,width:"100%"}}>{normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select>:<SrcBadge source={form.source}/>}</div><div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.clientLang}</div>{editing?<div style={{display:"flex",gap:4,marginTop:2}}>{[{v:"pl",flag:"🇵🇱",label:"PL"},{v:"ua",flag:"🇺🇦",label:"UA"},{v:"en",flag:"🇬🇧",label:"EN"}].map(({v,flag,label})=><button key={v} onClick={()=>set("clientLang",v)} style={{padding:"3px 8px",borderRadius:6,border:`2px solid ${(form.clientLang||"pl")===v?C.accent:"transparent"}`,background:(form.clientLang||"pl")===v?C.accentDim:"transparent",cursor:"pointer",color:C.text,fontSize:11,display:"flex",alignItems:"center",gap:3}}><span style={{fontSize:15}}>{flag}</span>{label}</button>)}</div>:<span style={{fontSize:16}}>{form.clientLang==="ua"?"🇺🇦 UA":form.clientLang==="en"?"🇬🇧 EN":"🇵🇱 PL"}</span>}</div>
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.date}</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
             </div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}{form.action==="push"&&<div onClick={()=>{prevAction.current="push";setShowPush(true);}} title={t.editPush} style={{marginTop:5,fontSize:11,color:form.pushDate?dateStateColor(form.pushDate):PUSH_C,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5,border:`1px solid ${PUSH_C}44`,borderRadius:7,padding:"3px 9px"}}>🚀 {form.pushDate?`${isoToDot(form.pushDate)}${form.pushTime?` · ${form.pushTime}`:""}`:t.pushSetDate}</div>}</div>
@@ -2342,6 +2442,32 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>◈ Оценка 0–6</div>
             <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{[0,1,2,3,4,4.5,5,6].map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} title={s===4.5?"MWP — только вручную":""} style={{minWidth:34,height:34,padding:s===4.5?"0 6px":0,borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
+            {form.autoScored&&<div style={{fontSize:10,color:"#2dd4bf",marginTop:-6,marginBottom:8}}>⚡ {t.autoScoreHint}</div>}
+            {/* ── ПАРЫ КВАЛИФИКАЦИИ (обязательно) ── */}
+            {(()=>{
+              const missing=!form.kitchenInfo||!form.distance||!form.apartment;
+              const Pair=({label,field,a,b,la,lb})=>(
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                  <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.6,minWidth:92}}>{label}</div>
+                  {[[a,la],[b,lb]].map(([v,l])=>{const on=form[field]===v;return(
+                    <button key={v} onClick={()=>editing&&set(field,on?null:v)} style={{padding:"4px 10px",borderRadius:7,border:`1.5px solid ${on?C.accent:C.borderMd}`,background:on?`${C.accent}26`:"transparent",color:on?C.accent:C.muted,cursor:editing?"pointer":"default",fontSize:11,fontWeight:700}}>{on?"☑":"☐"} {l}</button>);})}
+                </div>);
+              return(
+                <div style={{background:missing?"rgba(239,68,68,0.06)":"rgba(191,164,126,0.05)",border:`1px solid ${missing?"rgba(239,68,68,0.45)":C.border}`,borderRadius:9,padding:"9px 11px",marginBottom:10}}>
+                  <div style={{fontSize:10,fontWeight:800,color:missing?"#ef4444":C.accent,textTransform:"uppercase",letterSpacing:0.8,marginBottom:7}}>{missing?"⚠ ":""}{t.qualPairs}{missing?` — ${t.fillPairs}`:""}</div>
+                  <Pair label={t.kitchenInfo} field="kitchenInfo" a="yes" b="no" la={t.kiYes} lb={t.kiNo}/>
+                  <Pair label={t.distance} field="distance" a="near" b="far" la={t.dNear} lb={t.dFar}/>
+                  <Pair label={t.apartment} field="apartment" a="new" b="old" la={t.aNew} lb={t.aOld}/>
+                  {(form.score===4||form.score===4.5)&&(
+                    <div style={{marginTop:8,paddingTop:8,borderTop:`1px dashed ${C.border}`}}>
+                      <div style={{fontSize:10,color:"#f59e0b",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5,fontWeight:700}}>❓ {t.whyNoVisit}</div>
+                      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                        {[["price",t.rPrice],["distance",t.rDistance],["thinking",t.rThinking]].map(([v,l])=>{const on=form.noVisitReason===v;return(
+                          <button key={v} onClick={()=>editing&&set("noVisitReason",on?null:v)} style={{padding:"4px 11px",borderRadius:7,border:`1.5px solid ${on?"#f59e0b":C.borderMd}`,background:on?"rgba(245,158,11,0.18)":"transparent",color:on?"#f59e0b":C.muted,cursor:editing?"pointer":"default",fontSize:11,fontWeight:700}}>{l}</button>);})}
+                      </div>
+                    </div>)}
+                </div>);
+            })()}
             <div style={{background:`${QUAL_COLOR[form.qualification]}18`,border:`1px solid ${QUAL_COLOR[form.qualification]}44`,borderRadius:8,padding:"7px 12px",marginBottom:10}}><div style={{fontSize:11,color:QUAL_COLOR[form.qualification],fontWeight:700}}>→ {t[form.qualification]}</div></div>
           </div>
         </div>
@@ -2362,6 +2488,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
       onConfirm={confirmVisit}
       onCancel={()=>{setShowVisit(false);setForm(p=>({...p,score:4,qualification:"qualified"}));}}/>}
     {showStickers&&<StickerModal lead={form} t={t} currentUser={currentUser} onSave={addStickerLD} onDelete={deleteStickerLD} onClose={()=>setShowStickers(false)}/>}
+    {showTask&&<TaskModal task={{status:"todo",assignee:creatorLD||"—"}} onSave={addTaskForLead} onClose={()=>setShowTask(false)} t={t} taskTypes={taskTypes} leads={[]} onAddType={addTypeLD} presetLead={lead} lang={lang}/>}
     {showPush&&<PushModal lead={form} t={t} initDate={form.pushDate} initTime={form.pushTime}
       onConfirm={confirmPush}
       onCancel={()=>{setShowPush(false);setForm(p=>({...p,action:prevAction.current}));}}/>}
@@ -2730,131 +2857,294 @@ function detectMsgLang(msg){
   if(/[а-яА-ЯёЁ]/.test(msg))return"ru";
   return"pl";
 }
-function localAns(q,leads,events){
-  const lq=q.toLowerCase();const dm=lq.match(/(oleh|dmytro|mateusz|patryk|danya)/i);const m=dm?(dm[1].toLowerCase()==='patryk'?'Mateusz':dm[1].charAt(0).toUpperCase()+dm[1].slice(1).toLowerCase()):null;
-  if((lq.includes("задач")||lq.includes("встреч")||lq.includes("событи")||lq.includes("сегодня")||lq.includes("zadan")||lq.includes("spotkan")||lq.includes("wydarzen")||lq.includes("dziś")||lq.includes("dzis"))&&m){const t0=getToday();const evs=events.filter(e=>e.date===t0&&e.manager===m);if(!evs.length)return`📅 У ${m} сегодня нет событий.`;return`📅 У ${m} сегодня (${evs.length}):\n`+evs.map(e=>`• ${e.time}${e.timeEnd?`–${e.timeEnd}`:""}: [${e.type}] ${e.title}${e.description?` — ${e.description}`:""}`).join("\n");}
-  if(lq.includes("задач")||lq.includes("встреч")||lq.includes("сегодня")||lq.includes("zadan")||lq.includes("spotkan")||lq.includes("dziś")||lq.includes("dzis")){const evs=events.filter(e=>e.date===getToday());if(!evs.length)return"📅 Сегодня событий нет.";return`📅 Сегодня (${evs.length}):\n`+MANAGERS.map(mn=>{const mevs=evs.filter(e=>e.manager===mn);if(!mevs.length)return`${mn}: нет`;return`${mn}: `+mevs.map(e=>`${e.time} ${e.title}`).join(", ");}).join("\n");}
-  if(lq.includes("менедж")||lq.includes("статистик")||lq.includes("menedż")||lq.includes("statyst")){return"📊 По менеджерам:\n"+MANAGERS.map(mn=>{const ml=leads.filter(l=>l.manager===mn);return`• ${mn}: ${ml.length} лидов | AI: ${ml.length?(ml.reduce((a,l)=>a+l.score,0)/ml.length).toFixed(1):0} | Kwaly: ${ml.filter(l=>l.score>=4).length} | Продаж: ${ml.filter(l=>l.score===6).length}`;}).join("\n");}
-  if(lq.includes("незаконч")||lq.includes("итог")||lq.includes("niedokoń")||lq.includes("podsumow")){const open=leads.filter(l=>l.action==="missedCall"||l.action==="callback");return`📋 Незакрытые (${open.length}):\n`+open.slice(0,8).map(l=>`• ${l.name||l.phone} [${l.action}] — ${l.manager||"—"}`).join("\n");}
-  if(lq.includes("лучш")||lq.includes("najlep")){const best=[...MANAGERS].sort((a,b)=>{const al=leads.filter(l=>l.manager===a);const bl=leads.filter(l=>l.manager===b);return(bl.filter(l=>l.score>=4).length/Math.max(bl.length,1))-(al.filter(l=>l.score>=4).length/Math.max(al.length,1));})[0];return`🏆 Лучший: ${best}`;}
-  return`GarnoCRM: ${leads.length} лидов | Kwaly: ${leads.filter(l=>l.score>=4).length} | Продаж: ${leads.filter(l=>l.score===6).length} | AI avg: ${leads.length?(leads.reduce((a,l)=>a+l.score,0)/leads.length).toFixed(2):0}`;
-}
 
-function AIPage({leads,events,sales,t,lang,chatHistory,setChatHistory,currentUser}){
-  const ackReminder=(key)=>setChatHistory(p=>p.map(m=>(m.key===key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m));
-  const [input,setInput]=useState("");const [loading,setLoading]=useState(false);const [apiOk,setApiOk]=useState(true);const [showApiStatus,setShowApiStatus]=useState(false);const [kpData,setKpData]=useState(null);const [showKPWizard,setShowKPWizard]=useState(false);const ref=useRef(null);
-  // Memory persisted in chatHistory prefixed entries
-  const memory=chatHistory.filter(m=>m.role==="memory").map(m=>m.content);
-  const addMemory=(info)=>setChatHistory(p=>[...p,{role:"memory",content:info}]);
-  const [filterMgr,setFilterMgr]=useState("all");
-  const [filterType,setFilterType]=useState("all");
-  const prevLenRef=useRef(chatHistory.length);
-  useEffect(()=>{
-    // Скроллим вниз только при НОВОМ сообщении, а не при изменении существующего
-    // (например при нажатии «Принять») — иначе принятие телепортирует вниз.
-    if(chatHistory.length>prevLenRef.current){ref.current?.scrollIntoView({behavior:"smooth"});}
-    prevLenRef.current=chatHistory.length;
-  },[chatHistory]);
-  const QUICK_RU=["Задачи Dmytro сегодня","Задачи Oleh сегодня","Задачи Mateusz сегодня","Статистика менеджеров","Незаконченные задачи","Все события сегодня","Итог дня","Лучший по конверсии?"];
-  const QUICK_PL=["Zadania Dmytro dziś","Zadania Oleh dziś","Zadania Mateusz dziś","Statystyki menedżerów","Niedokończone zadania","Wszystkie wydarzenia dziś","Podsumowanie dnia","Najlepszy w konwersji?"];
-  const QUICK=lang==="pl"?QUICK_PL:QUICK_RU;
-  const buildCtx=()=>{const todayEvs=events.filter(e=>e.date===getToday());const mStats=MANAGERS.map(m=>{const ml=leads.filter(l=>l.manager===m);const mev=todayEvs.filter(e=>e.manager===m);return`${m}:лидов=${ml.length},kwaly=${ml.filter(l=>l.score>=4).length},продаж=${ml.filter(l=>l.score===6).length},avg=${ml.length?(ml.reduce((s,l)=>s+l.score,0)/ml.length).toFixed(1):0},задачи=[${mev.map(e=>`${e.time} ${e.type}:${e.title}`).join(";")||"нет"}]`;}).join(" | ");const memCtx=memory.length?`\nОбучение: ${memory.slice(-10).join("; ")}`:"";;return`Ты GarnoAI — ассистент CRM GARNO Custom Furniture (Польша). ВАЖНО: отвечай на языке ${lang==="pl"?"ПОЛЬСКОМ (polski)":"РУССКОМ"}. 0-2=неквалиф,3=предв,4=квалиф,5=визит,6=продажа. ВАЖНО: всегда отвечай на том же языке что и пользователь.\nДанные: лидов=${leads.length}, ${mStats}\nСегодня=${TODAY}. Незакрытых=${leads.filter(l=>["missedCall","callback"].includes(l.action)).length}${memCtx}`;};
-  const detectKP=(msg)=>{
-    const m1=msg.match(/(?:кп|ofert|offer|предложен|коммерч|пропозиц|quote|proposal)/i);if(!m1)return null;
-    const idM=msg.match(/(?:id|лид|лід)[=\s#:]?\s*(\d{5,})/i);
-    const amtM=msg.match(/(?:сумм[аы]|kwot|сум[аи]|amount|sum)[а\s]*[=:\s]?\s*([\d\s]+)/i);
-    if(!idM||!amtM)return null;
-    const leadId=idM[1];const amount=parseInt(amtM[1].replace(/\s/g,""))||0;
-    const lead=leads.find(l=>(l.leadId||"").toString()===leadId||l.id.toString()===leadId);
-    if(!lead||amount<=0)return null;
-    // Detect language
-    const kpLang=msg.match(/\ben(?:g|glish)?\b|англ/i)?"en":(msg.match(/укр[аи]|\bua\b/i)?"ua":(msg.match(/\bpl\b|поль/i)?"pl":(lead.clientLang||"pl")));
-    // Detect stone option: "каменная столешница 3000" or "stone 2500"
-    const stoneM=msg.match(/(?:кам[еє]н|stone|кварц|граніт|граниt)[^\d]*(\d[\d\s]*)/i);
-    const stoneAmt=stoneM?parseInt(stoneM[1].replace(/\s/g,""))||0:0;
-    const stoneLabelM=msg.match(/["«]([^"»]+)["»]/);
-    const stoneLabel=stoneLabelM?stoneLabelM[1]:"Blat premium — kwarc/granit";
-    return{lead,amount,kpLang,stoneAmt:stoneAmt||0,stoneLabel};
-  };
-  const send=async(text)=>{
-    const msg=text||input;if(!msg.trim()||loading)return;setInput("");
-    if(msg.toLowerCase().startsWith("запомни:")){const info=msg.replace(/^запомни:\s*/i,"").trim();addMemory(info);setChatHistory(p=>[...p,{role:"user",content:msg},{role:"assistant",content:`✅ Запомнил:\n"${info}"`}]);return;}
-    const kp=detectKP(msg);
-    if(kp){const langLabel=kp.kpLang==="ua"?"🇺🇦 UA":kp.kpLang==="en"?"🇬🇧 EN":"🇵🇱 PL";setChatHistory(p=>[...p,{role:"user",content:msg},{role:"assistant",content:`📄 Генерирую КП ${langLabel} для ${kp.lead.name||kp.lead.phone} (${kp.lead.leadId}) · ${fmtM(kp.amount)}${kp.stoneAmt?` + камень ${fmtM(kp.stoneAmt)}`:""}...`}]);setTimeout(()=>setKpData(kp),400);return;}
-    const upd=[...chatHistory,{role:"user",content:msg}];setChatHistory(upd);setLoading(true);
-    if(apiOk){try{const ctrl=new AbortController();const _at=setTimeout(()=>ctrl.abort(),14000);const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:ctrl.signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,system:buildCtx(),messages:upd.filter(m=>m.role==="user"||m.role==="assistant").map(m=>({role:m.role,content:m.content}))})});clearTimeout(_at);const data=await res.json();if(!res.ok||data.error){setApiOk(false);setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);}else{setChatHistory(p=>[...p,{role:"assistant",content:(data.content?.map(c=>c.text||"").join("\n")||"").replace(/\*\*/g,"")}]);setApiOk(true);}}catch{setApiOk(false);setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);}}else{setTimeout(()=>{setChatHistory(p=>[...p,{role:"assistant",content:localAns(msg,leads,events)}]);setLoading(false);},300);return;}
-    setLoading(false);
-  };
+// ─── ALERT CENTER ─────────────────────────────────────────────────────────────
+// «Напомнить позже»: ключ → timestamp, пока не наступил — аллерт не всплывает
+const SNOOZE_KEY="garno_snooze";
+function getSnooze(){try{return JSON.parse(localStorage.getItem(SNOOZE_KEY)||"{}");}catch{return{};}}
+function setSnooze(key,until){const m=getSnooze();m[key]=until;try{localStorage.setItem(SNOOZE_KEY,JSON.stringify(m));}catch{}}
+function isSnoozed(key){const u=getSnooze()[key];return !!u&&u>Date.now();}
+// Ключи поп-апов, которые уже показывали в этой сессии (чтобы не дёргать снова каждые 5с)
+const POPPED_KEY="garno_popped";
+function wasPopped(key){try{const m=JSON.parse(sessionStorage.getItem(POPPED_KEY)||"{}");return !!m[key];}catch{return false;}}
+function markPopped(key){try{const m=JSON.parse(sessionStorage.getItem(POPPED_KEY)||"{}");m[key]=1;sessionStorage.setItem(POPPED_KEY,JSON.stringify(m));}catch{}}
+
+// Полноэкранный поп-ап аллерта с кнопками Принять / Напомнить позже / Открыть
+// ─── GARNO TODAY — утренний брифинг менеджера ───────────────────────────────
+// Показывается раз в день при входе. «Новое» считается с момента ПРОШЛОГО открытия TODAY.
+function leadCreatedMs(l){ if(typeof l.id==="number"&&l.id>1e14) return Math.floor(l.id/1000); const d=parseCreatedAt(l.createdAt); return d?d.getTime():0; }
+function GarnoTodayPopup({leads,sales,tasks,currentUser,lang,setPage,onOpenLead,onClose}){
+  const ru=lang!=="pl";
+  const now=Date.now(), today=getToday();
+  const lastOpen=Number(localStorage.getItem(`garno_today_last_${currentUser}`)||0);
+  const since=lastOpen||(now-86400000); // первый запуск — за сутки
+  const sinceLabel=lastOpen?new Date(lastOpen).toLocaleString(ru?"ru-RU":"pl-PL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):(ru?"за 24ч":"za 24h");
+  const mStart=`${today.slice(0,8)}01`;
+  // Продажи за 24 часа (вся команда)
+  const sales24=(sales||[]).filter(s=>{const d=parseCreatedAt(s.createdAt);return d&&(now-d.getTime())<=86400000;});
+  const rev24=sales24.reduce((a,s)=>a+(s.saleAmount||0),0);
+  // Новые заявки с прошлого открытия
+  const newLeads=(leads||[]).filter(l=>leadCreatedMs(l)>since).sort((a,b)=>leadCreatedMs(b)-leadCreatedMs(a));
+  // Новые задачи мне с прошлого открытия (id задачи = ms создания)
+  const newTasks=(tasks||[]).filter(t=>t.assignee===currentUser&&(t.status||"all")!=="done"&&Number(t.id)>since);
+  // Мои продажи за текущий месяц
+  const mySalesM=filterByCustomRange((sales||[]).filter(s=>s.manager===currentUser),mStart,today);
+  const myRevM=mySalesM.reduce((a,s)=>a+(s.saleAmount||0),0);
+  // Мои открытые задачи (ближайшие по сроку)
+  const myTasks=(tasks||[]).filter(t=>t.assignee===currentUser&&(t.status||"all")!=="done").sort((a,b)=>(a.deadline||"9999").localeCompare(b.deadline||"9999")).slice(0,8);
+  const go=(p)=>{onClose();setPage(p);};
+  const Stat=({icon,label,value,sub,color,onClick})=>(
+    <div onClick={onClick} style={{flex:"1 1 180px",background:`${color}12`,border:`1px solid ${color}55`,borderRadius:14,padding:"16px 18px",cursor:"pointer",transition:"transform .12s"}} onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
+      <div style={{fontSize:11,color:color,textTransform:"uppercase",letterSpacing:1,fontWeight:800,marginBottom:6}}>{icon} {label}</div>
+      <div style={{fontSize:30,fontWeight:900,color:"#fff",lineHeight:1}}>{value}</div>
+      {sub&&<div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginTop:6}}>{sub}</div>}
+    </div>);
+  const hour=new Date().getHours();
+  const greet=ru?(hour<12?"Доброе утро":hour<18?"Добрый день":"Добрый вечер"):(hour<12?"Dzień dobry":hour<18?"Dzień dobry":"Dobry wieczór");
   return(
-    <div style={{padding:18,display:"flex",gap:14,height:"calc(100vh - 120px)"}}>
-      <div style={{flex:1,display:"flex",flexDirection:"column",background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
-        <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:8,height:8,borderRadius:"50%",background:C.green}}/>
-          <span style={{fontSize:13,fontWeight:700,color:"#fff"}}>GarnoAI</span>
-          <span style={{fontSize:10,color:C.muted}}>claude-sonnet · {leads.length} leads</span>
-          {memory.length>0&&<span style={{fontSize:10,color:C.blue}}>📚 {memory.length} фактов</span>}
-          <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
-            <span style={{fontSize:10,color:C.dim}}>🔔</span>
-            <select value={filterMgr} onChange={e=>setFilterMgr(e.target.value)} title={t.manager} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"3px 6px",fontSize:10,outline:"none",cursor:"pointer"}}>
-              <option value="all">{lang==="pl"?"Wszyscy":"Все"}</option>
-              {MANAGERS.map(mn=><option key={mn} value={mn}>{mn}</option>)}
-            </select>
-            <select value={filterType} onChange={e=>setFilterType(e.target.value)} title={lang==="pl"?"Powód":"Повод"} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"3px 6px",fontSize:10,outline:"none",cursor:"pointer"}}>
-              <option value="all">{lang==="pl"?"Wszystkie":"Все поводы"}</option>
-              <option value="visit">📅 {t.visit}</option>
-              <option value="push">🚀 Push</option>
-              <option value="quote">💰 {t.quote}</option>
-            </select>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,10,30,0.96)",zIndex:5000,display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+      <div style={{width:"min(880px,100%)",maxHeight:"92vh",overflowY:"auto",background:"linear-gradient(160deg,#00132f,#001a3f)",border:"1px solid rgba(191,164,126,0.45)",borderRadius:22,padding:"28px 30px",boxShadow:"0 30px 80px rgba(0,0,0,0.6)"}}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,marginBottom:6}}>
+          <div>
+            <div style={{fontSize:12,color:"#bfa47e",letterSpacing:3,fontWeight:800}}>GARNO <span style={{color:"#fff"}}>TODAY</span></div>
+            <div style={{fontSize:26,fontWeight:900,color:"#fff",marginTop:4}}>{greet}, <span style={{color:MGR_COLOR[currentUser]||"#bfa47e"}}>{currentUser}</span> 👋</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:2}}>{new Date().toLocaleDateString(ru?"ru-RU":"pl-PL",{weekday:"long",day:"numeric",month:"long"})} · {ru?"новое с":"nowe od"} {sinceLabel}</div>
           </div>
-          
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.5)",fontSize:22,cursor:"pointer",lineHeight:1}}>✕</button>
         </div>
-        <div style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
-          {chatHistory.map((m,i)=>{
-            if(m.kind==="reminder"){
-              // Фильтр уведомлений: по менеджеру и по поводу (визит / push / просчёт)
-              const mgrs=m.rtype==="push"?((m.data.items||[]).map(x=>x.mgr)):[m.data.mgr];
-              const matchMgr=filterMgr==="all"||mgrs.includes(filterMgr);
-              const matchType=filterType==="all"||m.rtype===filterType;
-              if(!matchMgr||!matchType) return null;
-              const unacked=!m.ackBy;
-              return(
-                <div key={i} style={{display:"flex",justifyContent:"flex-start"}}>
-                  <div style={{maxWidth:"88%",padding:"12px 15px",background:unacked?"rgba(240,192,64,0.09)":C.surface,border:`1px solid ${unacked?"rgba(240,192,64,0.55)":C.border}`,borderRadius:"14px 14px 14px 4px",fontSize:12,color:C.text,lineHeight:1.6,whiteSpace:"pre-wrap",boxShadow:unacked?"0 0 0 3px rgba(240,192,64,0.10)":"none"}}>
-                    {formatReminder(m,t)}
-                    <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
-                      {unacked
-                        ? <button onClick={()=>ackReminder(m.key)} style={{background:C.green,border:"none",color:"#00132f",borderRadius:8,padding:"7px 16px",fontSize:12,fontWeight:800,cursor:"pointer"}}>✓ {t.ackBtn}</button>
-                        : <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11,fontWeight:700,color:C.green}}>✓ {t.ackedBy} · {m.ackBy}</span>}
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-            return(<div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}><div style={{maxWidth:"82%",padding:"10px 14px",background:m.role==="user"?C.accentDim:C.surface,border:`1px solid ${m.role==="user"?C.accentBorder:C.border}`,borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",fontSize:12,color:C.text,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{m.content}</div></div>);
-          })}
-          {loading&&<div style={{display:"flex",gap:5,padding:"10px 14px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px 14px 14px 4px",width:"fit-content"}}>{[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:C.accent,animation:"pulse 1s infinite",animationDelay:`${i*0.2}s`}}/>)}</div>}
-          <div ref={ref}/>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:18}}>
+          <Stat icon="★" label={ru?"Продажи за 24ч":"Sprzedaże 24h"} value={sales24.length} sub={fmtM(rev24)} color="#bfa47e" onClick={()=>go("sales")}/>
+          <Stat icon="◈" label={ru?"Новые заявки":"Nowe leady"} value={newLeads.length} sub={ru?"с прошлого TODAY":"od ostatniego TODAY"} color="#facc15" onClick={()=>go("leads")}/>
+          <Stat icon="☰" label={ru?"Новые задачи":"Nowe zadania"} value={newTasks.length} sub={ru?"назначены тебе":"przypisane tobie"} color="#38bdf8" onClick={()=>go("tasks")}/>
+          <Stat icon="◆" label={ru?"Твои продажи (месяц)":"Twoje sprzedaże (mies.)"} value={mySalesM.length} sub={fmtM(myRevM)} color="#22c55e" onClick={()=>go("salescenter")}/>
         </div>
-        <div style={{padding:10,borderTop:`1px solid ${C.border}`,display:"flex",gap:8}}>
-          <button onClick={()=>setShowKPWizard(true)} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:8,padding:"9px 12px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>📄 КП</button>
-          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder={t.aiPlaceholder} style={{flex:1,background:C.surface,border:`1px solid ${C.borderMd}`,color:"#fff",borderRadius:8,padding:"9px 12px",fontSize:12,outline:"none"}}/>
-          <button onClick={()=>setChatHistory([{role:"assistant",content:t.aiReady}])} style={{background:C.accentDim,border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,padding:"9px 10px",cursor:"pointer",fontSize:12}} title={t.clear}>🗑</button>
-          <button onClick={()=>send()} disabled={loading||!input.trim()} style={{background:C.accent,border:"none",color:"#00132f",borderRadius:8,padding:"9px 16px",fontSize:12,fontWeight:700,cursor:"pointer",opacity:(!input.trim()||loading)?0.5:1}}>{t.send}</button>
+        {newLeads.length>0&&(
+          <div style={{marginTop:18}}>
+            <div style={{fontSize:11,color:"#facc15",textTransform:"uppercase",letterSpacing:1,fontWeight:800,marginBottom:8}}>◈ {ru?"Новые заявки":"Nowe leady"}</div>
+            <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,overflow:"hidden",maxHeight:180,overflowY:"auto"}}>
+              {newLeads.slice(0,10).map(l=>(
+                <div key={l.id} onClick={()=>{onClose();onOpenLead(l);}} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderBottom:"1px solid rgba(255,255,255,0.05)",cursor:"pointer"}}>
+                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:700,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.name||l.phone}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.45)"}}>{l.phone} · {srcShort(l.source||"")} · <span style={{color:MGR_COLOR[l.manager]||"inherit"}}>{l.manager||"—"}</span></div></div>
+                  <ScoreBar score={l.score}/>
+                </div>))}
+            </div>
+          </div>)}
+        <div style={{marginTop:18}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><div style={{fontSize:11,color:"#38bdf8",textTransform:"uppercase",letterSpacing:1,fontWeight:800}}>☰ {ru?"Твои задачи":"Twoje zadania"}</div><span style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>({myTasks.length})</span><button onClick={()=>go("tasks")} style={{marginLeft:"auto",background:"transparent",border:"1px solid rgba(56,189,248,0.4)",color:"#38bdf8",borderRadius:8,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>{ru?"Все задачи →":"Wszystkie →"}</button></div>
+          <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,overflow:"hidden"}}>
+            {myTasks.length===0?<div style={{padding:14,fontSize:12,color:"rgba(255,255,255,0.4)",textAlign:"center"}}>{ru?"Открытых задач нет 🎉":"Brak otwartych zadań 🎉"}</div>
+              :myTasks.map(tk=>{const od=tk.deadline&&tk.deadline<today;const isNew=Number(tk.id)>since;return(
+              <div key={tk.id} onClick={()=>go("tasks")} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:"1px solid rgba(255,255,255,0.05)",cursor:"pointer",background:isNew?"rgba(56,189,248,0.08)":"transparent"}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:tk.priority==="HIGH"?"#ef4444":tk.priority==="LOW"?"#22c55e":"#f59e0b",flexShrink:0}}/>
+                <div style={{flex:1,minWidth:0,fontSize:12,fontWeight:600,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tk.title}{isNew&&<span style={{marginLeft:8,fontSize:9,background:"#38bdf8",color:"#00132f",borderRadius:6,padding:"1px 5px",fontWeight:800}}>NEW</span>}</div>
+                {tk.from&&tk.from!==currentUser&&<span style={{fontSize:10,color:"#f59e0b"}}>← {tk.from}</span>}
+                <span style={{fontSize:10,fontWeight:700,color:od?"#ef4444":tk.deadline===today?"#facc15":"rgba(255,255,255,0.45)"}}>{tk.deadline?isoToDot(tk.deadline):"—"}</span>
+              </div>);})}
+          </div>
         </div>
+        <button onClick={onClose} style={{marginTop:22,width:"100%",background:"linear-gradient(135deg,#bfa47e,#d4b896)",color:"#00132f",border:"none",borderRadius:12,padding:"14px",fontSize:15,fontWeight:900,cursor:"pointer",letterSpacing:0.5}}>🚀 {ru?"НАЧАТЬ ДЕНЬ":"ZACZNIJ DZIEŃ"}</button>
       </div>
-      <div style={{width:185,display:"flex",flexDirection:"column",gap:5}}>
-        <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>Быстрые запросы</div>
-        {QUICK.map((q,i)=><button key={i} onClick={()=>send(q)} style={{background:C.card,border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,padding:"7px 10px",fontSize:11,cursor:"pointer",textAlign:"left",lineHeight:1.4}} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.accentBorder;e.currentTarget.style.color=C.accent;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.muted;}}>{q}</button>)}
-        <div style={{fontSize:10,color:C.muted,marginTop:6,padding:"8px 10px",background:C.card,borderRadius:8,border:`1px solid ${C.border}`,lineHeight:1.6}}>
-          💡 <b style={{color:C.accent}}>Запомни: факт</b> — обучить<br/><br/>
-          📄 <b style={{color:C.accent}}>КП PL: Сгенерируй КП для id={leads[0]?.leadId} сумма 23250</b><br/><b style={{color:C.cyan}}>КП UA: Сгенерируй КП UA для id={leads[0]?.leadId} сумма 23250 каменная столешница 3500</b>
-        </div>
-      </div>
-      {kpData&&<KPModal lead={kpData.lead} amount={kpData.amount} stoneAmt={kpData.stoneAmt||0} stoneLabel={kpData.stoneLabel} lang={kpData.kpLang||"pl"} onClose={()=>setKpData(null)}/>}
-      {showKPWizard&&<KPWizard leads={leads} onClose={()=>setShowKPWizard(false)} onGenerate={(d)=>setKpData(d)} t={t} lang={lang}/>}
     </div>
   );
 }
+
+function AlertPopup({alert,onAccept,onSnooze,onOpen,onDismiss,lang}){
+  const ru=lang!=="pl";
+  const [snz,setSnz]=useState(false);
+  if(!alert)return null;
+  const col=alert.kind==="lead"?"#facc15":alert.kind==="task"?"#ef4444":alert.rtype==="push"?"#f97316":alert.rtype==="quote"?"#a78bfa":"#60a5fa";
+  const icon=alert.kind==="lead"?"🚨":alert.kind==="task"?"☰":alert.rtype==="push"?"🚀":alert.rtype==="quote"?"💰":"📅";
+  const opts=[[15*60000,ru?"15 мин":"15 min"],[60*60000,ru?"1 час":"1 godz"],[3*3600000,ru?"3 часа":"3 godz"],["tomorrow",ru?"Завтра 9:00":"Jutro 9:00"]];
+  const untilFor=(v)=>{if(v==="tomorrow"){const d=new Date();d.setDate(d.getDate()+1);d.setHours(9,0,0,0);return d.getTime();}return Date.now()+v;};
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,5,20,0.92)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(6px)"}}>
+      <div style={{width:"min(720px,94vw)",background:"#0d1527",border:`3px solid ${col}`,borderRadius:22,padding:"36px 40px",boxShadow:`0 0 80px ${col}66, 0 30px 80px rgba(0,0,0,0.8)`,animation:"garnoPop 0.25s ease-out, garnoShake 0.5s ease-in-out 0.25s",fontFamily:"'DM Sans',sans-serif"}}>
+        <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18}}>
+          <div style={{fontSize:56,lineHeight:1,animation:"pulse 1s infinite"}}>{icon}</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,fontWeight:900,color:col,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>{alert.kicker||(ru?"Аллерт":"Alert")}</div>
+            <div style={{fontSize:26,fontWeight:900,color:"#fff",lineHeight:1.2}}>{alert.title}</div>
+          </div>
+          {alert.count>1&&<div style={{background:col,color:"#00132f",borderRadius:14,padding:"4px 12px",fontSize:12,fontWeight:900}}>+{alert.count-1} {ru?"ещё":"więcej"}</div>}
+        </div>
+        {alert.body&&<div style={{fontSize:15,color:"rgba(255,255,255,0.8)",lineHeight:1.6,whiteSpace:"pre-wrap",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"14px 16px",marginBottom:22,maxHeight:220,overflowY:"auto"}}>{alert.body}</div>}
+        {!snz?(
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            <button onClick={onAccept} style={{flex:1,minWidth:160,background:"#22c55e",border:"none",color:"#00132f",borderRadius:12,padding:"16px 20px",fontSize:16,fontWeight:900,cursor:"pointer"}}>✓ {ru?"Принять":"Przyjęte"}</button>
+            <button onClick={()=>setSnz(true)} style={{flex:1,minWidth:160,background:"transparent",border:"2px solid #f59e0b",color:"#fbbf24",borderRadius:12,padding:"16px 20px",fontSize:16,fontWeight:800,cursor:"pointer"}}>⏰ {ru?"Напомнить позже":"Przypomnij później"}</button>
+            {onOpen&&<button onClick={onOpen} style={{flex:1,minWidth:160,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:12,padding:"16px 20px",fontSize:16,fontWeight:800,cursor:"pointer"}}>→ {ru?"Открыть":"Otwórz"}</button>}
+          </div>
+        ):(
+          <div>
+            <div style={{fontSize:12,color:"#fbbf24",fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>⏰ {ru?"Напомнить через":"Przypomnij za"}</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {opts.map(([v,l])=><button key={String(v)} onClick={()=>onSnooze(untilFor(v))} style={{flex:1,minWidth:120,background:"rgba(245,158,11,0.15)",border:"2px solid #f59e0b",color:"#fbbf24",borderRadius:10,padding:"14px",fontSize:14,fontWeight:800,cursor:"pointer"}}>{l}</button>)}
+              <button onClick={()=>setSnz(false)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.6)",borderRadius:10,padding:"14px 18px",fontSize:14,cursor:"pointer"}}>←</button>
+            </div>
+          </div>)}
+      </div>
+    </div>);
+}
+
+// Страница «Аллерты»: все напоминания + задачи от других + пропущенные
+function AlertsPage({chatHistory,setChatHistory,tasks,updateDb,currentUser,t,lang,onOpenLead,leads,onGoTasks}){
+  const ru=lang!=="pl";
+  const [fMgr,setFMgr]=useState("all");const [fType,setFType]=useState("all");const [showAcked,setShowAcked]=useState(false);
+  const rems=(chatHistory||[]).filter(m=>m.kind==="reminder");
+  const visible=rems.filter(m=>{
+    const mgrs=m.rtype==="push"?((m.data?.items||[]).map(x=>x.mgr)):[m.data?.mgr];
+    if(fMgr!=="all"&&!mgrs.includes(fMgr))return false;
+    if(fType!=="all"&&m.rtype!==fType)return false;
+    if(!showAcked&&m.ackBy)return false;
+    return true;
+  });
+  const ack=(key)=>setChatHistory(p=>p.map(m=>(m.key===key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m));
+  const ackAll=()=>setChatHistory(p=>p.map(m=>(m.kind==="reminder"&&!m.ackBy)?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m));
+  const purgeAcked=()=>setChatHistory(p=>p.filter(m=>!(m.kind==="reminder"&&m.ackBy)));
+  const missed=rems.filter(m=>!m.ackBy&&m.data?.date&&m.data.date<getToday());
+  const myNewTasks=(tasks||[]).filter(x=>x.assignee===currentUser&&x.from&&x.from!==currentUser&&!(x.seenBy||[]).includes(currentUser));
+  const sel={background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 9px",fontSize:11,outline:"none",cursor:"pointer"};
+  const Card=({m})=>{const unacked=!m.ackBy;const col=m.rtype==="push"?"#f97316":m.rtype==="quote"?"#a78bfa":"#60a5fa";return(
+    <div style={{background:unacked?`${col}12`:C.card,border:`1px solid ${unacked?col+"88":C.border}`,borderRadius:12,padding:"12px 14px",display:"flex",gap:12,alignItems:"flex-start"}}>
+      <div style={{fontSize:22}}>{m.rtype==="push"?"🚀":m.rtype==="quote"?"💰":"📅"}</div>
+      <div style={{flex:1,fontSize:12,color:C.text,whiteSpace:"pre-wrap",lineHeight:1.55}}>{formatReminder(m,t)}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",flexShrink:0}}>
+        {unacked?<button onClick={()=>ack(m.key)} style={{background:C.green,border:"none",color:"#00132f",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer"}}>✓ {t.ackBtn}</button>
+                :<span style={{fontSize:11,color:C.green,fontWeight:700}}>✓ {t.ackedBy} · {m.ackBy}</span>}
+        {isSnoozed(m.key)&&<span style={{fontSize:10,color:"#fbbf24"}}>⏰ {new Date(getSnooze()[m.key]).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}</span>}
+      </div>
+    </div>);};
+  return(
+    <div style={{padding:18,height:"100%",overflowY:"auto",display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <div style={{fontSize:17,fontWeight:800,color:C.text}}>🔔 {ru?"Аллерты":"Alerty"} <span style={{fontSize:12,color:C.muted}}>({rems.filter(m=>!m.ackBy).length} {ru?"непринятых":"nieprzyjętych"})</span></div>
+        <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+          <select value={fMgr} onChange={e=>setFMgr(e.target.value)} style={sel}><option value="all">{ru?"Все менеджеры":"Wszyscy"}</option>{MANAGERS.map(m=><option key={m} value={m}>{m}</option>)}</select>
+          <select value={fType} onChange={e=>setFType(e.target.value)} style={sel}><option value="all">{ru?"Все поводы":"Wszystkie"}</option><option value="visit">📅 {t.visit}</option><option value="push">🚀 Push</option><option value="quote">💰 {t.quote}</option></select>
+          <label style={{fontSize:11,color:C.muted,display:"flex",alignItems:"center",gap:4,cursor:"pointer"}}><input type="checkbox" checked={showAcked} onChange={e=>setShowAcked(e.target.checked)}/>{ru?"принятые":"przyjęte"}</label>
+          <button onClick={ackAll} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>✓ {ru?"Принять все":"Przyjmij wszystkie"}</button>
+          <button onClick={purgeAcked} style={{background:"transparent",border:`1px solid ${C.red}55`,color:C.red,borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑 {ru?"Очистить принятые":"Wyczyść przyjęte"}</button>
+        </div>
+      </div>
+      {myNewTasks.length>0&&(
+        <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.45)",borderRadius:12,padding:"12px 14px"}}>
+          <div style={{fontSize:11,fontWeight:800,color:"#ef4444",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>☰ {ru?"Тебе закинули задачи":"Nowe zadania dla ciebie"} ({myNewTasks.length})</div>
+          {myNewTasks.map(x=><div key={x.id} onClick={onGoTasks} style={{fontSize:12,color:C.text,padding:"5px 0",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>• {x.title} <span style={{color:"#f59e0b",fontSize:11}}>← {x.from}</span>{x.deadline?<span style={{color:C.muted,fontSize:11}}> · 📅 {x.deadline.split("-").reverse().join(".")}</span>:null}</div>)}
+        </div>)}
+      {missed.length>0&&(
+        <div style={{background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.45)",borderRadius:12,padding:"10px 14px",fontSize:12,color:"#fbbf24",fontWeight:700}}>⚠ {ru?"Пропущенных (просрочены и не приняты)":"Pominięte (przeterminowane)"}: {missed.length}</div>)}
+      {visible.length===0?<div style={{color:C.dim,textAlign:"center",padding:40}}>{ru?"Аллертов нет":"Brak alertów"}</div>
+        :[...visible].reverse().map(m=><Card key={m.key} m={m}/>)}
+    </div>);
+}
+
+// ─── ЦЕНТР ПРОДАЖ ────────────────────────────────────────────────────────────
+// Анализ паттернов продаж: какие признаки лидов чаще приводят к продаже
+function analyzeSalePatterns(leads){
+  const sold=leads.filter(l=>l.score===6||l.qualification==="sale");
+  if(sold.length<3)return {top:[],soldCount:sold.length};
+  const attrs=[
+    ["source",l=>l.source],["budget",l=>l.budget],["kitchenInfo",l=>l.kitchenInfo],["distance",l=>l.distance],["apartment",l=>l.apartment],["clientLang",l=>l.clientLang],
+  ];
+  const base=sold.length/leads.length;
+  const rows=[];
+  attrs.forEach(([name,fn])=>{
+    const groups={};
+    leads.forEach(l=>{const v=fn(l);if(!v)return;(groups[v]=groups[v]||{n:0,s:0});groups[v].n++;if(l.score===6||l.qualification==="sale")groups[v].s++;});
+    Object.entries(groups).forEach(([v,g])=>{if(g.n>=4&&g.s>=2){const rate=g.s/g.n;if(rate>base*1.25)rows.push({attr:name,value:v,rate,n:g.n,s:g.s,lift:rate/Math.max(base,0.001)});}});
+  });
+  return {top:rows.sort((a,b)=>b.lift-a.lift).slice(0,5),soldCount:sold.length,base};
+}
+function monthsAgo(dateDot){
+  const p=(dateDot||"").split(".");if(p.length!==3)return null;
+  const yr=p[2].length===4?p[2]:"20"+p[2];const d=new Date(`${yr}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);if(isNaN(d))return null;
+  const now=new Date();return (now.getFullYear()-d.getFullYear())*12+(now.getMonth()-d.getMonth());
+}
+
+function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpenLead,updateDb,setPage}){
+  const ru=lang!=="pl";
+  const [mgr,setMgr]=useState(currentUser&&currentUser!=="all"?currentUser:"all");
+  const [kpOpen,setKpOpen]=useState(false);const [kpData,setKpData]=useState(null);
+  const my=(arr)=>(arr||[]).filter(x=>mgr==="all"||x.manager===mgr);
+  const today=getToday();
+  const mStart=(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`;})();
+  const monthSales=filterByCustomRange(my(sales),mStart,today);
+  const monthRev=monthSales.reduce((a,x)=>a+(x.saleAmount||0),0);
+  const L=my(leads).filter(l=>l.action!=="cancelled");
+  const pat=analyzeSalePatterns(leads||[]);
+  const attrLabel={source:t.source,budget:t.period||"Срок",kitchenInfo:t.kitchenInfo,distance:t.distance,apartment:t.apartment,clientLang:ru?"Язык":"Język"};
+  const valLabel=(a,v)=>({kitchenInfo:{yes:t.kiYes,no:t.kiNo},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld}}[a]?.[v]||t[v]||v);
+  // Рекомендации: не проданные лиды, совпадающие ≥2 сильных признаков
+  const recs=pat.top.length?L.filter(l=>l.score<6&&l.score>=2).map(l=>({l,hits:pat.top.filter(r=>(l[r.attr]===r.value)).length})).filter(x=>x.hits>=Math.min(2,pat.top.length)).sort((a,b)=>b.hits-a.hits).slice(0,12):[];
+  // 3.2 Оценка 2 + думают, поставлены ≥3 мес назад
+  const ripe=L.filter(l=>l.score===2&&l.action==="thinking").map(l=>({l,m:monthsAgo(l.createdAt)})).filter(x=>x.m!==null&&x.m>=3&&x.m<=6).sort((a,b)=>b.m-a.m);
+  // 3.3 Оценка 4/4.5 в прошлом месяце без отмены
+  const lastM=L.filter(l=>(l.score===4||l.score===4.5)&&monthsAgo(l.createdAt)===1);
+  // 3.4 Оценка 5 в этом месяце без отмены
+  const thisM5=L.filter(l=>l.score===5&&monthsAgo(l.createdAt)===0);
+  // 4 Пуши на сегодня/просроченные
+  const pushes=my(leadsToPush(leads)).filter(l=>l.pushDate&&l.pushDate<=today).sort((a,b)=>String(a.pushDate).localeCompare(String(b.pushDate)));
+  // 5 Пропущенные аллерты
+  const missed=(chatHistory||[]).filter(m=>m.kind==="reminder"&&!m.ackBy&&m.data?.date&&m.data.date<today).filter(m=>{const mg=m.rtype==="push"?(m.data?.items||[]).map(x=>x.mgr):[m.data?.mgr];return mgr==="all"||mg.includes(mgr);});
+  const Row=({l,tag,tagColor})=>(
+    <div onClick={()=>onOpenLead(l)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
+      <ScoreBar score={l.score}/>
+      <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.name||l.phone}</div><div style={{fontSize:10,color:C.muted}}>{l.phone} · {srcShort(l.source||"")} · <span style={{color:MGR_COLOR[l.manager]||C.muted}}>{l.manager||"—"}</span> · {l.createdAt}</div></div>
+      <Badge label={t[l.action]||"—"} color={ACT_COLOR[l.action]||C.muted} small/>
+      {tag&&<span style={{fontSize:9,fontWeight:800,color:tagColor||C.accent,border:`1px solid ${tagColor||C.accent}66`,borderRadius:8,padding:"2px 7px",whiteSpace:"nowrap"}}>{tag}</span>}
+    </div>);
+  const Section=({icon,title,count,color,children,hint})=>(
+    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderBottom:`1px solid ${C.border}`,background:`${color||C.accent}10`}}><span style={{fontSize:16}}>{icon}</span><span style={{fontSize:12,fontWeight:800,color:color||C.accent,textTransform:"uppercase",letterSpacing:0.8}}>{title}</span><span style={{fontSize:11,color:C.muted}}>({count})</span>{hint&&<span style={{marginLeft:"auto",fontSize:10,color:C.dim}}>{hint}</span>}</div>
+      <div style={{maxHeight:320,overflowY:"auto"}}>{children}</div>
+    </div>);
+  const empty=<div style={{padding:16,fontSize:12,color:C.dim,textAlign:"center"}}>{ru?"Пусто":"Pusto"}</div>;
+  return(
+    <div style={{padding:18,height:"100%",overflowY:"auto",display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <div style={{fontSize:18,fontWeight:900,color:C.text}}>◆ {ru?"Центр продаж":"Centrum sprzedaży"}</div>
+        <select value={mgr} onChange={e=>setMgr(e.target.value)} style={{background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,padding:"5px 10px",fontSize:12,cursor:"pointer"}}><option value="all">👥 {t.allManagers}</option>{MANAGERS.map(m=><option key={m} value={m}>🧑 {m}</option>)}</select>
+        <button onClick={()=>setKpOpen(true)} style={{marginLeft:"auto",background:`linear-gradient(135deg,${C.accent},#d4b896)`,border:"none",color:"#00132f",borderRadius:12,padding:"14px 28px",fontSize:16,fontWeight:900,cursor:"pointer",boxShadow:"0 6px 20px rgba(191,164,126,0.35)",letterSpacing:0.5}}>📄 {ru?"СДЕЛАТЬ КП":"ZRÓB KP"}</button>
+      </div>
+
+      {/* Продажи месяца */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
+        <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5}}>★ {ru?"Продажи за месяц":"Sprzedaże w miesiącu"}</div><div style={{fontSize:24,fontWeight:900,color:C.accent}}>{fmtM(monthRev)}</div><div style={{fontSize:11,color:C.muted}}>{monthSales.length} {t.many}</div></div>
+        {(mgr==="all"?MANAGERS:[mgr]).map(m=>{const ms=monthSales.filter(x=>x.manager===m);const rv=ms.reduce((a,x)=>a+(x.saleAmount||0),0);return(<div key={m} style={{background:C.card,border:`1px solid ${MGR_COLOR[m]}44`,borderRadius:12,padding:"12px 14px"}}><div style={{display:"flex",alignItems:"center",gap:6}}><Avatar name={m} color={MGR_COLOR[m]} size={20}/><span style={{fontSize:11,fontWeight:700,color:MGR_COLOR[m]}}>{m}</span></div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m]}}>{fmtM(rv)}</div><div style={{fontSize:10,color:C.muted}}>{ms.length} {t.many}</div></div>);})}
+      </div>
+
+      {/* Рекомендации по паттерну */}
+      <div style={{background:"linear-gradient(135deg,rgba(45,212,191,0.10),rgba(191,164,126,0.06))",border:"1px solid rgba(45,212,191,0.45)",borderRadius:12,padding:"12px 14px"}}>
+        <div style={{fontSize:12,fontWeight:800,color:"#2dd4bf",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>🧠 {ru?"Рекомендация по продаже — что продаётся":"Rekomendacja — co się sprzedaje"}</div>
+        {pat.top.length===0?<div style={{fontSize:12,color:C.muted}}>{ru?`Мало данных для паттерна (продаж: ${pat.soldCount}). Нужно ≥3 продажи и признаки у лидов.`:`Za mało danych (sprzedaży: ${pat.soldCount}).`}</div>
+        :<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>{pat.top.map((r,i)=><span key={i} title={`${r.s}/${r.n} → ${Math.round(r.rate*100)}%`} style={{fontSize:11,fontWeight:700,color:"#2dd4bf",background:"rgba(45,212,191,0.12)",border:"1px solid rgba(45,212,191,0.4)",borderRadius:10,padding:"3px 10px"}}>{attrLabel[r.attr]||r.attr}: <b>{valLabel(r.attr,r.value)}</b> · ×{r.lift.toFixed(1)} ({Math.round(r.rate*100)}%)</span>)}</div>}
+        {recs.length>0&&<div style={{fontSize:11,color:C.muted,marginBottom:6}}>{ru?"Твои лиды, похожие на тех, кто покупает:":"Twoje leady podobne do kupujących:"}</div>}
+        {recs.map(({l,hits})=><Row key={l.id} l={l} tag={`${hits}/${pat.top.length} ${ru?"совп.":"dop."}`} tagColor="#2dd4bf"/>)}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:12}}>
+        <Section icon="⏳" title={ru?"Срок подходит — оценка 2, «думают» (3+ мес)":"Ocena 2, myślą (3+ mies.)"} count={ripe.length} color="#a78bfa" hint={ru?"по дате добавления":"wg daty"}>
+          {ripe.length?ripe.map(({l,m})=><Row key={l.id} l={l} tag={`${m} ${ru?"мес":"mies"} · ${ru?"срок подходит":"czas"}`} tagColor="#a78bfa"/>):empty}
+        </Section>
+        <Section icon="🎯" title={ru?"Оценка 4 / 4.5 за прошлый месяц":"Ocena 4 / 4.5 — zeszły miesiąc"} count={lastM.length} color="#22c55e">
+          {lastM.length?lastM.map(l=><Row key={l.id} l={l} tag={l.noVisitReason?(t["r"+l.noVisitReason.charAt(0).toUpperCase()+l.noVisitReason.slice(1)]||l.noVisitReason):null} tagColor="#f59e0b"/>):empty}
+        </Section>
+        <Section icon="🏠" title={ru?"Оценка 5 в этом месяце":"Ocena 5 w tym miesiącu"} count={thisM5.length} color="#60a5fa">
+          {thisM5.length?thisM5.map(l=><Row key={l.id} l={l} tag={l.visitDate?isoToDot(l.visitDate):null} tagColor="#60a5fa"/>):empty}
+        </Section>
+        <Section icon="🚀" title={ru?"Пуши — сегодня и просроченные":"Push — dziś i zaległe"} count={pushes.length} color="#f97316">
+          {pushes.length?pushes.map(l=><Row key={l.id} l={l} tag={l.pushDate<today?(ru?"просрочен":"zaległy"):(ru?"сегодня":"dziś")} tagColor={l.pushDate<today?"#ef4444":"#f97316"}/>):empty}
+        </Section>
+        <Section icon="⚠️" title={ru?"Пропущенные аллерты":"Pominięte alerty"} count={missed.length} color="#ef4444">
+          {missed.length?missed.map(m=><div key={m.key} onClick={()=>setPage("alerts")} style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}`,fontSize:11,color:C.text,cursor:"pointer",whiteSpace:"pre-wrap"}}>{formatReminder(m,t).split("\n")[0]} <span style={{color:C.muted}}>· {isoToDot(m.data.date)}</span></div>):empty}
+        </Section>
+      </div>
+
+      {kpOpen&&<KPWizard leads={leads} onClose={()=>setKpOpen(false)} onGenerate={(d)=>{setKpData(d);setKpOpen(false);}} t={t} lang={lang}/>}
+      {kpData&&<KPModal lead={kpData.lead} amount={kpData.amount} stoneAmt={kpData.stoneAmt||0} stoneLabel={kpData.stoneLabel} lang={kpData.kpLang||"pl"} onClose={()=>setKpData(null)}/>}
+    </div>);
+}
+
 
 // ─── SALES PAGE ───────────────────────────────────────────────────────────────
 
@@ -2886,48 +3176,102 @@ function Confetti({onDone}){
 }
 
 // ─── TASKS: MODAL ─────────────────────────────────────────────────────────────
-function TaskModal({task,onSave,onClose,t}){
+// ─── TASK HELPERS ──────────────────────────────────────────────────────────────
+const isoDay=(d)=>{const x=new Date(d);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;};
+const dayPlus=(n)=>{const d=new Date();d.setDate(d.getDate()+n);return isoDay(d);};
+// Учёт времени: при входе в PROCESS ставим startedAt, при выходе — накапливаем spentMs
+function applyTaskTiming(prev,next){
+  const was=(prev?.status||'all')==='process', now=(next.status||'all')==='process';
+  const out={...next};
+  if(!was&&now){out.startedAt=Date.now();}
+  if(was&&!now){out.spentMs=(prev.spentMs||0)+(prev.startedAt?Date.now()-prev.startedAt:0);out.startedAt=null;}
+  return out;
+}
+function taskSpentMs(t){return (t.spentMs||0)+((t.status||'all')==='process'&&t.startedAt?Date.now()-t.startedAt:0);}
+function fmtDur(ms){if(!ms||ms<1000)return "0м";const m=Math.floor(ms/60000),h=Math.floor(m/60),d=Math.floor(h/24);if(d>0)return `${d}д ${h%24}ч`;if(h>0)return `${h}ч ${m%60}м`;return `${m}м`;}
+const TASK_TYPE_COLORS=["#60a5fa","#a78bfa","#f59e0b","#34d399","#f87171","#22d3ee","#fb923c","#e879f9"];
+// Новая задача из формы (единая точка для TasksPage и карточки лида)
+function buildNewTask(form,creator,tasks){
+  const now=Date.now();
+  const maxOrd=(tasks||[]).length?Math.max(...tasks.map(t=>t.order||0))+10:0;
+  const asg=form.assignee||'—';
+  const from=(creator&&asg!=='—'&&asg!==creator)?creator:null;
+  const seed=creator?[creator]:(asg!=='—'?[asg]:[]);
+  let t={...form,id:now+Math.floor(Math.random()*1000),status:form.status||'all',createdAt:new Date().toLocaleDateString('ru-RU'),createdBy:creator||null,updatedAt:now,order:maxOrd,from,seenBy:seed,spentMs:0,startedAt:null};
+  if((t.status||'all')==='process')t.startedAt=now;
+  return t;
+}
+
+function TaskModal({task,onSave,onClose,t,taskTypes=[],leads=[],onAddType,presetLead,lang}){
   const [form,setForm]=useState({
     title:task?.title||'',assignee:task?.assignee||'—',
     priority:task?.priority||'MID',deadline:task?.deadline||'',status:task?.status||'all',
+    typeId:task?.typeId||null,leadId:task?.leadId||presetLead?.id||null,leadName:task?.leadName||(presetLead?(presetLead.name||presetLead.phone):null),
   });
+  const [leadQ,setLeadQ]=useState('');
+  const [newType,setNewType]=useState('');
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
   const ins={background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.12)',color:'#fff',borderRadius:8,padding:'10px 14px',fontSize:13,width:'100%',outline:'none',boxSizing:'border-box'};
   const PRIO=[['HIGH','#ef4444'],['MID','#f59e0b'],['LOW','#22c55e']];
+  const lbl=(x)=><div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>{x}</div>;
+  const ru=lang!=="pl";
+  const leadMatches=leadQ.trim().length>=2?(leads||[]).filter(l=>(l.name||'').toLowerCase().includes(leadQ.toLowerCase())||String(l.phone||'').includes(leadQ)).slice(0,8):[];
+  const qBtn=(label,iso,on)=><button onClick={()=>set('deadline',iso)} style={{padding:'7px 12px',borderRadius:8,border:on?'2px solid #f59e0b':'1px solid rgba(255,255,255,0.15)',background:on?'rgba(245,158,11,0.2)':'rgba(255,255,255,0.05)',color:on?'#fbbf24':'rgba(255,255,255,0.7)',fontWeight:700,fontSize:12,cursor:'pointer'}}>{label}</button>;
   return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2500}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:'#0d1527',border:'1px solid rgba(255,255,255,0.1)',borderRadius:16,width:'min(540px,94vw)',padding:32,boxShadow:'0 24px 64px rgba(0,0,0,0.7)',fontFamily:"'DM Sans',sans-serif"}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'#0d1527',border:'1px solid rgba(255,255,255,0.1)',borderRadius:16,width:'min(560px,94vw)',maxHeight:'92vh',overflowY:'auto',padding:28,boxShadow:'0 24px 64px rgba(0,0,0,0.7)',fontFamily:"'DM Sans',sans-serif"}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
           <div style={{fontSize:18,fontWeight:800,color:'#fff'}}>🖊 {t.task}</div>
           <button onClick={onClose} style={{background:'transparent',border:'none',color:'rgba(255,255,255,0.4)',fontSize:20,cursor:'pointer',lineHeight:1}}>✕</button>
         </div>
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>{t.name.toUpperCase()}</div>
-          <input value={form.title} onChange={e=>set('title',e.target.value)} autoFocus style={ins} placeholder={t.taskTitle}/>
+        <div style={{marginBottom:14}}>{lbl(t.name.toUpperCase())}<input value={form.title} onChange={e=>set('title',e.target.value)} autoFocus style={ins} placeholder={t.taskTitle}/></div>
+
+        {/* ТИП ЗАДАЧИ */}
+        <div style={{marginBottom:14}}>{lbl(ru?'ТИП ЗАДАЧИ':'TYP ZADANIA')}
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+            <button onClick={()=>set('typeId',null)} style={{padding:'6px 11px',borderRadius:8,border:!form.typeId?'2px solid #94a3b8':'1px solid rgba(255,255,255,0.15)',background:!form.typeId?'rgba(148,163,184,0.2)':'rgba(255,255,255,0.05)',color:'rgba(255,255,255,0.7)',fontSize:12,fontWeight:700,cursor:'pointer'}}>—</button>
+            {(taskTypes||[]).map(tt=>{const on=form.typeId===tt.id;return <button key={tt.id} onClick={()=>set('typeId',tt.id)} style={{padding:'6px 11px',borderRadius:8,border:on?`2px solid ${tt.color}`:'1px solid rgba(255,255,255,0.15)',background:on?`${tt.color}30`:'rgba(255,255,255,0.05)',color:on?tt.color:'rgba(255,255,255,0.7)',fontSize:12,fontWeight:700,cursor:'pointer'}}>{tt.name}</button>;})}
+          </div>
+          {onAddType&&<div style={{display:'flex',gap:6}}>
+            <input value={newType} onChange={e=>setNewType(e.target.value)} placeholder={ru?'+ новый тип…':'+ nowy typ…'} onKeyDown={e=>{if(e.key==='Enter'&&newType.trim()){const id=onAddType(newType.trim());setNewType('');if(id)set('typeId',id);}}} style={{...ins,padding:'7px 10px',fontSize:12}}/>
+            <button onClick={()=>{if(newType.trim()){const id=onAddType(newType.trim());setNewType('');if(id)set('typeId',id);}}} style={{padding:'0 14px',borderRadius:8,border:'none',background:'rgba(255,255,255,0.12)',color:'#fff',fontWeight:700,cursor:'pointer'}}>＋</button>
+          </div>}
         </div>
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:8,textTransform:'uppercase',letterSpacing:1}}>{t.assignee.toUpperCase()}</div>
+
+        {/* ЛИД */}
+        <div style={{marginBottom:14}}>{lbl(ru?'ЛИД (к кому применить)':'LEAD')}
+          {form.leadId
+            ? <div style={{display:'flex',alignItems:'center',gap:8,background:'rgba(191,164,126,0.12)',border:'1px solid rgba(191,164,126,0.4)',borderRadius:8,padding:'8px 12px'}}><span style={{color:'#bfa47e',fontWeight:700,fontSize:13}}>◈ {form.leadName}</span><button onClick={()=>{set('leadId',null);set('leadName',null);}} style={{marginLeft:'auto',background:'transparent',border:'none',color:'rgba(255,255,255,0.5)',cursor:'pointer'}}>✕</button></div>
+            : <div style={{position:'relative'}}>
+                <input value={leadQ} onChange={e=>setLeadQ(e.target.value)} placeholder={ru?'Поиск лида по имени / телефону…':'Szukaj leada…'} style={ins}/>
+                {leadMatches.length>0&&<div style={{position:'absolute',left:0,right:0,top:'100%',background:'#0d1527',border:'1px solid rgba(255,255,255,0.15)',borderRadius:8,marginTop:4,zIndex:5,maxHeight:200,overflowY:'auto'}}>
+                  {leadMatches.map(l=><div key={l.id} onClick={()=>{set('leadId',l.id);set('leadName',l.name||l.phone);setLeadQ('');}} style={{padding:'8px 12px',cursor:'pointer',borderBottom:'1px solid rgba(255,255,255,0.06)',fontSize:12,color:'#fff'}}>{l.name||'—'} <span style={{color:'rgba(255,255,255,0.45)'}}>· {l.phone}</span>{l.manager&&<span style={{marginLeft:6,color:MGR_COLOR[l.manager]||'#aaa',fontSize:11}}>{l.manager}</span>}</div>)}
+                </div>}
+              </div>}
+        </div>
+
+        <div style={{marginBottom:14}}>{lbl(t.assignee.toUpperCase())}
           <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
             {[...MANAGERS,'—'].map(m=>{const active=form.assignee===m;return(
-              <button key={m} onClick={()=>set('assignee',m)} style={{flex:1,minWidth:60,padding:'9px 6px',borderRadius:8,border:active?'2px solid #ef4444':'1px solid rgba(255,255,255,0.15)',background:active?'rgba(239,68,68,0.2)':'rgba(255,255,255,0.05)',color:active?'#fff':'rgba(255,255,255,0.6)',fontWeight:active?700:500,fontSize:12,cursor:'pointer'}}>
-                {m==='—'?t.nobody:`🧑 ${m}`}
-              </button>
-            );})}
+              <button key={m} onClick={()=>set('assignee',m)} style={{flex:1,minWidth:60,padding:'9px 6px',borderRadius:8,border:active?'2px solid #ef4444':'1px solid rgba(255,255,255,0.15)',background:active?'rgba(239,68,68,0.2)':'rgba(255,255,255,0.05)',color:active?'#fff':'rgba(255,255,255,0.6)',fontWeight:active?700:500,fontSize:12,cursor:'pointer'}}>{m==='—'?t.nobody:`🧑 ${m}`}</button>);})}
           </div>
         </div>
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:8,textTransform:'uppercase',letterSpacing:1}}>{t.priority.toUpperCase()}</div>
+        <div style={{marginBottom:14}}>{lbl(t.priority.toUpperCase())}
           <div style={{display:'flex',gap:6}}>
             {PRIO.map(([p,c])=>{const active=form.priority===p;return(
-              <button key={p} onClick={()=>set('priority',p)} style={{flex:1,padding:'10px',borderRadius:8,border:active?`2px solid ${c}`:'1px solid rgba(255,255,255,0.15)',background:active?`${c}30`:'rgba(255,255,255,0.05)',color:active?c:'rgba(255,255,255,0.4)',fontWeight:700,fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-                <span style={{width:8,height:8,borderRadius:'50%',background:c,flexShrink:0,display:'inline-block'}}/>
-                {p}
-              </button>
-            );})}
+              <button key={p} onClick={()=>set('priority',p)} style={{flex:1,padding:'10px',borderRadius:8,border:active?`2px solid ${c}`:'1px solid rgba(255,255,255,0.15)',background:active?`${c}30`:'rgba(255,255,255,0.05)',color:active?c:'rgba(255,255,255,0.4)',fontWeight:700,fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}><span style={{width:8,height:8,borderRadius:'50%',background:c,flexShrink:0,display:'inline-block'}}/>{p}</button>);})}
           </div>
         </div>
-        <div style={{marginBottom:24}}>
-          <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:6,textTransform:'uppercase',letterSpacing:1}}>{t.deadline.toUpperCase()}</div>
+
+        {/* СРОК — быстрые кнопки + календарь */}
+        <div style={{marginBottom:22}}>{lbl(t.deadline.toUpperCase())}
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+            {qBtn(ru?'Сегодня':'Dziś',dayPlus(0),form.deadline===dayPlus(0))}
+            {qBtn(ru?'Завтра':'Jutro',dayPlus(1),form.deadline===dayPlus(1))}
+            {qBtn(ru?'Послезавтра':'Pojutrze',dayPlus(2),form.deadline===dayPlus(2))}
+            {qBtn(ru?'+ неделя':'+ tydzień',dayPlus(7),form.deadline===dayPlus(7))}
+            {form.deadline&&<button onClick={()=>set('deadline','')} style={{padding:'7px 10px',borderRadius:8,border:'1px solid rgba(255,255,255,0.15)',background:'transparent',color:'rgba(255,255,255,0.5)',fontSize:12,cursor:'pointer'}}>✕</button>}
+          </div>
           <input type="date" value={form.deadline} onChange={e=>set('deadline',e.target.value)} style={{...ins,colorScheme:'dark'}}/>
         </div>
         <div style={{display:'flex',gap:10,justifyContent:'space-between'}}>
@@ -2951,9 +3295,104 @@ const TASK_COLS_CFG=[
   {id:'done',    label:'DONE',     color:'#22c55e'},
 ];
 
-function TasksPage({tasks,updateDb,currentUser,lang,t}){
+// ─── TASK TYPES / CALENDAR / REPORT ───────────────────────────────────────────
+function TypeAdder({onAdd,lang}){
+  const [v,setV]=useState('');
+  const go=()=>{if(v.trim()){onAdd(v.trim());setV('');}};
+  return(<div style={{display:'flex',gap:4}}>
+    <input value={v} onChange={e=>setV(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()} placeholder={lang==='pl'?'nowy typ…':'новый тип…'} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:'4px 9px',fontSize:11,outline:'none',width:140}}/>
+    <button onClick={go} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:7,padding:'4px 10px',fontSize:12,fontWeight:800,cursor:'pointer'}}>＋</button>
+  </div>);
+}
+
+function TaskCalendar({tasks,taskTypes,month,setMonth,lang,onOpen}){
+  const [y,m]=month.split('-').map(Number);
+  const first=new Date(y,m-1,1); const days=new Date(y,m,0).getDate();
+  const startDow=(first.getDay()+6)%7; // Пн=0
+  const cells=[]; for(let i=0;i<startDow;i++)cells.push(null); for(let d=1;d<=days;d++)cells.push(d);
+  const iso=(d)=>`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const today=getToday();
+  const byDay={}; (tasks||[]).forEach(t=>{if(t.deadline){(byDay[t.deadline]=byDay[t.deadline]||[]).push(t);}});
+  const noDate=(tasks||[]).filter(t=>!t.deadline&&(t.status||'all')!=='done');
+  const shift=(k)=>{const d=new Date(y,m-1+k,1);setMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);};
+  const mName=first.toLocaleDateString(lang==='pl'?'pl-PL':'ru-RU',{month:'long',year:'numeric'});
+  const DOW=lang==='pl'?['Pn','Wt','Śr','Cz','Pt','Sb','Nd']:['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  const typeOf=(id)=>(taskTypes||[]).find(x=>x.id===id);
+  return(
+    <div style={{flex:1,minHeight:0,overflowY:'auto',display:'flex',flexDirection:'column',gap:10}}>
+      <div style={{display:'flex',alignItems:'center',gap:10}}>
+        <button onClick={()=>shift(-1)} style={{background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:7,padding:'4px 10px',cursor:'pointer'}}>‹</button>
+        <div style={{fontSize:14,fontWeight:800,color:C.text,textTransform:'capitalize',minWidth:180,textAlign:'center'}}>{mName}</div>
+        <button onClick={()=>shift(1)} style={{background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:7,padding:'4px 10px',cursor:'pointer'}}>›</button>
+        {noDate.length>0&&<span style={{marginLeft:'auto',fontSize:11,color:C.muted}}>{lang==='pl'?'Bez terminu':'Без срока'}: <b style={{color:C.text}}>{noDate.length}</b></span>}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>
+        {DOW.map(d=><div key={d} style={{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:0.5,textAlign:'center',padding:'4px 0'}}>{d}</div>)}
+        {cells.map((d,i)=>{
+          if(d===null)return <div key={'e'+i}/>;
+          const k=iso(d); const list=(byDay[k]||[]).sort((a,b)=>(a.order||0)-(b.order||0)); const isT=k===today; const past=k<today;
+          return(
+            <div key={k} style={{background:isT?'rgba(191,164,126,0.10)':C.card,border:`1px solid ${isT?C.accent:C.border}`,borderRadius:8,padding:6,minHeight:88,display:'flex',flexDirection:'column',gap:3}}>
+              <div style={{fontSize:11,fontWeight:800,color:isT?C.accent:past?C.dim:C.text}}>{d}</div>
+              {list.slice(0,4).map(t=>{const done=(t.status||'all')==='done';const tt=typeOf(t.typeId);const pc=TASK_PRIO_COLORS[t.priority]||'#aaa';const od=!done&&k<today;return(
+                <div key={t.id} onClick={()=>onOpen(t)} title={t.title} style={{fontSize:10,color:done?C.dim:C.text,background:done?'rgba(255,255,255,0.03)':od?'rgba(239,68,68,0.12)':`${(tt?tt.color:pc)}18`,borderLeft:`3px solid ${done?C.dim:(tt?tt.color:pc)}`,borderRadius:4,padding:'2px 5px',cursor:'pointer',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',textDecoration:done?'line-through':'none'}}>{od?'⚠ ':''}{t.title}{t.assignee&&t.assignee!=='—'?<span style={{color:MGR_COLOR[t.assignee]||C.muted}}> · {t.assignee}</span>:null}</div>);})}
+              {list.length>4&&<div style={{fontSize:9,color:C.muted}}>+{list.length-4}</div>}
+            </div>);
+        })}
+      </div>
+    </div>);
+}
+
+function TaskReport({tasks,taskTypes,lang,t}){
+  const ru=lang!=='pl';
+  const typeOf=(id)=>(taskTypes||[]).find(x=>x.id===id);
+  const all=tasks||[];
+  const agg=(keyFn,labelFn)=>{const m={};all.forEach(x=>{const k=keyFn(x);if(!m[k])m[k]={key:k,label:labelFn(x,k),total:0,done:0,process:0,spent:0};m[k].total++;if((x.status||'all')==='done')m[k].done++;if((x.status||'all')==='process')m[k].process++;m[k].spent+=taskSpentMs(x);});return Object.values(m).sort((a,b)=>b.total-a.total);};
+  const byMgr=agg(x=>x.assignee||'—',(x,k)=>k);
+  const byType=agg(x=>x.typeId||'none',(x,k)=>k==='none'?'—':(typeOf(x.typeId)?.name||'?'));
+  const totalSpent=all.reduce((a,x)=>a+taskSpentMs(x),0);
+  const card=(title,rows,colorFn)=>(
+    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14,flex:1,minWidth:280}}>
+      <div style={{fontSize:11,color:C.muted,textTransform:'uppercase',letterSpacing:1,marginBottom:10,fontWeight:700}}>{title}</div>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+        <thead><tr>{[' ',ru?'Всего':'Razem',ru?'В работе':'W toku',ru?'Готово':'Gotowe',ru?'Время':'Czas'].map((h,i)=><th key={i} style={{textAlign:i===0?'left':'right',color:C.muted,fontWeight:600,fontSize:10,padding:'4px 6px',borderBottom:`1px solid ${C.border}`}}>{h}</th>)}</tr></thead>
+        <tbody>{rows.map(r=><tr key={r.key}><td style={{padding:'6px',color:colorFn(r),fontWeight:700}}>{r.label}</td><td style={{textAlign:'right',padding:'6px',color:C.text}}>{r.total}</td><td style={{textAlign:'right',padding:'6px',color:'#fbbf24'}}>{r.process}</td><td style={{textAlign:'right',padding:'6px',color:'#22c55e'}}>{r.done}</td><td style={{textAlign:'right',padding:'6px',color:C.accent,fontWeight:700}}>{fmtDur(r.spent)}</td></tr>)}</tbody>
+      </table>
+    </div>);
+  return(
+    <div style={{flex:1,minHeight:0,overflowY:'auto',display:'flex',flexDirection:'column',gap:12}}>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+        {[[ru?'Всего задач':'Zadań',all.length,C.text],[ru?'В работе':'W toku',all.filter(x=>(x.status||'all')==='process').length,'#fbbf24'],[ru?'Готово':'Gotowe',all.filter(x=>(x.status||'all')==='done').length,'#22c55e'],[ru?'Время суммарно':'Czas łącznie',fmtDur(totalSpent),C.accent]].map(([l,v,c])=>(
+          <div key={l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:'10px 16px',minWidth:140}}><div style={{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:0.5}}>{l}</div><div style={{fontSize:20,fontWeight:800,color:c}}>{v}</div></div>))}
+      </div>
+      <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+        {card(ru?'По менеджерам':'Wg menedżerów',byMgr,r=>MGR_COLOR[r.key]||C.text)}
+        {card(ru?'По типам':'Wg typów',byType,r=>typeOf(all.find(x=>(x.typeId||'none')===r.key)?.typeId)?.color||C.text)}
+      </div>
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
+        <div style={{fontSize:11,color:C.muted,textTransform:'uppercase',letterSpacing:1,marginBottom:10,fontWeight:700}}>{ru?'По задачам (время)':'Wg zadań (czas)'}</div>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead><tr>{[ru?'Задача':'Zadanie',ru?'Тип':'Typ',ru?'Менеджер':'Menedżer',ru?'Статус':'Status',ru?'Время':'Czas'].map((h,i)=><th key={i} style={{textAlign:'left',color:C.muted,fontWeight:600,fontSize:10,padding:'4px 6px',borderBottom:`1px solid ${C.border}`}}>{h}</th>)}</tr></thead>
+          <tbody>{[...all].sort((a,b)=>taskSpentMs(b)-taskSpentMs(a)).slice(0,60).map(x=>{const tt=typeOf(x.typeId);return(<tr key={x.id} style={{borderBottom:`1px solid ${C.border}`}}><td style={{padding:'6px',color:C.text}}>{x.title}{x.leadName?<span style={{color:'#bfa47e',fontSize:11}}> · ◈ {x.leadName}</span>:null}</td><td style={{padding:'6px',color:tt?tt.color:C.dim}}>{tt?tt.name:'—'}</td><td style={{padding:'6px',color:MGR_COLOR[x.assignee]||C.muted}}>{x.assignee||'—'}</td><td style={{padding:'6px',color:(x.status||'all')==='done'?'#22c55e':(x.status||'all')==='process'?'#fbbf24':C.muted,fontSize:11,textTransform:'uppercase'}}>{x.status||'all'}</td><td style={{padding:'6px',color:C.accent,fontWeight:700}}>{fmtDur(taskSpentMs(x))}</td></tr>);})}</tbody>
+        </table>
+      </div>
+    </div>);
+}
+
+function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOpenLead,initialModal}){
   const [viewUser,setViewUser]=useState(currentUser||'all');
+  const [view,setView]=useState('board'); // board | calendar | report
+  const [typesOpen,setTypesOpen]=useState(false);
+  const [calMonth,setCalMonth]=useState(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;});
+  // Тик раз в 30с для живого таймера задач в PROCESS
+  const [,tick]=useState(0);
+  useEffect(()=>{const anyProc=(tasks||[]).some(x=>(x.status||'all')==='process');if(!anyProc)return;const id=setInterval(()=>tick(x=>x+1),30000);return()=>clearInterval(id);},[tasks]);
+  // Типы задач: добавить/удалить (хранятся в db.taskTypes)
+  const addType=(name)=>{const id=Date.now();updateDb(p=>({...p,taskTypes:[...(p.taskTypes||[]),{id,name,color:TASK_TYPE_COLORS[(p.taskTypes||[]).length%TASK_TYPE_COLORS.length]}]}),true);return id;};
+  const delType=(id)=>updateDb(p=>({...p,taskTypes:(p.taskTypes||[]).filter(x=>x.id!==id)}),true);
+  const typeOf=(id)=>(taskTypes||[]).find(x=>x.id===id);
   const [modal,setModal]=useState(null);
+  useEffect(()=>{if(initialModal)setModal(initialModal);},[initialModal]);
   const [confetti,setConfetti]=useState(false);
   const [quickAdd,setQuickAdd]=useState(null);
   const [quickTitle,setQuickTitle]=useState('');
@@ -2994,7 +3433,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
       if(form._delete){deleteTasks([id]);setModal(null);return;}
       saveTasks(tasks.map(t=>{
         if(t.id!==id)return t;
-        const upd={...t,...form,updatedAt:now};
+        const upd=applyTaskTiming(t,{...t,...form,updatedAt:now});
         const newAsg=form.assignee!==undefined?form.assignee:t.assignee;
         // Переназначили другому менеджеру → отмечаем «от кого» и сбрасываем просмотр (чтобы получатель увидел как новое)
         if(creator&&newAsg&&newAsg!==t.assignee&&newAsg!==creator){
@@ -3006,12 +3445,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
         return upd;
       }));
     }else{
-      const maxOrd=tasks.length?Math.max(...tasks.map(t=>t.order||0))+10:0;
-      const asg=form.assignee||'—';
-      // Закинул другому → from=создатель, seenBy=создатель (получатель ещё не видел)
-      const from=(creator&&asg!=='—'&&asg!==creator)?creator:null;
-      const seed=creator?[creator]:(asg!=='—'?[asg]:[]);
-      saveTasks([...tasks,{...form,id:now,status:form.status||'all',createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,from,seenBy:seed}]);
+      saveTasks([...tasks,buildNewTask(form,creator,tasks)]);
     }
     setModal(null);
   };
@@ -3024,9 +3458,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
     const maxOrd=ct.length?Math.max(...ct.map(t=>t.order||0))+10:0;
     const asg=(currentUser&&currentUser!=='all')?currentUser:(viewUser!=='all'?viewUser:'—');
     const cr=(currentUser&&currentUser!=='all')?currentUser:null;
-    const from=(cr&&asg!=='—'&&asg!==cr)?cr:null;
-    const seed=cr?[cr]:(asg!=='—'?[asg]:[]);
-    saveTasks([...tasks,{id:now,title,status:colId,priority:'MID',assignee:asg,deadline:'',createdAt:new Date().toLocaleDateString('ru-RU'),updatedAt:now,order:maxOrd,from,seenBy:seed}]);
+    saveTasks([...tasks,buildNewTask({title,status:colId,priority:'MID',assignee:asg,deadline:''},cr,tasks)]);
     setQuickTitle('');setQuickAdd(null);
   };
 
@@ -3102,7 +3534,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
               if(orig>-1&&orig<o.idx)idx=o.idx-1;
             }
             idx=Math.max(0,Math.min(idx,target.length));
-            target.splice(idx,0,{...dragged,status:o.col});
+            target.splice(idx,0,applyTaskTiming(dragged,{...dragged,status:o.col}));
             // Bump updatedAt on EVERY reindexed card so local always wins the
             // timestamp-based merge — otherwise siblings teleport back to remote order.
             const stamp=Date.now();
@@ -3135,11 +3567,10 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
         style={{
           background:hot?'rgba(245,158,11,0.12)':isNew?'rgba(239,68,68,0.08)':'rgba(255,255,255,0.04)',
           border:`1px solid ${hot?'rgba(245,158,11,0.6)':isNew?'rgba(239,68,68,0.3)':'rgba(255,255,255,0.09)'}`,
-          boxShadow:hot?'0 0 0 3px rgba(245,158,11,0.15)':'none',
           borderLeft:`3px solid ${pc}`,borderRadius:8,padding:'10px 12px',
           cursor:drag&&drag.id===task.id?'grabbing':'pointer',marginBottom:6,userSelect:'none',touchAction:'none',
           width:ghost?drag.w:'auto',
-          boxShadow:ghost?'0 12px 32px rgba(0,0,0,0.5)':'none',
+          boxShadow:ghost?'0 12px 32px rgba(0,0,0,0.5)':(hot?'0 0 0 3px rgba(245,158,11,0.15)':'none'),
           transform:ghost?'rotate(2deg)':'none',
           pointerEvents:ghost?'none':'auto',
         }}>
@@ -3153,6 +3584,12 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
           {fromOther&&<span title={`${t.taskFrom} ${task.from}`} style={{fontSize:10,fontWeight:700,color:'#f59e0b',background:'rgba(245,158,11,0.12)',border:'1px solid rgba(245,158,11,0.4)',borderRadius:10,padding:'1px 8px'}}>← {t.taskFrom} {task.from}</span>}
           {task.deadline&&<span style={{fontSize:10,color:overdue?'#ef4444':'rgba(255,255,255,0.3)',marginLeft:'auto'}}>{overdue?'⚠️':'📅'} {task.deadline.split('-').reverse().join('.')}</span>}
         </div>
+        {(task.typeId||task.leadId||taskSpentMs(task)>0||(task.status||'all')==='process')&&(
+          <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap',marginTop:5}}>
+            {(()=>{const tt=typeOf(task.typeId);return tt?<span style={{fontSize:10,fontWeight:700,color:tt.color,background:`${tt.color}20`,border:`1px solid ${tt.color}50`,borderRadius:10,padding:'1px 8px'}}>◆ {tt.name}</span>:null;})()}
+            {task.leadId&&<span onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();const l=(leads||[]).find(x=>x.id===task.leadId);if(l&&onOpenLead)onOpenLead(l);}} title={lang==='pl'?'Otwórz leada':'Открыть лида'} style={{fontSize:10,fontWeight:700,color:'#bfa47e',background:'rgba(191,164,126,0.12)',border:'1px solid rgba(191,164,126,0.4)',borderRadius:10,padding:'1px 8px',cursor:'pointer'}}>◈ {task.leadName||'lead'}</span>}
+            {((task.status||'all')==='process'||taskSpentMs(task)>0)&&<span style={{fontSize:10,fontWeight:700,color:(task.status||'all')==='process'?'#fbbf24':'rgba(255,255,255,0.45)',marginLeft:'auto'}}>{(task.status||'all')==='process'?'⏱':'⏲'} {fmtDur(taskSpentMs(task))}</span>}
+          </div>)}
       </div>
     );
   };
@@ -3204,10 +3641,31 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
           </select>
           <span style={{fontSize:12,color:C.muted}}>({totalCount})</span>
         </div>
-        <button onClick={()=>setModal({task:{status:'all'}})} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>+ {t.task}</button>
+        <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+          <div style={{display:'flex',background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:3,gap:2}}>
+            {[['board','☰',lang==='pl'?'Tablica':'Доска'],['calendar','◷',lang==='pl'?'Kalendarz':'Календарь'],['report','◎',lang==='pl'?'Raport':'Отчёт']].map(([k,ic,lb])=>(
+              <button key={k} onClick={()=>setView(k)} style={{padding:'5px 11px',borderRadius:6,border:'none',background:view===k?C.accentDim:'transparent',color:view===k?C.accent:C.muted,fontSize:12,fontWeight:700,cursor:'pointer'}}>{ic} {lb}</button>))}
+          </div>
+          <button onClick={()=>setTypesOpen(v=>!v)} style={{background:typesOpen?C.accentDim:'transparent',border:`1px solid ${C.border}`,color:typesOpen?C.accent:C.muted,borderRadius:8,padding:'7px 12px',fontSize:12,fontWeight:700,cursor:'pointer'}}>◆ {lang==='pl'?'Typy':'Типы'} ({(taskTypes||[]).length})</button>
+          <button onClick={()=>setModal({task:{status:'all'}})} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>+ {t.task}</button>
+        </div>
       </div>
 
-      <div ref={boardRef} style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,flex:1,minHeight:0,overflow:'hidden'}}>
+      {/* ── Панель типов задач ── */}
+      {typesOpen&&(
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:'10px 14px',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',flexShrink:0}}>
+          <span style={{fontSize:11,color:C.muted,fontWeight:700}}>◆ {lang==='pl'?'Typy zadań':'Типы задач'}:</span>
+          {(taskTypes||[]).map(tt=><span key={tt.id} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,fontWeight:700,color:tt.color,background:`${tt.color}18`,border:`1px solid ${tt.color}55`,borderRadius:10,padding:'3px 9px'}}>{tt.name}<button onClick={()=>delType(tt.id)} style={{background:'transparent',border:'none',color:C.dim,cursor:'pointer',fontSize:11,padding:0}}>✕</button></span>)}
+          <TypeAdder onAdd={addType} lang={lang}/>
+        </div>)}
+
+      {/* ── ОТЧЁТ ── */}
+      {view==='report'&&<TaskReport tasks={tasks} taskTypes={taskTypes} lang={lang} t={t}/>}
+
+      {/* ── КАЛЕНДАРЬ ── */}
+      {view==='calendar'&&<TaskCalendar tasks={filtered} taskTypes={taskTypes} month={calMonth} setMonth={setCalMonth} lang={lang} onOpen={(task)=>{markSeen(task.id);setModal({task});}}/>}
+
+      <div ref={boardRef} style={{display:view==='board'?'grid':'none',gridTemplateColumns:'repeat(4,1fr)',gap:12,flex:1,minHeight:0,overflow:'hidden'}}>
         {TASK_COLS_CFG.map(col=>{
           const ct=byCol(col.id);
           const isOver=over&&over.col===col.id;
@@ -3239,7 +3697,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t}){
         })}
       </div>
 
-      {modal&&<TaskModal task={modal.task} onSave={(form)=>saveTask(form,modal.task?.id)} onClose={()=>setModal(null)} t={t}/>}
+      {modal&&<TaskModal task={modal.task} onSave={(form)=>saveTask(form,modal.task?.id)} onClose={()=>setModal(null)} t={t} taskTypes={taskTypes} leads={leads} onAddType={addType} presetLead={modal.presetLead} lang={lang}/>}
     </div>
   );
 }
@@ -3453,9 +3911,16 @@ function DynamicsPage({leads,sales,t,lang}){
     </div>
   );
 }
-function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang}){
-  const [dateFrom,setDateFrom]=useState("");
-  const [dateTo,setDateTo]=useState("");
+function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead}){
+  // По умолчанию — текущий месяц (а не всё время)
+  const _mStart=(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`;})();
+  const [dateFrom,setDateFrom]=useState(_mStart);
+  const [dateTo,setDateTo]=useState(getToday());
+  // Открыть лида по клику на карточку продажи
+  const openLeadOfSale=(s)=>{
+    const byId=(leads||[]).find(l=>l.leadId===s.leadId)||(leads||[]).find(l=>l.phone===s.phone);
+    if(byId&&onOpenLead)onOpenLead(byId);
+  };
   const [confirmId,setConfirmId]=useState(null);
   const fs=filterByCustomRange(sales,dateFrom,dateTo);const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
   const mRev=MANAGERS.map(m=>({name:m,rev:fs.filter(s=>s.manager===m).reduce((a,s)=>a+s.saleAmount,0),count:fs.filter(s=>s.manager===m).length}));
@@ -3485,7 +3950,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang}){
             ):(
               <button onClick={()=>setConfirmId(s.id)} style={{position:"absolute",top:10,right:10,background:"rgba(248,113,113,0.15)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 8px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
             )}
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34}}><Avatar name={s.name||s.phone} color={C.accent} size={36} noMedal/><div><div style={{fontSize:13,color:C.text,fontWeight:700}}>{s.name||s.phone}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div><div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
+            <div onClick={()=>openLeadOfSale(s)} title={lang==="ru"?"Открыть лида":"Otwórz leada"} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34,cursor:"pointer"}}><Avatar name={s.name||s.phone} color={C.accent} size={36} noMedal/><div><div style={{fontSize:13,color:C.text,fontWeight:700}}>{s.name||s.phone}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div><div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><SrcBadge source={s.source}/>{s.manager&&<div style={{display:"flex",alignItems:"center",gap:4}}><Avatar name={s.manager} color={MGR_COLOR[s.manager]} size={14}/><span style={{fontSize:10,color:MGR_COLOR[s.manager]}}>{s.manager}</span></div>}</div>{s.notes&&<div style={{fontSize:10,color:C.muted,marginTop:8,lineHeight:1.5}}>{s.notes}</div>}
           </div>))}
         </div>}
@@ -3495,12 +3960,60 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang}){
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App(){
-  return <ErrorBoundary><GarnoCRM/></ErrorBoundary>;
+  return <ErrorBoundary><AuthGate/></ErrorBoundary>;
+}
+
+// ─── ЭКРАН ВХОДА ──────────────────────────────────────────────────────────
+// База открывается только после логина: без сессии публичный ключ ничего не даёт.
+function LoginGate({onLogin}){
+  const [email,setEmail]=useState(()=>localStorage.getItem("garno_auth_email")||"");
+  const [pass,setPass]=useState("");
+  const [err,setErr]=useState("");
+  const [busy,setBusy]=useState(false);
+  const submit=async()=>{
+    if(!email||!pass||busy)return;
+    setBusy(true);setErr("");
+    try{ await authLogin(email.trim(),pass); localStorage.setItem("garno_auth_email",email.trim()); onLogin(); }
+    catch(e){ setErr(e.message||"Ошибка входа"); }
+    finally{ setBusy(false); }
+  };
+  const ins={background:"rgba(255,255,255,0.06)",border:"1px solid rgba(191,164,126,0.35)",color:"#fff",borderRadius:9,padding:"11px 14px",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box"};
+  return(
+    <div style={{display:"flex",height:"100vh",background:"#00132f",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+      <style>{`*{box-sizing:border-box;}input::placeholder{color:rgba(255,255,255,0.35)}`}</style>
+      <div style={{width:"min(380px,92vw)",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(191,164,126,0.25)",borderRadius:16,padding:"32px 28px"}}>
+        <div style={{fontSize:30,fontWeight:900,color:"#bfa47e",letterSpacing:3,textAlign:"center",marginBottom:4}}>GARNO<span style={{color:"#fff"}}>CRM</span></div>
+        <div style={{color:"rgba(255,255,255,0.45)",fontSize:12,textAlign:"center",marginBottom:24}}>Вход для команды</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" autoComplete="username" style={ins} onKeyDown={e=>e.key==="Enter"&&submit()}/>
+          <input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="Пароль" autoComplete="current-password" autoFocus={!!email} style={ins} onKeyDown={e=>e.key==="Enter"&&submit()}/>
+          {err&&<div style={{color:"#f87171",fontSize:12,background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.35)",borderRadius:8,padding:"8px 10px"}}>⚠️ {err}</div>}
+          <button onClick={submit} disabled={busy||!email||!pass} style={{marginTop:6,background:"linear-gradient(135deg,#bfa47e,#d4b896)",color:"#00132f",border:"none",borderRadius:9,padding:"12px",fontSize:14,fontWeight:800,cursor:busy?"wait":"pointer",opacity:(busy||!email||!pass)?0.6:1}}>{busy?"Входим…":"Войти"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuthGate(){
+  const [authed,setAuthed]=useState(null); // null = проверяем, false = нужен вход, true = ок
+  useEffect(()=>{
+    let alive=true;
+    authRestore().then(ok=>{ if(alive) setAuthed(ok); }).catch(()=>{ if(alive) setAuthed(false); });
+    const ka=authKeepAlive();
+    return()=>{ alive=false; clearInterval(ka); };
+  },[]);
+  if(authed===null) return(
+    <div style={{display:"flex",height:"100vh",background:"#00132f",alignItems:"center",justifyContent:"center",color:"#bfa47e",fontFamily:"'DM Sans','Segoe UI',sans-serif",fontSize:14}}>Проверка сессии…</div>
+  );
+  if(!authed) return <LoginGate onLogin={()=>setAuthed(true)}/>;
+  return <GarnoCRM/>;
 }
 
 function GarnoCRM(){
   const {db,status,syncLabel,syncError,refresh,updateDb,setDomains,domainsState}=useDatabase();
   const [page,setPage]=useState("dashboard");
+  const [taskPreset,setTaskPreset]=useState(null);
   const [selLead,setSelLead]=useState(null);
   const [lang,setLang]=useState("ru");
   const [mgr,setMgr]=useState("all");
@@ -3520,6 +4033,47 @@ function GarnoCRM(){
   const updRef=useRef(updateDb); updRef.current=updateDb;
   const langRef=useRef(lang);  langRef.current=lang;
   const currentUserRef=useRef(currentUser); currentUserRef.current=currentUser;
+  // 🚨 Тревога новых заявок: стробоскоп заголовка вкладки + переход в Лиды из пуша
+  const [,freshTickMain]=useState(0);
+  useEffect(()=>{
+    window.__garnoGoLeads=()=>{setPage("leads");};
+    const f=()=>{freshTickMain(x=>x+1);startTitleStrobe(freshCount,lang==="pl"?"nowych leadów":"новых заявок");};
+    FRESH_LISTENERS.push(f); f();
+    // Эскалация: заявка без реакции > SIREN_AFTER_MIN мин → сирена каждые SIREN_REPEAT_MIN, пока не откроют
+    const esc=setInterval(checkFreshEscalation,60*1000);
+    return()=>{FRESH_LISTENERS=FRESH_LISTENERS.filter(x=>x!==f);clearInterval(esc);};
+  },[]);
+  // ── Очередь полноэкранных аллертов (заявка → задача → напоминание) ──
+  const [,alertTick]=useState(0);
+  useEffect(()=>{const id=setInterval(()=>alertTick(x=>x+1),30000);return()=>clearInterval(id);},[]); // перепроверка snooze
+  const pendingAlerts=(()=>{
+    const out=[]; const ru=lang!=="pl"; const me=currentUser;
+    const seesAll=me==="Danya";
+    // 1. Новые заявки
+    const fresh=[...FRESH].map(id=>(db?.leads||[]).find(l=>l.id===id)).filter(Boolean).filter(l=>!l.manager||l.manager===me||seesAll).filter(l=>!wasPopped("lead:"+l.id)&&!isSnoozed("lead:"+l.id));
+    if(fresh.length){const l=fresh[0];out.push({key:"lead:"+l.id,kind:"lead",kicker:ru?"🚨 Новая заявка — реагируй сразу":"🚨 Nowy lead",title:l.name||l.phone||"—",body:`${l.phone||""}${l.source?"  ·  "+srcShort(l.source):""}${l.notes?"\n"+l.notes:""}`,count:fresh.length,ids:fresh.map(x=>x.id),lead:l});}
+    // 2. Задачи от других
+    const myT=(db?.tasks||[]).filter(x=>x.assignee===me&&x.from&&x.from!==me&&!(x.seenBy||[]).includes(me)&&!wasPopped("task:"+x.id)&&!isSnoozed("task:"+x.id));
+    if(myT.length){const x=myT[0];out.push({key:"task:"+x.id,kind:"task",kicker:(ru?"☰ Тебе закинул задачу: ":"☰ Zadanie od: ")+x.from,title:x.title,body:[x.priority?`${ru?"Приоритет":"Priorytet"}: ${x.priority}`:"",x.deadline?`📅 ${x.deadline.split("-").reverse().join(".")}`:"",x.leadName?`◈ ${x.leadName}`:""].filter(Boolean).join("   "),count:myT.length,task:x});}
+    // 3. Напоминания (визит / push / просчёт)
+    const rems=(db?.chat||[]).filter(m=>m.kind==="reminder"&&!m.ackBy&&!isSnoozed(m.key)&&!wasPopped(m.key)).filter(m=>{const mgrs=m.rtype==="push"?(m.data?.items||[]).map(x=>x.mgr):[m.data?.mgr];return seesAll||!mgrs.some(Boolean)||mgrs.includes(me);});
+    if(rems.length){const m=rems[0];const txt=formatReminder(m,T[lang]||T.ru);const nl=txt.indexOf("\n");out.push({key:m.key,kind:"reminder",rtype:m.rtype,kicker:m.rtype==="push"?"🚀 Push":m.rtype==="quote"?"💰 "+(T[lang]||T.ru).quote:"📅 "+(T[lang]||T.ru).visit,title:nl>0?txt.slice(0,nl):txt,body:nl>0?txt.slice(nl+1).trim():"",count:rems.length,rem:m});}
+    return out;
+  })();
+  const activeAlert=pendingAlerts[0]||null;
+  const lastAlertKey=useRef(null);
+  useEffect(()=>{ if(activeAlert&&activeAlert.key!==lastAlertKey.current){lastAlertKey.current=activeAlert.key; if(activeAlert.kind==="lead")playSiren(2); else playDing();} },[activeAlert?.key]);
+  const alertAccept=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);
+    if(a.kind==="lead"){a.ids.forEach(unmarkFresh);}
+    else if(a.kind==="task"){updateDb(p=>({...p,tasks:(p.tasks||[]).map(x=>x.id===a.task.id?{...x,seenBy:[...new Set([...(x.seenBy||[]),currentUser])]}:x)}),true);}
+    else if(a.kind==="reminder"){updateDb(p=>({...p,chat:(p.chat||[]).map(m=>(m.key===a.key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m)}),true);}
+    alertTick(x=>x+1);};
+  const alertSnooze=(until)=>{const a=activeAlert;if(!a)return;setSnooze(a.key,until);alertTick(x=>x+1);};
+  const alertOpen=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);
+    if(a.kind==="lead"){a.ids.forEach(unmarkFresh);setPage("leads");setSelLead(a.lead);}
+    else if(a.kind==="task"){setPage("tasks");}
+    else {setPage("alerts");}
+    alertTick(x=>x+1);};
   // Разрешение на системные уведомления: пробуем сразу и по первому клику (часть браузеров требует жест)
   useEffect(()=>{
     const ask=()=>{try{if(typeof Notification!=="undefined"&&Notification.permission==="default")Notification.requestPermission().catch(()=>{});}catch{}};
@@ -3563,6 +4117,12 @@ function GarnoCRM(){
   const saveUser=(u)=>{localStorage.setItem("garno_user",u);setCurrentUser(u);};
   // Язык CRM по менеджеру: Mateusz — польский, остальные — русский (можно переключить вручную)
   useEffect(()=>{ setLang(currentUser==="Mateusz"?"pl":"ru"); },[currentUser]);
+  // ── GARNO TODAY: утренний брифинг раз в день на менеджера ──
+  const [showToday,setShowToday]=useState(false);
+  useEffect(()=>{
+    if(status!=="ready"||!currentUser||currentUser==="all")return;
+    try{ if(localStorage.getItem(`garno_today_${currentUser}`)!==getToday()) setShowToday(true); }catch{}
+  },[status,currentUser]);
 
   if(status==="loading") return(
     <div style={{display:"flex",height:"100vh",background:C.bg,alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
@@ -3607,6 +4167,10 @@ function GarnoCRM(){
   const chatHist= db.chat    ?? [];
   const srcList = domainsState&&domainsState.length ? domainsState : normDoms(SOURCES);
   // Unread tasks: assigned to currentUser, not yet seen by them
+  const closeToday=()=>{
+    try{ localStorage.setItem(`garno_today_${currentUser}`,getToday()); localStorage.setItem(`garno_today_last_${currentUser}`,String(Date.now())); }catch{}
+    setShowToday(false);
+  };
   const unreadTasksCount = (db.tasks||[]).filter(t=>
     t.assignee===currentUser &&
     !(t.seenBy||[]).includes(currentUser)
@@ -3643,6 +4207,11 @@ function GarnoCRM(){
         ::-webkit-scrollbar-thumb{background:rgba(191,164,126,0.35);border-radius:3px;}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes garnoFresh{0%,100%{background:rgba(250,204,21,0.10)}50%{background:rgba(250,204,21,0.55)}}
+        tr.garno-fresh{animation:garnoFresh 0.9s ease-in-out infinite;}
+        tr.garno-fresh td:first-child{box-shadow:inset 4px 0 0 #facc15;}
+        @keyframes garnoShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+        @keyframes garnoPop{from{transform:scale(0.92);opacity:0}to{transform:scale(1);opacity:1}}
         input::placeholder,textarea::placeholder{color:${C.dim};}
         select option{background:${C.surface};color:${C.text};}
         input[type=checkbox]{accent-color:${C.accent};}
@@ -3663,7 +4232,7 @@ function GarnoCRM(){
           * {-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
         }
       `}</style>
-      <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr} unreadTasks={unreadTasksCount} pushDue={pushDueTodayCount} aiUnread={aiUnreadCount} t={t}/>
+      <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr} unreadTasks={unreadTasksCount} pushDue={pushDueTodayCount} aiUnread={aiUnreadCount} freshLeads={freshCount()} t={t}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} unreadTasks={unreadTasksCount} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
@@ -3672,12 +4241,16 @@ function GarnoCRM(){
           {page==="leads"      && <LeadsSection leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} srcList={srcList} setDomains={setDomains} t={t} lang={lang}/>}
-          {page==="ai"         && <AIPage leads={leads} events={events} sales={sales} t={t} lang={lang} chatHistory={chatHist} setChatHistory={setChatHistory} currentUser={currentUser}/>}
-          {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang}/>}
-          {page==="tasks"      && <TasksPage tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t}/>}
+          {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
+          {page==="salescenter"&& <SalesCenterPage leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage}/>}
+          {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={setSelLead}/>}
+          {page==="tasks"      && <TasksPage tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t} leads={leads} taskTypes={db.taskTypes||[]} onOpenLead={setSelLead} initialModal={taskPreset} />}
         </div>
       </div>
-      {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser}/>}
+      {activeAlert && <AlertPopup alert={activeAlert} onAccept={alertAccept} onSnooze={alertSnooze} onOpen={alertOpen} lang={lang}/>}
+      {showToday && currentUser && currentUser!=="all" && <GarnoTodayPopup leads={leads} sales={sales} tasks={db.tasks||[]} currentUser={currentUser} lang={lang} setPage={setPage} onOpenLead={setSelLead} onClose={closeToday}/>}
+      {!showToday && currentUser && currentUser!=="all" && <button onClick={()=>setShowToday(true)} title="GARNO TODAY" style={{position:"fixed",right:18,bottom:18,zIndex:900,width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#bfa47e,#d4b896)",border:"none",color:"#00132f",fontSize:20,cursor:"pointer",boxShadow:"0 6px 18px rgba(191,164,126,0.4)"}}>☀</button>}
+      {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser} taskTypes={db.taskTypes||[]} tasks={tasks}/>}
       {showAdd  && <AddLeadModal onClose={()=>setShowAdd(false)} onAdd={addLead} srcList={srcList} t={t} lang={lang} nextNum={nextNum} currentUser={currentUser}/>}
     </div>
   );
