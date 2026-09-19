@@ -799,7 +799,7 @@ function useDatabase(){
           // 🚨 Новые заявки прилетели извне (лендинг/другой менеджер) — тревога
           if(remoteNewLeads.length>0){
             markFresh(remoteNewLeads.map(l=>l.id));
-            playSiren(3);
+            playSiren(SIREN_SECONDS);
             startTitleStrobe(freshCount,"новых заявок");
             showDesktopNotif(`🔔 ${remoteNewLeads.length===1?"Новая заявка":"Новые заявки: "+remoteNewLeads.length}`,remoteNewLeads.slice(0,3).map(l=>`${l.name||"—"} · ${l.phone||""}`).join("\n"),()=>{try{window.__garnoGoLeads&&window.__garnoGoLeads();}catch{}});
             const first=remoteNewLeads[0];
@@ -1055,7 +1055,7 @@ try{
 let FRESH_LISTENERS=[];
 function _freshSave(){try{localStorage.setItem(FRESH_KEY,JSON.stringify([...FRESH.entries()]));}catch{} FRESH_LISTENERS.forEach(f=>{try{f();}catch{}});}
 function markFresh(ids){const now=Date.now();ids.forEach(id=>{if(!FRESH.has(id))FRESH.set(id,now);});_freshSave();}
-function unmarkFresh(id){if(FRESH.has(id)){FRESH.delete(id);_freshSave();}}
+function unmarkFresh(id){if(FRESH.has(id)){FRESH.delete(id);_freshSave();} if(FRESH.size===0)stopSiren();}
 function freshCount(){return FRESH.size;}
 function isFresh(id){return FRESH.has(id);}
 // Сколько минут самая старая непросмотренная заявка висит без реакции
@@ -1069,7 +1069,7 @@ function checkFreshEscalation(){
   const sinceLast=(Date.now()-_lastSirenAt)/60000;
   if(sinceLast<SIREN_REPEAT_MIN)return;
   _lastSirenAt=Date.now();
-  playSiren(5);
+  playSiren(SIREN_SECONDS);
   showDesktopNotif(`🚨 ЗАЯВКА БЕЗ РЕАКЦИИ ${Math.round(oldest)} мин`,`Непросмотренных заявок: ${FRESH.size}. Откройте лида!`,()=>{try{window.__garnoGoLeads&&window.__garnoGoLeads();}catch{}});
 }
 // Сирена через Web Audio (без внешних файлов): 3 цикла двухтонового сигнала
@@ -1080,16 +1080,23 @@ if(typeof window!=="undefined"){
   const _unlock=()=>{try{_ctx();}catch{} window.removeEventListener("pointerdown",_unlock,true); window.removeEventListener("keydown",_unlock,true);};
   window.addEventListener("pointerdown",_unlock,true); window.addEventListener("keydown",_unlock,true);
 }
-function playSiren(cycles=3){
+// Сирена: громкая, по умолчанию 30 секунд. stopSiren() глушит сразу (открыли заявку / приняли).
+const SIREN_SECONDS=30, SIREN_GAIN=0.9;
+let _sirenNodes=[];
+function stopSiren(){ try{ _sirenNodes.forEach(n=>{try{n.stop();}catch{}}); }catch{} _sirenNodes=[]; }
+function playSiren(seconds=SIREN_SECONDS){
   try{
+    stopSiren();
     const ctx=_ctx(); const t0=ctx.currentTime+0.05;
+    const cycleLen=0.55, cycles=Math.max(1,Math.round(seconds/cycleLen));
     for(let i=0;i<cycles;i++){
       const o=ctx.createOscillator(); const g=ctx.createGain();
       o.type="square"; o.connect(g); g.connect(ctx.destination);
-      const st=t0+i*0.55;
+      const st=t0+i*cycleLen;
       o.frequency.setValueAtTime(880,st); o.frequency.linearRampToValueAtTime(1320,st+0.25); o.frequency.linearRampToValueAtTime(880,st+0.5);
-      g.gain.setValueAtTime(0.0001,st); g.gain.exponentialRampToValueAtTime(0.25,st+0.03); g.gain.exponentialRampToValueAtTime(0.0001,st+0.5);
+      g.gain.setValueAtTime(0.0001,st); g.gain.exponentialRampToValueAtTime(SIREN_GAIN,st+0.03); g.gain.exponentialRampToValueAtTime(0.0001,st+0.5);
       o.start(st); o.stop(st+0.52);
+      _sirenNodes.push(o);
     }
   }catch{}
 }
@@ -4195,15 +4202,15 @@ function GarnoCRM(){
   })();
   const activeAlert=pendingAlerts[0]||null;
   const lastAlertKey=useRef(null);
-  useEffect(()=>{ if(activeAlert&&activeAlert.key!==lastAlertKey.current){lastAlertKey.current=activeAlert.key; if(activeAlert.kind==="lead")playSiren(2); else playDing();} },[activeAlert?.key]);
-  const alertAccept=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);
+  useEffect(()=>{ if(activeAlert&&activeAlert.key!==lastAlertKey.current){lastAlertKey.current=activeAlert.key; if(activeAlert.kind==="lead")playSiren(SIREN_SECONDS); else playDing();} },[activeAlert?.key]);
+  const alertAccept=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);stopSiren();
     if(a.kind==="lead"){a.ids.forEach(unmarkFresh);}
     else if(a.kind==="task"){updateDb(p=>({...p,tasks:(p.tasks||[]).map(x=>x.id===a.task.id?{...x,seenBy:[...new Set([...(x.seenBy||[]),currentUser])]}:x)}),true);}
     else if(a.kind==="reminder"){updateDb(p=>({...p,chat:(p.chat||[]).map(m=>(m.key===a.key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m)}),true);}
     alertTick(x=>x+1);};
   const alertSnooze=(until)=>{const a=activeAlert;if(!a)return;setSnooze(a.key,until);alertTick(x=>x+1);};
   // Закрыть без принятия: больше не всплывает сейчас, но остаётся непринятым в Аллертах
-  const alertDismiss=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);alertTick(x=>x+1);};
+  const alertDismiss=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);stopSiren();alertTick(x=>x+1);};
   const alertOpen=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);
     if(a.kind==="lead"){a.ids.forEach(unmarkFresh);setPage("leads");setSelLead(a.lead);}
     else if(a.kind==="task"){setPage("tasks");}
