@@ -559,6 +559,8 @@ function useDatabase(){
         chat:(data.chat||[]).filter(m=>m.kind==="reminder"&&!m.ackBy&&(!m.data?.date||m.data.date>=td)),
         alertsPurgedV1:true};
     }
+    // Чистка v2: по запросу — удалить ВСЕ старые аллерты из старого AI-ассистента, начать с чистого листа.
+    if(!data.alertsPurgedV2){ data={...data,chat:[],alertsPurgedV2:true}; }
     // Rename legacy manager Patryk -> Mateusz across all records
     const fixMgr=(v)=>v==="Patryk"?"Mateusz":v;
     if(data.leads) data={...data,leads:data.leads.map(l=>l.manager==="Patryk"?{...l,manager:"Mateusz"}:l)};
@@ -2958,7 +2960,8 @@ function AlertPopup({alert,onAccept,onSnooze,onOpen,onDismiss,lang}){
   const untilFor=(v)=>{if(v==="tomorrow"){const d=new Date();d.setDate(d.getDate()+1);d.setHours(9,0,0,0);return d.getTime();}return Date.now()+v;};
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,5,20,0.92)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(6px)"}}>
-      <div style={{width:"min(720px,94vw)",background:"#0d1527",border:`3px solid ${col}`,borderRadius:22,padding:"36px 40px",boxShadow:`0 0 80px ${col}66, 0 30px 80px rgba(0,0,0,0.8)`,animation:"garnoPop 0.25s ease-out, garnoShake 0.5s ease-in-out 0.25s",fontFamily:"'DM Sans',sans-serif"}}>
+      <div style={{position:"relative",width:"min(720px,94vw)",background:"#0d1527",border:`3px solid ${col}`,borderRadius:22,padding:"36px 40px",boxShadow:`0 0 80px ${col}66, 0 30px 80px rgba(0,0,0,0.8)`,animation:"garnoPop 0.25s ease-out, garnoShake 0.5s ease-in-out 0.25s",fontFamily:"'DM Sans',sans-serif"}}>
+        {onDismiss&&<button onClick={onDismiss} title={ru?"Закрыть":"Zamknij"} style={{position:"absolute",top:14,right:16,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:10,width:38,height:38,fontSize:18,cursor:"pointer",lineHeight:1}}>✕</button>}
         <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18}}>
           <div style={{fontSize:56,lineHeight:1,animation:"pulse 1s infinite"}}>{icon}</div>
           <div style={{flex:1}}>
@@ -4069,6 +4072,8 @@ function GarnoCRM(){
     else if(a.kind==="reminder"){updateDb(p=>({...p,chat:(p.chat||[]).map(m=>(m.key===a.key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m)}),true);}
     alertTick(x=>x+1);};
   const alertSnooze=(until)=>{const a=activeAlert;if(!a)return;setSnooze(a.key,until);alertTick(x=>x+1);};
+  // Закрыть без принятия: больше не всплывает сейчас, но остаётся непринятым в Аллертах
+  const alertDismiss=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);alertTick(x=>x+1);};
   const alertOpen=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);
     if(a.kind==="lead"){a.ids.forEach(unmarkFresh);setPage("leads");setSelLead(a.lead);}
     else if(a.kind==="task"){setPage("tasks");}
@@ -4247,7 +4252,7 @@ function GarnoCRM(){
           {page==="tasks"      && <TasksPage tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t} leads={leads} taskTypes={db.taskTypes||[]} onOpenLead={setSelLead} initialModal={taskPreset} />}
         </div>
       </div>
-      {activeAlert && <AlertPopup alert={activeAlert} onAccept={alertAccept} onSnooze={alertSnooze} onOpen={alertOpen} lang={lang}/>}
+      {activeAlert && <AlertPopup alert={activeAlert} onAccept={alertAccept} onSnooze={alertSnooze} onOpen={alertOpen} onDismiss={alertDismiss} lang={lang}/>}
       {showToday && currentUser && currentUser!=="all" && <GarnoTodayPopup leads={leads} sales={sales} tasks={db.tasks||[]} currentUser={currentUser} lang={lang} setPage={setPage} onOpenLead={setSelLead} onClose={closeToday}/>}
       {!showToday && currentUser && currentUser!=="all" && <button onClick={()=>setShowToday(true)} title="GARNO TODAY" style={{position:"fixed",right:18,bottom:18,zIndex:900,width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#bfa47e,#d4b896)",border:"none",color:"#00132f",fontSize:20,cursor:"pointer",boxShadow:"0 6px 18px rgba(191,164,126,0.4)"}}>☀</button>}
       {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser} taskTypes={db.taskTypes||[]} tasks={tasks}/>}
