@@ -4299,9 +4299,10 @@ function GarnoCRM(){
   },[status,currentUser]);
   // Заявка, принятая любым менеджером (seenBy в базе), гаснет и здесь
   useEffect(()=>{
+    if(!db)return; // база ещё грузится
     const changed=pruneFresh(db.leads||[]);
     if(changed&&freshCount()===0)stopSiren();
-  },[db.leads]);
+  },[db?.leads]);
 
   if(status==="loading") return(
     <div style={{display:"flex",height:"100vh",background:C.bg,alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
