@@ -755,6 +755,8 @@ function useDatabase(){
       savingRef.current=false;
       // A change arrived while we were writing — flush it now.
       if(dirtyRef.current){dirtyRef.current=false;mergeWrite();}
+      // Фоновый опрос не должен умирать после неудачной записи — иначе новые заявки не детектятся
+      else if(!bgSyncRef.current) setTimeout(()=>{ if(!bgSyncRef.current&&!savingRef.current) startBgSync(); },5000);
     }
   };
 
@@ -762,7 +764,7 @@ function useDatabase(){
   const bgSyncRef=useRef(null);
   const startBgSync=()=>{
     if(bgSyncRef.current)clearInterval(bgSyncRef.current);
-    bgSyncRef.current=setInterval(()=>{
+    const tick=()=>{
       if(savingRef.current||provisionalRef.current)return;
       (async()=>{
         try{
@@ -813,7 +815,9 @@ function useDatabase(){
           setDbState(merged);
         }catch{}
       })();
-    },25000);
+    };
+    bgSyncRef.current=setInterval(tick,15000);
+    setTimeout(tick,1500); // первый опрос почти сразу, не через 15 с
   };
 
   // ── Load on mount ─────────────────────────────────────────────────────────
@@ -1056,13 +1060,27 @@ let FRESH_LISTENERS=[];
 function _freshSave(){try{localStorage.setItem(FRESH_KEY,JSON.stringify([...FRESH.entries()]));}catch{} FRESH_LISTENERS.forEach(f=>{try{f();}catch{}});}
 function markFresh(ids){const now=Date.now();ids.forEach(id=>{if(!FRESH.has(id))FRESH.set(id,now);});_freshSave();}
 function unmarkFresh(id){if(FRESH.has(id)){FRESH.delete(id);_freshSave();} if(FRESH.size===0)stopSiren();}
-function freshCount(){return FRESH.size;}
+function freshCount(){ if(!_knownLeadIds) return FRESH.size; let n=0; FRESH.forEach((_,id)=>{ if(_knownLeadIds.has(id)) n++; }); return n; }
 function isFresh(id){return FRESH.has(id);}
+// Самоочистка FRESH по базе: убираем призраков (лида нет) и уже принятых (seenBy). Возвращает true, если что-то удалили.
+let _knownLeadIds=null;
+function pruneFresh(leads){
+  const arr=leads||[]; _knownLeadIds=new Set(arr.map(l=>l.id));
+  let changed=false;
+  [...FRESH.keys()].forEach(id=>{
+    const l=arr.find(x=>x.id===id);
+    if(!l||(l.seenBy||[]).length>0){FRESH.delete(id);changed=true;}
+  });
+  if(changed)_freshSave();
+  return changed;
+}
 // Сколько минут самая старая непросмотренная заявка висит без реакции
 function freshOldestMin(){let m=0;const now=Date.now();FRESH.forEach(t=>{const mm=(now-t)/60000;if(mm>m)m=mm;});return m;}
 // Эскалация: проверяется раз в минуту. Сирена повторяется, пока не откроют.
 let _lastSirenAt=0;
 function checkFreshEscalation(){
+  // Не орать на призраков: считаем только заявки, которые есть в базе
+  if(_knownLeadIds){ let ch=false; [...FRESH.keys()].forEach(id=>{ if(!_knownLeadIds.has(id)){FRESH.delete(id);ch=true;} }); if(ch)_freshSave(); }
   if(FRESH.size===0)return;
   const oldest=freshOldestMin();
   if(oldest<SIREN_AFTER_MIN)return;
@@ -1077,21 +1095,29 @@ let _audioCtx=null;
 function _ctx(){ _audioCtx=_audioCtx||new (window.AudioContext||window.webkitAudioContext)(); if(_audioCtx.state==="suspended"){try{_audioCtx.resume();}catch{}} return _audioCtx; }
 // Браузер даёт звук только после жеста пользователя: первый клик/клавиша разблокирует аудио на всю сессию
 if(typeof window!=="undefined"){
-  const _unlock=()=>{try{_ctx();}catch{} window.removeEventListener("pointerdown",_unlock,true); window.removeEventListener("keydown",_unlock,true);};
+  const _unlock=()=>{try{const c=_ctx(); const go=()=>{ if(_pendingSiren>0){const sec=_pendingSiren;_pendingSiren=0;playSiren(sec);} }; if(c.state==="running")go(); else c.resume().then(go).catch(()=>{});}catch{}};
+  // Слушатель постоянный: жест всегда может «выпустить» отложенную сирену (например, после долгого фона)
   window.addEventListener("pointerdown",_unlock,true); window.addEventListener("keydown",_unlock,true);
 }
 // Сирена: громкая, по умолчанию 30 секунд. stopSiren() глушит сразу (открыли заявку / приняли).
 const SIREN_SECONDS=30, SIREN_GAIN=0.9;
-let _sirenNodes=[];
-function stopSiren(){ try{ _sirenNodes.forEach(n=>{try{n.stop();}catch{}}); }catch{} _sirenNodes=[]; }
+let _sirenNodes=[], _sirenMaster=null, _pendingSiren=0;
+function stopSiren(){
+  _pendingSiren=0;
+  try{ if(_sirenMaster){ const ctx=_audioCtx; if(ctx){_sirenMaster.gain.cancelScheduledValues(ctx.currentTime);_sirenMaster.gain.setValueAtTime(0,ctx.currentTime);} try{_sirenMaster.disconnect();}catch{} } }catch{}
+  _sirenNodes.forEach(n=>{try{n.stop();}catch{}}); _sirenNodes=[]; _sirenMaster=null;
+}
 function playSiren(seconds=SIREN_SECONDS){
   try{
     stopSiren();
-    const ctx=_ctx(); const t0=ctx.currentTime+0.05;
-    const cycleLen=0.55, cycles=Math.max(1,Math.round(seconds/cycleLen));
+    const ctx=_ctx();
+    // Браузер без жеста не даст звук: запоминаем и сыграем при первом клике/клавише
+    if(ctx.state!=="running"){ _pendingSiren=seconds; ctx.resume().then(()=>{ if(_pendingSiren>0&&ctx.state==="running"){const sec=_pendingSiren;_pendingSiren=0;playSiren(sec);} }).catch(()=>{}); return; }
+    const master=ctx.createGain(); master.gain.value=1; master.connect(ctx.destination); _sirenMaster=master;
+    const t0=ctx.currentTime+0.05, cycleLen=0.55, cycles=Math.max(1,Math.round(seconds/cycleLen));
     for(let i=0;i<cycles;i++){
       const o=ctx.createOscillator(); const g=ctx.createGain();
-      o.type="square"; o.connect(g); g.connect(ctx.destination);
+      o.type="square"; o.connect(g); g.connect(master);
       const st=t0+i*cycleLen;
       o.frequency.setValueAtTime(880,st); o.frequency.linearRampToValueAtTime(1320,st+0.25); o.frequency.linearRampToValueAtTime(880,st+0.5);
       g.gain.setValueAtTime(0.0001,st); g.gain.exponentialRampToValueAtTime(SIREN_GAIN,st+0.03); g.gain.exponentialRampToValueAtTime(0.0001,st+0.5);
@@ -2354,7 +2380,12 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
 
 // ─── LEAD DETAIL ──────────────────────────────────────────────────────────────
 function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,currentUser,taskTypes=[],tasks=[]}){
-  useEffect(()=>{unmarkFresh(lead.id);},[lead.id]);
+  useEffect(()=>{
+    unmarkFresh(lead.id);
+    // «Принято» — общее для всех: пишем в базу, чтобы заявка погасла у остальных менеджеров
+    const me=currentUser&&currentUser!=="all"?currentUser:"?";
+    if(!(lead.seenBy||[]).includes(me)) updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,seenBy:[...new Set([...(l.seenBy||[]),me])],seenAt:l.seenAt||Date.now(),updatedAt:Date.now()}:l)}),true);
+  },[lead.id]);
   const [showTask,setShowTask]=useState(false);
   const creatorLD=(currentUser&&currentUser!=='all')?currentUser:null;
   const addTaskForLead=(form)=>{
@@ -4190,7 +4221,7 @@ function GarnoCRM(){
     const out=[]; const ru=lang!=="pl"; const me=currentUser;
     const seesAll=me==="Danya";
     // 1. Новые заявки
-    const fresh=[...FRESH].map(id=>(db?.leads||[]).find(l=>l.id===id)).filter(Boolean).filter(l=>!l.manager||l.manager===me||seesAll).filter(l=>!wasPopped("lead:"+l.id)&&!isSnoozed("lead:"+l.id));
+    const fresh=[...FRESH.keys()].map(id=>(db?.leads||[]).find(l=>l.id===id)).filter(Boolean).filter(l=>!l.manager||l.manager===me||seesAll).filter(l=>!wasPopped("lead:"+l.id)&&!isSnoozed("lead:"+l.id));
     if(fresh.length){const l=fresh[0];out.push({key:"lead:"+l.id,kind:"lead",kicker:ru?"🚨 Новая заявка — реагируй сразу":"🚨 Nowy lead",title:l.name||l.phone||"—",body:`${l.phone||""}${l.source?"  ·  "+srcShort(l.source):""}${l.notes?"\n"+l.notes:""}`,count:fresh.length,ids:fresh.map(x=>x.id),lead:l});}
     // 2. Задачи от других
     const myT=(db?.tasks||[]).filter(x=>x.assignee===me&&x.from&&x.from!==me&&!(x.seenBy||[]).includes(me)&&!wasPopped("task:"+x.id)&&!isSnoozed("task:"+x.id));
@@ -4204,7 +4235,8 @@ function GarnoCRM(){
   const lastAlertKey=useRef(null);
   useEffect(()=>{ if(activeAlert&&activeAlert.key!==lastAlertKey.current){lastAlertKey.current=activeAlert.key; if(activeAlert.kind==="lead")playSiren(SIREN_SECONDS); else playDing();} },[activeAlert?.key]);
   const alertAccept=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);stopSiren();
-    if(a.kind==="lead"){a.ids.forEach(unmarkFresh);}
+    if(a.kind==="lead"){a.ids.forEach(unmarkFresh);const me=currentUser&&currentUser!=="all"?currentUser:"?";const ids=new Set(a.ids);
+      updateDb(p=>({...p,leads:(p.leads||[]).map(l=>ids.has(l.id)&&!(l.seenBy||[]).includes(me)?{...l,seenBy:[...new Set([...(l.seenBy||[]),me])],seenAt:l.seenAt||Date.now(),updatedAt:Date.now()}:l)}),true);}
     else if(a.kind==="task"){updateDb(p=>({...p,tasks:(p.tasks||[]).map(x=>x.id===a.task.id?{...x,seenBy:[...new Set([...(x.seenBy||[]),currentUser])]}:x)}),true);}
     else if(a.kind==="reminder"){updateDb(p=>({...p,chat:(p.chat||[]).map(m=>(m.key===a.key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m)}),true);}
     alertTick(x=>x+1);};
@@ -4265,6 +4297,11 @@ function GarnoCRM(){
     if(status!=="ready"||!currentUser||currentUser==="all")return;
     try{ if(localStorage.getItem(`garno_today_${currentUser}`)!==getToday()) setShowToday(true); }catch{}
   },[status,currentUser]);
+  // Заявка, принятая любым менеджером (seenBy в базе), гаснет и здесь
+  useEffect(()=>{
+    const changed=pruneFresh(db.leads||[]);
+    if(changed&&freshCount()===0)stopSiren();
+  },[db.leads]);
 
   if(status==="loading") return(
     <div style={{display:"flex",height:"100vh",background:C.bg,alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
