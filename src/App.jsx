@@ -1101,6 +1101,10 @@ if(typeof window!=="undefined"){
 }
 // Сирена: громкая, по умолчанию 30 секунд. stopSiren() глушит сразу (открыли заявку / приняли).
 const SIREN_SECONDS=30, SIREN_GAIN=0.9;
+// Беззвучный режим (доступен только Дане): глушит сирену, динь и системные поп-апы. Хранится в браузере.
+const SILENT_KEY="garno_silent";
+function isSilent(){try{return localStorage.getItem(SILENT_KEY)==="1";}catch{return false;}}
+function setSilent(v){try{localStorage.setItem(SILENT_KEY,v?"1":"0");}catch{} if(v)stopSiren();}
 let _sirenNodes=[], _sirenMaster=null, _pendingSiren=0;
 function stopSiren(){
   _pendingSiren=0;
@@ -1110,6 +1114,7 @@ function stopSiren(){
 function playSiren(seconds=SIREN_SECONDS){
   try{
     stopSiren();
+    if(isSilent())return;
     const ctx=_ctx();
     // Браузер без жеста не даст звук: запоминаем и сыграем при первом клике/клавише
     if(ctx.state!=="running"){ _pendingSiren=seconds; ctx.resume().then(()=>{ if(_pendingSiren>0&&ctx.state==="running"){const sec=_pendingSiren;_pendingSiren=0;playSiren(sec);} }).catch(()=>{}); return; }
@@ -1129,6 +1134,7 @@ function playSiren(seconds=SIREN_SECONDS){
 // Короткий «динь» для задач
 function playDing(){
   try{
+    if(isSilent())return;
     const ctx=_ctx(),t0=ctx.currentTime+0.05;
     [[880,0],[1320,0.12]].forEach(([f,d])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.connect(g);g.connect(ctx.destination);o.frequency.value=f;g.gain.setValueAtTime(0.0001,t0+d);g.gain.exponentialRampToValueAtTime(0.3,t0+d+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t0+d+0.35);o.start(t0+d);o.stop(t0+d+0.4);});
   }catch{}
@@ -1146,6 +1152,7 @@ function startTitleStrobe(getCount,label){
 }
 function showDesktopNotif(title,body,onClick){
   try{
+    if(isSilent())return;
     if(typeof Notification==="undefined"||Notification.permission!=="granted")return;
     const n=new Notification(title,{body:body||"",tag:title});
     n.onclick=()=>{ try{window.focus();}catch{} if(onClick)onClick(); try{n.close();}catch{} };
@@ -1867,6 +1874,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
         <button onClick={()=>setShowUsers(p=>!p)} style={{display:"flex",alignItems:"center",gap:8,background:C.card,border:`1px solid ${MGR_COLOR[currentUser]||C.accentBorder}`,borderRadius:10,padding:"6px 12px",cursor:"pointer",color:C.text}}>
           <div style={{width:24,height:24,borderRadius:"50%",background:`${MGR_COLOR[currentUser]||C.accent}25`,border:`2px solid ${MGR_COLOR[currentUser]||C.accent}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:MGR_COLOR[currentUser]||C.accent}}>{(currentUser||"?")[0].toUpperCase()}</div>
           <span style={{fontSize:12,fontWeight:600,color:MGR_COLOR[currentUser]||C.accent}}>{currentUser||t.selectUser}</span>
+          {currentUser==="Danya"&&isSilent()&&<span title="Беззвучный режим" style={{fontSize:12}}>🔕</span>}
           <span style={{fontSize:10,color:C.muted}}>▾</span>
         </button>
         {showUsers&&<div onClick={()=>setShowUsers(false)} style={{position:"fixed",inset:0,zIndex:1999}}/>}
@@ -1880,6 +1888,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
                 {active&&<div style={{marginLeft:"auto",width:8,height:8,borderRadius:"50%",background:MGR_COLOR[m]}}/>}
               </button>
             );})}
+            {currentUser==="Danya"&&<button onClick={()=>{setSilent(!isSilent());setShowUserMenu(false);}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",marginTop:4,background:isSilent()?"rgba(251,146,60,0.12)":"transparent",border:"none",borderTop:`1px solid ${C.border}`,color:isSilent()?"#fb923c":C.text,cursor:"pointer",fontSize:12,fontWeight:700,textAlign:"left"}}>{isSilent()?"🔕 Беззвучный режим: ВКЛ":"🔔 Беззвучный режим: выкл"}</button>}
             <button onClick={()=>{authClear();window.location.reload();}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",marginTop:4,background:"transparent",border:"none",borderTop:`1px solid ${C.border}`,color:C.red,cursor:"pointer",fontSize:12,fontWeight:700,textAlign:"left"}}>⎋ Выйти из аккаунта</button>
           </div>
         )}
@@ -2358,7 +2367,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                     : <span style={{color:C.dim,fontSize:15,opacity:0.3,cursor:"pointer"}}>＋</span>}
                 </td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
-                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span></td>
+                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
                 <td style={{padding:"8px 10px"}}><ScoreBar score={l.score}/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.qualification]} color={QUAL_COLOR[l.qualification]} small/></td>
@@ -2469,14 +2478,17 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   };
   const inp=(field,label)=>(<div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{label}</div>{editing?<input value={form[field]||""} onChange={e=>set(field,e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",boxSizing:"border-box"}}/>:<div style={{fontSize:13,color:form[field]?C.text:C.dim}}>{form[field]||"—"}</div>}</div>);
   return(<>
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:"16px 16px 0 0",border:`1px solid ${C.border}`,width:"100%",maxWidth:820,maxHeight:"90vh",overflow:"auto",padding:22}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={44} noMedal/><div><div style={{fontSize:16,fontWeight:700,color:C.text}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowTask(true)} title={lang==="pl"?"Nowe zadanie":"Новая задача"} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#ef4444",cursor:"pointer"}}>☰ {leadTasks.length>0?leadTasks.length:"+"}</button><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.86)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"linear-gradient(165deg,#0a1a3a 0%,#00132f 55%,#000d22 100%)",borderRadius:22,border:"1px solid rgba(191,164,126,0.45)",boxShadow:"0 30px 90px rgba(0,0,0,0.65), 0 0 0 1px rgba(191,164,126,0.12) inset",width:"100%",maxWidth:860,maxHeight:"92vh",overflow:"auto",padding:0}}>
+        <style>{`.ld-sec{background:rgba(255,255,255,0.035);border:1px solid rgba(191,164,126,0.22);border-radius:14px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,0.25);transition:border-color .15s}.ld-sec:hover{border-color:rgba(191,164,126,0.45)}.ld-sec>div:first-child{font-size:10px;color:#bfa47e;text-transform:uppercase;letter-spacing:1.6px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:6px}.ld-sec>div:first-child::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(191,164,126,0.4),transparent)}`}</style>
+        <div style={{height:4,background:"linear-gradient(90deg,#bfa47e,#e2c996,#bfa47e)"}}/>
+        <div style={{padding:22}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:18,paddingBottom:16,borderBottom:"1px solid rgba(191,164,126,0.2)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}><div style={{position:"relative"}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={56} noMedal/><div style={{position:"absolute",right:-3,bottom:-3,width:14,height:14,borderRadius:"50%",background:QUAL_COLOR[form.qualification]||C.accent,border:"2px solid #00132f"}}/></div><div><div style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:0.2}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowTask(true)} title={lang==="pl"?"Nowe zadanie":"Новая задача"} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#ef4444",cursor:"pointer"}}>☰ {leadTasks.length>0?leadTasks.length:"+"}</button><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
           <div style={{display:"flex",gap:8}}>{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(false);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}<Btn onClick={onClose} variant="ghost" small>✕</Btn></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-          <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
+          <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📞 Контакт</div>
             {inp("name",t.name)}{inp("phone",t.phone)}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
@@ -2486,7 +2498,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}{form.action==="push"&&<div onClick={()=>{prevAction.current="push";setShowPush(true);}} title={t.editPush} style={{marginTop:5,fontSize:11,color:form.pushDate?dateStateColor(form.pushDate):PUSH_C,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5,border:`1px solid ${PUSH_C}44`,borderRadius:7,padding:"3px 9px"}}>🚀 {form.pushDate?`${isoToDot(form.pushDate)}${form.pushTime?` · ${form.pushTime}`:""}`:t.pushSetDate}</div>}</div>
             <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>:form.manager?<div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></div>:<span style={{color:C.dim}}>—</span>}</div>
           </div>
-          <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
+          <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>◈ Оценка 0–6</div>
             <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{[0,1,2,3,4,4.5,5,6].map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} title={s===4.5?"MWP — только вручную":""} style={{minWidth:34,height:34,padding:s===4.5?"0 6px":0,borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
             {form.autoScored&&<div style={{fontSize:10,color:"#2dd4bf",marginTop:-6,marginBottom:8}}>⚡ {t.autoScoreHint}</div>}
@@ -2519,15 +2531,16 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginTop:14}}>
-          <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
+          <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📝 {t.notes}</div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.period}</div>{editing?<select value={form.budgetTimeline||"unconfirmed"} onChange={e=>set("budgetTimeline",e.target.value)} style={{background:C.surface,border:`1px solid ${BUD_COLOR[form.budgetTimeline]||C.borderMd}`,color:BUD_COLOR[form.budgetTimeline]||C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{BUDGETS.map(b=><option key={b} value={b}>{t[b]||b}</option>)}</select>:<Badge label={t[form.budgetTimeline]||"—"} color={BUD_COLOR[form.budgetTimeline]||C.muted} small/>}</div>
             {editing?<textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"8px 10px",fontSize:12,width:"100%",minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>:<div style={{fontSize:12,color:form.notes?C.text:C.dim,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{form.notes||"—"}</div>}
           </div>
-          <div style={{background:C.card,borderRadius:10,padding:14,border:`1px solid ${C.border}`}}>
+          <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>◷ {t.history}</div>
             {(form.history||[]).length===0?<div style={{color:C.dim,fontSize:12}}>—</div>:[...(form.history||[])].reverse().map((h,i)=>(<div key={i} style={{display:"flex",gap:8,marginBottom:8}}><div style={{width:2,background:C.accentBorder,borderRadius:1}}/><div><div style={{fontSize:11,color:C.text}}>{h.action}</div><div style={{fontSize:10,color:C.muted}}>{h.date} · <span style={{color:MGR_COLOR[h.by]||C.accent,fontWeight:600}}>{h.by}</span></div></div></div>))}
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -2911,6 +2924,9 @@ const SNOOZE_KEY="garno_snooze";
 function getSnooze(){try{return JSON.parse(localStorage.getItem(SNOOZE_KEY)||"{}");}catch{return{};}}
 function setSnooze(key,until){const m=getSnooze();m[key]=until;try{localStorage.setItem(SNOOZE_KEY,JSON.stringify(m));}catch{}}
 function isSnoozed(key){const u=getSnooze()[key];return !!u&&u>Date.now();}
+function snoozeUntil(key){const u=getSnooze()[key];return (u&&u>Date.now())?u:null;}
+function snoozeLeft(key){const u=snoozeUntil(key);if(!u)return null;const m=Math.max(0,Math.round((u-Date.now())/60000));return m>=60?`${Math.floor(m/60)}ч ${m%60}м`:`${m} мин`;}
+function clearSnooze(key){const m=getSnooze();delete m[key];try{localStorage.setItem(SNOOZE_KEY,JSON.stringify(m));}catch{}}
 // Ключи поп-апов, которые уже показывали в этой сессии (чтобы не дёргать снова каждые 5с)
 const POPPED_KEY="garno_popped";
 function wasPopped(key){try{const m=JSON.parse(sessionStorage.getItem(POPPED_KEY)||"{}");return !!m[key];}catch{return false;}}
@@ -3342,7 +3358,7 @@ function TaskModal({task,onSave,onClose,t,taskTypes=[],leads=[],onAddType,preset
       <div onClick={e=>e.stopPropagation()} style={{background:'#0d1527',border:'1px solid rgba(255,255,255,0.1)',borderRadius:16,width:'min(560px,94vw)',maxHeight:'92vh',overflowY:'auto',padding:28,boxShadow:'0 24px 64px rgba(0,0,0,0.7)',fontFamily:"'DM Sans',sans-serif"}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
           <div style={{fontSize:18,fontWeight:800,color:'#fff'}}>🖊 {t.task}</div>
-          <button onClick={onClose} style={{background:'transparent',border:'none',color:'rgba(255,255,255,0.4)',fontSize:20,cursor:'pointer',lineHeight:1}}>✕</button>
+          <button type="button" onClick={e=>{e.preventDefault();e.stopPropagation();onClose();}} style={{background:'transparent',border:'none',color:'rgba(255,255,255,0.4)',fontSize:20,cursor:'pointer',lineHeight:1}}>✕</button>
         </div>
         <div style={{marginBottom:14}}>{lbl(t.name.toUpperCase())}<input value={form.title} onChange={e=>set('title',e.target.value)} autoFocus style={ins} placeholder={t.taskTitle}/></div>
 
@@ -3388,8 +3404,8 @@ function TaskModal({task,onSave,onClose,t,taskTypes=[],leads=[],onAddType,preset
         <div style={{display:'flex',gap:10,justifyContent:'space-between'}}>
           {task?.id&&<button onClick={()=>onSave({...form,_delete:true})} style={{padding:'10px 16px',borderRadius:8,border:'1px solid rgba(239,68,68,0.3)',background:'rgba(239,68,68,0.1)',color:'#ef4444',fontWeight:600,cursor:'pointer',fontSize:13}}>🗑 {t.delete}</button>}
           <div style={{display:'flex',gap:10,marginLeft:'auto'}}>
-            <button onClick={onClose} style={{padding:'10px 24px',borderRadius:8,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.7)',fontWeight:600,cursor:'pointer',fontSize:13}}>{t.cancel}</button>
-            <button onClick={()=>{if(form.title.trim())onSave(form);}} style={{padding:'10px 24px',borderRadius:8,border:'none',background:'#ef4444',color:'#fff',fontWeight:700,cursor:'pointer',fontSize:13,opacity:form.title.trim()?1:0.5}}>{t.save}</button>
+            <button type="button" onClick={e=>{e.preventDefault();e.stopPropagation();onClose();}} style={{padding:'10px 24px',borderRadius:8,border:'1px solid rgba(255,255,255,0.2)',background:'transparent',color:'rgba(255,255,255,0.7)',fontWeight:600,cursor:'pointer',fontSize:13}}>{t.cancel}</button>
+            <button type="button" onClick={e=>{e.preventDefault();e.stopPropagation();if(!form.title.trim())return;try{onSave(form);}catch(err){console.error('task save',err);}onClose();}} style={{padding:'10px 24px',borderRadius:8,border:'none',background:'#ef4444',color:'#fff',fontWeight:700,cursor:'pointer',fontSize:13,opacity:form.title.trim()?1:0.5}}>{t.save}</button>
           </div>
         </div>
       </div>
@@ -3605,11 +3621,9 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
     if(!title){resetQuick();return;}
     const cr=(currentUser&&currentUser!=='all')?currentUser:null;
     const asg=cr||(viewUser!=='all'?viewUser:'—'); // задача автоматом на того, кто её создаёт
-    saveTasks([...tasks,buildNewTask({
-      title,status:colId,priority:'MID',assignee:asg,deadline:quickDeadline||'',
-      typeId:quickType||null,leadId:quickLead?quickLead.id:null,leadName:quickLead?(quickLead.name||quickLead.phone):null
-    },cr,tasks)]);
-    resetQuick();
+    const snap={title,status:colId,priority:'MID',assignee:asg,deadline:quickDeadline||'',typeId:quickType||null,leadId:quickLead?quickLead.id:null,leadName:quickLead?(quickLead.name||quickLead.phone):null};
+    resetQuick(); // закрываем форму сразу, независимо от сохранения
+    try{ saveTasks([...tasks,buildNewTask(snap,cr,tasks)]); }catch(err){ console.error('quick task',err); }
   };
 
   const clearDone=()=>{const ids=tasks.filter(t=>(t.status||'all')==='done').map(t=>t.id);if(!ids.length)return;setConfetti(true);setTimeout(()=>deleteTasks(ids),1400);};
@@ -3775,8 +3789,8 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
       </div>}
       <div style={{display:'flex',gap:6,alignItems:'center'}}>
         <span style={{fontSize:10,color:'rgba(255,255,255,0.45)'}}>→ {currentUser&&currentUser!=='all'?currentUser:'—'}</span>
-        <button onClick={()=>quickCreate(colId)} style={{marginLeft:'auto',background:'#7f1d1d',border:'1px solid rgba(239,68,68,0.4)',color:'#fff',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:800,cursor:'pointer'}}>＋ {ru?'Создать':'Utwórz'}</button>
-        <button onClick={resetQuick} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.6)',borderRadius:8,padding:'7px 10px',fontSize:12,cursor:'pointer'}}>✕</button>
+        <button type="button" onClick={e=>{e.preventDefault();e.stopPropagation();quickCreate(colId);}} style={{marginLeft:'auto',background:'#7f1d1d',border:'1px solid rgba(239,68,68,0.4)',color:'#fff',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:800,cursor:'pointer'}}>＋ {ru?'Создать':'Utwórz'}</button>
+        <button type="button" onClick={e=>{e.preventDefault();e.stopPropagation();resetQuick();}} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.6)',borderRadius:8,padding:'7px 10px',fontSize:12,cursor:'pointer'}}>✕</button>
       </div>
     </div>
     );
@@ -4240,7 +4254,7 @@ function GarnoCRM(){
     else if(a.kind==="task"){updateDb(p=>({...p,tasks:(p.tasks||[]).map(x=>x.id===a.task.id?{...x,seenBy:[...new Set([...(x.seenBy||[]),currentUser])]}:x)}),true);}
     else if(a.kind==="reminder"){updateDb(p=>({...p,chat:(p.chat||[]).map(m=>(m.key===a.key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m)}),true);}
     alertTick(x=>x+1);};
-  const alertSnooze=(until)=>{const a=activeAlert;if(!a)return;setSnooze(a.key,until);alertTick(x=>x+1);};
+  const alertSnooze=(until)=>{const a=activeAlert;if(!a)return;setSnooze(a.key,until);stopSiren();lastAlertKey.current=null;alertTick(x=>x+1);};
   // Закрыть без принятия: больше не всплывает сейчас, но остаётся непринятым в Аллертах
   const alertDismiss=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);stopSiren();alertTick(x=>x+1);};
   const alertOpen=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);
