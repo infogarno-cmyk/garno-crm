@@ -297,6 +297,9 @@ const TODAY = getToday(); // module-level default; use getToday() for runtime-cr
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function fmtM(n){if(!n&&n!==0)return"—";return new Intl.NumberFormat("pl-PL").format(n)+" zł";}
+// НДС: менеджер вписывает ИТОГ (брутто, Z). X = нетто = Z/(1+ставка), Y = НДС = Z − X → X+Y=Z всегда сходится.
+const VAT_RATE=0.08, VAT_LABEL="VAT";
+function vatSplit(gross){const z=Math.round(+gross||0);const x=Math.round(z/(1+VAT_RATE));return {gross:z,net:x,vat:z-x,rate:Math.round(VAT_RATE*100)};}
 function daysAgoFn(str){if(!str)return 9999;const p=str.split(".");if(p.length!==3)return 9999;const d=new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);return Math.floor((Date.now()-d.getTime())/86400000);}
 function parseCreatedAt(str){if(!str)return null;const p=str.split(".");if(p.length===3){const yr=p[2].length===4?p[2]:`20${p[2]}`;const d=new Date(`${yr}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);return isNaN(d)?null:d;}return null;}
 function filterByRange(items,range){
@@ -1483,11 +1486,22 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
             <span style={{fontSize:13,fontWeight:700,color:"#16a34a"}}>✅ {L("w cenie","В ціні","included")}</span>
           </div>
 
-          {/* TOTAL */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,padding:"20px 28px",background:"#00132f",borderRadius:12}}>
-            <div style={{color:"#bfa47e",fontSize:22,fontWeight:800,letterSpacing:2,textTransform:"uppercase"}}>{L("Łączna kwota","ЗАГАЛЬНА СУМА","TOTAL AMOUNT")}</div>
-            <div style={{color:"#bfa47e",fontSize:38,fontWeight:900}}>{fmtM(amount)}</div>
-          </div>
+          {/* TOTAL: нетто + НДС = брутто (менеджер вписал брутто) */}
+          {(()=>{const v=vatSplit(amount);return(
+          <div style={{marginTop:16,background:"#00132f",borderRadius:12,overflow:"hidden"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 28px",borderBottom:"1px solid rgba(191,164,126,0.18)"}}>
+              <div style={{color:"rgba(255,255,255,0.65)",fontSize:12,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>{L("Cena netto (bez VAT)","Ціна нетто (без ПДВ)","Net price (excl. VAT)")}</div>
+              <div style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmtM(v.net)}</div>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 28px",borderBottom:"1px solid rgba(191,164,126,0.18)"}}>
+              <div style={{color:"rgba(255,255,255,0.65)",fontSize:12,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>{VAT_LABEL} {v.rate}%</div>
+              <div style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmtM(v.vat)}</div>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"20px 28px"}}>
+              <div style={{color:"#bfa47e",fontSize:22,fontWeight:800,letterSpacing:2,textTransform:"uppercase"}}>{L("Łączna kwota brutto","ЗАГАЛЬНА СУМА","TOTAL AMOUNT")}</div>
+              <div style={{color:"#bfa47e",fontSize:38,fontWeight:900}}>{fmtM(v.gross)}</div>
+            </div>
+          </div>);})()}
 
           {/* STONE UPSELL */}
           {stoneAmt&&(
