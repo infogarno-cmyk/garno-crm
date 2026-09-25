@@ -90,7 +90,7 @@ const T = {
     push:"Push",pushTab:"Пропушить",pushTitle:"Введите дату пуша",pushConfirm:"Подтвердить пуш",pushDate:"Дата пуша",pushTime:"Время",
     noPush:"Пушей пока нет",editPush:"Редактировать пуш",removePush:"Убрать из пушей",pushOverdue:"Просрочено",
     upcomingVisits:"Ближайшие визиты",noUpcomingVisits:"Ближайших визитов нет",sortPush:"По дате пуша",sortCreated:"По дате добавления",
-    pushSetDate:"назначить дату",pushNoDate:"без срока",pushFromLabel:"было",pushToday:"нужно пропушить сегодня",
+    pushSetDate:"назначить дату",pushNoDate:"без срока",pushFromLabel:"было",pushToday:"нужно пропушить сегодня",visited:"Визит состоялся",c1:"Контакт 1",c2:"Контакт 2",cYes:"Есть",cNo:"Нет",term:"Срок",lt4:"4 мес −",gt4:"4 мес +",treeTitle:"Квалификация",treeOpen:"Ветка не закрыта",treeDone:"Ветка закрыта",hintCall58:"Позвони через 5–8 часов, потом отметь Контакт 2",hintMeters:"Считай метрами погонными",rTerm:"Срок",erikaScore:"Оценка Эрики",secondContact:"2 контакт",
     remVisitTitle:"Завтра визит — нужно подтвердить",remVisitCta:"Свяжитесь с клиентом и подтвердите визит.",remNoTime:"время не указано",
     remPushTitle:"15:00 — пора пушить!",remPushLine:"На сегодня ({date}) в «Пропушить»: {n}",remPushCta:"Свяжитесь с клиентами.",
     remQuoteTitle:"Просчёт висит больше суток",remQuoteFor:"в просчёте уже",remQuoteHrs:"ч",remQuoteCta:"Свяжитесь с клиентом или смените действие.",
@@ -160,7 +160,7 @@ const T = {
     push:"Push",pushTab:"Do pushu",pushTitle:"Wprowadź datę pushu",pushConfirm:"Potwierdź push",pushDate:"Data pushu",pushTime:"Godzina",
     noPush:"Brak pushy",editPush:"Edytuj push",removePush:"Usuń z pushy",pushOverdue:"Zaległe",
     upcomingVisits:"Nadchodzące wizyty",noUpcomingVisits:"Brak nadchodzących wizyt",sortPush:"Wg daty pushu",sortCreated:"Wg daty dodania",
-    pushSetDate:"ustaw datę",pushNoDate:"bez terminu",pushFromLabel:"było",pushToday:"do pushu dzisiaj",
+    pushSetDate:"ustaw datę",pushNoDate:"bez terminu",pushFromLabel:"było",pushToday:"do pushu dzisiaj",visited:"Wizyta odbyta",c1:"Kontakt 1",c2:"Kontakt 2",cYes:"Jest",cNo:"Brak",term:"Termin",lt4:"4 mies −",gt4:"4 mies +",treeTitle:"Kwalifikacja",treeOpen:"Gałąź niezamknięta",treeDone:"Gałąź zamknięta",hintCall58:"Zadzwoń za 5–8 godzin, potem zaznacz Kontakt 2",hintMeters:"Licz metrami bieżącymi",rTerm:"Termin",erikaScore:"Ocena Eriki",secondContact:"2 kontakt",
     remVisitTitle:"Jutro wizyta — trzeba potwierdzić",remVisitCta:"Skontaktuj się z klientem i potwierdź wizytę.",remNoTime:"brak godziny",
     remPushTitle:"15:00 — czas na push!",remPushLine:"Na dziś ({date}) w «Do pushu»: {n}",remPushCta:"Skontaktuj się z klientami.",
     remQuoteTitle:"Wycena wisi ponad dobę",remQuoteFor:"w wycenie już",remQuoteHrs:"godz.",remQuoteCta:"Skontaktuj się z klientem lub zmień działanie.",
@@ -198,7 +198,8 @@ const T = {
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const MANAGERS = ["Oleh","Dmytro","Mateusz","Danya","Taras"];
-const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Mateusz:C.purple,Danya:C.cyan,Taras:C.yellow};
+const USERS = [...MANAGERS,"Erika"]; // Эрика — предоценка, не менеджер (нет в KPI/пьедестале)
+const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Mateusz:C.purple,Danya:C.cyan,Taras:C.yellow,Erika:"#f472b6"};
 // Лидер продаж — обновляется в GarnoCRM на каждом рендере (как тема C).
 // Аватар этого менеджера получает медаль везде, где он отрисован.
 let SALES_LEADER = null;
@@ -250,21 +251,66 @@ function GoldWreath({size}){
     </svg>
   );
 }
-// Авто-оценка по парам квалификации:
-//  4.5 — инфо по кухне ЕСТЬ + расстояние 30км− + квартира новая
-//  4.5 — исключение: инфо по кухне ЕСТЬ + срок «в теч. 3 мес.» (даже если остальное не сходится)
-//  4   — любое условие не выполнено (и не исключение)
-//  null — пары заполнены не все → не трогаем оценку
-function autoScoreFromPairs(l){
-  if(!l||!l.kitchenInfo||!l.distance||!l.apartment)return null;
-  const ki=l.kitchenInfo==="yes",near=l.distance==="near",fresh=l.apartment==="new";
-  if(ki&&near&&fresh)return 4.5;
-  if(ki&&l.budget==="within3m")return 4.5;
-  return 4;
+// ─── ДЕРЕВО КВАЛИФИКАЦИИ ─────────────────────────────────────────────────────
+// Контакт 1 → (нет) Контакт 2 → срок (4 мес − / +) → инфо по кухне → расстояние (100 км) → квартира.
+// Возвращает оценку, завершена ли ветка, следующее поле, авто-действие и подсказку.
+// Оценки: 0 нет связи · 1 связь без инфо · 2 срок 4м+ · 2.5 срок 4м+ с инфо · 3 срок 4м− без инфо
+//         4 срок 4м− с инфо · 4.5 MWP (срок 4м−, инфо, до 100 км, новая) · 5 визит назначен · 5.5 визит состоялся · 6 продажа
+const TREE_FIELDS=["c1","c2","term","kitchenInfo","distance","apartment","noVisitReason"];
+const TREE_START=new Date("2026-09-25T00:00:00").getTime(); // ветка обязательна для лидов с этой даты
+function treeEval(l){
+  const r={score:null,done:false,next:null,action:null,hint:null};
+  if(!l)return r;
+  if(!l.c1){r.next="c1";return r;}
+  if(l.c1==="no"){
+    if(!l.c2){r.next="c2";r.hint="call58";return r;}
+    if(l.c2==="no"){r.score=0;r.done=true;r.action="cancelled";return r;}
+  }
+  r.score=1;
+  if(!l.term){r.next="term";return r;}
+  if(l.term==="gt4"){
+    r.score=2;
+    if(!l.kitchenInfo){r.next="kitchenInfo";return r;}
+    if(l.kitchenInfo==="yes"){r.score=2.5;r.action="quote";r.done=true;return r;}
+    r.hint="meters";r.done=true;return r;
+  }
+  r.score=3;
+  if(!l.kitchenInfo){r.next="kitchenInfo";return r;}
+  if(l.kitchenInfo==="no"){r.done=true;return r;}
+  r.score=4;r.action="quote";
+  if(!l.distance){r.next="distance";return r;}
+  if(l.distance==="near"){
+    if(!l.apartment){r.next="apartment";return r;}
+    if(l.apartment==="new")r.score=4.5;
+  }
+  if(!l.noVisitReason){r.next="noVisitReason";return r;}
+  r.done=true;return r;
 }
-function scoreToQual(s){const n=parseFloat(s)||0;if(n<=2)return"unqualified";if(n===3)return"prequalified";if(n===4)return"qualified";if(n===4.5)return"mwp";if(n===5)return"salon";return"sale";}
-const QUALS=["unqualified","prequalified","qualified","mwp","salon","sale"];
-const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,mwp:"#2dd4bf",salon:C.blue,sale:C.accent};
+// Ветка не закрыта (мигает и уходит в аллерты): новые лиды или начатые ветки, без визита/продажи/отмены
+function treeIncomplete(l){
+  if(!l||l.action==="cancelled"||(parseFloat(l.score)||0)>=5)return false;
+  const started=!!l.c1;
+  if(!started&&leadCreatedMsSafe(l)<TREE_START)return false;
+  return !treeEval(l).done;
+}
+// История лида: построчный дифф «что поменялось» с автором
+function leadHistoryDiff(before,after,t,by){
+  const ru=true;
+  const V={c1:{yes:t.cYes,no:t.cNo},c2:{yes:t.cYes,no:t.cNo},term:{lt4:t.lt4,gt4:t.gt4},kitchenInfo:{yes:t.kiYes,no:t.kiNo},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld},noVisitReason:{thinking:t.rThinking,price:t.rPrice,distance:t.rDistance,term:t.rTerm}};
+  const F=[["score",t.score||"Оценка"],["erikaScore",t.erikaScore],["action",t.action||"Действие"],["manager",t.manager||"Менеджер"],["c1",t.c1],["c2",t.c2],["term",t.term],["kitchenInfo",t.kitchenInfo],["distance",t.distance],["apartment",t.apartment],["noVisitReason",t.whyNoVisit],["budgetTimeline",t.period||"Срок"],["source",t.source||"Источник"],["name",t.name||"Имя"],["phone",t.phone||"Телефон"],["visitDate",t.visit||"Визит"],["pushDate",t.pushDate||"Push"],["clientLang","Язык"]];
+  const show=(k,v)=>{if(v===null||v===undefined||v==="")return "—";if(V[k]&&V[k][v])return V[k][v];if((k==="action"||k==="budgetTimeline")&&t[v])return t[v];if(k==="visitDate"||k==="pushDate")return isoToDot(v);return String(v);};
+  const out=[];const d=nowStr();
+  F.forEach(([k,label])=>{const a=before?before[k]:undefined,b=after?after[k]:undefined;if((a??null)!==(b??null))out.push({date:d,action:`${label}: ${show(k,a)} → ${show(k,b)}`,by});});
+  if((before?.notes||"")!==(after?.notes||""))out.push({date:d,action:(before?.notes?"Описание изменено":"Описание добавлено")+`: «${String(after?.notes||"").slice(0,60)}${String(after?.notes||"").length>60?"…":""}»`,by});
+  return out;
+}
+function whoNow(){try{return localStorage.getItem("garno_user")||"—";}catch{return "—";}}
+function histAdd(l,action){return [...(l.history||[]),{date:nowStr(),action,by:whoNow()}];}
+function leadCreatedMsSafe(l){ if(typeof l.id==="number"&&l.id>1e14) return Math.floor(l.id/1000); const d=parseCreatedAt(l.createdAt); return d?d.getTime():0; }
+function scoreToQual(s){const n=parseFloat(s)||0;if(n<=2)return"unqualified";if(n<=3)return"prequalified";if(n===4)return"qualified";if(n===4.5)return"mwp";if(n===5)return"salon";if(n===5.5)return"visited";return"sale";}
+const QUALS=["unqualified","prequalified","qualified","mwp","salon","visited","sale"];
+const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,mwp:"#2dd4bf",salon:C.blue,visited:"#818cf8",sale:C.accent};
+const SCORES=[0,1,2,2.5,3,4,4.5,5,5.5,6];
 const ACTIONS=["undefined","inWork","waitingInfo","thinking","missedCall","cancelled","callback","quote","push","visit","sale"];
 const PUSH_C="#f97316";
 const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple,push:PUSH_C,waitingInfo:"#38bdf8",visit:"#f0c040",sale:"#22c55e",inWork:"#a3e635"};
@@ -275,7 +321,10 @@ const SOURCES=[...D_KALK,"pl.calculatorkuchni.online","roda.calculatorkuchni.onl
 // Normalize domain — always returns {name, color}
 // Domain color palette — safe const before any component renders
 const DOM_COLORS=["#60a5fa","#34d399","#f59e0b","#a78bfa","#f87171","#22d3ee","#fb923c","#e879f9"];
-const normDom=(d,i=0)=>typeof d==="string"?{name:d,color:DOM_COLORS[i%DOM_COLORS.length]}:{name:d.name||String(d),color:d.color||DOM_COLORS[i%DOM_COLORS.length]};
+const normDom=(d,i=0)=>typeof d==="string"?{name:d,color:DOM_COLORS[i%DOM_COLORS.length]}:{...d,name:d.name||String(d),color:d.color||DOM_COLORS[i%DOM_COLORS.length]};
+// Воронка лида = воронка его домена (настраивается в ⚙ Настройки)
+function leadFunnel(l,domains,funnels){const d=(domains||[]).find(x=>x.name===l.source);if(!d||!d.funnel)return null;return (funnels||[]).find(f=>f.id===d.funnel)||null;}
+const FUNNEL_COLORS=["#38bdf8","#f472b6","#a3e635","#fb923c","#c084fc","#facc15","#2dd4bf","#f87171"];
 const normDoms=(arr)=>(Array.isArray(arr)?arr:[]).map((d,i)=>normDom(d,i));
 // Разовый перенос доменов: добавляет Dkalkulator1-20 и переименовывает старые kalkulatorN → DkalkulatorN
 function migrateDomains(arr){
@@ -288,7 +337,7 @@ function migrateDomains(arr){
 }
 
 const SRC_COLOR={"pl.calculatorkuchni.online":"#3b82f6","roda.calculatorkuchni.online":"#8b5cf6","fast.calculatorkuchni.online":"#06b6d4","ua.calculatorkuchni.online":"#10b981","1.designkitchen.online":"#f59e0b","fillout":"#ec4899","garnofurniture.ukr":"#a78bfa","garnofurniture.com":"#60a5fa","Instagram":"#E1306C","Mail":"#bfa47e","Шоу Рум":"#f97316"};
-function srcShort(s){return s.replace(".calculatorkuchni.online","…").replace(".designkitchen.online","…des").replace("garnofurniture","garno");}
+function srcShort(s){return String(s||"—").replace(".calculatorkuchni.online","…").replace(".designkitchen.online","…des").replace("garnofurniture","garno");}
 const EVENT_TYPES=["visit","measure","contract","phone","delivery"];
 const EVENT_COLOR={visit:C.blue,measure:C.accent,contract:C.green,phone:C.purple,delivery:C.cyan};
 const DATE_RANGES=[{key:"1d",days:1},{key:"3d",days:3},{key:"7d",days:7},{key:"14d",days:14},{key:"30d",days:30},{key:"90d",days:90},{key:"365d",days:365},{key:"all",days:99999}];
@@ -694,6 +743,13 @@ function useDatabase(){
       sentReminders:[...new Set([...(local.sentReminders||[]),...(remote.sentReminders||[])])],
       // domains are stored in row id=2, NOT here
       deletedTaskTypeIds:[...new Set([...(local.deletedTaskTypeIds||[]),...(remote?.deletedTaskTypeIds||[])])],
+      funnels:(()=>{const dead=new Set([...(local.deletedFunnelIds||[]),...(remote?.deletedFunnelIds||[])]);const m=new Map();(remote?.funnels||[]).forEach(x=>m.set(x.id,x));(local.funnels||[]).forEach(x=>m.set(x.id,x));return [...m.values()].filter(x=>!dead.has(x.id));})(),
+      deletedFunnelIds:[...new Set([...(local.deletedFunnelIds||[]),...(remote?.deletedFunnelIds||[])])],
+      orders:(()=>{const dead=new Set([...(local.deletedOrderIds||[]),...(remote?.deletedOrderIds||[])]);const m=new Map();(remote?.orders||[]).forEach(x=>m.set(x.id,x));(local.orders||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()].filter(x=>!dead.has(x.id));})(),
+      deletedOrderIds:[...new Set([...(local.deletedOrderIds||[]),...(remote?.deletedOrderIds||[])])],
+      orderTaskTypes:(()=>{const dead=new Set([...(local.deletedOrderTaskTypeIds||[]),...(remote?.deletedOrderTaskTypeIds||[])]);const m=new Map();(remote?.orderTaskTypes||[]).forEach(x=>m.set(x.id,x));(local.orderTaskTypes||[]).forEach(x=>m.set(x.id,x));return [...m.values()].filter(x=>!dead.has(x.id));})(),
+      deletedOrderTaskTypeIds:[...new Set([...(local.deletedOrderTaskTypeIds||[]),...(remote?.deletedOrderTaskTypeIds||[])])],
+      orderTemplate:((local.orderTemplate?.updatedAt||0)>=(remote?.orderTemplate?.updatedAt||0))?local.orderTemplate:remote?.orderTemplate,
       taskTypes:(()=>{const dead=new Set([...(local.deletedTaskTypeIds||[]),...(remote?.deletedTaskTypeIds||[])]);const m=new Map();(remote?.taskTypes||[]).forEach(x=>m.set(x.id,x));(local.taskTypes||[]).forEach(x=>m.set(x.id,x));return [...m.values()].filter(x=>!dead.has(x.id));})(),
       tasks:(()=>{
         // Merge tasks by ID, latest updatedAt wins
@@ -1040,6 +1096,26 @@ function buildReminders(db){
     out.push({key,rtype:"quote",data:{name:l.name||"",phone:l.phone||"",mgr:l.manager||"",hours}});
   });
 
+  // 4. Незакрытая ветка квалификации — раз в день по лиду, если висит дольше 30 минут
+  (db.leads||[]).filter(l=>treeIncomplete(l)&&(Date.now()-leadCreatedMsSafe(l))>30*60000).forEach(l=>{
+    const key=`tr:${l.id}:${today}`;
+    if(sent.has(key))return;
+    const nx=treeEval(l).next;
+    out.push({key,rtype:"tree",data:{name:l.name||"",phone:l.phone||"",mgr:l.manager||"",next:nx,leadId:l.id}});
+  });
+
+  // 5. Заказы: дедлайны доплаты / сборки / монтажа (за 2 дня и в день)
+  (db.orders||[]).filter(o=>o.status!=="done").forEach(o=>{
+    [["payDue","💳 Доплата"],["assemblyPlan","🏭 Сборка"],["montagePlan","🔧 Монтаж"],["finalDue","✅ Финальная оплата"]].forEach(([f,label])=>{
+      const dt=o.f&&o.f[f]; if(!dt)return;
+      const days=Math.round((new Date(dt+"T00:00:00")-new Date(today+"T00:00:00"))/86400000);
+      if(days<0||days>2)return;
+      const key=`ord:${o.id}:${f}:${dt}:${days}`;
+      if(sent.has(key))return;
+      out.push({key,rtype:"order",data:{num:o.num,name:o.client||"",label,date:dt,days,mgr:(o.resp&&o.resp.manager)||""}});
+    });
+  });
+
   return out;
 }
 
@@ -1183,6 +1259,12 @@ ${t.remPushLine.replace("{date}",isoToDot(d.date)).replace("{n}",(d.items||[]).l
 ${lines}
 
 → ${t.remPushCta}`;
+  }
+  if(m.rtype==="tree"){
+    return `⚠ ${t.treeTitle}: ${t.treeOpen}\n\n👤 ${d.name||"—"}\n📞 ${d.phone||"—"}\n🧑 ${t.manager}: ${d.mgr||"—"}\n\n→ ${t[d.next]||d.next||""}`;
+  }
+  if(m.rtype==="order"){
+    return `${d.label} — ${d.days===0?"сегодня":`через ${d.days} дн.`}\n\n📦 Заказ №${d.num}\n👤 ${d.name||"—"}\n📅 ${isoToDot(d.date)}\n🧑 ${t.manager}: ${d.mgr||"—"}`;
   }
   if(m.rtype==="quote"){
     return `💰 ${t.remQuoteTitle}
@@ -1839,7 +1921,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"analytics",icon:"◎",ru:"Аналитика",pl:"Analityka"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
+const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"funnel",icon:"▼",ru:"Воронка продаж",pl:"Lejek sprzedaży"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
 function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,aiUnread=0,freshLeads=0,t}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
@@ -1895,7 +1977,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
         {showUsers&&(
           <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:C.surface,border:`1px solid ${C.accentBorder}`,borderRadius:12,padding:8,zIndex:2000,minWidth:160,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
             <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:1,padding:"4px 10px 8px",borderBottom:`1px solid ${C.border}`,marginBottom:6}}>Аккаунт</div>
-            {MANAGERS.map(m=>{const active=currentUser===m;return(
+            {USERS.map(m=>{const active=currentUser===m;return(
               <button key={m} onClick={()=>{setCurrentUser(m);setShowUsers(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"8px 12px",borderRadius:8,border:"none",background:active?`${MGR_COLOR[m]}20`:"transparent",cursor:"pointer",marginBottom:2}}>
                 <div style={{width:30,height:30,borderRadius:"50%",background:`${MGR_COLOR[m]}25`,border:`2px solid ${MGR_COLOR[m]}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:MGR_COLOR[m]}}>{m[0]}</div>
                 <div style={{textAlign:"left"}}><div style={{fontSize:13,fontWeight:700,color:active?MGR_COLOR[m]:C.text}}>{m}</div><div style={{fontSize:10,color:C.muted}}>{m==="Danya"?t.admin:t.managerRole}</div></div>
@@ -2047,11 +2129,11 @@ function VisitsPanel({leads,updateDb,t,mgr,search,onOpen}){
     .sort((a,b)=>(b.visitDate||"").localeCompare(a.visitDate||"")||(b.visitTime||"").localeCompare(a.visitTime||""));
 
   const saveVisit=(id,vDate,vTime)=>{
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,visitDate:vDate,visitTime:vTime,visitBackfilled:false,updatedAt:Date.now()}:l)}),true);
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,history:histAdd(l,`Визит: ${l.visitDate?isoToDot(l.visitDate):"—"} → ${isoToDot(vDate)} ${vTime||""}`),visitDate:vDate,visitTime:vTime,visitBackfilled:false,updatedAt:Date.now()}:l)}),true);
     setEditing(null);
   };
   const removeVisit=(id)=>{
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,visitDate:null,visitTime:null,updatedAt:Date.now()}:l)}),true);
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,history:histAdd(l,"Визит снят"),visitDate:null,visitTime:null,updatedAt:Date.now()}:l)}),true);
     setEditing(null);
   };
 
@@ -2173,12 +2255,12 @@ function PushPanel({leads,updateDb,t,mgr,search,onOpen}){
   const dueCount=list.filter(l=>l.pushDate&&l.pushDate<=today).length;
 
   const savePush=(id,pDate,pTime)=>{
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,pushDate:pDate,pushTime:pTime,updatedAt:Date.now()}:l)}),true);
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,history:histAdd(l,`Push: ${l.pushDate?isoToDot(l.pushDate):"—"} → ${isoToDot(pDate)} ${pTime||""}`),pushDate:pDate,pushTime:pTime,updatedAt:Date.now()}:l)}),true);
     setEditing(null);
   };
   // Снять с пуша — действие возвращается в "не определено"
   const removePush=(id)=>{
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,action:"undefined",pushDate:null,pushTime:null,updatedAt:Date.now()}:l)}),true);
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===id?{...l,history:histAdd(l,"Действие: Push → Не определено (снят с пушей)"),action:"undefined",pushDate:null,pushTime:null,updatedAt:Date.now()}:l)}),true);
     setEditing(null);
   };
 
@@ -2277,33 +2359,64 @@ function PushPanel({leads,updateDb,t,mgr,search,onOpen}){
   );
 }
 
-function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onOpen,currentUser}){
+// Мульти-выбор с поиском (домены и т.п.). selected=[] означает «все»
+function MultiPick({label,options,selected,onChange,width=200}){
+  const [open,setOpen]=useState(false);const [q,setQ]=useState("");
+  const ref=useRef(null);
+  useEffect(()=>{if(!open)return;const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[open]);
+  const shown=options.filter(o=>!q||String(o.label).toLowerCase().includes(q.toLowerCase()));
+  const toggle=v=>onChange(selected.includes(v)?selected.filter(x=>x!==v):[...selected,v]);
+  const active=selected.length>0;
+  return(
+    <div ref={ref} style={{position:"relative"}}>
+      <button type="button" onClick={()=>setOpen(o=>!o)} style={{background:active?C.accentDim:C.card,border:`1px solid ${active?C.accentBorder:C.borderMd}`,color:active?C.accent:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer",whiteSpace:"nowrap",fontWeight:active?700:400}}>{label}{active?` (${selected.length})`:""} ▾</button>
+      {open&&<div style={{position:"absolute",top:"110%",left:0,zIndex:600,width,background:C.surface,border:`1px solid ${C.borderMd}`,borderRadius:10,boxShadow:"0 12px 30px rgba(0,0,0,0.45)",padding:8}}>
+        <input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍 Поиск…" style={{width:"100%",boxSizing:"border-box",background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 9px",fontSize:12,outline:"none",marginBottom:6}}/>
+        <div style={{display:"flex",gap:6,marginBottom:6}}>
+          <button type="button" onClick={()=>onChange(shown.map(o=>o.value))} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"3px",fontSize:10,cursor:"pointer"}}>Выбрать видимые</button>
+          <button type="button" onClick={()=>onChange([])} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"3px",fontSize:10,cursor:"pointer"}}>Сбросить</button>
+        </div>
+        <div style={{maxHeight:260,overflowY:"auto"}}>
+          {shown.map(o=>{const on=selected.includes(o.value);return(
+            <div key={o.value} onClick={()=>toggle(o.value)} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 6px",borderRadius:6,cursor:"pointer",background:on?C.accentDim:"transparent"}}>
+              <span style={{fontSize:12,color:on?C.accent:C.dim}}>{on?"☑":"☐"}</span>
+              {o.color&&<span style={{width:8,height:8,borderRadius:2,background:o.color,flexShrink:0}}/>}
+              <span style={{fontSize:12,color:on?C.accent:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.label}</span>
+            </div>);})}
+          {!shown.length&&<div style={{fontSize:11,color:C.dim,padding:6}}>Не найдено</div>}
+        </div>
+      </div>}
+    </div>);
+}
+
+function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onOpen,currentUser,funnels=[]}){
   const [stickerLead,setStickerLead]=useState(null);
   const addSticker=(text)=>{
     if(!stickerLead)return;
     const st={id:Date.now()+Math.floor(Math.random()*1000),text,by:currentUser||"—",at:Date.now()};
     const nStickers=[...(stickerLead.stickers||[]),st];
     setStickerLead({...stickerLead,stickers:nStickers});
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===stickerLead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===stickerLead.id?{...l,history:histAdd(l,nStickers.length>(l.stickers||[]).length?`Стикер добавлен: «${String(nStickers[nStickers.length-1]?.text||"").slice(0,50)}»`:"Стикер удалён"),stickers:nStickers,updatedAt:Date.now()}:l)}),true);
   };
   const deleteSticker=(st)=>{
     if(!stickerLead)return;
     const nStickers=(stickerLead.stickers||[]).filter(s=>s!==st&&!(st.id!=null&&s.id===st.id));
     setStickerLead({...stickerLead,stickers:nStickers});
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===stickerLead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===stickerLead.id?{...l,history:histAdd(l,nStickers.length>(l.stickers||[]).length?`Стикер добавлен: «${String(nStickers[nStickers.length-1]?.text||"").slice(0,50)}»`:"Стикер удалён"),stickers:nStickers,updatedAt:Date.now()}:l)}),true);
   };
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
-  const [fQ,setFQ]=useState("all");const [fA,setFA]=useState("all");const [fS,setFS]=useState("all");const [sort,setSort]=useState("date");
+  const [fQ,setFQ]=useState("all");const [fA,setFA]=useState("all");const [fS,setFS]=useState([]);const [fFun,setFFun]=useState("all");const [fC,setFC]=useState("all");const [fTerm,setFTerm]=useState("all");const [fTree,setFTree]=useState("all");const [fEr,setFEr]=useState("all");const [sort,setSort]=useState("date");
   const [fKI,setFKI]=useState("all");const [fDist,setFDist]=useState("all");const [fApt,setFApt]=useState("all");const [fWhy,setFWhy]=useState("all");
   const [selected,setSelected]=useState(new Set());
   const ss={background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
-  const fl=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||l.name.toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).filter(l=>fQ==="all"||l.qualification===fQ).filter(l=>fA==="all"||l.action===fA).filter(l=>fS==="all"||l.source===fS).filter(l=>fKI==="all"||(l.kitchenInfo||"")===fKI).filter(l=>fDist==="all"||(l.distance||"")===fDist).filter(l=>fApt==="all"||(l.apartment||"")===fApt).filter(l=>fWhy==="all"||(l.noVisitReason||"")===fWhy).sort((a,b)=>{
+  const fl=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||l.name.toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).filter(l=>fQ==="all"||l.qualification===fQ).filter(l=>fA==="all"||l.action===fA).filter(l=>fS.length===0||fS.includes(l.source)).filter(l=>{if(fFun==="all")return true;const f=leadFunnel(l,srcList,funnels);return fFun==="none"?!f:(f&&String(f.id)===fFun);}).filter(l=>fC==="all"||(fC==="none"?!l.c1:fC==="contacted"?(l.c1==="yes"||l.c2==="yes"):fC==="c1no"?(l.c1==="no"&&!l.c2):fC==="c2no"?(l.c2==="no"):true)).filter(l=>fTerm==="all"||(fTerm==="none"?!l.term:l.term===fTerm)).filter(l=>fTree==="all"||(fTree==="open"?treeIncomplete(l):!treeIncomplete(l))).filter(l=>fEr==="all"||(fEr==="none"?l.erikaScore==null:String(l.erikaScore)===fEr)).filter(l=>fKI==="all"||(l.kitchenInfo||"")===fKI).filter(l=>fDist==="all"||(l.distance||"")===fDist).filter(l=>fApt==="all"||(l.apartment||"")===fApt).filter(l=>fWhy==="all"||(l.noVisitReason||"")===fWhy).sort((a,b)=>{
     if(sort==="score") return b.score-a.score;
     // Parse DD.MM.YYYY date for proper sorting
     const parseDate=(s)=>{if(!s)return 0;const p=s.split(".");if(p.length===3)return new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime()||0;return 0;};
-    if(sort==="date") return parseDate(b.createdAt)-parseDate(a.createdAt);
-    return parseDate(b.createdAt)-parseDate(a.createdAt); // default also by date desc
+    const byNew=(parseDate(b.createdAt)-parseDate(a.createdAt))||(leadCreatedMsSafe(b)-leadCreatedMsSafe(a))||((b.id||0)>(a.id||0)?1:-1);
+    if(sort==="date") return byNew;
+    return byNew; // внутри дня — самые новые сверху, не по алфавиту
   });
   // Лиды с действием "не определено" подсвечиваются жёлтым, пока действие не сменят
   const [,freshTick]=useState(0);
@@ -2330,7 +2443,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
     e.stopPropagation();
     updateDb(p=>({
       ...p,
-      leads:(p.leads||[]).map(l=>l.id===id?{...l,isFavorite:!l.isFavorite,updatedAt:Date.now()}:l)
+      leads:(p.leads||[]).map(l=>l.id===id?{...l,history:histAdd(l,l.isFavorite?"Убран из избранного":"Добавлен в избранное"),isFavorite:!l.isFavorite,updatedAt:Date.now()}:l)
     }),true);
   };
   const allChecked=fl.length>0&&selected.size===fl.length;
@@ -2351,11 +2464,16 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         <select value={fQ} onChange={e=>setFQ(e.target.value)} style={ss}><option value="all">{t.qualification}</option>{QUALS.map(q=><option key={q} value={q}>{t[q]}</option>)}</select>
         <select value={fA} onChange={e=>setFA(e.target.value)} style={ss}><option value="all">{t.action}</option>{ACTIONS.map(a=><option key={a} value={a}>{t[a]}</option>)}</select>
-        <select value={fS} onChange={e=>setFS(e.target.value)} style={ss}><option value="all">{t.source}</option>{normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=><option key={d.name} value={d.name}>{srcShort(d.name)}</option>)}</select>
+        <MultiPick label={t.source} selected={fS} onChange={setFS} width={260} options={normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=>({value:d.name,label:d.name,color:d.color}))}/>
+        <select value={fFun} onChange={e=>setFFun(e.target.value)} style={ss}><option value="all">▼ Воронка</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— без воронки</option></select>
+        <select value={fC} onChange={e=>setFC(e.target.value)} style={ss}><option value="all">{t.c1}/{t.c2}</option><option value="none">Не отмечен</option><option value="contacted">Связь есть</option><option value="c1no">К1 нет — ждёт К2</option><option value="c2no">Оба контакта — нет</option></select>
+        <select value={fTerm} onChange={e=>setFTerm(e.target.value)} style={ss}><option value="all">{t.term}</option><option value="lt4">{t.lt4}</option><option value="gt4">{t.gt4}</option><option value="none">—</option></select>
+        <select value={fTree} onChange={e=>setFTree(e.target.value)} style={ss}><option value="all">{t.treeTitle}</option><option value="open">⚠ {t.treeOpen}</option><option value="done">✓ {t.treeDone}</option></select>
+        <select value={fEr} onChange={e=>setFEr(e.target.value)} style={ss}><option value="all">{t.erikaScore}</option><option value="none">— нет</option>{SCORES.map(x=><option key={x} value={String(x)}>Э {x}</option>)}</select>
         <select value={fKI} onChange={e=>setFKI(e.target.value)} style={ss}><option value="all">{t.kitchenInfo}</option><option value="yes">{t.kiYes}</option><option value="no">{t.kiNo}</option><option value="">—</option></select>
         <select value={fDist} onChange={e=>setFDist(e.target.value)} style={ss}><option value="all">{t.distance}</option><option value="near">{t.dNear}</option><option value="far">{t.dFar}</option><option value="">—</option></select>
         <select value={fApt} onChange={e=>setFApt(e.target.value)} style={ss}><option value="all">{t.apartment}</option><option value="new">{t.aNew}</option><option value="old">{t.aOld}</option><option value="">—</option></select>
-        <select value={fWhy} onChange={e=>setFWhy(e.target.value)} style={ss}><option value="all">{t.whyNoVisit}</option><option value="price">{t.rPrice}</option><option value="distance">{t.rDistance}</option><option value="thinking">{t.rThinking}</option></select>
+        <select value={fWhy} onChange={e=>setFWhy(e.target.value)} style={ss}><option value="all">{t.whyNoVisit}</option><option value="price">{t.rPrice}</option><option value="distance">{t.rDistance}</option><option value="term">{t.rTerm}</option><option value="thinking">{t.rThinking}</option></select>
         <select value={sort} onChange={e=>setSort(e.target.value)} style={ss}><option value="date">{t.date}</option><option value="id">ID</option><option value="score">{t.score} ↓</option></select>
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
@@ -2367,7 +2485,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
             </tr></thead>
             <tbody>{fl.map(l=>{const isSel=selected.has(l.id);return(
               <tr key={l.id} onClick={()=>onOpen(l)}
-                className={FRESH.has(l.id)?"garno-fresh":""} style={{borderBottom:`1px solid ${C.border}`,background:rowBg(l,isSel),cursor:"pointer"}}
+                className={FRESH.has(l.id)?"garno-fresh":(treeIncomplete(l)?"garno-tree":"")} style={{borderBottom:`1px solid ${C.border}`,background:rowBg(l,isSel),cursor:"pointer"}}
                 onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=C.surface)}
                 onMouseLeave={e=>{e.currentTarget.style.background=rowBg(l,isSel);}}>
                 <td style={{padding:"8px 10px"}} onClick={e=>toggleOne(l.id,e)}><input type="checkbox" checked={isSel} onChange={()=>{}} onClick={e=>toggleOne(l.id,e)} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></td>
@@ -2381,14 +2499,14 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                     : <span style={{color:C.dim,fontSize:15,opacity:0.3,cursor:"pointer"}}>＋</span>}
                 </td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
-                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
+                <td style={{padding:"8px 10px",position:"relative"}}>{l.erikaScore!=null&&<span title="Оценка Эрики" style={{position:"absolute",top:2,left:2,fontSize:9,fontWeight:900,color:"#fff",background:"#db2777",borderRadius:5,padding:"0 4px",lineHeight:"14px"}}>Э {l.erikaScore}</span>}<span style={{color:C.text,fontWeight:500,paddingLeft:l.erikaScore!=null?26:0}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
                 <td style={{padding:"8px 10px"}}><ScoreBar score={l.score}/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.qualification]} color={QUAL_COLOR[l.qualification]} small/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={(t[l.budgetTimeline]||"").slice(0,14)} color={BUD_COLOR[l.budgetTimeline]} small/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.action]} color={ACT_COLOR[l.action]} action={l.action} small/></td>
                 <td style={{padding:"8px 10px"}}>{l.manager?<div style={{display:"flex",alignItems:"center",gap:5}}><Avatar name={l.manager} color={MGR_COLOR[l.manager]} size={18}/><span style={{color:MGR_COLOR[l.manager],fontSize:11}}>{l.manager}</span></div>:<span style={{color:C.dim,fontSize:11}}>—</span>}</td>
-                <td style={{padding:"8px 10px"}}><SrcBadge source={l.source}/></td>
+                <td style={{padding:"8px 10px"}}><SrcBadge source={l.source}/>{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<div style={{marginTop:3}}><span style={{fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px"}}>▼ {f.name}</span></div>:null;})()}</td>
                 <td style={{padding:"8px 10px",display:"flex",gap:4,alignItems:"center"}}><button onClick={e=>{e.stopPropagation();toggleFav(l.id,e);}} style={{background:l.isFavorite?"rgba(251,191,36,0.2)":"transparent",border:`1px solid ${l.isFavorite?"#fbbf24":C.border}`,color:l.isFavorite?"#fbbf24":C.dim,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}} title={t.favorite}>{l.isFavorite?"★":"☆"}</button><button onClick={e=>{e.stopPropagation();onOpen(l);}} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:6,padding:"3px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>→</button></td>
               </tr>
             );})}</tbody>
@@ -2427,12 +2545,12 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     const st={id:Date.now()+Math.floor(Math.random()*1000),text,by:currentUser||"—",at:Date.now()};
     const nStickers=[...(form.stickers||[]),st];
     setForm(f=>({...f,stickers:nStickers}));
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,history:histAdd(l,nStickers.length>(l.stickers||[]).length?`Стикер добавлен: «${String(nStickers[nStickers.length-1]?.text||"").slice(0,50)}»`:"Стикер удалён"),stickers:nStickers,updatedAt:Date.now()}:l)}),true);
   };
   const deleteStickerLD=(st)=>{
     const nStickers=(form.stickers||[]).filter(s=>s!==st&&!(st.id!=null&&s.id===st.id));
     setForm(f=>({...f,stickers:nStickers}));
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,stickers:nStickers,updatedAt:Date.now()}:l)}),true);
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,history:histAdd(l,nStickers.length>(l.stickers||[]).length?`Стикер добавлен: «${String(nStickers[nStickers.length-1]?.text||"").slice(0,50)}»`:"Стикер удалён"),stickers:nStickers,updatedAt:Date.now()}:l)}),true);
   };
   const prevAction=useRef(lead.action||"undefined");
   const set=(k,v)=>setForm(p=>{
@@ -2444,13 +2562,8 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
       if(v==="quote"&&p.action!=="quote")u.quoteSince=Date.now();
       if(v!=="quote"&&p.action==="quote")u.quoteSince=null;
     }
-    // Пары квалификации / срок → авто-оценка 4 или 4.5 (только если лид ещё не визит/продажа)
-    if(["kitchenInfo","distance","apartment","budget"].includes(k)){
-      const auto=autoScoreFromPairs(u);
-      if(auto!==null&&(parseFloat(u.score)||0)<5){u.score=auto;u.qualification=scoreToQual(auto);u.autoScored=true;}
-    }
     if(k==="score"){
-      u.autoScored=false;
+      u.autoScored=false;u.scoreManual=true;
       u.qualification=scoreToQual(v);
       const nv=parseInt(v),pv=parseInt(p.score);
       // Авто-действие: оценка 5 → «Визит», оценка 6 → «Продажа»
@@ -2462,17 +2575,52 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     }
     return u;
   });
+  // Клик по дереву квалификации: пересчёт оценки/действия, сброс зависимых полей, задача «2 контакт»
+  const TREE_DOWN={c1:["c2","term","kitchenInfo","distance","apartment","noVisitReason"],c2:["term","kitchenInfo","distance","apartment","noVisitReason"],term:["kitchenInfo","distance","apartment","noVisitReason"],kitchenInfo:["distance","apartment","noVisitReason"],distance:["apartment","noVisitReason"],apartment:["noVisitReason"],noVisitReason:[]};
+  const treeSet=(k,v)=>{
+    if(!editing)return;
+    const u={...form,[k]:v};
+    // Зависимые ответы сбрасываем только при СМЕНЕ уже выбранного ответа (старые пары не теряются)
+    if(form[k]!=null&&form[k]!==v)(TREE_DOWN[k]||[]).forEach(f=>{u[f]=null;});
+    const prevEv=treeEval(form);
+    const ev=treeEval(u);
+    const cur=parseFloat(u.score)||0;
+    // Пока ветка открыта — оценка только растёт; закрытая ветка ставит итоговую (может и понизить)
+    if(ev.score!==null&&cur<5&&(ev.done||ev.score>cur)){u.score=ev.score;u.qualification=scoreToQual(ev.score);u.autoScored=true;u.scoreManual=false;}
+    if(ev.action==="cancelled")u.action="cancelled";
+    // Просчёт — только в момент, когда ветка впервые до него дошла; Push/Визит/Продажу не трогаем
+    else if(ev.action==="quote"&&prevEv.action!=="quote"&&!["quote","push","visit","sale"].includes(u.action)&&(parseFloat(u.score)||0)<5){u.action="quote";u.quoteSince=u.quoteSince||Date.now();}
+    else if(u.action==="cancelled"&&k==="c2"&&v==="yes")u.action="undefined";
+    // Контакт 1 = нет → задача менеджеру «2 контакт» на сегодня (один раз, без дублей)
+    const hasC2=(tasks||[]).some(x=>x.leadId===lead.id&&(x.status||"all")!=="done"&&String(x.title||"").startsWith(t.secondContact));
+    if(k==="c1"&&v==="no"&&!u.c2TaskId&&!hasC2){
+      const asg=u.manager||creatorLD||"—";
+      const nt=buildNewTask({title:`${t.secondContact} — ${u.name||u.phone||""}`,status:"all",priority:"HIGH",assignee:asg,deadline:getToday(),leadId:lead.id,leadName:u.name||u.phone},creatorLD,tasks||[]);
+      u.c2TaskId=nt.id;
+      updateDb(p=>({...p,tasks:[...(p.tasks||[]),nt]}),true);
+    }
+    setForm(u);
+  };
   const createdAtToIso=(str)=>{if(!str)return new Date().toISOString().slice(0,10);const p=str.split(".");if(p.length!==3)return new Date().toISOString().slice(0,10);return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;};
   const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);if(isNaN(d))return iso;return d.toLocaleDateString("ru-RU");}catch{return iso;}};
-  const save=()=>{const entry={date:nowStr(),action:lang==="ru"?"Изменено":"Zmieniono",by:currentUser||"—"};const updated={...form,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),entry]};setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);};
+  const save=()=>{
+    const by=currentUser||"—";
+    const entries=leadHistoryDiff(lead,form,t,by);
+    if(!entries.length)entries.push({date:nowStr(),action:lang==="ru"?"Сохранено без изменений":"Zapisano bez zmian",by});
+    const trail=(form.score!==lead.score)?[...(lead.scoreTrail||(lead.score!=null?[lead.score]:[])),form.score]:(form.scoreTrail||lead.scoreTrail);
+    const updated={...form,scoreTrail:trail,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),...entries]};
+    setLeads(p=>p.map(l=>l.id===lead.id?{...l,...updated}:l));setEditing(false);setForm(updated);
+  };
   const confirmVisit=(vDate,vTime)=>{
     const updLead={...form,visitDate:vDate,visitTime:vTime||"12:00",visitBackfilled:false,score:5,qualification:"salon",action:"visit",updatedAt:Date.now()};
+    updLead.history=[...(form.history||[]),...leadHistoryDiff(form,updLead,t,currentUser||"—")];if(updLead.score!==form.score)updLead.scoreTrail=[...(form.scoreTrail||(form.score!=null?[form.score]:[])),updLead.score];
     setForm(updLead);
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l)}),true);
     setShowVisit(false);
   };
   const confirmPush=(pDate,pTime)=>{
     const updLead={...form,action:"push",pushDate:pDate,pushTime:pTime||"12:00",updatedAt:Date.now()};
+    updLead.history=[...(form.history||[]),...leadHistoryDiff(form,updLead,t,currentUser||"—")];if(updLead.score!==form.score)updLead.scoreTrail=[...(form.scoreTrail||(form.score!=null?[form.score]:[])),updLead.score];
     setForm(updLead);
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l)}),true);
     setShowPush(false);
@@ -2481,12 +2629,16 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     let createdAt=new Date().toLocaleDateString("ru-RU");
     if(saleDate){try{const d=new Date(saleDate);createdAt=d.toLocaleDateString("ru-RU");}catch{}}
     const newSale={id:Date.now(),leadId:lead.leadId||lead.id,name:form.name,phone:form.phone,manager:form.manager||"—",source:form.source,createdAt,saleAmount:amt,notes:form.notes};
-    const updLead={...form,saleAmount:amt,isDone:true,action:"sale",updatedAt:Date.now()};
+    const updLead={...form,saleAmount:amt,isDone:true,action:"sale",score:6,qualification:"sale",updatedAt:Date.now()};
+    updLead.history=[...(form.history||[]),...leadHistoryDiff(form,updLead,t,currentUser||"—"),{date:nowStr(),action:`${lang==="pl"?"Sprzedaż":"Продажа"}: ${fmtM(amt)}`,by:currentUser||"—"}];
+    if(form.score!==6)updLead.scoreTrail=[...(form.scoreTrail||(form.score!=null?[form.score]:[])),6];
     // Атомарно: лид + продажа в одном updateDb → один save в Supabase
     updateDb(p=>({
       ...p,
       leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l),
       sales:[newSale,...(p.sales||[])],
+      // Продажа → сразу создаётся заказ (постпродажный процесс)
+      orders:[...(p.orders||[]),makeOrder({sale:newSale,lead:updLead,num:nextOrderNum(p.orders),by:currentUser||"—",tpl:p.orderTemplate})],
     }),true);
     setShowSale(false);onClose();
   };
@@ -2514,34 +2666,56 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           </div>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>◈ Оценка 0–6</div>
-            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{[0,1,2,3,4,4.5,5,6].map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} title={s===4.5?"MWP — только вручную":""} style={{minWidth:34,height:34,padding:s===4.5?"0 6px":0,borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
+            {currentUser==="Erika"
+              ? <div style={{marginBottom:10}}><div style={{fontSize:10,color:"#f472b6",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800,marginBottom:6}}>★ {t.erikaScore}</div>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{SCORES.map(s=>{const active=form.erikaScore===s;return(<button key={s} onClick={()=>editing&&setForm(f=>({...f,erikaScore:active?null:s}))} style={{minWidth:34,height:34,padding:"0 6px",borderRadius:8,border:`2px solid ${active?"#f472b6":C.borderMd}`,background:active?"rgba(244,114,182,0.2)":C.accentDim,color:active?"#f472b6":C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
+                  <div style={{fontSize:10,color:C.muted,marginTop:6}}>{lang==="pl"?"Główna ocena":"Основная оценка"}: <b style={{color:QUAL_COLOR[scoreToQual(form.score)]}}>{form.score}</b></div></div>
+              : <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{SCORES.map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} title={lang==="pl"?"Korekta ręczna":"Ручная корректировка"} style={{minWidth:34,height:34,padding:"0 6px",borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>}
+            {form.erikaScore!=null&&currentUser!=="Erika"&&<div style={{fontSize:11,color:"#f472b6",fontWeight:700,marginBottom:8}}>★ {t.erikaScore}: {form.erikaScore}</div>}
             {form.autoScored&&<div style={{fontSize:10,color:"#2dd4bf",marginTop:-6,marginBottom:8}}>⚡ {t.autoScoreHint}</div>}
-            {/* ── ПАРЫ КВАЛИФИКАЦИИ (обязательно) ── */}
+            {/* ── ДЕРЕВО КВАЛИФИКАЦИИ ── */}
             {(()=>{
-              const missing=!form.kitchenInfo||!form.distance||!form.apartment;
-              const Pair=({label,field,a,b,la,lb})=>(
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                  <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.6,minWidth:92}}>{label}</div>
-                  {[[a,la],[b,lb]].map(([v,l])=>{const on=form[field]===v;return(
-                    <button key={v} onClick={()=>editing&&set(field,on?null:v)} style={{padding:"4px 10px",borderRadius:7,border:`1.5px solid ${on?C.accent:C.borderMd}`,background:on?`${C.accent}26`:"transparent",color:on?C.accent:C.muted,cursor:editing?"pointer":"default",fontSize:11,fontWeight:700}}>{on?"☑":"☐"} {l}</button>);})}
+              const ev=treeEval(form);
+              const open=treeIncomplete(form)||(!ev.done&&!!form.c1);
+              const Row=({field,label,opts})=>(
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,padding:"4px 6px",borderRadius:8,background:ev.next===field?"rgba(250,204,21,0.12)":"transparent",border:ev.next===field?"1px dashed rgba(250,204,21,0.6)":"1px solid transparent"}}>
+                  <div style={{fontSize:10,color:ev.next===field?"#facc15":C.muted,textTransform:"uppercase",letterSpacing:0.6,minWidth:92,fontWeight:ev.next===field?800:400}}>{ev.next===field?"➜ ":""}{label}</div>
+                  {opts.map(([v,l])=>{const on=form[field]===v;return(
+                    <button key={v} onClick={()=>treeSet(field,on?null:v)} style={{padding:"4px 11px",borderRadius:7,border:`1.5px solid ${on?C.accent:C.borderMd}`,background:on?`${C.accent}26`:"transparent",color:on?C.accent:C.text,fontSize:11,fontWeight:on?800:500,cursor:editing?"pointer":"default"}}>{on?"☑ ":"☐ "}{l}</button>);})}
                 </div>);
+              const show=(f)=>{
+                if(f==="c1")return true;
+                if(f==="c2")return form.c1==="no";
+                const contacted=form.c1==="yes"||form.c2==="yes";
+                if(f==="term")return contacted;
+                if(f==="kitchenInfo")return contacted&&!!form.term;
+                if(f==="distance")return contacted&&form.term==="lt4"&&form.kitchenInfo==="yes";
+                if(f==="apartment")return show("distance")&&form.distance==="near";
+                if(f==="noVisitReason")return (ev.score===4||ev.score===4.5)&&(form.distance==="far"||!!form.apartment);
+                return false;
+              };
+              const hint=ev.hint==="call58"?t.hintCall58:ev.hint==="meters"?t.hintMeters:null;
               return(
-                <div style={{background:missing?"rgba(239,68,68,0.06)":"rgba(191,164,126,0.05)",border:`1px solid ${missing?"rgba(239,68,68,0.45)":C.border}`,borderRadius:9,padding:"9px 11px",marginBottom:10}}>
-                  <div style={{fontSize:10,fontWeight:800,color:missing?"#ef4444":C.accent,textTransform:"uppercase",letterSpacing:0.8,marginBottom:7}}>{missing?"⚠ ":""}{t.qualPairs}{missing?` — ${t.fillPairs}`:""}</div>
-                  <Pair label={t.kitchenInfo} field="kitchenInfo" a="yes" b="no" la={t.kiYes} lb={t.kiNo}/>
-                  <Pair label={t.distance} field="distance" a="near" b="far" la={t.dNear} lb={t.dFar}/>
-                  <Pair label={t.apartment} field="apartment" a="new" b="old" la={t.aNew} lb={t.aOld}/>
-                  {(form.score===4||form.score===4.5)&&(
-                    <div style={{marginTop:8,paddingTop:8,borderTop:`1px dashed ${C.border}`}}>
-                      <div style={{fontSize:10,color:"#f59e0b",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5,fontWeight:700}}>❓ {t.whyNoVisit}</div>
-                      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                        {[["price",t.rPrice],["distance",t.rDistance],["thinking",t.rThinking]].map(([v,l])=>{const on=form.noVisitReason===v;return(
-                          <button key={v} onClick={()=>editing&&set("noVisitReason",on?null:v)} style={{padding:"4px 11px",borderRadius:7,border:`1.5px solid ${on?"#f59e0b":C.borderMd}`,background:on?"rgba(245,158,11,0.18)":"transparent",color:on?"#f59e0b":C.muted,cursor:editing?"pointer":"default",fontSize:11,fontWeight:700}}>{l}</button>);})}
-                      </div>
-                    </div>)}
+                <div className={open?"garno-tree-open":""} style={{background:open?"rgba(250,204,21,0.06)":"rgba(191,164,126,0.05)",border:`1px solid ${open?"rgba(250,204,21,0.5)":C.border}`,borderRadius:9,padding:"9px 11px",marginBottom:10}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
+                    <div style={{fontSize:10,fontWeight:800,color:open?"#facc15":C.accent,textTransform:"uppercase",letterSpacing:0.8}}>{open?"⚠ ":"✓ "}{t.treeTitle} — {open?t.treeOpen:t.treeDone}</div>
+                    {ev.score!==null&&<span style={{marginLeft:"auto",fontSize:11,fontWeight:800,color:QUAL_COLOR[scoreToQual(ev.score)]}}>⚡ {ev.score}</span>}
+                  </div>
+                  {show("c1")&&<Row field="c1" label={t.c1} opts={[["yes",t.cYes],["no",t.cNo]]}/>}
+                  {show("c2")&&<Row field="c2" label={t.c2} opts={[["yes",t.cYes],["no",t.cNo]]}/>}
+                  {show("term")&&<Row field="term" label={t.term} opts={[["lt4",t.lt4],["gt4",t.gt4]]}/>}
+                  {show("kitchenInfo")&&<Row field="kitchenInfo" label={t.kitchenInfo} opts={[["yes",t.kiYes],["no",t.kiNo]]}/>}
+                  {show("distance")&&<Row field="distance" label={t.distance} opts={[["near",t.dNear],["far",t.dFar]]}/>}
+                  {show("apartment")&&<Row field="apartment" label={t.apartment} opts={[["new",t.aNew],["old",t.aOld]]}/>}
+                  {show("noVisitReason")&&<Row field="noVisitReason" label={"❓ "+t.whyNoVisit} opts={[["thinking",t.rThinking],["price",t.rPrice],["distance",t.rDistance],["term",t.rTerm]]}/>}
+                  {hint&&<div style={{marginTop:6,background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.5)",borderRadius:8,padding:"7px 10px",fontSize:12,fontWeight:700,color:"#38bdf8"}}>💡 {hint}</div>}
+                  {ev.action==="quote"&&ev.done&&<div style={{marginTop:6,fontSize:11,color:C.purple,fontWeight:700}}>→ {t.quote}</div>}
+                  {!editing&&open&&<div style={{marginTop:6,fontSize:10,color:C.muted}}>{lang==="pl"?"Kliknij ✎ Edytuj, aby uzupełnić":"Нажми ✎ Редактировать, чтобы заполнить"}</div>}
                 </div>);
             })()}
-            <div style={{background:`${QUAL_COLOR[form.qualification]}18`,border:`1px solid ${QUAL_COLOR[form.qualification]}44`,borderRadius:8,padding:"7px 12px",marginBottom:10}}><div style={{fontSize:11,color:QUAL_COLOR[form.qualification],fontWeight:700}}>→ {t[form.qualification]}</div></div>
+            <div style={{background:`${QUAL_COLOR[form.qualification]}18`,border:`1px solid ${QUAL_COLOR[form.qualification]}44`,borderRadius:8,padding:"7px 12px",marginBottom:10,display:"flex",alignItems:"center",gap:8}}><div style={{fontSize:11,color:QUAL_COLOR[form.qualification],fontWeight:700}}>→ {t[form.qualification]}</div>
+              {form.score===5&&<button onClick={()=>{const u={...form,score:5.5,qualification:"visited",visitDoneAt:Date.now(),updatedAt:Date.now()};const h={date:nowStr(),action:`${lang==="pl"?"Ocena":"Оценка"}: 5 → 5.5 (${t.visited})`,by:currentUser||"—"};u.history=[...(form.history||[]),h];u.scoreTrail=[...(form.scoreTrail||[5]),5.5];setForm(u);updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...u}:l)}),true);}} style={{marginLeft:"auto",background:"#818cf8",border:"none",color:"#00132f",borderRadius:7,padding:"5px 11px",fontSize:11,fontWeight:800,cursor:"pointer"}}>✓ {t.visited}</button>}
+            </div>
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginTop:14}}>
@@ -2729,62 +2903,145 @@ function CalendarPage({events,setEvents,setEventsNow,updateDb,t,lang}){
 }
 
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
-function DomainManager({srcList,setDomains,t}){
-  // No local state — srcList is always authoritative from domainsState in GarnoCRM
-  // setDomains calls setDomainsState immediately (optimistic) then writes to Supabase
+function DomainManager({srcList,setDomains,t,funnels=[]}){
+  // srcList — источник истины (domainsState). setDomains: оптимистично + запись в Supabase (строка id=2)
   const domList=normDoms(srcList&&srcList.length?srcList:SOURCES);
   const [newDom,setNewDom]=useState("");
-  const [newColor,setNewColor]=useState(DOM_COLORS[0]);
+  const [q,setQ]=useState("");
   const [saving,setSaving]=useState(false);
-  const save=(newList)=>{
-    setSaving(true);
-    setDomains(newList).finally(()=>setSaving(false));
-  };
-  const addDomain=()=>{
-    const name=newDom.trim();
-    if(!name||domList.find(d=>d.name===name))return;
-    const newList=[...domList,{name,color:newColor}];
-    save(newList);
-    setNewDom("");
-    setNewColor(DOM_COLORS[newList.length%DOM_COLORS.length]);
-  };
-  const removeDomain=(name)=>{
-    if(domList.length<=1)return;
-    save(domList.filter(d=>d.name!==name));
-  };
-  const changeColor=(name,color)=>{
-    save(domList.map(d=>d.name===name?{...d,color}:d));
-  };
+  const save=(list)=>{setSaving(true);Promise.resolve(setDomains(list)).finally(()=>setSaving(false));};
+  const add=()=>{const name=newDom.trim();if(!name||domList.find(d=>d.name===name))return;save([...domList,{name,color:DOM_COLORS[domList.length%DOM_COLORS.length]}]);setNewDom("");};
+  const del=(name)=>{if(!confirm(`Удалить домен «${name}»? Лиды останутся, но источник пропадёт из списка.`))return;save(domList.filter(d=>d.name!==name));};
+  const move=(idx,dir)=>{const j=idx+dir;if(j<0||j>=domList.length)return;const a=[...domList];[a[idx],a[j]]=[a[j],a[idx]];save(a);};
+  const patch=(name,upd)=>save(domList.map(d=>d.name===name?{...d,...upd}:d));
+  const ins={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:8,padding:"7px 10px",fontSize:12,outline:"none"};
+  const shown=domList.map((d,i)=>({d,i})).filter(({d})=>!q||d.name.toLowerCase().includes(q.toLowerCase()));
   return(
-    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
-      <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>🌐 {t.domainMgmt}</div>
-      <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
-        <div style={{position:"relative",flexShrink:0}}>
-          <input type="color" value={newColor} onChange={e=>setNewColor(e.target.value)}
-            style={{width:36,height:36,padding:2,border:`1px solid ${C.border}`,borderRadius:8,cursor:"pointer",background:C.surface}}
-            title={t.pickColor}/>
-        </div>
-        <input value={newDom} onChange={e=>setNewDom(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&addDomain()}
-          placeholder="garnofurniture.com / Instagram / Olx ..."
-          style={{flex:1,background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"8px 11px",fontSize:12,outline:"none"}}/>
-        <button onClick={addDomain} disabled={saving}
-          style={{background:saving?"rgba(191,164,126,0.1)":C.accentDim,border:`1px solid ${C.accentBorder}`,color:saving?C.dim:C.accent,borderRadius:7,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:saving?"wait":"pointer",whiteSpace:"nowrap"}}>
-          {saving?"⏳ "+t.saving:"+ "+t.addBtn}
-        </button>
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍 Поиск домена…" style={{...ins,flex:"1 1 180px"}}/>
+        <input value={newDom} onChange={e=>setNewDom(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Новый домен…" style={{...ins,flex:"1 1 180px"}}/>
+        <button onClick={add} disabled={!newDom.trim()} style={{background:C.accent,color:"#00132f",border:"none",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:"pointer",opacity:newDom.trim()?1:0.5}}>＋ Добавить</button>
+        {saving&&<span style={{fontSize:11,color:C.muted,alignSelf:"center"}}>⟳ сохраняю…</span>}
       </div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-        {domList.map(d=>(
-          <div key={d.name} style={{display:"flex",alignItems:"center",gap:4,background:`${d.color}15`,border:`1px solid ${d.color}50`,borderRadius:7,padding:"4px 4px 4px 8px"}}>
-            <input type="color" value={d.color} onChange={e=>changeColor(d.name,e.target.value)}
-              style={{width:14,height:14,padding:0,border:"none",background:"transparent",cursor:"pointer",borderRadius:3,flexShrink:0}}
-              title={t.changeColor}/>
-            <span style={{fontSize:11,color:d.color,fontWeight:600,fontFamily:"monospace"}}>{d.name}</span>
-            <button onClick={()=>removeDomain(d.name)}
-              style={{background:"transparent",border:"none",color:`${d.color}80`,cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 4px"}}
-              title={t.delete}>✕</button>
+      <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:460,overflowY:"auto"}}>
+        {shown.map(({d,i})=>(
+          <div key={d.name} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:9}}>
+            <div style={{display:"flex",flexDirection:"column"}}>
+              <button onClick={()=>move(i,-1)} disabled={i===0||!!q} title="Выше" style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:10,lineHeight:1,padding:1}}>▲</button>
+              <button onClick={()=>move(i,1)} disabled={i===domList.length-1||!!q} title="Ниже" style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:10,lineHeight:1,padding:1}}>▼</button>
+            </div>
+            <span style={{fontSize:10,color:C.dim,minWidth:18,textAlign:"right"}}>{i+1}</span>
+            <input type="color" value={d.color||"#60a5fa"} onChange={e=>patch(d.name,{color:e.target.value})} style={{width:26,height:22,border:"none",background:"transparent",cursor:"pointer",padding:0}}/>
+            <span style={{flex:1,fontSize:12,fontWeight:600,color:d.color||C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.name}</span>
+            <select value={d.funnel||""} onChange={e=>patch(d.name,{funnel:e.target.value?Number(e.target.value):null})} style={{...ins,padding:"4px 8px",fontSize:11,colorScheme:"dark",maxWidth:170}}>
+              <option value="">— без воронки —</option>
+              {funnels.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+            <button onClick={()=>del(d.name)} title="Удалить" style={{background:"transparent",border:`1px solid ${C.red}44`,color:C.red,borderRadius:7,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>🗑</button>
+          </div>))}
+        {q&&<div style={{fontSize:10,color:C.dim}}>Порядок меняется при пустом поиске</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── ВОРОНКА ПРОДАЖ (по оценкам) — заменяет раздел «Аналитика» ─────────────────
+function scoreEverReached(l,x){const cur=parseFloat(l.score)||0;if(cur>=x)return true;return (l.scoreTrail||[]).some(v=>(parseFloat(v)||0)>=x);}
+function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUser}){
+  const ru=lang!=="pl";
+  const td=getToday();const mS=`${td.slice(0,8)}01`;
+  const [dateFrom,setDateFrom]=useState(mS);const [dateTo,setDateTo]=useState(td);
+  const [fm,setFm]=useState(currentUser&&MANAGERS.includes(currentUser)&&currentUser!=="Danya"?currentUser:"all");
+  const [ff,setFf]=useState("all");
+  const [pick,setPick]=useState(null); // {x, mode:"at"|"reached"}
+  // прошлый период такой же длины, сразу перед текущим
+  const prevRange=(()=>{if(!dateFrom||!dateTo)return [null,null];const a=new Date(dateFrom+"T00:00:00"),b=new Date(dateTo+"T00:00:00");const len=Math.round((b-a)/86400000)+1;const pe=new Date(a);pe.setDate(pe.getDate()-1);const ps=new Date(pe);ps.setDate(ps.getDate()-len+1);const iso=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;return [iso(ps),iso(pe)];})();
+  const scope=(arr)=>(arr||[]).filter(l=>fm==="all"||l.manager===fm).filter(l=>{if(ff==="all")return true;const f=leadFunnel(l,srcList,funnels);return ff==="none"?!f:(f&&String(f.id)===ff);});
+  const cur=scope(filterByCustomRange(leads,dateFrom,dateTo));
+  const prev=prevRange[0]?scope(filterByCustomRange(leads,prevRange[0],prevRange[1])):[];
+  const at=(arr,x)=>arr.filter(l=>(parseFloat(l.score)||0)===x);
+  const reached=(arr,x)=>arr.filter(l=>scoreEverReached(l,x));
+  const LBL={0:"Нет связи",1:"Связь, без инфо",2:"Срок 4м+",2.5:"4м+ с инфо",3:"4м−, без инфо",4:"Квал",4.5:"MWP квал",5:"Визит назначен",5.5:"Визит состоялся",6:"Продажа"};
+  const maxN=Math.max(1,cur.length);
+  const pct=(a,b)=>b?Math.round(a/b*1000)/10:0;
+  const dlt=(a,b)=>{if(!b)return a?"new":"—";const p=Math.round((a-b)/b*100);return (p>0?"+":"")+p+"%";};
+  // ключевые переходы
+  const trans=(from,to,arr)=>{const base=arr.filter(l=>scoreEverReached(l,from));const ok=base.filter(l=>scoreEverReached(l,to));return {n:ok.length,of:base.length,p:pct(ok.length,base.length)};};
+  // 4.5 → 5.5: именно те, кто был на 4.5 (по истории оценок или сейчас), и дошли до «визит состоялся»
+  const was45=(l)=>(parseFloat(l.score)||0)===4.5||(l.scoreTrail||[]).some(v=>parseFloat(v)===4.5);
+  const t4555=(arr)=>{const base=arr.filter(was45);const ok=base.filter(l=>scoreEverReached(l,5.5));return {n:ok.length,of:base.length,p:pct(ok.length,base.length)};};
+  const K=[["Лид → Квал (4+)",trans(0,4,cur),trans(0,4,prev)],["Квал 4 → Визит 5",trans(4,5,cur),trans(4,5,prev)],["MWP 4.5 → Визит состоялся 5.5",t4555(cur),t4555(prev)],["Визит назн. 5 → состоялся 5.5",trans(5,5.5,cur),trans(5,5.5,prev)],["Визит 5.5 → Продажа 6",trans(5.5,6,cur),trans(5.5,6,prev)]];
+  const ss={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,outline:"none",colorScheme:"dark"};
+  const pickList=pick?(pick.mode==="at"?at(cur,pick.x):reached(cur,pick.x)):[];
+  const curSales=filterByCustomRange(sales||[],dateFrom,dateTo).filter(x=>fm==="all"||x.manager===fm);
+  return(
+    <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <div style={{fontSize:18,fontWeight:800,color:C.text}}>▼ {ru?"Воронка продаж":"Lejek sprzedaży"} <span style={{fontSize:12,color:C.muted}}>({cur.length})</span></div>
+        <select value={fm} onChange={e=>setFm(e.target.value)} style={ss}><option value="all">{ru?"Все менеджеры":"Wszyscy"}</option>{MANAGERS.map(m=><option key={m} value={m}>{m}</option>)}</select>
+        <select value={ff} onChange={e=>setFf(e.target.value)} style={ss}><option value="all">{ru?"Все воронки":"Wszystkie lejki"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— {ru?"без воронки":"bez lejka"}</option></select>
+        <div style={{marginLeft:"auto"}}><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t} lang={lang}/></div>
+      </div>
+      {prevRange[0]&&<div style={{fontSize:11,color:C.dim,marginTop:-8}}>{ru?"Сравнение с периодом":"Porównanie z okresem"} {isoToDot(prevRange[0])} — {isoToDot(prevRange[1])} ({prev.length} {ru?"лидов":"leadów"})</div>}
+
+      {/* ВОРОНКА */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px"}}>
+        {SCORES.map((x,i)=>{
+          const rc=reached(cur,x).length,rp=reached(prev,x).length,ac=at(cur,x).length;
+          const prevStage=i>0?reached(cur,SCORES[i-1]).length:null;
+          const c=QUAL_COLOR[scoreToQual(x)]||C.accent;
+          const w=Math.max(8,Math.round(rc/maxN*100));
+          const sel=pick&&pick.x===x;
+          return(
+          <div key={x} style={{display:"flex",alignItems:"center",gap:12,marginBottom:6}}>
+            <div style={{width:150,flexShrink:0,textAlign:"right"}}><div style={{fontSize:13,fontWeight:900,color:c}}>{x}</div><div style={{fontSize:10,color:C.muted}}>{LBL[x]}</div></div>
+            <div style={{flex:1,display:"flex",justifyContent:"center"}}>
+              <div onClick={()=>setPick(sel?null:{x,mode:"reached"})} title={ru?"Показать лидов":"Pokaż leady"} style={{width:`${w}%`,minWidth:90,background:`linear-gradient(90deg,${c}cc,${c}66)`,border:sel?"2px solid #fff":`1px solid ${c}`,borderRadius:8,padding:"8px 12px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:sel?`0 0 0 3px ${c}55`:"none",transition:"width .3s"}}>
+                <span style={{fontSize:16,fontWeight:900,color:"#fff"}}>{rc}</span>
+                <span style={{fontSize:10,color:"rgba(255,255,255,0.85)",fontWeight:700}}>{ru?"сейчас":"teraz"}: {ac}</span>
+              </div>
+            </div>
+            <div style={{width:170,flexShrink:0,fontSize:11}}>
+              <div style={{color:rc>=rp?C.green:C.red,fontWeight:800}}>{dlt(rc,rp)} <span style={{color:C.muted,fontWeight:500}}>vs {rp}</span></div>
+              {prevStage!==null&&<div style={{color:C.muted}}>{ru?"переход":"przejście"}: <b style={{color:C.text}}>{pct(rc,prevStage)}%</b></div>}
+            </div>
+          </div>);})}
+        <div style={{fontSize:10,color:C.dim,marginTop:6}}>{ru?"Полоса — сколько лидов дошли до этапа (учитывается история оценок). «Сейчас» — сколько стоят на этапе. Клик по полосе — список лидов.":"Pasek — ile leadów dotarło do etapu. Kliknij, aby zobaczyć listę."}</div>
+      </div>
+
+      {/* КЛЮЧЕВЫЕ ПЕРЕХОДЫ */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
+        {K.map(([lab,a,b])=>(
+          <div key={lab} style={{background:C.card,border:`1px solid ${lab.startsWith("MWP")?"#2dd4bf88":C.border}`,borderRadius:12,padding:"12px 14px"}}>
+            <div style={{fontSize:10,color:lab.startsWith("MWP")?"#2dd4bf":C.muted,textTransform:"uppercase",letterSpacing:0.6,fontWeight:700,marginBottom:6}}>{lab}</div>
+            <div style={{fontSize:24,fontWeight:900,color:C.text}}>{a.p}%</div>
+            <div style={{fontSize:11,color:C.muted}}>{a.n} / {a.of} · <span style={{color:a.p>=b.p?C.green:C.red,fontWeight:700}}>{ru?"было":"było"} {b.p}%</span></div>
+          </div>))}
+      </div>
+
+      {/* СПИСОК ЛИДОВ ЭТАПА */}
+      {pick&&<div style={{background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:14,overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:`1px solid ${C.border}`,flexWrap:"wrap"}}>
+          <div style={{fontSize:13,fontWeight:800,color:C.text}}>{ru?"Этап":"Etap"} {pick.x} — {LBL[pick.x]} <span style={{color:C.muted}}>({pickList.length})</span></div>
+          <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
+            {[["reached",ru?"Дошли до этапа":"Dotarli"],["at",ru?"Сейчас на этапе":"Teraz na etapie"]].map(([m,l])=><button key={m} onClick={()=>setPick({...pick,mode:m})} style={{background:pick.mode===m?C.accentDim:"transparent",border:`1px solid ${pick.mode===m?C.accentBorder:C.border}`,color:pick.mode===m?C.accent:C.muted,borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>{l}</button>)}
+            <button onClick={()=>setPick(null)} style={{background:"transparent",border:"none",color:C.muted,fontSize:16,cursor:"pointer"}}>✕</button>
           </div>
-        ))}
+        </div>
+        <div style={{maxHeight:380,overflowY:"auto"}}>
+          {pickList.length===0?<div style={{padding:16,fontSize:12,color:C.dim,textAlign:"center"}}>—</div>:pickList.map(l=>{const f=leadFunnel(l,srcList,funnels);return(
+            <div key={l.id} onClick={()=>onOpenLead&&onOpenLead(l)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:700,color:C.text}}>{l.name||"—"} <span style={{color:C.dim,fontWeight:400}}>· {l.phone}</span></div><div style={{fontSize:10,color:C.muted}}>{l.createdAt} · {srcShort(l.source||"")}{f?` · ▼ ${f.name}`:""}</div></div>
+              <span style={{fontSize:11,fontWeight:700,color:MGR_COLOR[l.manager]||C.muted}}>{l.manager||"—"}</span>
+              <ScoreBar score={l.score}/>
+            </div>);})}
+        </div>
+      </div>}
+
+      {/* ВСЯ ПРЕЖНЯЯ АНАЛИТИКА — с теми же фильтрами */}
+      <div style={{borderTop:`1px dashed ${C.border}`,paddingTop:6}}>
+        <AnalyticsPage leads={scope(leads)} sales={curSales} srcList={srcList} t={t} lang={lang}/>
       </div>
     </div>
   );
@@ -2848,7 +3105,6 @@ function AnalyticsPage({leads,sales,srcList,setDomains,t,lang}){
         </div>
       )}
 
-      <DomainManager srcList={srcList} setDomains={setDomains} t={t}/>
     </div>
   );
 }
@@ -2944,6 +3200,7 @@ function clearSnooze(key){const m=getSnooze();delete m[key];try{localStorage.set
 // Ключи поп-апов, которые уже показывали в этой сессии (чтобы не дёргать снова каждые 5с)
 const POPPED_KEY="garno_popped";
 function wasPopped(key){try{const m=JSON.parse(sessionStorage.getItem(POPPED_KEY)||"{}");return !!m[key];}catch{return false;}}
+function unPop(key){try{const m=JSON.parse(sessionStorage.getItem(POPPED_KEY)||"{}");delete m[key];sessionStorage.setItem(POPPED_KEY,JSON.stringify(m));}catch{}}
 function markPopped(key){try{const m=JSON.parse(sessionStorage.getItem(POPPED_KEY)||"{}");m[key]=1;sessionStorage.setItem(POPPED_KEY,JSON.stringify(m));}catch{}}
 
 // Полноэкранный поп-ап аллерта с кнопками Принять / Напомнить позже / Открыть
@@ -2990,7 +3247,7 @@ function GarnoTodayPopup({leads,sales,tasks,currentUser,lang,setPage,onOpenLead,
           <button onClick={onClose} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.5)",fontSize:22,cursor:"pointer",lineHeight:1}}>✕</button>
         </div>
         <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:18}}>
-          <Stat icon="★" label={ru?"Продажи за 24ч":"Sprzedaże 24h"} value={sales24.length} sub={fmtM(rev24)} color="#bfa47e" onClick={()=>go("sales")}/>
+          <Stat icon="★" label={ru?"Продажи за 24ч":"Sprzedaże 24h"} value={sales24.length} sub={fmtM(rev24)} color="#bfa47e" onClick={()=>go("salescenter")}/>
           <Stat icon="◈" label={ru?"Новые заявки":"Nowe leady"} value={newLeads.length} sub={ru?"с прошлого TODAY":"od ostatniego TODAY"} color="#facc15" onClick={()=>go("leads")}/>
           <Stat icon="☰" label={ru?"Новые задачи":"Nowe zadania"} value={newTasks.length} sub={ru?"назначены тебе":"przypisane tobie"} color="#38bdf8" onClick={()=>go("tasks")}/>
           <Stat icon="◆" label={ru?"Твои продажи (месяц)":"Twoje sprzedaże (mies.)"} value={mySalesM.length} sub={fmtM(myRevM)} color="#22c55e" onClick={()=>go("salescenter")}/>
@@ -3025,7 +3282,7 @@ function GarnoTodayPopup({leads,sales,tasks,currentUser,lang,setPage,onOpenLead,
   );
 }
 
-function AlertPopup({alert,onAccept,onSnooze,onOpen,onDismiss,lang}){
+function AlertPopup({alert,onAccept,onSnooze,onOpen,onDismiss,onForward,currentUser,lang}){
   const ru=lang!=="pl";
   const [snz,setSnz]=useState(false);
   if(!alert)return null;
@@ -3046,13 +3303,17 @@ function AlertPopup({alert,onAccept,onSnooze,onOpen,onDismiss,lang}){
           {alert.count>1&&<div style={{background:col,color:"#00132f",borderRadius:14,padding:"4px 12px",fontSize:12,fontWeight:900}}>+{alert.count-1} {ru?"ещё":"więcej"}</div>}
         </div>
         {alert.body&&<div style={{fontSize:15,color:"rgba(255,255,255,0.8)",lineHeight:1.6,whiteSpace:"pre-wrap",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"14px 16px",marginBottom:22,maxHeight:220,overflowY:"auto"}}>{alert.body}</div>}
-        {!snz?(
+        {!snz?(<>
           <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
             <button onClick={onAccept} style={{flex:1,minWidth:160,background:"#22c55e",border:"none",color:"#00132f",borderRadius:12,padding:"16px 20px",fontSize:16,fontWeight:900,cursor:"pointer"}}>✓ {ru?"Принять":"Przyjęte"}</button>
             <button onClick={()=>setSnz(true)} style={{flex:1,minWidth:160,background:"transparent",border:"2px solid #f59e0b",color:"#fbbf24",borderRadius:12,padding:"16px 20px",fontSize:16,fontWeight:800,cursor:"pointer"}}>⏰ {ru?"Напомнить позже":"Przypomnij później"}</button>
             {onOpen&&<button onClick={onOpen} style={{flex:1,minWidth:160,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:12,padding:"16px 20px",fontSize:16,fontWeight:800,cursor:"pointer"}}>→ {ru?"Открыть":"Otwórz"}</button>}
           </div>
-        ):(
+          {alert.kind==="lead"&&onForward&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.12)"}}>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",textTransform:"uppercase",letterSpacing:1,fontWeight:800,marginBottom:8}}>↪ {ru?"Не могу — передать менеджеру":"Nie mogę — przekaż"}</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{MANAGERS.filter(m=>m!==currentUser).map(m=><button key={m} onClick={()=>onForward(m)} style={{background:`${MGR_COLOR[m]||"#888"}22`,border:`2px solid ${MGR_COLOR[m]||"#888"}`,color:MGR_COLOR[m]||"#fff",borderRadius:10,padding:"9px 16px",fontSize:14,fontWeight:800,cursor:"pointer"}}>→ {m}</button>)}</div>
+          </div>}
+        </>):(
           <div>
             <div style={{fontSize:12,color:"#fbbf24",fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>⏰ {ru?"Напомнить через":"Przypomnij za"}</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -3147,9 +3408,10 @@ function monthsAgo(dateDot){
   const now=new Date();return (now.getFullYear()-d.getFullYear())*12+(now.getMonth()-d.getMonth());
 }
 
-function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpenLead,updateDb,setPage}){
+function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpenLead,updateDb,setPage,setSales,setSalesNow}){
   const ru=lang!=="pl";
-  const [mgr,setMgr]=useState(currentUser&&currentUser!=="all"?currentUser:"all");
+  // Свой кабинет открывается автоматически; Даня (руководитель) и Эрика — общий
+  const [mgr,setMgr]=useState(currentUser&&MANAGERS.includes(currentUser)&&currentUser!=="Danya"?currentUser:"all");
   const [kpOpen,setKpOpen]=useState(false);const [kpData,setKpData]=useState(null);
   const my=(arr)=>(arr||[]).filter(x=>mgr==="all"||x.manager===mgr);
   const today=getToday();
@@ -3199,10 +3461,35 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
         {(mgr==="all"?MANAGERS:[mgr]).map(m=>{const ms=monthSales.filter(x=>x.manager===m);const rv=ms.reduce((a,x)=>a+(x.saleAmount||0),0);return(<div key={m} style={{background:C.card,border:`1px solid ${MGR_COLOR[m]}44`,borderRadius:12,padding:"12px 14px"}}><div style={{display:"flex",alignItems:"center",gap:6}}><Avatar name={m} color={MGR_COLOR[m]} size={20}/><span style={{fontSize:11,fontWeight:700,color:MGR_COLOR[m]}}>{m}</span></div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m]}}>{fmtM(rv)}</div><div style={{fontSize:10,color:C.muted}}>{ms.length} {t.many}</div></div>);})}
       </div>
 
+      {/* Этот месяц vs прошлый — по выбранному кабинету (у Дани — вся команда) */}
+      {(()=>{
+        const d0=new Date();const pmS=new Date(d0.getFullYear(),d0.getMonth()-1,1),pmE=new Date(d0.getFullYear(),d0.getMonth(),0);
+        const iso=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;
+        const pS=iso(pmS),pE=iso(pmE);
+        // прошлый месяц — тот же отрезок дней, чтобы сравнение было честным (1..сегодня)
+        const dayN=d0.getDate();const pE2=iso(new Date(pmS.getFullYear(),pmS.getMonth(),Math.min(dayN,pmE.getDate())));
+        const calc=(a,b)=>{const ld=filterByCustomRange(my(leads),a,b);const sl=filterByCustomRange(my(sales),a,b);const rv=sl.reduce((x,y)=>x+(y.saleAmount||0),0);
+          return {leads:ld.length,q:ld.filter(l=>(parseFloat(l.score)||0)>=4).length,mwp:ld.filter(l=>(parseFloat(l.score)||0)>=4.5).length,v:ld.filter(l=>(parseFloat(l.score)||0)>=5).length,vd:ld.filter(l=>(parseFloat(l.score)||0)>=5.5).length,s:sl.length,rev:rv,conv:ld.length?Math.round(sl.length/ld.length*1000)/10:0};};
+        const cur=calc(mStart,today),prev=calc(pS,pE2),prevFull=calc(pS,pE);
+        const rows=[["Лиды","leads"],["Квал (4+)","q"],["MWP (4.5+)","mwp"],["Визит назначен (5+)","v"],["Визит состоялся (5.5+)","vd"],["Продажи","s"],["Выручка","rev"],["Конверсия лид→продажа, %","conv"]];
+        const dl=(a,b)=>{if(!b)return a?"new":"—";const p=Math.round((a-b)/b*100);return (p>0?"+":"")+p+"%";};
+        return(
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px"}}>
+          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📊 {mgr==="all"?(ru?"Вся команда":"Cały zespół"):mgr} · {ru?"этот месяц vs прошлый":"ten miesiąc vs poprzedni"} <span style={{color:C.dim,textTransform:"none"}}>({ru?`1–${dayN} число vs те же дни`:`1–${dayN} vs te same dni`})</span></div>
+          <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr style={{color:C.muted,fontSize:10,textTransform:"uppercase"}}><th style={{textAlign:"left",padding:"6px 8px"}}>{ru?"Показатель":"Wskaźnik"}</th><th style={{textAlign:"right",padding:"6px 8px"}}>{ru?"Этот":"Ten"}</th><th style={{textAlign:"right",padding:"6px 8px"}}>{ru?"Прошлый (те же дни)":"Poprz. (te dni)"}</th><th style={{textAlign:"right",padding:"6px 8px"}}>Δ</th><th style={{textAlign:"right",padding:"6px 8px"}}>{ru?"Прошлый целиком":"Poprz. cały"}</th></tr></thead>
+            <tbody>{rows.map(([lab,k])=>{const a=cur[k],b=prev[k];const up=a>b,eq=a===b;const f=v=>k==="rev"?fmtM(v):v;return(
+              <tr key={k} style={{borderTop:`1px solid ${C.border}`}}><td style={{padding:"6px 8px",color:C.text}}>{lab}</td><td style={{padding:"6px 8px",textAlign:"right",fontWeight:800,color:C.text}}>{f(a)}</td><td style={{padding:"6px 8px",textAlign:"right",color:C.muted}}>{f(b)}</td><td style={{padding:"6px 8px",textAlign:"right",fontWeight:800,color:eq?C.muted:up?C.green:C.red}}>{dl(a,b)}</td><td style={{padding:"6px 8px",textAlign:"right",color:C.dim}}>{f(prevFull[k])}</td></tr>);})}</tbody>
+          </table></div>
+        </div>);
+      })()}
+
       {/* Пьедестал месяца — MOLODEC */}
       {(()=>{
-        const rev={};monthSales.forEach(x=>{if(x.manager)rev[x.manager]=(rev[x.manager]||0)+(x.saleAmount||0);});
-        const podium=MANAGERS.filter(m=>m!=="Danya").map(m=>({name:m,rev:rev[m]||0,cnt:monthSales.filter(x=>x.manager===m).length})).sort((a,b)=>b.rev-a.rev).slice(0,3);
+        // Пьедестал ОБЩИЙ во всех кабинетах: считаем по продажам всей команды, не только выбранного менеджера
+        const allMonth=filterByCustomRange(sales||[],mStart,today);const teamRev=allMonth.reduce((a,x)=>a+(x.saleAmount||0),0);
+        const rev={};allMonth.forEach(x=>{if(x.manager)rev[x.manager]=(rev[x.manager]||0)+(x.saleAmount||0);});
+        const podium=MANAGERS.filter(m=>m!=="Danya").map(m=>({name:m,rev:rev[m]||0,cnt:allMonth.filter(x=>x.manager===m).length,pct:teamRev?Math.round((rev[m]||0)/teamRev*100):0})).sort((a,b)=>b.rev-a.rev).slice(0,3);
         if(!podium.some(p=>p.rev>0))return null;
         const order=podium.length>=3?[podium[1],podium[0],podium[2]]:podium;
         const hgt={0:110,1:80,2:60};const medal=["🥇","🥈","🥉"];
@@ -3217,33 +3504,16 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
                 <div style={{fontSize:13,fontWeight:800,color:c}}>{m.name}</div>
                 {lead&&<div style={{fontSize:9,fontWeight:900,color:"#f0c040",letterSpacing:1.5,background:"rgba(240,192,64,0.14)",border:"1px solid rgba(240,192,64,0.5)",borderRadius:20,padding:"2px 10px"}}>MOLODEC</div>}
                 <div style={{fontSize:11,color:C.accent,fontWeight:700}}>{fmtM(m.rev)} <span style={{color:C.muted}}>· {m.cnt}</span></div>
+                <div style={{fontSize:13,fontWeight:900,color:"#fff"}}>{m.pct}% <span style={{fontSize:10,color:C.muted,fontWeight:600}}>{ru?"от общих":"z całości"}</span></div>
                 <div style={{width:"100%",height:hgt[rank],background:`linear-gradient(180deg,${c}cc,${c}44)`,borderRadius:"10px 10px 0 0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:900,color:"#fff"}}>{rank+1}</div>
               </div>);})}
           </div>
         </div>);
       })()}
 
-      {/* Сделки месяца — кому продали, клик → карточка лида */}
+      {/* ПРОДАЖИ за любой период — перенесено из раздела «Продажи», клик по карточке → лид */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
-        <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
-          <div style={{fontSize:11,color:C.accent,textTransform:"uppercase",letterSpacing:1,fontWeight:800}}>★ {ru?"Сделки за месяц":"Sprzedaże miesiąca"}</div>
-          <span style={{fontSize:11,color:C.muted}}>({monthSales.length})</span>
-          <button onClick={()=>setPage("sales")} style={{marginLeft:"auto",background:"transparent",border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:8,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>{ru?"Все продажи →":"Wszystkie →"}</button>
-        </div>
-        {monthSales.length===0?<div style={{padding:16,fontSize:12,color:C.dim,textAlign:"center"}}>{ru?"Продаж в этом месяце пока нет":"Brak sprzedaży w tym miesiącu"}</div>
-        :[...monthSales].sort((a,b)=>(parseCreatedAt(b.createdAt)?.getTime()||0)-(parseCreatedAt(a.createdAt)?.getTime()||0)).map(x=>{
-          const l=(leads||[]).find(q=>q.leadId===x.leadId)||(leads||[]).find(q=>q.phone===x.phone);
-          return(
-          <div key={x.id} onClick={()=>{if(l)onOpenLead(l);}} title={l?(ru?"Открыть лида":"Otwórz leada"):""} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:`1px solid ${C.border}`,cursor:l?"pointer":"default"}}>
-            <Avatar name={x.name||x.phone} color={C.accent} size={32} noMedal/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{x.name||"—"}</div>
-              <div style={{fontSize:11,color:C.muted}}>{x.phone||"—"} · {x.createdAt||"—"}{x.source?` · ${srcShort(x.source)}`:""}</div>
-            </div>
-            <span style={{fontSize:11,fontWeight:700,color:MGR_COLOR[x.manager]||C.muted}}>{x.manager||"—"}</span>
-            <span style={{fontSize:14,fontWeight:900,color:C.accent,whiteSpace:"nowrap"}}>{fmtM(x.saleAmount)}</span>
-            {l&&<span style={{color:C.dim,fontSize:12}}>→</span>}
-          </div>);})}
+        <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={onOpenLead}/>
       </div>
 
       {/* Рекомендации по паттерну */}
@@ -3368,11 +3638,415 @@ function LeadDropdown({leads,value,onChange,lang,ins}){
   );
 }
 
-function TaskModal({task,onSave,onClose,t,taskTypes=[],leads=[],onAddType,presetLead,lang}){
+// ─── ЗАКАЗЫ: постпродажный процесс ───────────────────────────────────────────
+// 15 последовательных этапов. Пункты чек-листов — шаблон (редактируется в «Шаблон этапов»)
+// + свои пункты конкретного заказа. Этап нельзя начать, пока не закрыты предыдущие —
+// админ (Даня) может открыть этап вручную только с причиной (пишется в историю).
+const ORDER_ADMIN=["Danya"];
+const ORDER_RESP=[["manager","Менеджер"],["measure","Замер"],["production","Производство / технолог"],["install","Монтаж"]];
+const ORDER_STAGES=[
+ {key:"deposit",name:"Продажа / задаток",icon:"💰",resp:"manager",date:"depositDate",items:["Продажа подтверждена","Задаток получен","Сумма задатка внесена","Дата получения задатка указана","Договор/документы оформлены"],fields:[["amount","Сумма продажи","num"],["deposit","Сумма задатка","num"],["depositDate","Дата получения задатка","date"]]},
+ {key:"measure",name:"Замер",icon:"📏",resp:"measure",date:"measureDate",items:["Замер назначен","Замер проведён","Фото/материалы загружены","Результаты замера переданы ответственному","Замер проверен"],fields:[["measureDate","Дата замера","date"],["measureTime","Время замера","time"],["measureComment","Комментарий по замеру","text"]]},
+ {key:"project",name:"Финализация проекта",icon:"📐",resp:"manager",date:"sendToWork",items:["Проект подготовлен","Все размеры проверены","Материалы проверены","Комплектация проверена","Стоимость подтверждена","Финальный проект подготовлен для клиента","Клиент согласовал финальный вариант","Документы/проект подписаны"],fields:[["sendToWork","Дедлайн отправки в работу","date"]]},
+ {key:"technolog",name:"Технолог / фабрика",icon:"🧑‍🔧",resp:"production",date:null,items:["Финальный проект проверен","Заказ передан технологу","Все необходимые файлы отправлены","Технолог подтвердил получение","Замечания/вопросы зафиксированы","Заказ готов к производству"],fields:[["route","Маршрут","select:technolog=Через технолога|factory=Сразу на фабрику"],["techNotes","Замечания технолога","text"]]},
+ {key:"components",name:"Комплектующие",icon:"🔩",resp:"production",date:null,items:["Ручки","Cargo","Петли","Направляющие","Механизмы","Фурнитура","Дополнительные элементы","Другие комплектующие"],fields:[]},
+ {key:"viyar",name:"Проекты → Вияр",icon:"🏭",resp:"production",date:"cutPlan",items:["Проекты получены от технолога","Проекты проверены","Проекты отправлены в Вияр","Вияр подтвердил получение","Фактура получена","Фактура проверена","Фактура оплачена"],fields:[["viyarSent","Дата отправки в Вияр","date"],["invoiceNo","Номер фактуры","text"],["invoiceSum","Сумма фактуры","num"],["invoicePaid","Дата оплаты","date"],["cutPlan","Готовность порезки — план","date"],["cutFact","Готовность порезки — факт","date"]]},
+ {key:"logistics",name:"Порезка / логистика Вияр",icon:"🚚",resp:"production",date:"viyarDelivery",items:["Подтверждена готовность порезки","Дата готовности зафиксирована","Проверено, нужна ли доставка с Вияра","Доставка заказана","Дата доставки подтверждена","Доставка получена"],fields:[["viyarDelivery","Дата доставки с Вияра","date"]]},
+ {key:"assembly",name:"Сборка на производстве",icon:"🛠",resp:"production",date:"assemblyPlan",items:["Дата сборки назначена","Производство уведомлено","Все материалы на производстве","Все комплектующие на производстве","Создана группа заказа в Telegram","В группу добавлены сотрудники","Сборка начата","Сборка завершена","Заказ проверен после сборки","Заказ готов к доставке"],fields:[["assemblyPlan","Сборка — план (дедлайн)","date"],["assemblyFact","Сборка — факт","date"],["assemblyStatus","Статус сборки","select:wait=Ожидает|work=В работе|done=Собрано|issue=Проблема"]]},
+ {key:"prepay",name:"Доплата клиента",icon:"💳",resp:"manager",date:"payDue",items:["Клиенту отправлено напоминание","Доплата запрошена","Доплата получена","Платёж зафиксирован"],fields:[["payAmount","Сумма доплаты","num"],["payDue","Срок доплаты","date"],["payFact","Дата фактической доплаты","date"]]},
+ {key:"delivery",name:"Доставка на объект",icon:"📦",resp:"manager",date:"deliveryDate",items:["Доставка организована","Перевозчик назначен","Дата доставки назначена","Клиент уведомлён","Доставка выполнена","Заказ доставлен на объект"],fields:[["deliveryDate","Дата доставки","date"],["deliveryTime","Время","time"],["carrier","Перевозчик","text"],["carrierContact","Контакт перевозчика","text"],["deliveryCost","Стоимость доставки","num"],["deliveryComment","Комментарий","text"]]},
+ {key:"montage",name:"Монтаж",icon:"🔧",resp:"install",date:"montagePlan",items:["Монтаж назначен","Клиент подтверждён","Бригада назначена","Бригада получила информацию по заказу","Монтаж начат","Монтаж завершён","Фото после монтажа загружены","Клиент подтвердил выполнение"],fields:[["montagePlan","Монтаж — план","date"],["montageTime","Время монтажа","time"],["crew","Монтажная бригада","text"],["montageFact","Монтаж — факт","date"]]},
+ {key:"finalpay",name:"Финальная оплата",icon:"✅",resp:"manager",date:"finalDue",items:["Финальная сумма рассчитана","Клиенту отправлен запрос на оплату","Доплата получена","Платёж зафиксирован"],fields:[["finalAmount","Финальная сумма","num"],["finalDue","Срок оплаты","date"],["finalPaid","Дата оплаты","date"]]},
+ {key:"protocol",name:"Протокол приёмки / odbioru",icon:"📝",resp:"manager",date:null,items:["Протокол подготовлен","Протокол отправлен клиенту","Протокол подписан","Документ загружен в CRM"],fields:[]},
+ {key:"gift",name:"Подарок клиенту",icon:"🎁",resp:"manager",date:"giftDate",items:["Подарок выбран","Подарок подготовлен","Подарок передан клиенту"],fields:[["giftType","Тип подарка","text"],["giftDate","Дата вручения","date"]]},
+ {key:"review",name:"Отзыв",icon:"⭐",resp:"manager",date:null,items:["Клиенту отправлена просьба оставить отзыв","Отзыв получен","Ссылка на отзыв добавлена в CRM","Фото/видео от клиента получены","Разрешение на публикацию получено"],fields:[["reviewLink","Ссылка на отзыв","text"]]},
+];
+const oIso=(d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const oPlus=(n)=>{const d=new Date();d.setDate(d.getDate()+n);return oIso(d);};
+function orderItems(o,tpl,st){const base=(tpl&&tpl.stages&&tpl.stages[st.key])||st.items;if(st.key==="components")return [];return [...base,...((o.extra||{})[st.key]||[])];}
+function stageDone(o,tpl,st){
+  // Пустой этап (нет комплектующих / все пункты убраны из шаблона) — проходной, иначе заказ застрянет
+  if(st.key==="components"){const c=o.components||[];return c.every(x=>x.received);}
+  const it=orderItems(o,tpl,st);const ch=(o.checks||{})[st.key]||{};return it.every(x=>ch[x]);
+}
+function stagePassed(o,tpl,st){return stageDone(o,tpl,st)||!!(o.forced||{})[st.key];}
+function orderCur(o,tpl){const i=ORDER_STAGES.findIndex(st=>!stagePassed(o,tpl,st));return i<0?ORDER_STAGES.length:i;}
+function orderProgress(o,tpl){let tot=0,dn=0;ORDER_STAGES.forEach(st=>{if(st.key==="components"){(o.components||[]).forEach(c=>{tot++;if(c.received)dn++;});return;}const it=orderItems(o,tpl,st);const ch=(o.checks||{})[st.key]||{};it.forEach(x=>{tot++;if(ch[x])dn++;});});return tot?Math.round(dn/tot*100):0;}
+function orderRemaining(o){const f=o.f||{};const total=+f.amount||+o.amount||0;const paid=(+f.deposit||0)+(f.payFact?(+f.payAmount||0):0)+(f.finalPaid?(+f.finalAmount||0):0);return Math.max(0,total-paid);}
+function stageDeadline(o,st){if(!st)return null;return (o.sdl||{})[st.key]||(st.date&&(o.f||{})[st.date])||null;}
+function orderStatus(o,tpl){
+  const ci=orderCur(o,tpl);if(ci>=ORDER_STAGES.length)return {color:"#22c55e",emoji:"🏁",label:"ЗАКАЗ ЗАВЕРШЁН",days:null,dl:null,ci};
+  const st=ORDER_STAGES[ci];const dl=stageDeadline(o,st);
+  if(!dl)return {color:"#94a3b8",emoji:"⚪",label:"Срок не задан",days:null,dl:null,ci};
+  const days=Math.round((new Date(dl+"T00:00:00")-new Date(getToday()+"T00:00:00"))/86400000);
+  if(days<0)return {color:"#ef4444",emoji:"🔴",label:`Просрочено на ${-days} дн.`,days,dl,ci};
+  if(days<=3)return {color:"#facc15",emoji:"🟡",label:days===0?"Дедлайн сегодня":`До дедлайна ${days} дн.`,days,dl,ci};
+  return {color:"#22c55e",emoji:"🟢",label:`По плану · ${days} дн.`,days,dl,ci};
+}
+function orderNextStep(o,tpl){const ci=orderCur(o,tpl);if(ci>=ORDER_STAGES.length)return "—";const st=ORDER_STAGES[ci];if(st.key==="components"){const c=(o.components||[]).find(x=>!x.received);return c?`Получить: ${c.name}`:"Добавить комплектующие";}const ch=(o.checks||{})[st.key]||{};return orderItems(o,tpl,st).find(x=>!ch[x])||st.name;}
+function makeOrder({sale,lead,num,by,tpl}){
+  const now=Date.now();const comps=((tpl&&tpl.stages&&tpl.stages.components)||ORDER_STAGES[4].items).map((n,i)=>({id:now+i,name:n,qty:"",supplier:"",ordered:false,orderDate:"",received:false,comment:""}));
+  return {id:now+Math.floor(Math.random()*1000),num:String(num),saleId:sale?.id||null,leadId:lead?.id||null,client:sale?.name||lead?.name||"",phone:sale?.phone||lead?.phone||"",amount:+(sale?.saleAmount||0),
+    resp:{manager:sale?.manager||lead?.manager||by||""},f:{amount:+(sale?.saleAmount||0)},checks:{deposit:{"Продажа подтверждена":{by:by||"—",at:now}}},components:comps,files:[],extra:{},sdl:{},forced:{},
+    history:[{date:nowStr(),by:by||"—",action:"Заказ создан из продажи"}],status:"active",createdAt:nowStr(),createdMs:now,updatedAt:now};
+}
+function nextOrderNum(orders){const n=(orders||[]).map(o=>parseInt(o.num)||0);return String(Math.max(1000,...n)+1);}
+// Протокол приёмки (odbioru) — печатный документ из данных заказа
+function printProtocol(o){
+  const f=o.f||{};const w=window.open("","_blank");
+  if(!w){alert("Разрешите всплывающие окна для этого сайта");return;}
+  const d=new Date().toLocaleDateString("pl-PL");
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Protokół odbioru №${o.num}</title><style>body{font-family:Arial,sans-serif;max-width:760px;margin:30px auto;color:#111;font-size:13px;line-height:1.5}h1{font-size:20px;text-align:center;margin-bottom:4px}.sub{text-align:center;color:#555;margin-bottom:24px}table{width:100%;border-collapse:collapse;margin:12px 0}td{border:1px solid #bbb;padding:7px 9px}td:first-child{width:38%;background:#f4f4f4;font-weight:bold}.sig{display:flex;justify-content:space-between;margin-top:60px}.sig div{width:44%;border-top:1px solid #333;padding-top:6px;text-align:center;color:#555}@media print{button{display:none}}</style></head><body>
+  <h1>PROTOKÓŁ ODBIORU KOŃCOWEGO</h1><div class="sub">Zamówienie nr ${o.num} · ${d}</div>
+  <table><tr><td>Wykonawca</td><td>GARNO Custom Furniture</td></tr><tr><td>Klient</td><td>${o.client||"—"}</td></tr><tr><td>Telefon</td><td>${o.phone||"—"}</td></tr><tr><td>Przedmiot zamówienia</td><td>Meble na wymiar wg projektu nr ${o.num}</td></tr><tr><td>Data montażu</td><td>${f.montageFact||f.montagePlan||"—"}</td></tr><tr><td>Wartość zamówienia</td><td>${f.amount||o.amount||"—"}</td></tr></table>
+  <p>Klient potwierdza odbiór wykonanych prac. Prace zostały wykonane zgodnie z zamówieniem i projektem.</p>
+  <p><b>Uwagi / zastrzeżenia:</b></p><div style="border:1px solid #bbb;min-height:90px"></div>
+  <div class="sig"><div>Podpis Wykonawcy</div><div>Podpis Klienta</div></div>
+  <p style="text-align:center;margin-top:30px"><button onclick="window.print()">🖨 Drukuj / PDF</button></p></body></html>`);
+  w.document.close();
+}
+
+function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead}){
+  const orders=db.orders||[];const tpl=db.orderTemplate||null;
+  const isAdmin=ORDER_ADMIN.includes(currentUser);
+  const me=currentUser&&currentUser!=="all"?currentUser:"—";
+  const [openId,setOpenId]=useState(null);
+  const [showTpl,setShowTpl]=useState(false);
+  const [fResp,setFResp]=useState("all");const [fStage,setFStage]=useState("all");const [fOver,setFOver]=useState(false);
+  const [fDl,setFDl]=useState("");const [fClient,setFClient]=useState("");const [fNum,setFNum]=useState("");const [kpi,setKpi]=useState(null);const [showDone,setShowDone]=useState(false);
+  const td=getToday();
+  const overdueTasks=(o)=>(tasks||[]).filter(x=>x.orderId===o.id&&(x.status||"all")!=="done"&&x.deadline&&x.deadline<td).length;
+  const info=(o)=>{const s=orderStatus(o,tpl);return {...s,st:ORDER_STAGES[s.ci]||null,prog:orderProgress(o,tpl),next:orderNextStep(o,tpl),rem:orderRemaining(o),ot:overdueTasks(o)};};
+  const respOf=(o,st)=>(st&&o.resp&&o.resp[st.resp])||(o.resp&&o.resp.manager)||"—";
+  // ── запись заказа (+ задачи) одним updateDb ──
+  const commit=(id,fn,hist,mkTasks,taskPatch)=>{
+    updateDb(p=>{
+      let newTasks=[];
+      const os=(p.orders||[]).map(o=>{
+        if(o.id!==id)return o;
+        const before=orderCur(o,p.orderTemplate);
+        let n=fn({...o});
+        const after=orderCur(n,p.orderTemplate);
+        const h=[...(n.history||[])];
+        if(hist)h.push({date:nowStr(),by:me,action:hist});
+        // Этап завершён → авто-задача на следующий этап
+        if(after>before){
+          for(let i=before;i<after;i++)h.push({date:nowStr(),by:me,action:`✓ Этап завершён: ${ORDER_STAGES[i].name}`});
+          if(after<ORDER_STAGES.length){
+            const st=ORDER_STAGES[after];
+            h.push({date:nowStr(),by:me,action:`→ Заказ переведён на этап: ${st.name}`});
+            newTasks.push(buildNewTask({title:`📦 №${n.num} · ${st.name}`,comment:`Авто: этап «${ORDER_STAGES[after-1].name}» завершён → следующий шаг: ${orderNextStep(n,p.orderTemplate)}`,status:"all",priority:(st.key==="prepay"||st.key==="finalpay")?"HIGH":"MID",assignee:respOf(n,st),deadline:stageDeadline(n,st)||oPlus(2),orderId:n.id,orderNum:n.num,orderStage:st.key,leadId:n.leadId,leadName:n.client},me==="—"?null:me,[...(p.tasks||[]),...newTasks]));
+          }else{n.status="done";n.doneAt=Date.now();h.push({date:nowStr(),by:me,action:"🏁 ЗАКАЗ ЗАВЕРШЁН"});}
+        }
+        if(mkTasks)newTasks=[...newTasks,...mkTasks(n,[...(p.tasks||[]),...newTasks])];
+        return {...n,history:h,updatedAt:Date.now()};
+      });
+      let tk=newTasks.length?[...(p.tasks||[]),...newTasks]:(p.tasks||[]);
+      if(taskPatch)tk=taskPatch(tk);
+      return {...p,orders:os,tasks:tk};
+    },true);
+  };
+  const createFromSale=(sale)=>{
+    const lead=(leads||[]).find(l=>l.leadId===sale.leadId||l.id===sale.leadId)||(leads||[]).find(l=>l.phone===sale.phone);
+    updateDb(p=>({...p,orders:[...(p.orders||[]),makeOrder({sale,lead,num:nextOrderNum(p.orders),by:me,tpl:p.orderTemplate})]}),true);
+  };
+  const salesNoOrder=(sales||[]).filter(s=>!orders.some(o=>o.saleId===s.id));
+  // ── фильтры ──
+  const active=orders.filter(o=>showDone||o.status!=="done");
+  const rows=active.map(o=>({o,i:info(o)})).filter(({o,i})=>{
+    if(fResp!=="all"&&!Object.values(o.resp||{}).includes(fResp))return false;
+    if(fStage!=="all"&&String(i.ci)!==fStage)return false;
+    if(fOver&&!(i.days!==null&&i.days<0)&&!i.ot)return false;
+    if(fDl&&!(i.dl&&i.dl<=fDl))return false;
+    if(fClient&&!((o.client||"").toLowerCase().includes(fClient.toLowerCase())||String(o.phone||"").includes(fClient)))return false;
+    if(fNum&&!String(o.num).includes(fNum))return false;
+    if(kpi&&!kpi.fn(o,i))return false;
+    return true;
+  }).sort((a,b)=>(a.i.days??9999)-(b.i.days??9999));
+  const act=orders.filter(o=>o.status!=="done").map(o=>({o,i:info(o)}));
+  const at=(k)=>(x)=>x.i.st&&x.i.st.key===k;
+  const KPI=[
+    ["В работе","#38bdf8",()=>true],
+    ["Просрочено","#ef4444",(o,i)=>(i.days!==null&&i.days<0)||i.ot>0],
+    ["На производстве","#fb923c",(o,i)=>i.st&&["technolog","components","assembly"].includes(i.st.key)],
+    ["Ждут Вияр","#c084fc",(o,i)=>i.st&&["viyar","logistics"].includes(i.st.key)],
+    ["Ждут доставки","#facc15",(o,i)=>at("delivery")({i})],
+    ["Ждут монтажа","#2dd4bf",(o,i)=>at("montage")({i})],
+    ["Должны доплату","#f87171",(o,i)=>i.rem>0&&i.st&&["prepay","finalpay"].includes(i.st.key)],
+    ["Ждут протокол","#818cf8",(o,i)=>at("protocol")({i})],
+    ["Ждут отзыв","#f0c040",(o,i)=>at("review")({i})],
+  ];
+  const ss={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,outline:"none",colorScheme:"dark"};
+  const allPeople=[...new Set([...MANAGERS,...orders.flatMap(o=>Object.values(o.resp||{})).filter(Boolean)])];
+  const byStage=ORDER_STAGES.map((st,i)=>act.filter(x=>x.i.ci===i).length);
+  const maxS=Math.max(1,...byStage);
+  const open=orders.find(o=>o.id===openId);
+  return(
+    <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <div style={{fontSize:18,fontWeight:800,color:C.text}}>📦 Заказы <span style={{fontSize:12,color:C.muted}}>({act.length} в работе)</span></div>
+        <button onClick={()=>setShowTpl(true)} style={{...ss,cursor:"pointer",fontWeight:700}}>⚙ Шаблон этапов</button>
+        <label style={{fontSize:12,color:C.muted,display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}><input type="checkbox" checked={showDone} onChange={e=>setShowDone(e.target.checked)}/> показать завершённые</label>
+        {salesNoOrder.length>0&&<select value="" onChange={e=>{const s=salesNoOrder.find(x=>String(x.id)===e.target.value);if(s)createFromSale(s);}} style={{...ss,marginLeft:"auto",borderColor:C.accentBorder,color:C.accent,fontWeight:700}}>
+          <option value="">＋ Создать заказ из продажи ({salesNoOrder.length})</option>
+          {salesNoOrder.slice(0,200).map(s=><option key={s.id} value={String(s.id)}>{s.createdAt} · {s.name||s.phone} · {fmtM(s.saleAmount)} · {s.manager}</option>)}
+        </select>}
+      </div>
+
+      {/* KPI — клик фильтрует таблицу */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(118px,1fr))",gap:8}}>
+        {KPI.map(([lab,col,fn])=>{const n=act.filter(x=>fn(x.o,x.i)).length;const on=kpi&&kpi.lab===lab;return(
+          <div key={lab} onClick={()=>setKpi(on||lab==="В работе"?null:{lab,fn})} style={{background:on?`${col}22`:C.card,border:`1px solid ${on?col:C.border}`,borderRadius:11,padding:"10px 12px",cursor:"pointer"}}>
+            <div style={{fontSize:22,fontWeight:900,color:n&&lab!=="В работе"?col:C.text}}>{n}</div>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.4,fontWeight:700}}>{lab}</div>
+          </div>);})}
+      </div>
+
+      {/* Воронка заказов по этапам */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"12px 16px"}}>
+        <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>▼ Где сейчас заказы</div>
+        {ORDER_STAGES.map((st,i)=>{const n=byStage[i];const on=fStage===String(i);return(
+          <div key={st.key} onClick={()=>setFStage(on?"all":String(i))} style={{display:"flex",alignItems:"center",gap:10,marginBottom:3,cursor:"pointer"}}>
+            <div style={{width:210,fontSize:11,color:on?C.accent:C.text,fontWeight:on?800:500,textAlign:"right",whiteSpace:"nowrap"}}>{i+1}. {st.icon} {st.name}</div>
+            <div style={{flex:1,display:"flex",justifyContent:"center"}}><div style={{width:`${Math.max(4,n/maxS*100)}%`,minWidth:28,background:n?`linear-gradient(90deg,${C.accent}cc,${C.accent}55)`:"rgba(255,255,255,0.05)",border:on?"2px solid #fff":"1px solid transparent",borderRadius:6,padding:"3px 8px",fontSize:12,fontWeight:900,color:n?"#00132f":C.dim,textAlign:"center"}}>{n}</div></div>
+          </div>);})}
+      </div>
+
+      {/* Фильтры */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+        <select value={fResp} onChange={e=>setFResp(e.target.value)} style={ss}><option value="all">Ответственный</option>{allPeople.map(p=><option key={p} value={p}>{p}</option>)}</select>
+        <select value={fStage} onChange={e=>setFStage(e.target.value)} style={ss}><option value="all">Этап</option>{ORDER_STAGES.map((st,i)=><option key={st.key} value={String(i)}>{i+1}. {st.name}</option>)}<option value={String(ORDER_STAGES.length)}>🏁 Завершён</option></select>
+        <label style={{...ss,display:"flex",alignItems:"center",gap:5,cursor:"pointer",color:fOver?C.red:C.text}}><input type="checkbox" checked={fOver} onChange={e=>setFOver(e.target.checked)}/> 🔴 Просроченные</label>
+        <span style={{fontSize:11,color:C.muted}}>Дедлайн до</span><input type="date" value={fDl} onChange={e=>setFDl(e.target.value)} style={ss}/>
+        <input value={fClient} onChange={e=>setFClient(e.target.value)} placeholder="🔍 Клиент / телефон" style={{...ss,width:160}}/>
+        <input value={fNum} onChange={e=>setFNum(e.target.value)} placeholder="№ заказа" style={{...ss,width:100}}/>
+        {(fResp!=="all"||fStage!=="all"||fOver||fDl||fClient||fNum||kpi)&&<button onClick={()=>{setFResp("all");setFStage("all");setFOver(false);setFDl("");setFClient("");setFNum("");setKpi(null);}} style={{...ss,cursor:"pointer",color:C.muted}}>✕ Сброс</button>}
+      </div>
+
+      {/* Таблица руководителя */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:C.surface}}>{["Заказ","Клиент","Этап","Следующий шаг","Ответственный","Дедлайн","Статус","Готовность"].map(h=><th key={h} style={{padding:"9px 10px",textAlign:"left",fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+          <tbody>
+            {rows.map(({o,i})=>(
+              <tr key={o.id} onClick={()=>setOpenId(o.id)} style={{borderTop:`1px solid ${C.border}`,cursor:"pointer"}}>
+                <td style={{padding:"9px 10px",fontWeight:900,color:C.accent,whiteSpace:"nowrap"}}>№{o.num}</td>
+                <td style={{padding:"9px 10px"}}><div style={{fontWeight:700,color:C.text}}>{o.client||"—"}</div><div style={{fontSize:10,color:C.muted}}>{o.phone}</div></td>
+                <td style={{padding:"9px 10px",whiteSpace:"nowrap",color:C.text}}>{i.st?`${i.st.icon} ${i.st.name}`:"🏁 Завершён"}</td>
+                <td style={{padding:"9px 10px",color:C.muted,maxWidth:220,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i.next}</td>
+                <td style={{padding:"9px 10px",fontWeight:700,color:MGR_COLOR[respOf(o,i.st)]||C.text}}>{respOf(o,i.st)}</td>
+                <td style={{padding:"9px 10px",whiteSpace:"nowrap",color:C.text}}>{i.dl?isoToDot(i.dl):"—"}</td>
+                <td style={{padding:"9px 10px",whiteSpace:"nowrap"}}><span style={{color:i.color,fontWeight:800}}>{i.emoji} {i.label}</span>{i.ot>0&&<div style={{fontSize:10,color:C.red,fontWeight:700}}>⚠ задач просрочено: {i.ot}</div>}</td>
+                <td style={{padding:"9px 10px",minWidth:110}}><div style={{height:7,background:"rgba(255,255,255,0.08)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${i.prog}%`,height:"100%",background:i.prog===100?C.green:C.accent}}/></div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{i.prog}%</div></td>
+              </tr>))}
+            {rows.length===0&&<tr><td colSpan={8} style={{padding:24,textAlign:"center",color:C.dim}}>{orders.length?"По фильтрам ничего":"Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически."}</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {open&&<OrderCard o={open} tpl={tpl} isAdmin={isAdmin} me={me} commit={commit} tasks={tasks} leads={leads} onOpenLead={onOpenLead} onClose={()=>setOpenId(null)} info={info(open)} respOf={respOf}/>}
+      {showTpl&&<OrderTemplateEditor tpl={tpl} onSave={(stages)=>{updateDb(p=>({...p,orderTemplate:{stages,updatedAt:Date.now()}}),true);setShowTpl(false);}} onClose={()=>setShowTpl(false)}/>}
+    </div>
+  );
+}
+
+function OrderTemplateEditor({tpl,onSave,onClose}){
+  const [st,setSt]=useState(()=>{const m={};ORDER_STAGES.forEach(s=>{m[s.key]=[...((tpl&&tpl.stages&&tpl.stages[s.key])||s.items)];});return m;});
+  const [add,setAdd]=useState({});
+  const ins={background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:7,padding:"5px 8px",fontSize:12,outline:"none"};
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.86)",zIndex:2600,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"min(760px,100%)",maxHeight:"90vh",overflowY:"auto",background:"linear-gradient(165deg,#0a1a3a,#00132f)",border:"1px solid rgba(191,164,126,0.45)",borderRadius:18,padding:22}}>
+        <div style={{display:"flex",alignItems:"center",marginBottom:6}}><div style={{fontSize:18,fontWeight:900,color:"#fff"}}>⚙ Шаблон этапов заказа</div><button onClick={onClose} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#aaa",fontSize:20,cursor:"pointer"}}>✕</button></div>
+        <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:14}}>Пункты применяются ко всем заказам. Переименование пункта сбросит его отметку в уже начатых заказах. Для «Комплектующих» — это стартовый список позиций новых заказов.</div>
+        {ORDER_STAGES.map((s,i)=>(
+          <div key={s.key} style={{marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:11,padding:"10px 12px"}}>
+            <div style={{fontSize:12,fontWeight:800,color:"#bfa47e",marginBottom:6}}>{i+1}. {s.icon} {s.name}</div>
+            {st[s.key].map((it,j)=>(
+              <div key={j} style={{display:"flex",gap:6,marginBottom:4}}>
+                <input value={it} onChange={e=>setSt(m=>({...m,[s.key]:m[s.key].map((x,k)=>k===j?e.target.value:x)}))} style={{...ins,flex:1}}/>
+                <button onClick={()=>setSt(m=>({...m,[s.key]:m[s.key].filter((_,k)=>k!==j)}))} style={{background:"transparent",border:"1px solid rgba(239,68,68,0.4)",color:"#ef4444",borderRadius:7,padding:"0 9px",cursor:"pointer"}}>✕</button>
+              </div>))}
+            <div style={{display:"flex",gap:6,marginTop:4}}>
+              <input value={add[s.key]||""} onChange={e=>setAdd(a=>({...a,[s.key]:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"&&(add[s.key]||"").trim()){setSt(m=>({...m,[s.key]:[...m[s.key],add[s.key].trim()]}));setAdd(a=>({...a,[s.key]:""}));}}} placeholder="＋ новый пункт (Enter)" style={{...ins,flex:1}}/>
+            </div>
+          </div>))}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button onClick={onClose} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.2)",color:"#aaa",borderRadius:9,padding:"9px 18px",cursor:"pointer"}}>Отмена</button>
+          <button onClick={()=>onSave(Object.fromEntries(Object.entries(st).map(([k,v])=>[k,v.map(x=>x.trim()).filter(Boolean)])))} style={{background:"#bfa47e",border:"none",color:"#00132f",borderRadius:9,padding:"9px 22px",fontWeight:900,cursor:"pointer"}}>Сохранить шаблон</button>
+        </div>
+      </div>
+    </div>);
+}
+
+function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,info,respOf}){
+  const [openSt,setOpenSt]=useState(()=>new Set([info.ci]));
+  const [newItem,setNewItem]=useState({});
+  const [fileIn,setFileIn]=useState({});
+  const [comment,setComment]=useState("");
+  const f=o.f||{};const td=getToday();
+  const ins={background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:7,padding:"5px 8px",fontSize:12,outline:"none",colorScheme:"dark",width:"100%",boxSizing:"border-box"};
+  const toggle=(k)=>setOpenSt(s=>{const n=new Set(s);n.has(k)?n.delete(k):n.add(k);return n;});
+  const unlocked=(i)=>ORDER_STAGES.slice(0,i).every(st=>stagePassed(o,tpl,st));
+  const setField=(k,v,label)=>commit(o.id,x=>({...x,f:{...(x.f||{}),[k]:v},amount:k==="amount"?+v||0:x.amount}),`✎ ${label}: ${f[k]??"—"} → ${v||"—"}`);
+  const setResp=(k,v,label)=>commit(o.id,x=>({...x,resp:{...(x.resp||{}),[k]:v}}),`👤 ${label}: ${(o.resp||{})[k]||"—"} → ${v||"—"}`);
+  // Пункты-триггеры отдельных задач (раздел 4 ТЗ)
+  const ITEM_TASKS={"Заказ передан технологу":{title:"Контроль: технолог подтвердил получение и нет вопросов",days:2,stage:"technolog"},"Фактура оплачена":{title:"Проверить дату готовности порезки Вияр",days:2,stage:"viyar",dateField:"cutPlan"}};
+  const check=(st,it)=>{const was=!!((o.checks||{})[st.key]||{})[it];const trig=!was&&ITEM_TASKS[it];
+    commit(o.id,x=>{const c={...(x.checks||{})};const sc={...(c[st.key]||{})};if(was)delete sc[it];else sc[it]={by:me,at:Date.now()};c[st.key]=sc;return {...x,checks:c};},`${was?"☐ Снята отметка":"☑ Выполнено"}: ${st.name} → ${it}`,
+      trig?(n,all)=>[buildNewTask({title:`📦 №${n.num} · ${trig.title}`,comment:`Авто: отмечено «${it}» (${me})`,status:"all",priority:"MID",assignee:respOf(n,st),deadline:(trig.dateField&&(n.f||{})[trig.dateField])||oPlus(trig.days),orderId:n.id,orderNum:n.num,orderStage:trig.stage,leadId:n.leadId,leadName:n.client},me==="—"?null:me,all)]:null);};
+  const addItem=(st)=>{const v=(newItem[st.key]||"").trim();if(!v)return;commit(o.id,x=>({...x,extra:{...(x.extra||{}),[st.key]:[...((x.extra||{})[st.key]||[]),v]}}),`＋ Пункт в «${st.name}»: ${v}`);setNewItem(a=>({...a,[st.key]:""}));};
+  const delExtra=(st,it)=>commit(o.id,x=>({...x,extra:{...(x.extra||{}),[st.key]:((x.extra||{})[st.key]||[]).filter(y=>y!==it)}}),`− Пункт убран из «${st.name}»: ${it}`);
+  // Срок этапа → задача (создаёт или обновляет задачу этого этапа)
+  const setStageDl=(st,v)=>commit(o.id,x=>({...x,sdl:{...(x.sdl||{}),[st.key]:v}}),`📅 Срок этапа «${st.name}»: ${(o.sdl||{})[st.key]?isoToDot((o.sdl||{})[st.key]):"—"} → ${v?isoToDot(v):"—"}`,(n,all)=>{
+    if(!v)return [];
+    if(all.some(x=>x.orderId===n.id&&x.orderStage===st.key&&(x.status||"all")!=="done"))return []; // есть задача — обновим срок патчем ниже
+    return [buildNewTask({title:`📦 №${n.num} · ${st.name}`,status:"all",priority:"MID",assignee:respOf(n,st),deadline:v,orderId:n.id,orderNum:n.num,orderStage:st.key,leadId:n.leadId,leadName:n.client},me==="—"?null:me,all)];
+  },(tk)=>v?tk.map(x=>(x.orderId===o.id&&x.orderStage===st.key&&(x.status||"all")!=="done")?{...x,deadline:v,updatedAt:Date.now()}:x):tk);
+  const itemToTask=(st,it)=>commit(o.id,x=>x,`→ В задачи: ${st.name} · ${it}`,(n,all)=>[buildNewTask({title:`📦 №${n.num} · ${it}`,status:"all",priority:"MID",assignee:respOf(n,st),deadline:stageDeadline(n,st)||td,orderId:n.id,orderNum:n.num,orderStage:st.key,leadId:n.leadId,leadName:n.client},me==="—"?null:me,all)]);
+  const force=(i)=>{const r=prompt(`Открыть этап «${ORDER_STAGES[i].name}» вручную, минуя незавершённые этапы.\nУкажи причину (обязательно):`);if(!r||!r.trim())return;
+    commit(o.id,x=>{const fz={...(x.forced||{})};ORDER_STAGES.slice(0,i).forEach(st=>{if(!stageDone(x,tpl,st))fz[st.key]={by:me,reason:r.trim(),at:Date.now()};});return {...x,forced:fz};},`⚠ Ручной переход на этап «${ORDER_STAGES[i].name}» (админ). Причина: ${r.trim()}`);};
+  const comp=(id,upd,label)=>commit(o.id,x=>({...x,components:(x.components||[]).map(c=>c.id===id?{...c,...upd}:c)}),label);
+  const addFile=(st)=>{const v=fileIn[st.key]||{};if(!v.url)return;const file={id:Date.now(),stage:st.key,name:v.name||v.url,url:v.url,by:me,at:Date.now()};commit(o.id,x=>({...x,files:[...(x.files||[]),file]}),`📎 Файл в «${st.name}»: ${file.name}`);setFileIn(a=>({...a,[st.key]:{}}));};
+  const orderTasks=(tasks||[]).filter(x=>x.orderId===o.id);
+  const lead=(leads||[]).find(l=>l.id===o.leadId);
+  const renderField=([k,label,type])=>{
+    if(type.startsWith("select:")){const opts=type.slice(7).split("|").map(x=>x.split("="));return <select value={f[k]||""} onChange={e=>setField(k,e.target.value,label)} style={ins}><option value="">—</option>{opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>;}
+    return <input key={`${k}-${f[k]}`} type={type==="num"?"number":type==="date"?"date":type==="time"?"time":"text"} defaultValue={f[k]||""} onBlur={e=>{const v=e.target.value;if(String(v)!==String(f[k]||""))setField(k,type==="num"?(+v||0):v,label);}} style={ins}/>;
+  };
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.88)",backdropFilter:"blur(4px)",zIndex:2400,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 16px",overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"min(900px,100%)",background:"linear-gradient(165deg,#0a1a3a 0%,#00132f 55%,#000d22 100%)",border:"1px solid rgba(191,164,126,0.45)",borderRadius:22,boxShadow:"0 30px 90px rgba(0,0,0,0.65)",overflow:"hidden"}}>
+        <div style={{height:4,background:"linear-gradient(90deg,#bfa47e,#e2c996,#bfa47e)"}}/>
+        <div style={{padding:22}}>
+          {/* ШАПКА — сводка заказа */}
+          <div style={{display:"flex",alignItems:"flex-start",gap:12,marginBottom:16}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:24,fontWeight:900,color:"#fff"}}>Заказ №{o.num} <span style={{fontSize:14,color:"#bfa47e",fontWeight:700}}>· {o.client||"—"}</span></div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{o.phone} · создан {o.createdAt}{lead&&<> · <span onClick={()=>{onClose();onOpenLead&&onOpenLead(lead);}} style={{color:"#38bdf8",cursor:"pointer"}}>карточка лида →</span></>}</div>
+            </div>
+            <button onClick={onClose} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:10,width:36,height:36,fontSize:16,cursor:"pointer"}}>✕</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:14}}>
+            {[["Готовность",`${info.prog}%`,C.accent],["Текущий этап",info.st?`${info.st.icon} ${info.st.name}`:"🏁 Завершён","#fff"],["Следующий шаг",info.next,"#fff"],["Ответственный",respOf(o,info.st),MGR_COLOR[respOf(o,info.st)]||"#fff"],["Дедлайн",info.dl?isoToDot(info.dl):"—","#fff"],["Статус",`${info.emoji} ${info.label}`,info.color],["Просрочено задач",String(info.ot),info.ot?"#ef4444":"#fff"],["Остаток к оплате",fmtM(info.rem),info.rem?"#f87171":"#22c55e"]].map(([l,v,c])=>(
+              <div key={l} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:11,padding:"8px 11px"}}><div style={{fontSize:9,color:"rgba(255,255,255,0.45)",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800}}>{l}</div><div style={{fontSize:13,fontWeight:800,color:c,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v}</div></div>))}
+          </div>
+          <div style={{height:8,background:"rgba(255,255,255,0.08)",borderRadius:5,overflow:"hidden",marginBottom:16}}><div style={{width:`${info.prog}%`,height:"100%",background:"linear-gradient(90deg,#bfa47e,#22c55e)"}}/></div>
+
+          {/* ОСНОВНЫЕ ДАННЫЕ ЗАКАЗА */}
+          <div style={{background:"rgba(255,255,255,0.035)",border:"1px solid rgba(191,164,126,0.22)",borderRadius:14,padding:14,marginBottom:16}}>
+            <div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,marginBottom:10}}>Данные заказа</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
+              <div><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>Номер заказа</div><input key={"num"+o.num} defaultValue={o.num} onBlur={e=>{const v=e.target.value.trim();if(v&&v!==o.num)commit(o.id,x=>({...x,num:v}),`✎ Номер заказа: ${o.num} → ${v}`);}} style={ins}/></div>
+              {[["amount","Сумма продажи","num"],["measureDate","Дата замера","date"],["sendToWork","Дедлайн отправки в работу","date"],["assemblyPlan","Дедлайн сборки на производстве","date"],["montagePlan","Плановая дата монтажа","date"]].map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{fd[1]}</div>{renderField(fd)}</div>)}
+              {ORDER_RESP.map(([k,l])=><div key={k}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>Ответственный: {l}</div><input key={k+((o.resp||{})[k]||"")} list="order-people" defaultValue={(o.resp||{})[k]||""} onBlur={e=>{const v=e.target.value.trim();if(v!==((o.resp||{})[k]||""))setResp(k,v,l);}} style={ins}/></div>)}
+              <div><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>Статус заказа</div><div style={{...ins,fontWeight:800,color:info.color}}>{info.emoji} {o.status==="done"?"ЗАКАЗ ЗАВЕРШЁН":info.st?info.st.name:"—"}</div></div>
+            </div>
+            <datalist id="order-people">{MANAGERS.map(m=><option key={m} value={m}/>)}</datalist>
+          </div>
+
+          {/* ЛЕНТА ЭТАПОВ */}
+          {ORDER_STAGES.map((st,i)=>{
+            const done=stageDone(o,tpl,st);const forced=(o.forced||{})[st.key];const cur=i===info.ci;const unl=unlocked(i);
+            const items=orderItems(o,tpl,st);const ch=(o.checks||{})[st.key]||{};const extra=(o.extra||{})[st.key]||[];
+            const cnt=st.key==="components"?`${(o.components||[]).filter(c=>c.received).length}/${(o.components||[]).length}`:`${items.filter(x=>ch[x]).length}/${items.length}`;
+            const isOpen=openSt.has(i);const dl=stageDeadline(o,st);const dd=dl?Math.round((new Date(dl+"T00:00:00")-new Date(td+"T00:00:00"))/86400000):null;
+            const col=done?"#22c55e":forced?"#fb923c":cur?"#bfa47e":unl?"rgba(255,255,255,0.55)":"rgba(255,255,255,0.25)";
+            const files=(o.files||[]).filter(x=>x.stage===st.key);
+            return(<div key={st.key}>
+              <div style={{background:cur?"rgba(191,164,126,0.08)":"rgba(255,255,255,0.03)",border:`1px solid ${cur?"rgba(191,164,126,0.6)":done?"rgba(34,197,94,0.35)":"rgba(255,255,255,0.08)"}`,borderRadius:13,overflow:"hidden",opacity:unl||done?1:0.6}}>
+                <div onClick={()=>toggle(i)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer"}}>
+                  <div style={{width:26,height:26,borderRadius:"50%",background:done?"#22c55e":forced?"#fb923c":cur?"#bfa47e":"rgba(255,255,255,0.08)",color:done||cur||forced?"#00132f":"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900,flexShrink:0}}>{done?"✓":forced?"!":i+1}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:900,color:col,textTransform:"uppercase",letterSpacing:0.6}}>{st.icon} {st.name}{!unl&&!done&&" 🔒"}</div>
+                    {forced&&<div style={{fontSize:10,color:"#fb923c"}}>пропущен вручную ({forced.by}): {forced.reason}</div>}
+                  </div>
+                  <span style={{fontSize:11,color:"rgba(255,255,255,0.55)",fontWeight:700}}>{cnt}</span>
+                  {dl&&<span style={{fontSize:10,fontWeight:800,color:done?"#22c55e":dd<0?"#ef4444":dd<=3?"#facc15":"#22c55e"}}>{done?"✓":dd<0?"🔴":dd<=3?"🟡":"🟢"} {isoToDot(dl)}</span>}
+                  <span style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>{isOpen?"▴":"▾"}</span>
+                </div>
+                {isOpen&&<div style={{padding:"0 14px 14px 50px"}}>
+                  {!unl&&!done&&<div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:9,padding:"8px 10px",marginBottom:10,fontSize:12,color:"#fca5a5",display:"flex",alignItems:"center",gap:10}}>🔒 Этап закрыт — сначала завершите предыдущие этапы.{isAdmin&&<button onClick={()=>force(i)} style={{marginLeft:"auto",background:"#fb923c",border:"none",color:"#00132f",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>Открыть вручную (с причиной)</button>}</div>}
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                    <span style={{fontSize:10,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:0.6,fontWeight:700}}>📅 Срок этапа → задача</span>
+                    <input type="date" key={"sdl"+((o.sdl||{})[st.key]||"")} defaultValue={(o.sdl||{})[st.key]||""} onChange={e=>setStageDl(st,e.target.value)} style={{...ins,width:150}}/>
+                    <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>👤 {respOf(o,st)}</span>
+                  </div>
+                  {st.fields.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:10}}>{st.fields.map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{fd[1]}</div>{renderField(fd)}</div>)}</div>}
+                  {st.key==="prepay"&&<div style={{fontSize:12,color:"#fff",marginBottom:10,display:"flex",gap:14,flexWrap:"wrap"}}><span>Общая стоимость: <b>{fmtM(+f.amount||o.amount||0)}</b></span><span>Задаток: <b>{fmtM(+f.deposit||0)}</b></span><span>Остаток к оплате: <b style={{color:info.rem?"#f87171":"#22c55e"}}>{fmtM(info.rem)}</b></span></div>}
+                  {st.key==="protocol"&&<button onClick={()=>printProtocol(o)} style={{background:"#818cf8",border:"none",color:"#00132f",borderRadius:9,padding:"8px 14px",fontSize:12,fontWeight:800,cursor:"pointer",marginBottom:10}}>📝 Сгенерировать протокол odbioru</button>}
+                  {st.key==="components"
+                    ? <div style={{overflowX:"auto",marginBottom:8}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                        <thead><tr style={{color:"rgba(255,255,255,0.5)",fontSize:9,textTransform:"uppercase"}}>{["Позиция","Кол-во","Поставщик","Заказано","Дата заказа","Получено","Комментарий",""].map(h=><th key={h} style={{textAlign:"left",padding:"4px 5px"}}>{h}</th>)}</tr></thead>
+                        <tbody>{(o.components||[]).map(c=>(
+                          <tr key={c.id} style={{borderTop:"1px solid rgba(255,255,255,0.07)"}}>
+                            <td style={{padding:"4px 5px",minWidth:120}}><input key={"n"+c.name} defaultValue={c.name} onBlur={e=>e.target.value!==c.name&&comp(c.id,{name:e.target.value},`🔩 Переименовано: ${c.name} → ${e.target.value}`)} style={ins}/></td>
+                            <td style={{padding:"4px 5px",width:60}}><input key={"q"+c.qty} defaultValue={c.qty} onBlur={e=>e.target.value!==String(c.qty)&&comp(c.id,{qty:e.target.value},`🔩 ${c.name}: кол-во ${e.target.value}`)} style={ins}/></td>
+                            <td style={{padding:"4px 5px",minWidth:100}}><input key={"s"+c.supplier} defaultValue={c.supplier} onBlur={e=>e.target.value!==c.supplier&&comp(c.id,{supplier:e.target.value},`🔩 ${c.name}: поставщик ${e.target.value}`)} style={ins}/></td>
+                            <td style={{padding:"4px 5px",textAlign:"center"}}><input type="checkbox" checked={!!c.ordered} onChange={e=>comp(c.id,{ordered:e.target.checked,orderDate:e.target.checked&&!c.orderDate?td:c.orderDate},`🔩 ${c.name}: ${e.target.checked?"заказано":"не заказано"}`)}/></td>
+                            <td style={{padding:"4px 5px",width:125}}><input type="date" key={"d"+c.orderDate} defaultValue={c.orderDate||""} onChange={e=>comp(c.id,{orderDate:e.target.value},`🔩 ${c.name}: дата заказа ${e.target.value}`)} style={ins}/></td>
+                            <td style={{padding:"4px 5px",textAlign:"center"}}><input type="checkbox" checked={!!c.received} onChange={e=>comp(c.id,{received:e.target.checked},`🔩 ${c.name}: ${e.target.checked?"получено":"не получено"}`)}/></td>
+                            <td style={{padding:"4px 5px",minWidth:110}}><input key={"c"+c.comment} defaultValue={c.comment} onBlur={e=>e.target.value!==c.comment&&comp(c.id,{comment:e.target.value},`🔩 ${c.name}: комментарий`)} style={ins}/></td>
+                            <td style={{padding:"4px 5px",whiteSpace:"nowrap"}}><button title="В задачи" onClick={()=>itemToTask(st,c.name)} style={{background:"transparent",border:"none",color:"#38bdf8",cursor:"pointer"}}>→☰</button><button title="Удалить" onClick={()=>commit(o.id,x=>({...x,components:(x.components||[]).filter(y=>y.id!==c.id)}),`🔩 Удалено: ${c.name}`)} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer"}}>✕</button></td>
+                          </tr>))}</tbody></table>
+                        <button onClick={()=>{const n=prompt("Название позиции");if(n&&n.trim())commit(o.id,x=>({...x,components:[...(x.components||[]),{id:Date.now(),name:n.trim(),qty:"",supplier:"",ordered:false,orderDate:"",received:false,comment:""}]}),`🔩 Добавлено: ${n.trim()}`);}} style={{marginTop:6,background:"transparent",border:"1px dashed rgba(191,164,126,0.5)",color:"#bfa47e",borderRadius:8,padding:"5px 12px",fontSize:11,cursor:"pointer"}}>＋ позиция</button>
+                      </div>
+                    : <div style={{display:"flex",flexDirection:"column",gap:3,marginBottom:8}}>
+                        {items.map(it=>{const c=ch[it];const isExtra=extra.includes(it);return(
+                          <div key={it} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 6px",borderRadius:7,background:c?"rgba(34,197,94,0.07)":"transparent"}}>
+                            <button disabled={!unl&&!done} onClick={()=>check(st,it)} style={{width:20,height:20,borderRadius:5,border:`2px solid ${c?"#22c55e":"rgba(255,255,255,0.3)"}`,background:c?"#22c55e":"transparent",color:"#00132f",fontSize:12,fontWeight:900,cursor:unl||done?"pointer":"not-allowed",lineHeight:1,padding:0,flexShrink:0}}>{c?"✓":""}</button>
+                            <span style={{flex:1,fontSize:12,color:c?"#86efac":"#fff",textDecoration:c?"line-through":"none"}}>{it}</span>
+                            {c&&<span style={{fontSize:9,color:"rgba(255,255,255,0.4)"}}>{c.by} · {new Date(c.at).toLocaleDateString("ru-RU")}</span>}
+                            {!c&&<button title="Создать задачу из пункта" onClick={()=>itemToTask(st,it)} style={{background:"transparent",border:"none",color:"#38bdf8",cursor:"pointer",fontSize:11}}>→☰</button>}
+                            {isExtra&&<button onClick={()=>delExtra(st,it)} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer",fontSize:11}}>✕</button>}
+                          </div>);})}
+                        <input value={newItem[st.key]||""} onChange={e=>setNewItem(a=>({...a,[st.key]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addItem(st)} placeholder="＋ свой пункт для этого заказа (Enter)" style={{...ins,marginTop:4,background:"transparent",border:"1px dashed rgba(255,255,255,0.15)"}}/>
+                      </div>}
+                  {/* Файлы/ссылки этапа */}
+                  <div style={{marginTop:6}}>
+                    {files.map(x=><div key={x.id} style={{fontSize:11,marginBottom:2}}>📎 <a href={x.url} target="_blank" rel="noopener noreferrer" style={{color:"#38bdf8"}}>{x.name}</a> <span style={{color:"rgba(255,255,255,0.35)"}}>· {x.by}</span></div>)}
+                    <div style={{display:"flex",gap:6,marginTop:4}}>
+                      <input value={(fileIn[st.key]||{}).name||""} onChange={e=>setFileIn(a=>({...a,[st.key]:{...(a[st.key]||{}),name:e.target.value}}))} placeholder="Название файла" style={{...ins,width:150}}/>
+                      <input value={(fileIn[st.key]||{}).url||""} onChange={e=>setFileIn(a=>({...a,[st.key]:{...(a[st.key]||{}),url:e.target.value}}))} placeholder="Ссылка (Google Drive, Dropbox…)" style={{...ins,flex:1}}/>
+                      <button onClick={()=>addFile(st)} style={{background:"rgba(56,189,248,0.15)",border:"1px solid rgba(56,189,248,0.5)",color:"#38bdf8",borderRadius:7,padding:"0 10px",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📎 Добавить</button>
+                    </div>
+                  </div>
+                </div>}
+              </div>
+              {i<ORDER_STAGES.length-1&&<div style={{textAlign:"center",color:done?"#22c55e":"rgba(255,255,255,0.25)",fontSize:14,lineHeight:"18px"}}>↓</div>}
+            </div>);})}
+          <div style={{textAlign:"center",marginTop:8,padding:"10px",borderRadius:12,background:o.status==="done"?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${o.status==="done"?"#22c55e":"rgba(255,255,255,0.08)"}`,fontSize:14,fontWeight:900,color:o.status==="done"?"#22c55e":"rgba(255,255,255,0.35)",letterSpacing:1}}>🏁 ЗАКАЗ ЗАВЕРШЁН</div>
+
+          {/* ЗАДАЧИ ЗАКАЗА */}
+          {orderTasks.length>0&&<div style={{marginTop:16,background:"rgba(255,255,255,0.035)",border:"1px solid rgba(191,164,126,0.22)",borderRadius:14,padding:14}}>
+            <div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,marginBottom:8}}>☰ Задачи заказа ({orderTasks.length})</div>
+            {orderTasks.map(x=>{const dn=(x.status||"all")==="done";const od=!dn&&x.deadline&&x.deadline<td;return <div key={x.id} style={{display:"flex",gap:8,fontSize:12,padding:"3px 0",color:dn?"rgba(255,255,255,0.35)":"#fff",textDecoration:dn?"line-through":"none"}}><span style={{flex:1}}>{x.title}</span><span style={{color:MGR_COLOR[x.assignee]||"#aaa"}}>{x.assignee}</span><span style={{color:od?"#ef4444":"rgba(255,255,255,0.5)",fontWeight:od?800:400}}>{x.deadline?isoToDot(x.deadline):"—"}</span></div>;})}
+          </div>}
+
+          {/* ИСТОРИЯ */}
+          <div style={{marginTop:16,background:"rgba(255,255,255,0.035)",border:"1px solid rgba(191,164,126,0.22)",borderRadius:14,padding:14}}>
+            <div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,marginBottom:8}}>🕓 История заказа</div>
+            <div style={{display:"flex",gap:6,marginBottom:10}}>
+              <input value={comment} onChange={e=>setComment(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&comment.trim()){commit(o.id,x=>x,`💬 ${comment.trim()}`);setComment("");}}} placeholder="Комментарий в историю (Enter)" style={{...ins,flex:1}}/>
+            </div>
+            <div style={{maxHeight:260,overflowY:"auto"}}>
+              {[...(o.history||[])].reverse().map((h,k)=><div key={k} style={{display:"flex",gap:8,fontSize:11,padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}><span style={{color:"rgba(255,255,255,0.4)",whiteSpace:"nowrap"}}>{h.date}</span><span style={{color:MGR_COLOR[h.by]||"#bfa47e",fontWeight:700,whiteSpace:"nowrap"}}>{h.by}</span><span style={{color:"#fff"}}>{h.action}</span></div>)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function TaskModal({task,onSave,onClose,t,taskTypes=[],leads=[],onAddType,presetLead,lang,orders=[],orderTaskTypes=[]}){
+  const [bind,setBind]=useState(task?.orderId?'order':'lead');
   const [form,setForm]=useState({
     title:task?.title||'',assignee:task?.assignee||'—',
     priority:task?.priority||'MID',deadline:task?.deadline||'',status:task?.status||'all',
     typeId:task?.typeId||null,leadId:task?.leadId||presetLead?.id||null,leadName:task?.leadName||(presetLead?(presetLead.name||presetLead.phone):null),
+    orderId:task?.orderId||null,orderNum:task?.orderNum||null,orderTypeId:task?.orderTypeId||null,
+    comment:task?.comment||'',
   });
   const [leadQ,setLeadQ]=useState('');
   const [newType,setNewType]=useState('');
@@ -3393,6 +4067,28 @@ function TaskModal({task,onSave,onClose,t,taskTypes=[],leads=[],onAddType,preset
         <div style={{marginBottom:14}}>{lbl(t.name.toUpperCase())}<input value={form.title} onChange={e=>set('title',e.target.value)} autoFocus style={ins} placeholder={t.taskTitle}/></div>
 
         {/* ТИП ЗАДАЧИ */}
+        {/* Привязка: к лиду или к заказу (у заказов свои типы задач) */}
+        <div style={{marginBottom:14}}>{lbl(ru?'ПРИВЯЗКА':'POWIĄZANIE')}
+          <div style={{display:'flex',gap:6}}>
+            {[['lead',ru?'◈ Лид':'◈ Lead'],['order',ru?'📦 Заказ':'📦 Zamówienie']].map(([v,l])=><button key={v} type="button" onClick={()=>{setBind(v);if(v==='lead')setForm(f=>({...f,orderId:null,orderNum:null,orderTypeId:null}));else setForm(f=>({...f,typeId:null}));}} style={{flex:1,padding:'8px',borderRadius:8,border:bind===v?'2px solid #bfa47e':'1px solid rgba(255,255,255,0.15)',background:bind===v?'rgba(191,164,126,0.18)':'transparent',color:bind===v?'#bfa47e':'rgba(255,255,255,0.7)',fontWeight:800,fontSize:12,cursor:'pointer'}}>{l}</button>)}
+          </div>
+        </div>
+        {bind==='order'&&<>
+          <div style={{marginBottom:14}}>{lbl(ru?'ЗАКАЗ':'ZAMÓWIENIE')}
+            <select value={form.orderId||''} onChange={e=>{const o=(orders||[]).find(x=>String(x.id)===e.target.value);setForm(f=>({...f,orderId:o?o.id:null,orderNum:o?o.num:null,leadId:o?o.leadId:f.leadId,leadName:o?o.client:f.leadName}));}} style={{...ins,colorScheme:'dark'}}>
+              <option value="">— {ru?'выбери заказ':'wybierz'} —</option>
+              {(orders||[]).filter(o=>o.status!=='done'||o.id===form.orderId).map(o=><option key={o.id} value={String(o.id)}>№{o.num} · {o.client||'—'}</option>)}
+            </select>
+          </div>
+          <div style={{marginBottom:14}}>{lbl(ru?'ТИП ЗАДАЧИ ЗАКАЗА':'TYP ZADANIA ZAMÓWIENIA')}
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              <button type="button" onClick={()=>set('orderTypeId',null)} style={{padding:'6px 11px',borderRadius:8,border:!form.orderTypeId?'2px solid #a1a1aa':'1px solid rgba(255,255,255,0.15)',background:!form.orderTypeId?'rgba(161,161,170,0.2)':'transparent',color:'#fff',fontSize:12,cursor:'pointer'}}>{ru?'Другое':'Inne'}</button>
+              {(orderTaskTypes||[]).map(tt=>{const on=form.orderTypeId===tt.id;return <button type="button" key={tt.id} onClick={()=>set('orderTypeId',tt.id)} style={{padding:'6px 11px',borderRadius:8,border:on?`2px solid ${tt.color}`:'1px solid rgba(255,255,255,0.15)',background:on?`${tt.color}30`:'transparent',color:on?tt.color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>{tt.name}</button>;})}
+              {(orderTaskTypes||[]).length===0&&<span style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>{ru?'Типы задач заказов — в ⚙ Настройки':'Typy — w Ustawieniach'}</span>}
+            </div>
+          </div>
+        </>}
+        {bind==='lead'&&<>
         <div style={{marginBottom:14}}>{lbl(ru?'ТИП ЗАДАЧИ':'TYP ZADANIA')}
           <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
             <button onClick={()=>set('typeId',null)} style={{padding:'6px 11px',borderRadius:8,border:!form.typeId?'2px solid #94a3b8':'1px solid rgba(255,255,255,0.15)',background:!form.typeId?'rgba(148,163,184,0.2)':'rgba(255,255,255,0.05)',color:'rgba(255,255,255,0.7)',fontSize:12,fontWeight:700,cursor:'pointer'}}>—</button>
@@ -3407,6 +4103,7 @@ function TaskModal({task,onSave,onClose,t,taskTypes=[],leads=[],onAddType,preset
             : <LeadDropdown leads={leads} value={form.leadId} onChange={l=>{set('leadId',l?l.id:null);set('leadName',l?(l.name||l.phone):null);}} lang={lang} ins={ins}/>}
         </div>
 
+        </>}
         <div style={{marginBottom:14}}>{lbl(t.assignee.toUpperCase())}
           <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
             {[...MANAGERS,'—'].map(m=>{const active=form.assignee===m;return(
@@ -3421,6 +4118,7 @@ function TaskModal({task,onSave,onClose,t,taskTypes=[],leads=[],onAddType,preset
         </div>
 
         {/* СРОК — быстрые кнопки + календарь */}
+        <div style={{marginBottom:14}}>{lbl(ru?'КОММЕНТАРИЙ':'KOMENTARZ')}<textarea value={form.comment||''} onChange={e=>set('comment',e.target.value)} rows={2} placeholder={ru?'Детали, что сделать, контекст…':'Szczegóły…'} style={{...ins,resize:'vertical',fontFamily:'inherit'}}/></div>
         <div style={{marginBottom:22}}>{lbl(t.deadline.toUpperCase())}
           <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
             {qBtn(ru?'Сегодня':'Dziś',dayPlus(0),form.deadline===dayPlus(0))}
@@ -3462,7 +4160,8 @@ function TypeAdder({onAdd,lang}){
   </div>);
 }
 
-function TaskCalendar({tasks,taskTypes,month,setMonth,lang,onOpen}){
+function TaskCalendar({tasks,taskTypes,month,setMonth,lang,onOpen,visits=[],onOpenLead}){
+  const [openDay,setOpenDay]=useState(null); // день, развёрнутый целиком
   const [y,m]=month.split('-').map(Number);
   const first=new Date(y,m-1,1); const days=new Date(y,m,0).getDate();
   const startDow=(first.getDay()+6)%7; // Пн=0
@@ -3487,13 +4186,16 @@ function TaskCalendar({tasks,taskTypes,month,setMonth,lang,onOpen}){
         {DOW.map(d=><div key={d} style={{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:0.5,textAlign:'center',padding:'4px 0'}}>{d}</div>)}
         {cells.map((d,i)=>{
           if(d===null)return <div key={'e'+i}/>;
-          const k=iso(d); const list=(byDay[k]||[]).sort((a,b)=>(a.order||0)-(b.order||0)); const isT=k===today; const past=k<today;
+          const k=iso(d); const vis=(visits||[]).filter(l=>l.visitDate===k).map(l=>({__visit:true,id:"v"+l.id,lead:l,title:`🏠 ${l.name||l.phone||"—"}${l.visitTime?" "+l.visitTime:""}`,assignee:l.manager}));
+          const list=[...vis,...(byDay[k]||[]).sort((a,b)=>(a.order||0)-(b.order||0))]; const isT=k===today; const past=k<today; const exp=openDay===k; const LIM=3;
           return(
             <div key={k} style={{background:isT?'rgba(191,164,126,0.10)':C.card,border:`1px solid ${isT?C.accent:C.border}`,borderRadius:8,padding:6,minHeight:88,display:'flex',flexDirection:'column',gap:3}}>
               <div style={{fontSize:11,fontWeight:800,color:isT?C.accent:past?C.dim:C.text}}>{d}</div>
-              {list.slice(0,4).map(t=>{const done=(t.status||'all')==='done';const tt=typeOf(t.typeId);const pc=TASK_PRIO_COLORS[t.priority]||'#aaa';const od=!done&&k<today;return(
+              {(exp?list:list.slice(0,LIM)).map(t=>{if(t.__visit)return(
+                <div key={t.id} onClick={()=>onOpenLead&&onOpenLead(t.lead)} title={t.title} style={{fontSize:10,fontWeight:700,color:"#f0c040",background:"rgba(240,192,64,0.14)",borderLeft:"3px solid #f0c040",borderRadius:4,padding:'2px 5px',cursor:'pointer',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{t.title}{t.assignee?<span style={{color:MGR_COLOR[t.assignee]||C.muted}}> · {t.assignee}</span>:null}</div>);
+                const done=(t.status||'all')==='done';const tt=typeOf(t.typeId);const pc=TASK_PRIO_COLORS[t.priority]||'#aaa';const od=!done&&k<today;return(
                 <div key={t.id} onClick={()=>onOpen(t)} title={t.title} style={{fontSize:10,color:done?C.dim:C.text,background:done?'rgba(255,255,255,0.03)':od?'rgba(239,68,68,0.12)':`${(tt?tt.color:pc)}18`,borderLeft:`3px solid ${done?C.dim:(tt?tt.color:pc)}`,borderRadius:4,padding:'2px 5px',cursor:'pointer',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',textDecoration:done?'line-through':'none'}}>{od?'⚠ ':''}{t.title}{t.assignee&&t.assignee!=='—'?<span style={{color:MGR_COLOR[t.assignee]||C.muted}}> · {t.assignee}</span>:null}</div>);})}
-              {list.length>4&&<div style={{fontSize:9,color:C.muted}}>+{list.length-4}</div>}
+              {list.length>LIM&&<button onClick={()=>setOpenDay(exp?null:k)} style={{background:"transparent",border:`1px dashed ${C.borderMd}`,color:C.accent,borderRadius:4,padding:'1px 4px',fontSize:10,fontWeight:700,cursor:'pointer',textAlign:'left'}}>{exp?(lang==="pl"?"▲ zwiń":"▲ свернуть"):`+${list.length-LIM} ${lang==="pl"?"więcej":"ещё"}`}</button>}
             </div>);
         })}
       </div>
@@ -3538,10 +4240,19 @@ function TaskReport({tasks,taskTypes,lang,t}){
 
 // ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
 // Единственное место, где управляют типами задач (в задачах — только выбор из списка).
-function SettingsPage({db,updateDb,lang,t}){
+function SettingsPage({db,updateDb,lang,t,srcList,setDomains}){
   const ru=lang!=="pl";
   const [name,setName]=useState("");
   const types=db.taskTypes||[];
+  const funnels=db.funnels||[];
+  const [fName,setFName]=useState("");
+  const addFunnel=()=>{const v=fName.trim();if(!v)return;updateDb(p=>({...p,funnels:[...(p.funnels||[]),{id:Date.now(),name:v,color:FUNNEL_COLORS[(p.funnels||[]).length%FUNNEL_COLORS.length]}]}),true);setFName("");};
+  const delFunnel=(id)=>{if(!confirm("Удалить воронку? Домены с ней станут «без воронки»."))return;updateDb(p=>({...p,funnels:(p.funnels||[]).filter(x=>x.id!==id),deletedFunnelIds:[...new Set([...(p.deletedFunnelIds||[]),id])]}),true);if(setDomains&&srcList)setDomains(normDoms(srcList).map(d=>d.funnel===id?{...d,funnel:null}:d));};
+  const patchFunnel=(id,upd)=>updateDb(p=>({...p,funnels:(p.funnels||[]).map(x=>x.id===id?{...x,...upd}:x)}),true);
+  const oTypes=db.orderTaskTypes||[];
+  const [oName,setOName]=useState("");
+  const addOType=()=>{const v=oName.trim();if(!v)return;updateDb(p=>({...p,orderTaskTypes:[...(p.orderTaskTypes||[]),{id:Date.now(),name:v,color:TASK_TYPE_COLORS[(p.orderTaskTypes||[]).length%TASK_TYPE_COLORS.length]}]}),true);setOName("");};
+  const delOType=(id)=>{if(!confirm("Удалить тип задачи заказа?"))return;updateDb(p=>({...p,orderTaskTypes:(p.orderTaskTypes||[]).filter(x=>x.id!==id),deletedOrderTaskTypeIds:[...new Set([...(p.deletedOrderTaskTypeIds||[]),id])]}),true);};
   const add=()=>{const v=name.trim();if(!v)return;const id=Date.now();updateDb(p=>({...p,taskTypes:[...(p.taskTypes||[]),{id,name:v,color:TASK_TYPE_COLORS[(p.taskTypes||[]).length%TASK_TYPE_COLORS.length]}]}),true);setName("");};
   const del=(id)=>{if(!confirm(ru?"Удалить тип задачи?":"Usunąć typ zadania?"))return;updateDb(p=>({...p,taskTypes:(p.taskTypes||[]).filter(x=>x.id!==id),deletedTaskTypeIds:[...new Set([...(p.deletedTaskTypeIds||[]),id])]}),true);};
   const rename=(id,v)=>updateDb(p=>({...p,taskTypes:(p.taskTypes||[]).map(x=>x.id===id?{...x,name:v}:x)}),true);
@@ -3567,11 +4278,45 @@ function SettingsPage({db,updateDb,lang,t}){
         </div>}
         <div style={{fontSize:11,color:C.dim,marginTop:12}}>{ru?"Удалённый тип не вернётся при синхронизации. Задачи с этим типом останутся, но без типа.":"Usunięty typ nie wróci po synchronizacji."}</div>
       </div>
+      {/* ── ВОРОНКИ ── */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginTop:16}}>
+        <div style={{fontSize:11,color:C.accent,textTransform:"uppercase",letterSpacing:1,fontWeight:800,marginBottom:12}}>▼ Воронки <span style={{color:C.muted,fontWeight:600}}>({funnels.length})</span></div>
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          <input value={fName} onChange={e=>setFName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addFunnel()} placeholder="Название воронки (напр. Кухни PL, Шкафы, UA)…" style={{...ins,flex:1}}/>
+          <button onClick={addFunnel} disabled={!fName.trim()} style={{background:C.accent,color:"#00132f",border:"none",borderRadius:9,padding:"9px 16px",fontSize:13,fontWeight:800,cursor:"pointer",opacity:fName.trim()?1:0.5}}>＋ Добавить</button>
+        </div>
+        {funnels.length===0?<div style={{fontSize:12,color:C.dim}}>Воронок пока нет. Создай воронку, потом привяжи к ней домены ниже — у лидов появится тег воронки.</div>
+        :<div style={{display:"flex",flexDirection:"column",gap:6}}>{funnels.map(f=>{const nDom=normDoms(srcList||[]).filter(d=>d.funnel===f.id).length;return(
+          <div key={f.id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:10}}>
+            <input type="color" value={f.color||"#38bdf8"} onChange={e=>patchFunnel(f.id,{color:e.target.value})} style={{width:26,height:22,border:"none",background:"transparent",cursor:"pointer",padding:0}}/>
+            <input defaultValue={f.name} onBlur={e=>{const v=e.target.value.trim();if(v&&v!==f.name)patchFunnel(f.id,{name:v});}} style={{...ins,flex:1,padding:"6px 10px",background:"transparent",border:"1px solid transparent",color:f.color}}/>
+            <span style={{fontSize:11,color:C.muted}}>{nDom} дом.</span>
+            <button onClick={()=>delFunnel(f.id)} style={{background:"transparent",border:`1px solid ${C.red}55`,color:C.red,borderRadius:8,padding:"5px 10px",fontSize:12,cursor:"pointer"}}>🗑</button>
+          </div>);})}</div>}
+      </div>
+
+      {/* ── ДОМЕНЫ ── */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginTop:16}}>
+        <div style={{fontSize:11,color:C.accent,textTransform:"uppercase",letterSpacing:1,fontWeight:800,marginBottom:12}}>🌐 Домены — порядок, цвет, воронка</div>
+        {setDomains?<DomainManager srcList={srcList} setDomains={setDomains} t={t} funnels={funnels}/>:<div style={{fontSize:12,color:C.dim}}>—</div>}
+      </div>
+
+      {/* ── ТИПЫ ЗАДАЧ ЗАКАЗОВ ── */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginTop:16}}>
+        <div style={{fontSize:11,color:C.accent,textTransform:"uppercase",letterSpacing:1,fontWeight:800,marginBottom:12}}>📦 Типы задач заказов <span style={{color:C.muted,fontWeight:600}}>({oTypes.length})</span></div>
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          <input value={oName} onChange={e=>setOName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addOType()} placeholder="Напр. Замер, Технолог, Вияр, Монтаж…" style={{...ins,flex:1}}/>
+          <button onClick={addOType} disabled={!oName.trim()} style={{background:C.accent,color:"#00132f",border:"none",borderRadius:9,padding:"9px 16px",fontSize:13,fontWeight:800,cursor:"pointer",opacity:oName.trim()?1:0.5}}>＋ Добавить</button>
+        </div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{oTypes.map(x=><span key={x.id} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:20,background:`${x.color}22`,border:`1px solid ${x.color}66`,color:x.color,fontSize:12,fontWeight:700}}>{x.name}<button onClick={()=>delOType(x.id)} style={{background:"transparent",border:"none",color:x.color,cursor:"pointer",fontSize:12}}>✕</button></span>)}
+        {oTypes.length===0&&<span style={{fontSize:12,color:C.dim}}>Пока нет — задачи заказа можно создавать и без типа.</span>}</div>
+      </div>
     </div>
   );
 }
 
-function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOpenLead,initialModal}){
+function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOpenLead,initialModal,orders=[],orderTaskTypes=[]}){
+  const [fOrd,setFOrd]=useState('all'); // all | orders | leads | <orderId>
   const [viewUser,setViewUser]=useState(currentUser||'all');
   const [view,setView]=useState('board'); // board | calendar | report
   const [typesOpen,setTypesOpen]=useState(false);
@@ -3591,7 +4336,8 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
   const [quickType,setQuickType]=useState(null);      // null = «Другое»
   const [quickDeadline,setQuickDeadline]=useState('');
   const [quickLead,setQuickLead]=useState(null);
-  const resetQuick=()=>{setQuickAdd(null);setQuickTitle('');setQuickType(null);setQuickDeadline('');setQuickLead(null);};
+  const [quickBind,setQuickBind]=useState('lead');const [quickOrder,setQuickOrder]=useState(null);const [quickOType,setQuickOType]=useState(null);
+  const resetQuick=()=>{setQuickAdd(null);setQuickTitle('');setQuickType(null);setQuickDeadline('');setQuickLead(null);setQuickBind('lead');setQuickOrder(null);setQuickOType(null);};
   // Pointer-drag state
   const [drag,setDrag]=useState(null);       // {id, w, offX, offY, x0, y0}
   const [over,setOver]=useState(null);        // {col, idx}
@@ -3610,7 +4356,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
         ?{...t,seenBy:[...(t.seenBy||[]),currentUser]}:t)}),true);
   };
 
-  const filtered=viewUser==='all'?tasks:tasks.filter(t=>t.assignee===viewUser);
+  const filtered=(viewUser==='all'?tasks:tasks.filter(t=>t.assignee===viewUser)).filter(x=>fOrd==='all'||(fOrd==='orders'?!!x.orderId:fOrd==='leads'?!x.orderId:String(x.orderId)===fOrd));
   const byCol=(col)=>filtered.filter(t=>(t.status||'all')===col).sort((a,b)=>(a.order||0)-(b.order||0));
 
   const saveTasks=(nt)=>updateDb(p=>({...p,tasks:nt}),true);
@@ -3651,7 +4397,8 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
     if(!title){resetQuick();return;}
     const cr=(currentUser&&currentUser!=='all')?currentUser:null;
     const asg=cr||(viewUser!=='all'?viewUser:'—'); // задача автоматом на того, кто её создаёт
-    const snap={title,status:colId,priority:'MID',assignee:asg,deadline:quickDeadline||'',typeId:quickType||null,leadId:quickLead?quickLead.id:null,leadName:quickLead?(quickLead.name||quickLead.phone):null};
+    const qo=quickBind==='order'?(orders||[]).find(o=>o.id===quickOrder):null;
+    const snap={title,status:colId,priority:'MID',assignee:asg,deadline:quickDeadline||'',typeId:quickBind==='lead'?(quickType||null):null,leadId:qo?qo.leadId:(quickLead?quickLead.id:null),leadName:qo?qo.client:(quickLead?(quickLead.name||quickLead.phone):null),orderId:qo?qo.id:null,orderNum:qo?qo.num:null,orderTypeId:qo?(quickOType||null):null};
     resetQuick(); // закрываем форму сразу, независимо от сохранения
     try{ saveTasks([...tasks,buildNewTask(snap,cr,tasks)]); }catch(err){ console.error('quick task',err); }
   };
@@ -3769,7 +4516,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
           pointerEvents:ghost?'none':'auto',
         }}>
         <div style={{display:'flex',gap:6}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#fff',flex:1,lineHeight:1.4}}>{task.title}</div>
+          <div style={{fontSize:13,fontWeight:600,color:'#fff',flex:1,lineHeight:1.4}}>{task.title}{task.comment&&<div style={{fontSize:11,fontWeight:400,color:'rgba(255,255,255,0.55)',marginTop:3,whiteSpace:'pre-wrap'}}>💬 {task.comment}</div>}</div>
           {isNew&&<span style={{background:hot?'#f59e0b':'#ef4444',color:'#fff',borderRadius:8,fontSize:9,fontWeight:800,padding:'1px 5px',flexShrink:0,height:'fit-content'}}>NEW</span>}
         </div>
         <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap',marginTop:6}}>
@@ -3781,7 +4528,8 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
         {(task.typeId||task.leadId||taskSpentMs(task)>0||(task.status||'all')==='process')&&(
           <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap',marginTop:5}}>
             {(()=>{const tt=typeOf(task.typeId);return tt?<span style={{fontSize:10,fontWeight:700,color:tt.color,background:`${tt.color}20`,border:`1px solid ${tt.color}50`,borderRadius:10,padding:'1px 8px'}}>◆ {tt.name}</span>:null;})()}
-            {task.leadId&&<span onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();const l=(leads||[]).find(x=>x.id===task.leadId);if(l&&onOpenLead)onOpenLead(l);}} title={lang==='pl'?'Otwórz leada':'Открыть лида'} style={{fontSize:10,fontWeight:700,color:'#bfa47e',background:'rgba(191,164,126,0.12)',border:'1px solid rgba(191,164,126,0.4)',borderRadius:10,padding:'1px 8px',cursor:'pointer'}}>◈ {task.leadName||'lead'}</span>}
+            {task.orderId&&<span title={lang==='pl'?'Zamówienie':'Заказ'} style={{fontSize:10,fontWeight:800,color:'#f0c040',background:'rgba(240,192,64,0.14)',border:'1px solid rgba(240,192,64,0.45)',borderRadius:10,padding:'1px 7px'}}>📦 №{task.orderNum}{task.orderTypeId&&(orderTaskTypes||[]).find(x=>x.id===task.orderTypeId)?' · '+(orderTaskTypes||[]).find(x=>x.id===task.orderTypeId).name:''}</span>}
+            {task.leadId&&!task.orderId&&<span onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();const l=(leads||[]).find(x=>x.id===task.leadId);if(l&&onOpenLead)onOpenLead(l);}} title={lang==='pl'?'Otwórz leada':'Открыть лида'} style={{fontSize:10,fontWeight:700,color:'#bfa47e',background:'rgba(191,164,126,0.12)',border:'1px solid rgba(191,164,126,0.4)',borderRadius:10,padding:'1px 8px',cursor:'pointer'}}>◈ {task.leadName||'lead'}</span>}
             {((task.status||'all')==='process'||taskSpentMs(task)>0)&&<span style={{fontSize:10,fontWeight:700,color:(task.status||'all')==='process'?'#fbbf24':'rgba(255,255,255,0.45)',marginLeft:'auto'}}>{(task.status||'all')==='process'?'⏱':'⏲'} {fmtDur(taskSpentMs(task))}</span>}
           </div>)}
       </div>
@@ -3801,11 +4549,25 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
       <input autoFocus value={quickTitle} onChange={e=>setQuickTitle(e.target.value)}
         onKeyDown={e=>{if(e.key==='Enter')quickCreate(colId);if(e.key==='Escape')resetQuick();}}
         placeholder={t.taskTitle} style={inp}/>
-      <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+      <div style={{display:'flex',gap:5}}>
+        {[['lead',ru?'◈ Лид':'◈ Lead'],['order',ru?'📦 Заказ':'📦 Zamówienie']].map(([v,l])=><button type="button" key={v} onClick={()=>setQuickBind(v)} style={{...chip(quickBind===v,'#bfa47e'),flex:1}}>{l}</button>)}
+      </div>
+      {quickBind==='order'&&<>
+        <select value={quickOrder||''} onChange={e=>setQuickOrder(e.target.value?Number(e.target.value):null)} style={{...inp,colorScheme:'dark'}}>
+          <option value="">— {ru?'заказ':'zamówienie'} —</option>
+          {(orders||[]).filter(o=>o.status!=='done').map(o=><option key={o.id} value={o.id}>№{o.num} · {o.client||'—'}</option>)}
+        </select>
+        <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+          <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.8,marginRight:2}}>{ru?'Тип':'Typ'}</span>
+          <button type="button" onClick={()=>setQuickOType(null)} style={chip(!quickOType,'#a1a1aa')}>{ru?'Другое':'Inne'}</button>
+          {(orderTaskTypes||[]).map(tt=><button type="button" key={tt.id} onClick={()=>setQuickOType(tt.id)} style={chip(quickOType===tt.id,tt.color||'#bfa47e')}>{tt.name}</button>)}
+        </div>
+      </>}
+      {quickBind==='lead'&&<div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
         <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.8,marginRight:2}}>{ru?'Тип':'Typ'}</span>
         <button onClick={()=>{setQuickType(null);setQuickLead(null);}} style={chip(!quickType,'#a1a1aa')}>{ru?'Другое':'Inne'}</button>
         {(taskTypes||[]).map(tt=><button key={tt.id} onClick={()=>setQuickType(tt.id)} style={chip(quickType===tt.id,tt.color||'#bfa47e')}>{tt.name}</button>)}
-      </div>
+      </div>}
       <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
         <span style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.8,marginRight:2}}>{ru?'Срок':'Termin'}</span>
         <button onClick={()=>setQuickDeadline(dayPlus(0))} style={dl(dayPlus(0))}>{ru?'Сегодня':'Dziś'}</button>
@@ -3813,7 +4575,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
         <input type="date" value={quickDeadline} onChange={e=>setQuickDeadline(e.target.value)} style={{...inp,width:'auto',padding:'4px 8px',colorScheme:'dark'}}/>
         {quickDeadline&&<button onClick={()=>setQuickDeadline('')} style={chip(false,'#aaa')}>✕</button>}
       </div>
-      {quickType&&<div>
+      {quickBind==='lead'&&quickType&&<div>
         <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',letterSpacing:0.8,marginBottom:4}}>◈ {ru?'Лид':'Lead'}</div>
         <LeadDropdown leads={leads} value={quickLead?quickLead.id:null} onChange={setQuickLead} lang={lang} ins={inp}/>
       </div>}
@@ -3851,6 +4613,10 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8,flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           <div style={{fontSize:17,fontWeight:800,color:C.text}}>☰ {t.tasks}</div>
+          <select value={fOrd} onChange={e=>setFOrd(e.target.value)} style={{background:fOrd!=='all'?'rgba(191,164,126,0.15)':C.card,border:`1px solid ${fOrd!=='all'?C.accentBorder:C.border}`,color:fOrd!=='all'?C.accent:C.text,borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer',colorScheme:'dark'}}>
+            <option value="all">📦 {lang==='pl'?'Wszystkie':'Все задачи'}</option><option value="orders">📦 {lang==='pl'?'Tylko zamówienia':'Только заказы'}</option><option value="leads">◈ {lang==='pl'?'Bez zamówień':'Без заказов'}</option>
+            {(orders||[]).filter(o=>o.status!=='done').map(o=><option key={o.id} value={String(o.id)}>№{o.num} · {o.client||'—'}</option>)}
+          </select>
           <select value={viewUser} onChange={e=>setViewUser(e.target.value)} style={{background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>
             <option value="all">👥 {t.allManagers}</option>
             {MANAGERS.map(m=><option key={m} value={m}>🧑 {m}</option>)}
@@ -3878,7 +4644,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
       {view==='report'&&<TaskReport tasks={tasks} taskTypes={taskTypes} lang={lang} t={t}/>}
 
       {/* ── КАЛЕНДАРЬ ── */}
-      {view==='calendar'&&<TaskCalendar tasks={filtered} taskTypes={taskTypes} month={calMonth} setMonth={setCalMonth} lang={lang} onOpen={(task)=>{markSeen(task.id);setModal({task});}}/>}
+      {view==='calendar'&&<TaskCalendar tasks={filtered} taskTypes={taskTypes} month={calMonth} setMonth={setCalMonth} lang={lang} onOpen={(task)=>{markSeen(task.id);setModal({task});}} visits={leadsWithVisits(leads||[]).filter(l=>viewUser==='all'||l.manager===viewUser)} onOpenLead={onOpenLead}/>}
 
       <div ref={boardRef} style={{display:view==='board'?'grid':'none',gridTemplateColumns:'repeat(4,1fr)',gap:12,flex:1,minHeight:0,overflow:'hidden'}}>
         {TASK_COLS_CFG.map(col=>{
@@ -3912,7 +4678,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
         })}
       </div>
 
-      {modal&&<TaskModal task={modal.task} onSave={(form)=>saveTask(form,modal.task?.id)} onClose={()=>setModal(null)} t={t} taskTypes={taskTypes} leads={leads} onAddType={addType} presetLead={modal.presetLead} lang={lang}/>}
+      {modal&&<TaskModal orders={orders} orderTaskTypes={orderTaskTypes} task={modal.task} onSave={(form)=>saveTask(form,modal.task?.id)} onClose={()=>setModal(null)} t={t} taskTypes={taskTypes} leads={leads} onAddType={addType} presetLead={modal.presetLead} lang={lang}/>}
     </div>
   );
 }
@@ -4275,7 +5041,8 @@ function GarnoCRM(){
     if(rems.length){const m=rems[0];const txt=formatReminder(m,T[lang]||T.ru);const nl=txt.indexOf("\n");out.push({key:m.key,kind:"reminder",rtype:m.rtype,kicker:m.rtype==="push"?"🚀 Push":m.rtype==="quote"?"💰 "+(T[lang]||T.ru).quote:"📅 "+(T[lang]||T.ru).visit,title:nl>0?txt.slice(0,nl):txt,body:nl>0?txt.slice(nl+1).trim():"",count:rems.length,rem:m});}
     return out;
   })();
-  const activeAlert=pendingAlerts[0]||null;
+  // У Дани поп-апов нет — только просмотр в разделе «Аллерты»
+  const activeAlert=currentUser==="Danya"?null:(pendingAlerts[0]||null);
   const lastAlertKey=useRef(null);
   useEffect(()=>{ if(activeAlert&&activeAlert.key!==lastAlertKey.current){lastAlertKey.current=activeAlert.key; if(activeAlert.kind==="lead")playSiren(SIREN_SECONDS); else playDing();} },[activeAlert?.key]);
   const alertAccept=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);stopSiren();
@@ -4283,6 +5050,10 @@ function GarnoCRM(){
       updateDb(p=>({...p,leads:(p.leads||[]).map(l=>ids.has(l.id)&&!(l.seenBy||[]).includes(me)?{...l,seenBy:[...new Set([...(l.seenBy||[]),me])],seenAt:l.seenAt||Date.now(),updatedAt:Date.now()}:l)}),true);}
     else if(a.kind==="task"){updateDb(p=>({...p,tasks:(p.tasks||[]).map(x=>x.id===a.task.id?{...x,seenBy:[...new Set([...(x.seenBy||[]),currentUser])]}:x)}),true);}
     else if(a.kind==="reminder"){updateDb(p=>({...p,chat:(p.chat||[]).map(m=>(m.key===a.key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m)}),true);}
+    alertTick(x=>x+1);};
+  // Передать заявку другому менеджеру: у него сразу мигает, воет и всплывает
+  const alertForward=(m)=>{const a=activeAlert;if(!a||a.kind!=="lead")return;markPopped(a.key);stopSiren();const ids=new Set(a.ids);a.ids.forEach(unmarkFresh);const now=Date.now();
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>ids.has(l.id)?{...l,manager:m,seenBy:[],forwardedTo:m,forwardedBy:currentUser||"—",forwardedAt:now,updatedAt:now,history:[...(l.history||[]),{date:nowStr(),action:`↪ Передан: ${l.manager||"—"} → ${m}`,by:currentUser||"—"}]}:l)}),true);
     alertTick(x=>x+1);};
   const alertSnooze=(until)=>{const a=activeAlert;if(!a)return;setSnooze(a.key,until);stopSiren();lastAlertKey.current=null;alertTick(x=>x+1);};
   // Закрыть без принятия: больше не всплывает сейчас, но остаётся непринятым в Аллертах
@@ -4345,8 +5116,19 @@ function GarnoCRM(){
   useEffect(()=>{
     if(!db)return; // база ещё грузится
     const changed=pruneFresh(db.leads||[]);
+    // Мне передали заявку → свежая, сирена, поп-ап (один раз на каждую передачу)
+    if(currentUser&&currentUser!=="all"){
+      (db.leads||[]).forEach(l=>{
+        if(l.forwardedTo!==currentUser||(l.seenBy||[]).includes(currentUser))return;
+        const k=`garno_fwd_${l.id}_${l.forwardedAt}`;
+        try{ if(localStorage.getItem(k))return; localStorage.setItem(k,"1"); }catch{}
+        markFresh([l.id]); unPop("lead:"+l.id);
+        playSiren(SIREN_SECONDS);
+        showDesktopNotif(`↪ ${l.forwardedBy||"—"} передал заявку`,`${l.name||"—"} · ${l.phone||""}`,()=>{try{window.__garnoGoLeads&&window.__garnoGoLeads();}catch{}});
+      });
+    }
     if(changed&&freshCount()===0)stopSiren();
-  },[db?.leads]);
+  },[db?.leads,currentUser]);
 
   if(status==="loading") return(
     <div style={{display:"flex",height:"100vh",background:C.bg,alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
@@ -4378,7 +5160,7 @@ function GarnoCRM(){
       <style>{`*{box-sizing:border-box;}`}</style>
       <div style={{textAlign:"center",marginBottom:8}}><div style={{fontSize:34,fontWeight:900,color:C.accent,letterSpacing:3,marginBottom:6}}>GARNO<span style={{color:"#fff"}}>CRM</span></div><div style={{color:C.muted,fontSize:14}}>Выберите свой аккаунт</div></div>
       <div style={{display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center"}}>
-        {MANAGERS.map(m=>(<button key={m} onClick={()=>saveUser(m)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,padding:"28px 36px",background:C.card,border:`2px solid ${MGR_COLOR[m]}44`,borderRadius:16,cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=MGR_COLOR[m];e.currentTarget.style.background=`${MGR_COLOR[m]}15`;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=`${MGR_COLOR[m]}44`;e.currentTarget.style.background=C.card;}}><div style={{width:64,height:64,borderRadius:"50%",background:`${MGR_COLOR[m]}25`,border:`3px solid ${MGR_COLOR[m]}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:900,color:MGR_COLOR[m]}}>{m[0]}</div><div style={{fontSize:16,fontWeight:800,color:C.text,marginBottom:4}}>{m}</div><div style={{fontSize:11,color:C.muted}}>{m==="Danya"?t.admin:t.managerRole}</div></button>))}
+        {USERS.map(m=>(<button key={m} onClick={()=>saveUser(m)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,padding:"28px 36px",background:C.card,border:`2px solid ${MGR_COLOR[m]}44`,borderRadius:16,cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=MGR_COLOR[m];e.currentTarget.style.background=`${MGR_COLOR[m]}15`;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=`${MGR_COLOR[m]}44`;e.currentTarget.style.background=C.card;}}><div style={{width:64,height:64,borderRadius:"50%",background:`${MGR_COLOR[m]}25`,border:`3px solid ${MGR_COLOR[m]}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:900,color:MGR_COLOR[m]}}>{m[0]}</div><div style={{fontSize:16,fontWeight:800,color:C.text,marginBottom:4}}>{m}</div><div style={{fontSize:11,color:C.muted}}>{m==="Danya"?t.admin:t.managerRole}</div></button>))}
       </div>
     </div>
   );
@@ -4444,6 +5226,9 @@ function GarnoCRM(){
           td, th { font-weight: 600 !important; }
           .crm-muted { font-weight: 600; }
         ` : ""}
+        @keyframes garnoTree{0%,100%{box-shadow:inset 3px 0 0 rgba(250,204,21,0.25)}50%{box-shadow:inset 3px 0 0 #facc15;background:rgba(250,204,21,0.10)}}
+        tr.garno-tree td{animation:garnoTree 1.6s ease-in-out infinite;}
+        tr.garno-tree td:first-child{box-shadow:inset 3px 0 0 #facc15;}
         @keyframes garnoFresh{0%,100%{background:rgba(250,204,21,0.12)}50%{background:rgba(250,204,21,0.60)}}
         tr.garno-fresh, tr.garno-fresh td{animation:garnoFresh 0.8s ease-in-out infinite !important;}
         tr.garno-fresh td:first-child{box-shadow:inset 4px 0 0 #facc15;}
@@ -4462,17 +5247,18 @@ function GarnoCRM(){
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
-          {page==="leads"      && <LeadsSection leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
+          {page==="leads"      && <LeadsSection funnels={db.funnels||[]} leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
-          {page==="analytics"  && <AnalyticsPage leads={leads} sales={sales} srcList={srcList} setDomains={setDomains} t={t} lang={lang}/>}
+          {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead}/>}
+          {(page==="funnel"||page==="analytics") && <FunnelPage leads={leads} sales={sales} srcList={srcList} funnels={db.funnels||[]} t={t} lang={lang} onOpenLead={setSelLead} currentUser={currentUser}/>}
           {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
-          {page==="salescenter"&& <SalesCenterPage leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage}/>}
+          {page==="salescenter"&& <SalesCenterPage leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
           {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={setSelLead}/>}
-          {page==="settings"   && <SettingsPage db={db} updateDb={updateDb} lang={lang} t={t}/>}
-          {page==="tasks"      && <TasksPage tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t} leads={leads} taskTypes={db.taskTypes||[]} onOpenLead={setSelLead} initialModal={taskPreset} />}
+          {page==="settings"   && <SettingsPage db={db} updateDb={updateDb} lang={lang} t={t} srcList={srcList} setDomains={setDomains}/>}
+          {page==="tasks"      && <TasksPage orders={db.orders||[]} orderTaskTypes={db.orderTaskTypes||[]} tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t} leads={leads} taskTypes={db.taskTypes||[]} onOpenLead={setSelLead} initialModal={taskPreset} />}
         </div>
       </div>
-      {activeAlert && <AlertPopup alert={activeAlert} onAccept={alertAccept} onSnooze={alertSnooze} onOpen={alertOpen} onDismiss={alertDismiss} lang={lang}/>}
+      {activeAlert && <AlertPopup alert={activeAlert} onAccept={alertAccept} onSnooze={alertSnooze} onOpen={alertOpen} onDismiss={alertDismiss} onForward={alertForward} currentUser={currentUser} lang={lang}/>}
       {showToday && currentUser && currentUser!=="all" && <GarnoTodayPopup leads={leads} sales={sales} tasks={db.tasks||[]} currentUser={currentUser} lang={lang} setPage={setPage} onOpenLead={setSelLead} onClose={closeToday}/>}
       {!showToday && currentUser && currentUser!=="all" && <button onClick={()=>setShowToday(true)} title="GARNO TODAY" style={{position:"fixed",right:18,bottom:18,zIndex:900,width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#bfa47e,#d4b896)",border:"none",color:"#00132f",fontSize:20,cursor:"pointer",boxShadow:"0 6px 18px rgba(191,164,126,0.4)"}}>☀</button>}
       {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser} taskTypes={db.taskTypes||[]} tasks={tasks}/>}
