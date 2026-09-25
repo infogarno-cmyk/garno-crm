@@ -257,7 +257,7 @@ function GoldWreath({size}){
 // Оценки: 0 нет связи · 1 связь без инфо · 2 срок 4м+ · 2.5 срок 4м+ с инфо · 3 срок 4м− без инфо
 //         4 срок 4м− с инфо · 4.5 MWP (срок 4м−, инфо, до 100 км, новая) · 5 визит назначен · 5.5 визит состоялся · 6 продажа
 const TREE_FIELDS=["c1","c2","term","kitchenInfo","distance","apartment","noVisitReason"];
-const TREE_START=new Date("2026-09-25T00:00:00").getTime(); // ветка обязательна для лидов с этой даты
+let TREE_START_MS=Infinity; // момент выката дерева (db.treeStartAt): мигают только лиды, пришедшие ПОСЛЕ него
 function treeEval(l){
   const r={score:null,done:false,next:null,action:null,hint:null};
   if(!l)return r;
@@ -289,8 +289,7 @@ function treeEval(l){
 // Ветка не закрыта (мигает и уходит в аллерты): новые лиды или начатые ветки, без визита/продажи/отмены
 function treeIncomplete(l){
   if(!l||l.action==="cancelled"||(parseFloat(l.score)||0)>=5)return false;
-  const started=!!l.c1;
-  if(!started&&leadCreatedMsSafe(l)<TREE_START)return false;
+  if(leadCreatedMsSafe(l)<TREE_START_MS)return false; // все текущие лиды не мигают — только со следующего
   return !treeEval(l).done;
 }
 // История лида: построчный дифф «что поменялось» с автором
@@ -603,6 +602,10 @@ function useDatabase(){
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const migrateData=(data)=>{
+    // Момент выката дерева квалификации: всё, что пришло до него, не мигает
+    if(!data.treeStartAt)data={...data,treeStartAt:Date.now()};
+    // Чистка v3: убрать уже созданные аллерты «ветка не закрыта» по старым лидам
+    if(!data.alertsPurgedV3)data={...data,chat:(data.chat||[]).filter(m=>m.rtype!=="tree"),alertsPurgedV3:true};
     // Разовая чистка аллертов v1: AI-чат удалён, старые/принятые напоминания — мусор.
     // Оставляем только НЕпринятые напоминания с датой >= сегодня (или без даты).
     if(!data.alertsPurgedV1){
@@ -744,6 +747,7 @@ function useDatabase(){
       // domains are stored in row id=2, NOT here
       deletedTaskTypeIds:[...new Set([...(local.deletedTaskTypeIds||[]),...(remote?.deletedTaskTypeIds||[])])],
       funnels:(()=>{const dead=new Set([...(local.deletedFunnelIds||[]),...(remote?.deletedFunnelIds||[])]);const m=new Map();(remote?.funnels||[]).forEach(x=>m.set(x.id,x));(local.funnels||[]).forEach(x=>m.set(x.id,x));return [...m.values()].filter(x=>!dead.has(x.id));})(),
+      treeStartAt:(()=>{const a=local.treeStartAt,b=remote?.treeStartAt;return a&&b?Math.min(a,b):(b||a||undefined);})(),
       deletedFunnelIds:[...new Set([...(local.deletedFunnelIds||[]),...(remote?.deletedFunnelIds||[])])],
       orders:(()=>{const dead=new Set([...(local.deletedOrderIds||[]),...(remote?.deletedOrderIds||[])]);const m=new Map();(remote?.orders||[]).forEach(x=>m.set(x.id,x));(local.orders||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()].filter(x=>!dead.has(x.id));})(),
       deletedOrderIds:[...new Set([...(local.deletedOrderIds||[]),...(remote?.deletedOrderIds||[])])],
@@ -955,7 +959,7 @@ function useDatabase(){
           };
           const d0=transform(remote);
           const movedToPush=(d0.leads||[]).filter(l=>l.pushBackfilled).length-pushBefore;
-          const willWrite=hadBackup||movedToPush>0||rolledBack>0;
+          const willWrite=hadBackup||movedToPush>0||rolledBack>0||!remote.treeStartAt;
           if(willWrite){
             try{
               const committed=await casCommit(transform);
@@ -1820,11 +1824,14 @@ function PushModal({lead,t,initDate,initTime,onConfirm,onCancel}){
   );
 }
 
-function SaleModal({lead,t,onConfirm,onCancel}){
+function SaleModal({lead,t,onConfirm,onCancel,suggestNum="",usedNums=[]}){
   const [amt,setAmt]=useState("");
+  const [orderNum,setOrderNum]=useState(String(suggestNum||""));
+  const numTaken=!!orderNum.trim()&&usedNums.includes(orderNum.trim());
   const [saleDate,setSaleDate]=useState(new Date().toISOString().slice(0,10));
   const ins={background:C.card,border:`2px solid ${C.accentBorder}`,color:C.text,borderRadius:9,padding:"12px 16px",fontSize:15,width:"100%",boxSizing:"border-box",outline:"none"};
-  const confirm=()=>{if(!amt)return;onConfirm(parseInt(amt)||0,saleDate);};
+  const canOk=!!amt&&!!orderNum.trim()&&!numTaken;
+  const confirm=()=>{if(!canOk)return;onConfirm(parseInt(amt)||0,saleDate,orderNum.trim());};
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.87)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000}}>
       <div style={{background:C.surface,borderRadius:16,border:`2px solid ${C.accent}`,width:"min(420px,95vw)",padding:32}}>
@@ -1842,11 +1849,18 @@ function SaleModal({lead,t,onConfirm,onCancel}){
             <input type="date" value={saleDate} onChange={e=>setSaleDate(e.target.value)}
               style={{...ins,colorScheme:"dark",fontSize:14}}/>
           </div>
+          <div>
+            <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:6,fontWeight:800}}>📦 Номер заказа *</div>
+            <input value={orderNum} onChange={e=>setOrderNum(e.target.value)} onKeyDown={e=>e.key==="Enter"&&confirm()} placeholder="напр. 2458"
+              style={{...ins,fontSize:16,fontWeight:800,borderColor:numTaken||!orderNum.trim()?"#ef4444":undefined}}/>
+            {numTaken&&<div style={{fontSize:11,color:"#ef4444",marginTop:4}}>Такой номер заказа уже есть</div>}
+            {!orderNum.trim()&&<div style={{fontSize:11,color:"#ef4444",marginTop:4}}>Впиши номер заказа — без него продажу не подтвердить</div>}
+          </div>
         </div>
         <div style={{display:"flex",gap:10,marginTop:20}}>
           <Btn onClick={onCancel} variant="ghost">{t.cancel}</Btn>
-          <button onClick={confirm} disabled={!amt}
-            style={{flex:1,background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:9,padding:"12px 0",fontSize:14,fontWeight:800,cursor:amt?"pointer":"not-allowed",opacity:amt?1:0.5}}>
+          <button onClick={confirm} disabled={!canOk}
+            style={{flex:1,background:`linear-gradient(135deg,${C.accent},#d4b896)`,color:"#00132f",border:"none",borderRadius:9,padding:"12px 0",fontSize:14,fontWeight:800,opacity:canOk?1:0.5,cursor:canOk?"pointer":"not-allowed"}}>
             ✓ {t.saleAmountConfirm}
           </button>
         </div>
@@ -1921,7 +1935,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"funnel",icon:"▼",ru:"Воронка продаж",pl:"Lejek sprzedaży"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
+const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"funnel",icon:"▼",ru:"Воронка продаж",pl:"Lejek sprzedaży"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
 function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,aiUnread=0,freshLeads=0,t}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
@@ -2499,14 +2513,14 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                     : <span style={{color:C.dim,fontSize:15,opacity:0.3,cursor:"pointer"}}>＋</span>}
                 </td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
-                <td style={{padding:"8px 10px",position:"relative"}}>{l.erikaScore!=null&&<span title="Оценка Эрики" style={{position:"absolute",top:2,left:2,fontSize:9,fontWeight:900,color:"#fff",background:"#db2777",borderRadius:5,padding:"0 4px",lineHeight:"14px"}}>Э {l.erikaScore}</span>}<span style={{color:C.text,fontWeight:500,paddingLeft:l.erikaScore!=null?26:0}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
+                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<span style={{marginLeft:7,fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",verticalAlign:"middle"}}>▼ {f.name}</span>:null;})()}{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
-                <td style={{padding:"8px 10px"}}><ScoreBar score={l.score}/></td>
+                <td style={{padding:"8px 10px"}}>{l.erikaScore!=null&&<div title="Оценка Эрики" style={{fontSize:9,fontWeight:900,color:"#f472b6",marginBottom:2,letterSpacing:0.3}}>★ Эрика: {l.erikaScore}</div>}<ScoreBar score={l.score}/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.qualification]} color={QUAL_COLOR[l.qualification]} small/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={(t[l.budgetTimeline]||"").slice(0,14)} color={BUD_COLOR[l.budgetTimeline]} small/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.action]} color={ACT_COLOR[l.action]} action={l.action} small/></td>
                 <td style={{padding:"8px 10px"}}>{l.manager?<div style={{display:"flex",alignItems:"center",gap:5}}><Avatar name={l.manager} color={MGR_COLOR[l.manager]} size={18}/><span style={{color:MGR_COLOR[l.manager],fontSize:11}}>{l.manager}</span></div>:<span style={{color:C.dim,fontSize:11}}>—</span>}</td>
-                <td style={{padding:"8px 10px"}}><SrcBadge source={l.source}/>{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<div style={{marginTop:3}}><span style={{fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px"}}>▼ {f.name}</span></div>:null;})()}</td>
+                <td style={{padding:"8px 10px"}}><SrcBadge source={l.source}/></td>
                 <td style={{padding:"8px 10px",display:"flex",gap:4,alignItems:"center"}}><button onClick={e=>{e.stopPropagation();toggleFav(l.id,e);}} style={{background:l.isFavorite?"rgba(251,191,36,0.2)":"transparent",border:`1px solid ${l.isFavorite?"#fbbf24":C.border}`,color:l.isFavorite?"#fbbf24":C.dim,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}} title={t.favorite}>{l.isFavorite?"★":"☆"}</button><button onClick={e=>{e.stopPropagation();onOpen(l);}} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:6,padding:"3px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>→</button></td>
               </tr>
             );})}</tbody>
@@ -2520,7 +2534,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
 }
 
 // ─── LEAD DETAIL ──────────────────────────────────────────────────────────────
-function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,currentUser,taskTypes=[],tasks=[]}){
+function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,currentUser,taskTypes=[],tasks=[],orders=[]}){
   useEffect(()=>{
     unmarkFresh(lead.id);
     // «Принято» — общее для всех: пишем в базу, чтобы заявка погасла у остальных менеджеров
@@ -2580,17 +2594,25 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const treeSet=(k,v)=>{
     if(!editing)return;
     const u={...form,[k]:v};
-    // Зависимые ответы сбрасываем только при СМЕНЕ уже выбранного ответа (старые пары не теряются)
+    // Первое касание дерева — запоминаем исходную оценку/действие (для старых лидов и отката)
+    if(form.preTreeScore==null){u.preTreeScore=parseFloat(form.score)||0;u.preTreeAction=form.action||"undefined";}
+    // Смена/снятие ответа сбрасывает все зависимые ответы ниже по ветке
     if(form[k]!=null&&form[k]!==v)(TREE_DOWN[k]||[]).forEach(f=>{u[f]=null;});
     const prevEv=treeEval(form);
     const ev=treeEval(u);
-    const cur=parseFloat(u.score)||0;
-    // Пока ветка открыта — оценка только растёт; закрытая ветка ставит итоговую (может и понизить)
-    if(ev.score!==null&&cur<5&&(ev.done||ev.score>cur)){u.score=ev.score;u.qualification=scoreToQual(ev.score);u.autoScored=true;u.scoreManual=false;}
-    if(ev.action==="cancelled")u.action="cancelled";
-    // Просчёт — только в момент, когда ветка впервые до него дошла; Push/Визит/Продажу не трогаем
-    else if(ev.action==="quote"&&prevEv.action!=="quote"&&!["quote","push","visit","sale"].includes(u.action)&&(parseFloat(u.score)||0)<5){u.action="quote";u.quoteSince=u.quoteSince||Date.now();}
-    else if(u.action==="cancelled"&&k==="c2"&&v==="yes")u.action="undefined";
+    const pre=parseFloat(u.preTreeScore)||0;
+    // Оценка зависит ТОЛЬКО от текущих галочек: ветка пуста → исходная; ветка закрыта → итог дерева;
+    // ветка открыта → итог дерева, но не ниже исходной (чтобы старый лид не падал, пока его дозаполняют)
+    if((parseFloat(form.score)||0)<5){
+      const sc=ev.score===null?pre:(ev.done?ev.score:Math.max(ev.score,pre));
+      u.score=sc;u.qualification=scoreToQual(sc);u.autoScored=true;u.scoreManual=false;
+    }
+    // Действие: авто-отмена и авто-просчёт снимаются, если ответ поменяли
+    if(ev.action==="cancelled"){if(u.action!=="cancelled"){u.action="cancelled";u.autoCancel=true;}}
+    else if(u.action==="cancelled"&&u.autoCancel){u.action=u.preTreeAction&&u.preTreeAction!=="cancelled"?u.preTreeAction:"undefined";u.autoCancel=false;}
+    if(ev.action==="quote"){
+      if(prevEv.action!=="quote"&&!["quote","push","visit","sale","cancelled"].includes(u.action)&&(parseFloat(u.score)||0)<5){u.action="quote";u.autoQuote=true;u.quoteSince=u.quoteSince||Date.now();}
+    }else if(u.action==="quote"&&u.autoQuote){u.action=u.preTreeAction&&!["quote","cancelled"].includes(u.preTreeAction)?u.preTreeAction:"undefined";u.autoQuote=false;}
     // Контакт 1 = нет → задача менеджеру «2 контакт» на сегодня (один раз, без дублей)
     const hasC2=(tasks||[]).some(x=>x.leadId===lead.id&&(x.status||"all")!=="done"&&String(x.title||"").startsWith(t.secondContact));
     if(k==="c1"&&v==="no"&&!u.c2TaskId&&!hasC2){
@@ -2625,10 +2647,10 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l)}),true);
     setShowPush(false);
   };
-  const confirmSale=(amt,saleDate)=>{
+  const confirmSale=(amt,saleDate,orderNum)=>{
     let createdAt=new Date().toLocaleDateString("ru-RU");
     if(saleDate){try{const d=new Date(saleDate);createdAt=d.toLocaleDateString("ru-RU");}catch{}}
-    const newSale={id:Date.now(),leadId:lead.leadId||lead.id,name:form.name,phone:form.phone,manager:form.manager||"—",source:form.source,createdAt,saleAmount:amt,notes:form.notes};
+    const newSale={id:Date.now(),orderNum:orderNum||null,leadId:lead.leadId||lead.id,name:form.name,phone:form.phone,manager:form.manager||"—",source:form.source,createdAt,saleAmount:amt,notes:form.notes};
     const updLead={...form,saleAmount:amt,isDone:true,action:"sale",score:6,qualification:"sale",updatedAt:Date.now()};
     updLead.history=[...(form.history||[]),...leadHistoryDiff(form,updLead,t,currentUser||"—"),{date:nowStr(),action:`${lang==="pl"?"Sprzedaż":"Продажа"}: ${fmtM(amt)}`,by:currentUser||"—"}];
     if(form.score!==6)updLead.scoreTrail=[...(form.scoreTrail||(form.score!=null?[form.score]:[])),6];
@@ -2638,7 +2660,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
       leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...updLead}:l),
       sales:[newSale,...(p.sales||[])],
       // Продажа → сразу создаётся заказ (постпродажный процесс)
-      orders:[...(p.orders||[]),makeOrder({sale:newSale,lead:updLead,num:nextOrderNum(p.orders),by:currentUser||"—",tpl:p.orderTemplate})],
+      orders:[...(p.orders||[]),makeOrder({sale:{...newSale,orderNum},lead:updLead,num:orderNum||nextOrderNum(p.orders),by:currentUser||"—",tpl:p.orderTemplate})],
     }),true);
     setShowSale(false);onClose();
   };
@@ -2666,12 +2688,13 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           </div>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>◈ Оценка 0–6</div>
+            {form.erikaScore!=null&&currentUser!=="Erika"&&<div style={{display:"inline-block",fontSize:11,color:"#f472b6",fontWeight:800,background:"rgba(244,114,182,0.12)",border:"1px solid rgba(244,114,182,0.45)",borderRadius:8,padding:"2px 9px",marginBottom:6}}>★ {t.erikaScore}: {form.erikaScore}</div>}
             {currentUser==="Erika"
               ? <div style={{marginBottom:10}}><div style={{fontSize:10,color:"#f472b6",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800,marginBottom:6}}>★ {t.erikaScore}</div>
                   <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{SCORES.map(s=>{const active=form.erikaScore===s;return(<button key={s} onClick={()=>editing&&setForm(f=>({...f,erikaScore:active?null:s}))} style={{minWidth:34,height:34,padding:"0 6px",borderRadius:8,border:`2px solid ${active?"#f472b6":C.borderMd}`,background:active?"rgba(244,114,182,0.2)":C.accentDim,color:active?"#f472b6":C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
                   <div style={{fontSize:10,color:C.muted,marginTop:6}}>{lang==="pl"?"Główna ocena":"Основная оценка"}: <b style={{color:QUAL_COLOR[scoreToQual(form.score)]}}>{form.score}</b></div></div>
               : <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{SCORES.map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} title={lang==="pl"?"Korekta ręczna":"Ручная корректировка"} style={{minWidth:34,height:34,padding:"0 6px",borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>}
-            {form.erikaScore!=null&&currentUser!=="Erika"&&<div style={{fontSize:11,color:"#f472b6",fontWeight:700,marginBottom:8}}>★ {t.erikaScore}: {form.erikaScore}</div>}
+
             {form.autoScored&&<div style={{fontSize:10,color:"#2dd4bf",marginTop:-6,marginBottom:8}}>⚡ {t.autoScoreHint}</div>}
             {/* ── ДЕРЕВО КВАЛИФИКАЦИИ ── */}
             {(()=>{
@@ -2740,7 +2763,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     {showPush&&<PushModal lead={form} t={t} initDate={form.pushDate} initTime={form.pushTime}
       onConfirm={confirmPush}
       onCancel={()=>{setShowPush(false);setForm(p=>({...p,action:prevAction.current}));}}/>}
-    {showSale&&<SaleModal lead={form} t={t} onConfirm={confirmSale} onCancel={()=>{setShowSale(false);setForm(p=>({...p,score:5,qualification:"salon"}));}}/>}
+    {showSale&&<SaleModal lead={form} t={t} suggestNum={nextOrderNum(orders)} usedNums={(orders||[]).map(o=>String(o.num))} onConfirm={confirmSale} onCancel={()=>{setShowSale(false);setForm(p=>({...p,score:5,qualification:"salon"}));}}/>}
   </>);
 }
 
@@ -4903,7 +4926,8 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead}
     if(byId&&onOpenLead)onOpenLead(byId);
   };
   const [confirmId,setConfirmId]=useState(null);
-  const fs=filterByCustomRange(sales,dateFrom,dateTo);const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
+  const [fMgr,setFMgr]=useState("all");const [sortBy,setSortBy]=useState("date");
+  const fs=filterByCustomRange(sales,dateFrom,dateTo).filter(x=>fMgr==="all"||x.manager===fMgr);const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
   const mRev=MANAGERS.map(m=>({name:m,rev:fs.filter(s=>s.manager===m).reduce((a,s)=>a+s.saleAmount,0),count:fs.filter(s=>s.manager===m).length}));
   const deleteSale=(id)=>{
     updateDb(p=>({...p,
@@ -4915,13 +4939,20 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead}
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t}/></div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+        <span style={{fontSize:11,color:C.muted}}>{lang==="pl"?"Menedżer":"Менеджер"}:</span>
+        {["all",...MANAGERS].map(m=>{const on=fMgr===m;const c=m==="all"?C.accent:(MGR_COLOR[m]||C.accent);return <button key={m} onClick={()=>setFMgr(m)} style={{background:on?`${c}26`:"transparent",border:`1px solid ${on?c:C.border}`,color:on?c:C.muted,borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:on?800:500,cursor:"pointer"}}>{m==="all"?(lang==="pl"?"Wszyscy":"Все"):m}</button>;})}
+        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{marginLeft:"auto",background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 10px",fontSize:12,colorScheme:"dark"}}>
+          <option value="date">{lang==="pl"?"Wg daty ↓":"По дате ↓"}</option><option value="amount">{lang==="pl"?"Wg kwoty ↓":"По сумме ↓"}</option><option value="manager">{lang==="pl"?"Wg menedżera":"По менеджеру"}</option>
+        </select>
+      </div>
       <div style={{display:"grid",gridTemplateColumns:`1fr repeat(${MANAGERS.length},1fr)`,gap:10}}>
         <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:12,padding:"14px 16px"}}><div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{lang==="ru"?"Общая выручка":"Łączny przychód"}</div><div style={{fontSize:22,fontWeight:800,color:C.accent}}>{fmtM(totalRev)}</div><div style={{fontSize:11,color:C.muted,marginTop:4}}>{fs.length} {t.many}</div></div>
         {mRev.map(m=>(<div key={m.name} style={{background:C.card,border:`1px solid ${MGR_COLOR[m.name]}33`,borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><Avatar name={m.name} color={MGR_COLOR[m.name]} size={22}/><span style={{fontSize:11,color:MGR_COLOR[m.name],fontWeight:700}}>{m.name}</span>{m.name===SALES_LEADER&&<span style={{marginLeft:"auto",fontSize:9,fontWeight:900,color:"#f0c040",background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.45)",borderRadius:8,padding:"1px 7px",letterSpacing:0.5,whiteSpace:"nowrap"}}>MOLODEC</span>}</div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m.name]}}>{fmtM(m.rev)}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{m.count} {t.many}</div></div>))}
       </div>
       {fs.length===0?<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:40,textAlign:"center",color:C.muted}}><div style={{fontSize:32,marginBottom:10}}>★</div><div>{lang==="ru"?"{t.salesAppear}":"Sprzedaże pojawią się przy ocenie 6"}</div></div>:
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
-          {[...fs].sort((a,b)=>b.saleAmount-a.saleAmount).map(s=>(<div key={s.id} style={{background:C.card,border:`1px solid ${confirmId===s.id?C.red:C.accentBorder}`,borderRadius:12,padding:16,borderTop:`3px solid ${confirmId===s.id?C.red:C.accent}`,position:"relative"}}>
+          {[...fs].sort((a,b)=>sortBy==="amount"?(b.saleAmount-a.saleAmount):sortBy==="manager"?(String(a.manager||"").localeCompare(String(b.manager||""))||(b.saleAmount-a.saleAmount)):((parseCreatedAt(b.createdAt)?.getTime()||0)-(parseCreatedAt(a.createdAt)?.getTime()||0))).map(s=>(<div key={s.id} style={{background:C.card,border:`1px solid ${confirmId===s.id?C.red:C.accentBorder}`,borderRadius:12,padding:16,borderTop:`3px solid ${confirmId===s.id?C.red:C.accent}`,position:"relative"}}>
             {confirmId===s.id?(
               <div style={{position:"absolute",top:10,right:10,display:"flex",alignItems:"center",gap:6,background:C.surface,border:`1px solid ${C.red}`,borderRadius:8,padding:"4px 8px"}}>
                 <span style={{fontSize:10,color:C.red,fontWeight:600}}>Удалить?</span>
@@ -4931,7 +4962,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead}
             ):(
               <button onClick={()=>setConfirmId(s.id)} style={{position:"absolute",top:10,right:10,background:"rgba(248,113,113,0.15)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 8px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
             )}
-            <div onClick={()=>openLeadOfSale(s)} title={lang==="ru"?"Открыть лида":"Otwórz leada"} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34,cursor:"pointer"}}><Avatar name={s.name||s.phone} color={C.accent} size={36} noMedal/><div><div style={{fontSize:13,color:C.text,fontWeight:700}}>{s.name||s.phone}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div><div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
+            <div onClick={()=>openLeadOfSale(s)} title={lang==="ru"?"Открыть лида":"Otwórz leada"} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34,cursor:"pointer"}}><Avatar name={s.name||s.phone} color={C.accent} size={36} noMedal/><div><div style={{fontSize:13,color:C.text,fontWeight:700}}>{s.name||s.phone}{s.orderNum&&<span style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#f0c040"}}>📦 №{s.orderNum}</span>}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div><div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><SrcBadge source={s.source}/>{s.manager&&<div style={{display:"flex",alignItems:"center",gap:4}}><Avatar name={s.manager} color={MGR_COLOR[s.manager]} size={14}/><span style={{fontSize:10,color:MGR_COLOR[s.manager]}}>{s.manager}</span></div>}</div>{s.notes&&<div style={{fontSize:10,color:C.muted,marginTop:8,lineHeight:1.5}}>{s.notes}</div>}
           </div>))}
         </div>}
@@ -5008,6 +5039,7 @@ function GarnoCRM(){
   C = theme==="light" ? LIGHT : DARK; syncColorMaps();
   // Лидер продаж — медаль MOLODEC на его аватаре во всём приложении
   SALES_LEADER = computeSalesLeader(db?.sales);
+  TREE_START_MS = db?.treeStartAt||Infinity;
 
   // ── Планировщик напоминаний AI ──────────────────────────────────────────
   const dbRef=useRef(db);      dbRef.current=db;
@@ -5261,7 +5293,7 @@ function GarnoCRM(){
       {activeAlert && <AlertPopup alert={activeAlert} onAccept={alertAccept} onSnooze={alertSnooze} onOpen={alertOpen} onDismiss={alertDismiss} onForward={alertForward} currentUser={currentUser} lang={lang}/>}
       {showToday && currentUser && currentUser!=="all" && <GarnoTodayPopup leads={leads} sales={sales} tasks={db.tasks||[]} currentUser={currentUser} lang={lang} setPage={setPage} onOpenLead={setSelLead} onClose={closeToday}/>}
       {!showToday && currentUser && currentUser!=="all" && <button onClick={()=>setShowToday(true)} title="GARNO TODAY" style={{position:"fixed",right:18,bottom:18,zIndex:900,width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#bfa47e,#d4b896)",border:"none",color:"#00132f",fontSize:20,cursor:"pointer",boxShadow:"0 6px 18px rgba(191,164,126,0.4)"}}>☀</button>}
-      {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser} taskTypes={db.taskTypes||[]} tasks={tasks}/>}
+      {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser} taskTypes={db.taskTypes||[]} tasks={tasks} orders={db.orders||[]}/>}
       {showAdd  && <AddLeadModal onClose={()=>setShowAdd(false)} onAdd={addLead} srcList={srcList} t={t} lang={lang} nextNum={nextNum} currentUser={currentUser}/>}
     </div>
   );
