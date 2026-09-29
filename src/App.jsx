@@ -74,7 +74,7 @@ const T = {
     avgScore:"Средний AI",qualityLeads:"Kwaly",qualityPct:"Kwaly%",conv4to5:"4→5",conv5toSell:"5→Продажа",
     convRate:"Конверсия",revenue:"Выручка",many:"Продаж",totalSales:"Выручка",salesCount:"Продаж",
     podium:"Пьедестал",visits:"Визиты",source_label:"Источник",
-    unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",mwp:"MWP квал",salon:"Визит в салон",sale:"Продажа",
+    unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",mwp:"MWP квал",salon:"Визит назначен",sale:"Продажа",
     thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",quote:"Просчёт",undefined:"Не определено",waitingInfo:"Ждём инфо",visit:"Визит",inWork:"Лид в работе",
     kitchenInfo:"Инфо по кухне",kiYes:"Есть",kiNo:"Нет",distance:"Расстояние",dNear:"30 км −",dFar:"30 км +",apartment:"Квартира",aNew:"Новая",aOld:"Старая",
     qualPairs:"Квалификация (обязательно)",fillPairs:"Заполните все 3 пары",whyNoVisit:"Почему не визит",rPrice:"Цена",rDistance:"Расстояние",rThinking:"Думают",autoScoreHint:"Оценка выставлена автоматически по парам",
@@ -144,7 +144,7 @@ const T = {
     avgScore:"Śr. AI",qualityLeads:"Kwaly",qualityPct:"Kwaly%",conv4to5:"4→5",conv5toSell:"5→Sprzedaż",
     convRate:"Konwersja",revenue:"Przychód",many:"Sprzedaży",totalSales:"Przychód",salesCount:"Sprzedaży",
     podium:"Podium",visits:"Wizyty",source_label:"Źródło",
-    unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",mwp:"MWP kwal",salon:"Wizyta w salonie",sale:"Sprzedaż",
+    unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",mwp:"MWP kwal",salon:"Wizyta umówiona",sale:"Sprzedaż",
     thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",quote:"Wycena",undefined:"Nieokreślone",waitingInfo:"Czekamy na info",visit:"Wizyta",inWork:"Lead w pracy",
     kitchenInfo:"Info o kuchni",kiYes:"Jest",kiNo:"Brak",distance:"Odległość",dNear:"30 km −",dFar:"30 km +",apartment:"Mieszkanie",aNew:"Nowe",aOld:"Stare",
     qualPairs:"Kwalifikacja (wymagane)",fillPairs:"Uzupełnij wszystkie 3 pary",whyNoVisit:"Dlaczego nie wizyta",rPrice:"Cena",rDistance:"Odległość",rThinking:"Myślą",autoScoreHint:"Ocena ustawiona automatycznie wg par",
@@ -648,19 +648,8 @@ function useDatabase(){
       if(typeof updated.score!=="number"){updated={...updated,score:parseFloat(updated.score)||0};}
       // Ensure qualification is consistent with score
       if(!updated.qualification||updated.qualification==="undefined"){updated={...updated,qualification:scoreToQual(updated.score)};}
-      // ── Разовый перевод в «Пропушить» ──────────────────────────
-      // Лиды с оценкой 2–5 и действием «Думает» переносятся
-      // в push-лист БЕЗ даты — срока у них нет, менеджер проставит её вручную.
-      // Флаг pushBackfilled гарантирует, что лид переносится ровно один раз:
-      // если менеджер потом вернёт его в «Думает» — миграция его больше не тронет.
-      if(!updated.pushBackfilled&&sc>=2&&sc<=5&&updated.action==="thinking"){
-        updated={...updated,pushFrom:updated.action,action:"push",pushDate:null,pushTime:null,pushBackfilled:true};
-      }
-      // Откат: лиды с действием «Просчёт» возвращаются из push обратно.
-      // Самоограничивается: после отката action уже не "push", условие больше не сработает.
-      if(updated.action==="push"&&updated.pushFrom==="quote"){
-        updated={...updated,action:"quote",pushDate:null,pushTime:null,pushFrom:null,pushBackfilled:true};
-      }
+      // (Сентябрьский перенос «Думает → Пропушить» удалён: он срабатывал на КАЖДОЙ загрузке
+      //  и уводил в Push новых лидов, которым менеджер поставил «Думает». Своё он отработал.)
       // Бэкфилл quoteSince для существующих «Просчётов» (от updatedAt/createdAt)
       if(updated.action==="quote"&&!updated.quoteSince){
         const c=parseCreatedAt(updated.createdAt);
@@ -949,7 +938,7 @@ function useDatabase(){
           }catch(e){console.error("First write failed (не перезаписываю базу):",e);}
         } else {
           const pushBefore=(remote.leads||[]).filter(l=>l.pushBackfilled).length;
-          const rolledBack=(remote.leads||[]).filter(l=>l.action==="push"&&l.pushFrom==="quote").length;
+          const rolledBack=0; // откат «Просчёт ← Push» больше не выполняется
           const hadBackup=backup&&backup.leads&&backup.leads.length>0;
           // transform пересчитывается от СВЕЖЕГО remote на каждой попытке CAS
           const transform=(rem)=>{
@@ -1371,7 +1360,7 @@ function DashboardDatePicker({dateFrom,dateTo,setDateFrom,setDateTo,t,lang}){
 // ─── GOOGLE-STYLE CALENDAR POPUP ──────────────────────────────────────────────
 function CalPopup({initDate,initEvent,onSave,onDelete,onClose,t,lang}){
   const isEdit=!!initEvent;
-  const [form,setForm]=useState(initEvent||{title:"",date:initDate||TODAY,time:"10:00",timeEnd:"11:00",manager:"Oleh",type:"visit",description:""});
+  const [form,setForm]=useState(initEvent||{title:"",date:initDate||TODAY,time:"10:00",timeEnd:"11:00",manager:MANAGERS[0],type:"visit",description:""});
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
   const ins={background:"#001f4e",border:"1px solid rgba(255,255,255,0.14)",color:"#fff",borderRadius:7,padding:"7px 10px",fontSize:13,width:"100%",boxSizing:"border-box",outline:"none"};
   return(
@@ -1418,12 +1407,13 @@ function CalPopup({initDate,initEvent,onSave,onDelete,onClose,t,lang}){
 }
 
 // ─── KP MODAL ─────────────────────────────────────────────────────────────────
-function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
+function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=null,vatOn=true}){
   const isUa = kpLang==="ua";
   const isEn = kpLang==="en";
   // L(pl, ua, en) — picks string by KP language
   const L=(pl,ua,en)=>isEn?(en!==undefined?en:pl):(isUa?ua:pl);
-  const freeDeadline=()=>{const d=new Date();d.setDate(d.getDate()+14);return d.toLocaleDateString("pl-PL",{day:"2-digit",month:"2-digit",year:"numeric"});};
+  // Срок акции: своя дата из мастера КП, иначе +14 дней от сегодня
+  const freeDeadline=()=>{const d=promoDate?new Date(promoDate+"T00:00:00"):(()=>{const x=new Date();x.setDate(x.getDate()+14);return x;})();return d.toLocaleDateString("pl-PL",{day:"2-digit",month:"2-digit",year:"numeric"});};
   const today=new Date().toLocaleDateString("pl-PL",{day:"2-digit",month:"long",year:"numeric"});
   const todayUa=new Date().toLocaleDateString("uk-UA",{day:"2-digit",month:"long",year:"numeric"});
   const todayEn=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
@@ -1573,7 +1563,12 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose}){
           </div>
 
           {/* TOTAL: нетто + НДС = брутто (менеджер вписал брутто) */}
-          {(()=>{const v=vatSplit(amount);return(
+          {!vatOn&&(
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,padding:"20px 28px",background:"#00132f",borderRadius:12}}>
+            <div style={{color:"#bfa47e",fontSize:22,fontWeight:800,letterSpacing:2,textTransform:"uppercase"}}>{L("Łączna kwota","ЗАГАЛЬНА СУМА","TOTAL AMOUNT")}</div>
+            <div style={{color:"#bfa47e",fontSize:38,fontWeight:900}}>{fmtM(amount)}</div>
+          </div>)}
+          {vatOn&&(()=>{const v=vatSplit(amount);return(
           <div style={{marginTop:16,background:"#00132f",borderRadius:12,overflow:"hidden"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 28px",borderBottom:"1px solid rgba(191,164,126,0.18)"}}>
               <div style={{color:"rgba(255,255,255,0.65)",fontSize:12,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>{L("Cena netto (bez VAT)","Ціна нетто (без ПДВ)","Net price (excl. VAT)")}</div>
@@ -2259,7 +2254,7 @@ function PushPanel({leads,updateDb,t,mgr,search,onOpen}){
       return true;
     })
     .sort((a,b)=>{
-      if(sort==="score")return (parseInt(b.score)||0)-(parseInt(a.score)||0);
+      if(sort==="score")return (parseFloat(b.score)||0)-(parseFloat(a.score)||0);
       if(sort==="id")return String(b.leadId||"").localeCompare(String(a.leadId||""));
       if(sort==="created")return parseDot(b.createdAt)-parseDot(a.createdAt);
       // default — ближайшие к актуальной дате сверху, без даты — в конец
@@ -2579,13 +2574,13 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     if(k==="score"){
       u.autoScored=false;u.scoreManual=true;
       u.qualification=scoreToQual(v);
-      const nv=parseInt(v),pv=parseInt(p.score);
+      const nv=parseFloat(v)||0,pv=parseFloat(p.score)||0;
       // Авто-действие: оценка 5 → «Визит», оценка 6 → «Продажа»
-      if(nv===5)u.action="visit";
+      if(nv>=5&&nv<6)u.action="visit";
       if(nv===6)u.action="sale";
       if(nv===6&&pv!==6)setShowSale(true);
       // Визит: оценка стала 5 — спросить дату визита
-      if(nv===5&&pv!==5)setShowVisit(true);
+      if(nv===5&&pv<5)setShowVisit(true);
     }
     return u;
   });
@@ -3136,6 +3131,9 @@ function AnalyticsPage({leads,sales,srcList,setDomains,t,lang}){
 // ─── KP WIZARD POPUP ──────────────────────────────────────────────────────────
 function KPWizard({leads,onGenerate,onClose,t,lang}){
   const [amount,setAmount]=useState("");
+  const plus14=(()=>{const x=new Date();x.setDate(x.getDate()+14);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;})();
+  const [promoOn,setPromoOn]=useState(false);const [promoDate,setPromoDate]=useState(plus14);
+  const [vatOn,setVatOn]=useState(true);
   const [stone,setStone]=useState(false);
   const [stoneAmt,setStoneAmt]=useState("");
   const [selLead,setSelLead]=useState(null);
@@ -3143,7 +3141,7 @@ function KPWizard({leads,onGenerate,onClose,t,lang}){
   const filtered=leads.filter(l=>(l.name||"").toLowerCase().includes(search.toLowerCase())||l.phone.includes(search)||(l.leadId||"").includes(search)).slice(0,30);
   const ins={background:"rgba(255,255,255,0.07)",border:"1px solid rgba(191,164,126,0.25)",color:"#fff",borderRadius:7,padding:"8px 11px",fontSize:13,width:"100%",boxSizing:"border-box",outline:"none"};
   const canSubmit=selLead&&amount&&parseFloat(amount)>0&&(!stone||stoneAmt);
-  const submit=()=>{if(!canSubmit)return;const cl=selLead.clientLang||"pl";const lang=cl==="ua"?"ua":cl==="en"?"en":"pl";onGenerate({lead:selLead,amount:parseFloat(amount),stoneAmt:stone?parseFloat(stoneAmt):0,kpLang:lang});onClose();};
+  const submit=()=>{if(!canSubmit)return;const cl=selLead.clientLang||"pl";const lang=cl==="ua"?"ua":cl==="en"?"en":"pl";onGenerate({lead:selLead,amount:parseFloat(amount),stoneAmt:stone?parseFloat(stoneAmt):0,kpLang:lang,promoDate:promoOn&&promoDate?promoDate:null,vatOn});onClose();};
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:"#001433",border:"1px solid rgba(191,164,126,0.35)",borderRadius:16,width:"min(520px,95vw)",padding:28,maxHeight:"88vh",overflowY:"auto",boxShadow:"0 24px 64px rgba(0,0,0,0.6)"}}>
@@ -3193,6 +3191,29 @@ function KPWizard({leads,onGenerate,onClose,t,lang}){
               <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:4}}>{t.stoneHint}</div>
             </div>
           )}
+        </div>
+        {/* Своя дата акции (столешница −50 % и бесплатный монтаж) */}
+        <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>setPromoOn(p=>!p)}>
+            <div style={{width:36,height:20,borderRadius:10,background:promoOn?"#22c55e":"rgba(255,255,255,0.15)",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+              <div style={{width:16,height:16,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:promoOn?18:2,transition:"left 0.2s"}}/>
+            </div>
+            <span style={{fontSize:13,color:"#fff",fontWeight:600}}>📅 {lang!=="pl"?"Своя дата акции":"Własna data promocji"}</span>
+          </div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",marginTop:6}}>{lang!=="pl"?"Бесплатный монтаж и −50 % на столешницу действуют до этой даты":"Darmowy montaż i −50% na blat obowiązują do tej daty"}</div>
+          {promoOn
+            ? <input type="date" value={promoDate} min={new Date().toISOString().slice(0,10)} onChange={e=>setPromoDate(e.target.value)} style={{...ins,marginTop:8,colorScheme:"dark"}}/>
+            : <div style={{fontSize:11,color:"rgba(191,164,126,0.8)",marginTop:6}}>{lang!=="pl"?"Авто: +14 дней":"Auto: +14 dni"} — {isoToDot(plus14)}</div>}
+        </div>
+        {/* Налог в КП: прилагается / не прибавляется */}
+        <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:12,padding:"12px 14px",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>setVatOn(p=>!p)}>
+            <div style={{width:36,height:20,borderRadius:10,background:vatOn?"#22c55e":"rgba(255,255,255,0.15)",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+              <div style={{width:16,height:16,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:vatOn?18:2,transition:"left 0.2s"}}/>
+            </div>
+            <span style={{fontSize:13,color:"#fff",fontWeight:600}}>🧾 {VAT_LABEL} {Math.round(VAT_RATE*100)}% — {vatOn?(lang!=="pl"?"прилагается":"doliczany"):(lang!=="pl"?"не прибавляется":"nie doliczany")}</span>
+          </div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",marginTop:6}}>{vatOn?(lang!=="pl"?`В КП: нетто + ${VAT_LABEL} = итог (итог = введённая сумма)`:`W ofercie: netto + ${VAT_LABEL} = brutto`):(lang!=="pl"?`В КП только итоговая сумма, без строки ${VAT_LABEL}`:`W ofercie tylko suma końcowa, bez ${VAT_LABEL}`)}</div>
         </div>
 
         <button onClick={submit} disabled={!canSubmit} style={{width:"100%",background:canSubmit?"linear-gradient(135deg,#bfa47e,#d4bc98)":"rgba(255,255,255,0.1)",color:canSubmit?"#00132f":"rgba(255,255,255,0.3)",border:"none",borderRadius:10,padding:"13px 22px",fontSize:14,fontWeight:800,cursor:canSubmit?"pointer":"not-allowed",transition:"all 0.2s"}}>
@@ -3567,7 +3588,7 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
       </div>
 
       {kpOpen&&<KPWizard leads={leads} onClose={()=>setKpOpen(false)} onGenerate={(d)=>{setKpData(d);setKpOpen(false);}} t={t} lang={lang}/>}
-      {kpData&&<KPModal lead={kpData.lead} amount={kpData.amount} stoneAmt={kpData.stoneAmt||0} stoneLabel={kpData.stoneLabel} lang={kpData.kpLang||"pl"} onClose={()=>setKpData(null)}/>}
+      {kpData&&<KPModal lead={kpData.lead} amount={kpData.amount} stoneAmt={kpData.stoneAmt||0} stoneLabel={kpData.stoneLabel} lang={kpData.kpLang||"pl"} promoDate={kpData.promoDate||null} vatOn={kpData.vatOn!==false} onClose={()=>setKpData(null)}/>}
     </div>);
 }
 
