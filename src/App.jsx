@@ -693,7 +693,12 @@ function useDatabase(){
       // Both exist — pick the one with newer updatedAt
       const locTs=loc.updatedAt||0;
       const remTs=rem.updatedAt||0;
-      mergedLeads.push(remTs>locTs ? rem : loc);
+      const win=remTs>locTs?rem:loc, lose=win===rem?loc:rem;
+      // seenBy (кто принял заявку) — объединяем с обеих сторон, если лид не передавали заново.
+      // Иначе правка другого менеджера затирала «принято» → заявка снова всплывала.
+      if(win.forwardedAt===lose.forwardedAt&&win.manager===lose.manager&&(lose.seenBy||[]).some(x=>!(win.seenBy||[]).includes(x)))
+        mergedLeads.push({...win,seenBy:[...new Set([...(win.seenBy||[]),...(lose.seenBy||[])])],seenAt:win.seenAt||lose.seenAt});
+      else mergedLeads.push(win);
     });
 
     // Events conflict resolution by updatedAt
@@ -709,8 +714,7 @@ function useDatabase(){
     });
     // Sales tombstone — deleted sales never come back
     const deletedSaleIds=new Set([...(local.deletedSaleIds||[]),...(remote.deletedSaleIds||[])]);
-    const localSaleIds=new Set((local.sales||[]).map(s=>s.id));
-    const remoteOnlySales=(remote.sales||[]).filter(s=>!localSaleIds.has(s.id)&&!deletedSaleIds.has(s.id));
+    const mergedSales=mergeSales(local.sales,remote.sales,deletedSaleIds);
 
     // Events tombstone — deleted events never come back
     const deletedEventIds=new Set([...(local.deletedEventIds||[]),...(remote.deletedEventIds||[])]);
@@ -723,13 +727,17 @@ function useDatabase(){
       ...local,
       leads:sortLeads(mergedLeads),
       events:mergedEventsFinal.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)),
-      sales:[...(local.sales||[]).filter(s=>!deletedSaleIds.has(s.id)),...remoteOnlySales].map(s=>s.source&&/^kalkulator\d*$/i.test(s.source)?{...s,source:"D"+s.source}:s),
+      sales:mergedSales.map(s=>s.source&&/^kalkulator\d*$/i.test(s.source)?{...s,source:"D"+s.source}:s),
       nextNum:Math.max(local.nextNum||0,remote.nextNum||0),
       deletedLeadIds:[...deletedIds],
       deletedSaleIds:[...deletedSaleIds],
       deletedEventIds:[...deletedEventIds],
       deletedTaskIds:[...deletedTaskIds],
-      chat:local.chat,
+      // Напоминания объединяем по ключу с обеих сторон; «принято» (ackBy) побеждает.
+      // Раньше тут был chat:local.chat — запись любого другого менеджера затирала чужие «Принять»,
+      // и принятые аллерты всплывали снова после перезагрузки.
+      chat:mergeChat(local.chat,remote.chat,[...new Set([...(local.purgedReminderKeys||[]),...(remote.purgedReminderKeys||[])])]),
+      purgedReminderKeys:pruneDatedKeys([...new Set([...(local.purgedReminderKeys||[]),...(remote.purgedReminderKeys||[])])]),
       // Ключи «напоминание уже отправлено» — ОБЪЕДИНЯЕМ с обеих сторон, иначе запись
       // одного менеджера затирает ключи другого и ассистент шлёт пуши повторно.
       sentReminders:[...new Set([...(local.sentReminders||[]),...(remote.sentReminders||[])])],
@@ -750,7 +758,12 @@ function useDatabase(){
         (remote?.tasks||[]).forEach(t=>taskMap.set(t.id,t));
         (local.tasks||[]).forEach(t=>{
           const ex=taskMap.get(t.id);
-          if(!ex||(t.updatedAt||0)>=(ex.updatedAt||0))taskMap.set(t.id,t);
+          if(!ex){taskMap.set(t.id,t);return;}
+          const win=(t.updatedAt||0)>=(ex.updatedAt||0)?t:ex, lose=win===t?ex:t;
+          // «Просмотрено/принято» объединяем, если задачу не переназначали
+          if(win.assignee===lose.assignee&&win.from===lose.from&&(lose.seenBy||[]).some(x=>!(win.seenBy||[]).includes(x)))
+            taskMap.set(t.id,{...win,seenBy:[...new Set([...(win.seenBy||[]),...(lose.seenBy||[])])]});
+          else taskMap.set(t.id,win);
         });
         // Tombstones — deleted tasks must never resurface from remote
         deletedTaskIds.forEach(id=>taskMap.delete(id));
@@ -1110,6 +1123,59 @@ function buildReminders(db){
   });
 
   return out;
+}
+
+// Напоминание устарело — то, о чём оно напоминало, уже сделано (ветка закрыта, действие
+// сменили, визит перенесли, пуш выполнен, оплата/сборка/монтаж отмечены). Такие аллерты
+// больше не всплывают и автоматически помечаются выполненными.
+function reminderStale(m,db){
+  if(!m||m.kind!=="reminder"||!db||!db.leads)return false;
+  const p=String(m.key||"").split(":");const leads=db.leads||[];
+  const lead=(id)=>leads.find(l=>String(l.leadId||"")===id)||leads.find(l=>String(l.id)===id);
+  if(m.rtype==="tree"){const l=leads.find(x=>x.id===m.data?.leadId)||lead(p[1]);return !l||!treeIncomplete(l);}
+  if(m.rtype==="quote"){const l=lead(p[1]);return !l||l.action!=="quote";}
+  if(m.rtype==="visit"){const l=lead(p[1]);return !l||l.visitDate!==p[2];}
+  if(m.rtype==="push"){const d=p[1]||m.data?.date;return !!d&&!leadsToPush(leads).some(l=>l.pushDate===d);}
+  if(m.rtype==="order"){const o=(db.orders||[]).find(x=>String(x.id)===p[1]);if(!o||o.status==="done")return true;const f=o.f||{};
+    if(f[p[2]]!==p[3])return true;
+    return (p[2]==="payDue"&&!!f.payFact)||(p[2]==="assemblyPlan"&&!!f.assemblyFact)||(p[2]==="montagePlan"&&!!f.montageFact)||(p[2]==="finalDue"&&!!f.finalPaid);}
+  return false;
+}
+// Ключи с датой старше 60 дней выкидываем, чтобы списки не росли бесконечно
+function pruneDatedKeys(keys){const cutoff=new Date(Date.now()-60*86400000).toISOString().slice(0,10);return (keys||[]).filter(k=>{const m=String(k).match(/(\d{4}-\d{2}-\d{2})/);return !m||m[1]>=cutoff;});}
+// Слияние ленты напоминаний: по ключу, без дублей; принятое (ackBy) с любой стороны сохраняется
+function mergeChat(lc,rc,purged){
+  const dead=new Set(purged||[]);const out=[];const idx=new Map();const old=Date.now()-45*86400000;
+  const add=(m)=>{
+    if(!m)return;
+    if(m.kind!=="reminder"||!m.key){out.push(m);return;}
+    if(dead.has(m.key))return;
+    if(m.ackBy&&m.ackAt&&m.ackAt<old)return; // принятые старше 45 дней — в архив не тащим
+    const i=idx.get(m.key);
+    if(i===undefined){idx.set(m.key,out.length);out.push(m);return;}
+    const ex=out[i];
+    if((!ex.ackBy&&m.ackBy)||(ex.ackBy&&m.ackBy&&(m.ackAt||0)<(ex.ackAt||0)))out[i]={...ex,ackBy:m.ackBy,ackAt:m.ackAt};
+  };
+  (lc||[]).forEach(add);
+  (rc||[]).forEach(m=>{if(m&&m.kind==="reminder"&&m.key)add(m);});
+  return out;
+}
+// Слияние продаж по id: новее (updatedAt) побеждает, допродажи объединяются с обеих сторон
+function mergeSales(ls,rs,dead){
+  const m=new Map();const order=[];
+  (ls||[]).forEach(s=>{if(!m.has(s.id))order.push(s.id);m.set(s.id,s);});
+  (rs||[]).forEach(r=>{
+    const l=m.get(r.id);
+    if(!l){order.push(r.id);m.set(r.id,r);return;}
+    const win=(l.updatedAt||0)>=(r.updatedAt||0)?l:r, lose=win===l?r:l;
+    if(!(win.addons||[]).length&&!(lose.addons||[]).length){m.set(r.id,win);return;}
+    const deadA=new Set([...(win.deletedAddonIds||[]),...(lose.deletedAddonIds||[])]);
+    const am=new Map();[...(lose.addons||[]),...(win.addons||[])].forEach(a=>am.set(a.id,a));
+    const addons=[...am.values()].filter(a=>!deadA.has(a.id)).sort((a,b)=>(a.at||0)-(b.at||0));
+    const base=win.baseAmount??lose.baseAmount??win.saleAmount;
+    m.set(r.id,{...win,addons,deletedAddonIds:[...deadA],baseAmount:base,saleAmount:(+base||0)+addons.reduce((x,a)=>x+(+a.amount||0),0)});
+  });
+  return order.filter(id=>!(dead&&dead.has(id))).map(id=>m.get(id));
 }
 
 // Локализованный текст напоминания — рендерится под текущий язык CRM
@@ -1993,7 +2059,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
                 {active&&<div style={{marginLeft:"auto",width:8,height:8,borderRadius:"50%",background:MGR_COLOR[m]}}/>}
               </button>
             );})}
-            {currentUser==="Danya"&&<button onClick={()=>{setSilent(!isSilent());setShowUserMenu(false);}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",marginTop:4,background:isSilent()?"rgba(251,146,60,0.12)":"transparent",border:"none",borderTop:`1px solid ${C.border}`,color:isSilent()?"#fb923c":C.text,cursor:"pointer",fontSize:12,fontWeight:700,textAlign:"left"}}>{isSilent()?"🔕 Беззвучный режим: ВКЛ":"🔔 Беззвучный режим: выкл"}</button>}
+            {currentUser==="Danya"&&<button onClick={()=>{setSilent(!isSilent());setShowUsers(false);}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",marginTop:4,background:isSilent()?"rgba(251,146,60,0.12)":"transparent",border:"none",borderTop:`1px solid ${C.border}`,color:isSilent()?"#fb923c":C.text,cursor:"pointer",fontSize:12,fontWeight:700,textAlign:"left"}}>{isSilent()?"🔕 Беззвучный режим: ВКЛ":"🔔 Беззвучный режим: выкл"}</button>}
             <button onClick={()=>{authClear();window.location.reload();}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",marginTop:4,background:"transparent",border:"none",borderTop:`1px solid ${C.border}`,color:C.red,cursor:"pointer",fontSize:12,fontWeight:700,textAlign:"left"}}>⎋ Выйти из аккаунта</button>
           </div>
         )}
@@ -2118,7 +2184,7 @@ function SalesSection(props){
       ]}/>
       <div style={{flex:1,minHeight:0,overflowY:"auto"}}>
         {tab==="sales"
-          ?<SalesPage sales={props.sales} setSales={props.setSales} setSalesNow={props.setSalesNow} updateDb={props.updateDb} t={t} lang={props.lang} leads={props.leads} onOpenLead={props.onOpenLead}/>
+          ?<SalesPage sales={props.sales} setSales={props.setSales} setSalesNow={props.setSalesNow} updateDb={props.updateDb} t={t} lang={props.lang} leads={props.leads} onOpenLead={props.onOpenLead} currentUser={props.currentUser}/>
           :<DynamicsPage leads={props.leads} sales={props.sales} t={t} lang={props.lang}/>}
       </div>
     </div>
@@ -3383,9 +3449,9 @@ function AlertsPage({chatHistory,setChatHistory,tasks,updateDb,currentUser,t,lan
   });
   const ack=(key)=>setChatHistory(p=>p.map(m=>(m.key===key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m));
   const ackAll=()=>setChatHistory(p=>p.map(m=>(m.kind==="reminder"&&!m.ackBy)?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m));
-  const purgeAcked=()=>setChatHistory(p=>p.filter(m=>!(m.kind==="reminder"&&m.ackBy)));
+  const purgeAcked=()=>updateDb(p=>{const keys=(p.chat||[]).filter(m=>m.kind==="reminder"&&m.ackBy).map(m=>m.key).filter(Boolean);return {...p,chat:(p.chat||[]).filter(m=>!(m.kind==="reminder"&&m.ackBy)),purgedReminderKeys:pruneDatedKeys([...new Set([...(p.purgedReminderKeys||[]),...keys])])};},true);
   const missed=rems.filter(m=>!m.ackBy&&m.data?.date&&m.data.date<getToday());
-  const myNewTasks=(tasks||[]).filter(x=>x.assignee===currentUser&&x.from&&x.from!==currentUser&&!(x.seenBy||[]).includes(currentUser));
+  const myNewTasks=(tasks||[]).filter(x=>x.assignee===currentUser&&x.from&&x.from!==currentUser&&(x.status||"all")!=="done"&&!(x.seenBy||[]).includes(currentUser));
   const sel={background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 9px",fontSize:11,outline:"none",cursor:"pointer"};
   const Card=({m})=>{const unacked=!m.ackBy;const col=m.rtype==="push"?"#f97316":m.rtype==="quote"?"#a78bfa":"#60a5fa";return(
     <div style={{background:unacked?`${col}12`:C.card,border:`1px solid ${unacked?col+"88":C.border}`,borderRadius:12,padding:"12px 14px",display:"flex",gap:12,alignItems:"flex-start"}}>
@@ -3393,7 +3459,7 @@ function AlertsPage({chatHistory,setChatHistory,tasks,updateDb,currentUser,t,lan
       <div style={{flex:1,fontSize:12,color:C.text,whiteSpace:"pre-wrap",lineHeight:1.55}}>{formatReminder(m,t)}</div>
       <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",flexShrink:0}}>
         {unacked?<button onClick={()=>ack(m.key)} style={{background:C.green,border:"none",color:"#00132f",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer"}}>✓ {t.ackBtn}</button>
-                :<span style={{fontSize:11,color:C.green,fontWeight:700}}>✓ {t.ackedBy} · {m.ackBy}</span>}
+                :<span style={{fontSize:11,color:C.green,fontWeight:700}}>✓ {m.ackBy==="auto"?(ru?"Выполнено — закрыто автоматически":"Wykonane — zamknięte automatycznie"):<>{t.ackedBy} · {m.ackBy}</>}</span>}
         {isSnoozed(m.key)&&<span style={{fontSize:10,color:"#fbbf24"}}>⏰ {new Date(getSnooze()[m.key]).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}</span>}
       </div>
     </div>);};
@@ -3557,7 +3623,7 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
 
       {/* ПРОДАЖИ за любой период — перенесено из раздела «Продажи», клик по карточке → лид */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
-        <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={onOpenLead}/>
+        <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={onOpenLead} currentUser={currentUser}/>
       </div>
 
       {/* Рекомендации по паттерну */}
@@ -3792,7 +3858,25 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
   };
   const createFromSale=(sale)=>{
     const lead=(leads||[]).find(l=>l.leadId===sale.leadId||l.id===sale.leadId)||(leads||[]).find(l=>l.phone===sale.phone);
-    updateDb(p=>({...p,orders:[...(p.orders||[]),makeOrder({sale,lead,num:nextOrderNum(p.orders),by:me,tpl:p.orderTemplate})]}),true);
+    // Номер заказа из продажи, если он свободен (например, заказ удалили и создают заново)
+    updateDb(p=>({...p,orders:[...(p.orders||[]),makeOrder({sale,lead,num:(sale.orderNum&&!(p.orders||[]).some(o=>String(o.num)===String(sale.orderNum)))?sale.orderNum:nextOrderNum(p.orders),by:me,tpl:p.orderTemplate})]}),true);
+  };
+  // ── Удаление заказа (с подтверждением). Открытые задачи заказа удаляются вместе с ним,
+  // выполненные остаются в истории задач. Продажа не трогается — из неё можно создать заказ заново.
+  const [delId,setDelId]=useState(null);
+  const delO=orders.find(o=>o.id===delId)||null;
+  const delOpenTasks=delO?(tasks||[]).filter(x=>x.orderId===delO.id&&(x.status||"all")!=="done").length:0;
+  const deleteOrder=(id)=>{
+    updateDb(p=>{
+      const kill=(p.tasks||[]).filter(x=>x.orderId===id&&(x.status||"all")!=="done").map(x=>x.id);
+      const ks=new Set(kill);
+      return {...p,
+        orders:(p.orders||[]).filter(o=>o.id!==id),
+        deletedOrderIds:[...new Set([...(p.deletedOrderIds||[]),id])],
+        tasks:(p.tasks||[]).filter(x=>!ks.has(x.id)),
+        deletedTaskIds:[...new Set([...(p.deletedTaskIds||[]),...kill])]};
+    },true);
+    setDelId(null);setOpenId(null);
   };
   const salesNoOrder=(sales||[]).filter(s=>!orders.some(o=>o.saleId===s.id));
   // ── фильтры ──
@@ -3870,7 +3954,7 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
       {/* Таблица руководителя */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-          <thead><tr style={{background:C.surface}}>{["Заказ","Клиент","Этап","Следующий шаг","Ответственный","Дедлайн","Статус","Готовность"].map(h=><th key={h} style={{padding:"9px 10px",textAlign:"left",fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+          <thead><tr style={{background:C.surface}}>{["Заказ","Клиент","Этап","Следующий шаг","Ответственный","Дедлайн","Статус","Готовность",""].map(h=><th key={h} style={{padding:"9px 10px",textAlign:"left",fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
           <tbody>
             {rows.map(({o,i})=>(
               <tr key={o.id} onClick={()=>setOpenId(o.id)} style={{borderTop:`1px solid ${C.border}`,cursor:"pointer"}}>
@@ -3882,12 +3966,25 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
                 <td style={{padding:"9px 10px",whiteSpace:"nowrap",color:C.text}}>{i.dl?isoToDot(i.dl):"—"}</td>
                 <td style={{padding:"9px 10px",whiteSpace:"nowrap"}}><span style={{color:i.color,fontWeight:800}}>{i.emoji} {i.label}</span>{i.ot>0&&<div style={{fontSize:10,color:C.red,fontWeight:700}}>⚠ задач просрочено: {i.ot}</div>}</td>
                 <td style={{padding:"9px 10px",minWidth:110}}><div style={{height:7,background:"rgba(255,255,255,0.08)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${i.prog}%`,height:"100%",background:i.prog===100?C.green:C.accent}}/></div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{i.prog}%</div></td>
+                <td style={{padding:"9px 6px",textAlign:"center"}}><button onClick={e=>{e.stopPropagation();setDelId(o.id);}} title="Удалить заказ" style={{background:"rgba(248,113,113,0.12)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}}>🗑</button></td>
               </tr>))}
-            {rows.length===0&&<tr><td colSpan={8} style={{padding:24,textAlign:"center",color:C.dim}}>{orders.length?"По фильтрам ничего":"Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически."}</td></tr>}
+            {rows.length===0&&<tr><td colSpan={9} style={{padding:24,textAlign:"center",color:C.dim}}>{orders.length?"По фильтрам ничего":"Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически."}</td></tr>}
           </tbody>
         </table>
       </div>
-      {open&&<OrderCard o={open} tpl={tpl} isAdmin={isAdmin} me={me} commit={commit} tasks={tasks} leads={leads} onOpenLead={onOpenLead} onClose={()=>setOpenId(null)} info={info(open)} respOf={respOf}/>}
+      {open&&<OrderCard o={open} tpl={tpl} isAdmin={isAdmin} me={me} commit={commit} tasks={tasks} leads={leads} onOpenLead={onOpenLead} onClose={()=>setOpenId(null)} onDelete={()=>setDelId(open.id)} info={info(open)} respOf={respOf}/>}
+      {delO&&<div onClick={()=>setDelId(null)} style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.9)",backdropFilter:"blur(4px)",zIndex:2700,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+        <div onClick={e=>e.stopPropagation()} style={{width:"min(440px,100%)",background:"linear-gradient(165deg,#0a1a3a,#00132f)",border:"1px solid rgba(239,68,68,0.6)",borderRadius:18,padding:24,textAlign:"center",boxShadow:"0 30px 90px rgba(0,0,0,0.65)"}}>
+          <div style={{fontSize:36,marginBottom:6}}>🗑</div>
+          <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:6}}>Действительно удалить заказ №{delO.num}?</div>
+          <div style={{fontSize:13,color:"#bfa47e",fontWeight:700,marginBottom:12}}>{delO.client||"—"}{delO.phone?` · ${delO.phone}`:""} · {fmtM(+(delO.f||{}).amount||+delO.amount||0)}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginBottom:20,lineHeight:1.55}}>Заказ со всеми этапами, отметками, файлами и историей будет удалён безвозвратно.{delOpenTasks>0?` Открытые задачи по заказу (${delOpenTasks}) тоже удалятся.`:""} Продажа останется — из неё можно создать заказ заново.</div>
+          <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+            <button autoFocus onClick={()=>setDelId(null)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.25)",color:"#ddd",borderRadius:10,padding:"10px 22px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Отмена</button>
+            <button onClick={()=>deleteOrder(delO.id)} style={{background:"#ef4444",border:"none",color:"#fff",borderRadius:10,padding:"10px 22px",fontSize:13,fontWeight:900,cursor:"pointer"}}>Да, удалить</button>
+          </div>
+        </div>
+      </div>}
       {showTpl&&<OrderTemplateEditor tpl={tpl} onSave={(stages)=>{updateDb(p=>({...p,orderTemplate:{stages,updatedAt:Date.now()}}),true);setShowTpl(false);}} onClose={()=>setShowTpl(false)}/>}
     </div>
   );
@@ -3922,7 +4019,7 @@ function OrderTemplateEditor({tpl,onSave,onClose}){
     </div>);
 }
 
-function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,info,respOf}){
+function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDelete,info,respOf}){
   const [openSt,setOpenSt]=useState(()=>new Set([info.ci]));
   const [newItem,setNewItem]=useState({});
   const [fileIn,setFileIn]=useState({});
@@ -3968,6 +4065,7 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,info,
               <div style={{fontSize:24,fontWeight:900,color:"#fff"}}>Заказ №{o.num} <span style={{fontSize:14,color:"#bfa47e",fontWeight:700}}>· {o.client||"—"}</span></div>
               <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{o.phone} · создан {o.createdAt}{lead&&<> · <span onClick={()=>{onClose();onOpenLead&&onOpenLead(lead);}} style={{color:"#38bdf8",cursor:"pointer"}}>карточка лида →</span></>}</div>
             </div>
+            {onDelete&&<button onClick={onDelete} title="Удалить заказ" style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.5)",color:"#f87171",borderRadius:10,height:36,padding:"0 12px",fontSize:12,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>🗑 Удалить заказ</button>}
             <button onClick={onClose} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:10,width:36,height:36,fontSize:16,cursor:"pointer"}}>✕</button>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:14}}>
@@ -4936,7 +5034,7 @@ function DynamicsPage({leads,sales,t,lang}){
     </div>
   );
 }
-function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead}){
+function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead,currentUser}){
   // По умолчанию — текущий месяц (а не всё время)
   const _mStart=(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`;})();
   const [dateFrom,setDateFrom]=useState(_mStart);
@@ -4950,6 +5048,37 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead}
   const [fMgr,setFMgr]=useState("all");const [sortBy,setSortBy]=useState("date");
   const fs=filterByCustomRange(sales,dateFrom,dateTo).filter(x=>fMgr==="all"||x.manager===fMgr);const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
   const mRev=MANAGERS.map(m=>({name:m,rev:fs.filter(s=>s.manager===m).reduce((a,s)=>a+s.saleAmount,0),count:fs.filter(s=>s.manager===m).length}));
+  // ── Допродажа: дописать сумму к существующей продаже с датой ──
+  const pl=lang==="pl";
+  const me=currentUser&&currentUser!=="all"?currentUser:"—";
+  const [addFor,setAddFor]=useState(null);
+  const [addAmt,setAddAmt]=useState("");const [addDate,setAddDate]=useState(getToday());const [addNote,setAddNote]=useState("");
+  const openAdd=(id)=>{setAddFor(id);setAddAmt("");setAddDate(getToday());setAddNote("");};
+  // Пересчёт продажи + синхронно лид (saleAmount) и заказ (сумма продажи) + история
+  const applyAddon=(s,delta,hist,mut)=>{
+    const now=Date.now();
+    updateDb(p=>{
+      let total=null;
+      const sales=(p.sales||[]).map(x=>{if(x.id!==s.id)return x;const base=x.baseAmount??x.saleAmount;const n=mut({...x,baseAmount:base});const addons=(n.addons||[]);total=(+base||0)+addons.reduce((q,y)=>q+(+y.amount||0),0);return {...n,saleAmount:total,updatedAt:now};});
+      if(total===null)return p;
+      const orders=(p.orders||[]).map(o=>o.saleId!==s.id?o:{...o,amount:(+o.amount||0)+delta,f:{...(o.f||{}),amount:(+(o.f||{}).amount||+o.amount||0)+delta},history:[...(o.history||[]),{date:nowStr(),by:me,action:hist}],updatedAt:now});
+      const leads=(p.leads||[]).map(l=>(s.leadId!=null&&(l.leadId===s.leadId||l.id===s.leadId))?{...l,saleAmount:total,history:[...(l.history||[]),{date:nowStr(),action:`${hist} → ${pl?"razem":"итого"} ${fmtM(total)}`,by:me}],updatedAt:now}:l);
+      return {...p,sales,orders,leads};
+    },true);
+  };
+  const addAddon=(s)=>{
+    const a=parseFloat(String(addAmt).replace(/\s/g,"").replace(",","."));
+    if(!a||isNaN(a))return;
+    const now=Date.now();
+    const date=(addDate||getToday()).split("-").reverse().join(".");
+    const ad={id:now,amount:a,date,at:now,by:me,note:addNote.trim()};
+    applyAddon(s,a,`➕ ${pl?"Dosprzedaż":"Допродажа"} ${fmtM(a)} (${date})${ad.note?" · "+ad.note:""}`,x=>({...x,addons:[...(x.addons||[]),ad]}));
+    setAddFor(null);
+  };
+  const delAddon=(s,ad)=>{
+    if(!window.confirm(pl?`Usunąć dosprzedaż ${fmtM(ad.amount)} z ${ad.date}?`:`Удалить допродажу ${fmtM(ad.amount)} от ${ad.date}?`))return;
+    applyAddon(s,-(+ad.amount||0),`✕ ${pl?"Usunięto dosprzedaż":"Удалена допродажа"} ${fmtM(ad.amount)} (${ad.date})`,x=>({...x,addons:(x.addons||[]).filter(y=>y.id!==ad.id),deletedAddonIds:[...new Set([...(x.deletedAddonIds||[]),ad.id])]}));
+  };
   const deleteSale=(id)=>{
     updateDb(p=>({...p,
       sales:(p.sales||[]).filter(s=>s.id!==id),
@@ -4983,8 +5112,33 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead}
             ):(
               <button onClick={()=>setConfirmId(s.id)} style={{position:"absolute",top:10,right:10,background:"rgba(248,113,113,0.15)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 8px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
             )}
-            <div onClick={()=>openLeadOfSale(s)} title={lang==="ru"?"Открыть лида":"Otwórz leada"} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34,cursor:"pointer"}}><Avatar name={s.name||s.phone} color={C.accent} size={36} noMedal/><div><div style={{fontSize:13,color:C.text,fontWeight:700}}>{s.name||s.phone}{s.orderNum&&<span style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#f0c040"}}>📦 №{s.orderNum}</span>}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div><div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
+            <div onClick={()=>openLeadOfSale(s)} title={lang==="ru"?"Открыть лида":"Otwórz leada"} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingRight:34,cursor:"pointer"}}><Avatar name={s.name||s.phone} color={C.accent} size={36} noMedal/><div><div style={{fontSize:13,color:C.text,fontWeight:700}}>{s.name||s.phone}{s.orderNum&&<span style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#f0c040"}}>📦 №{s.orderNum}</span>}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{s.leadId}</div></div><div style={{marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:C.accent}}>{fmtM(s.saleAmount)}</div>{(s.addons||[]).length>0&&<div style={{fontSize:9,color:C.green,fontWeight:800}}>{pl?"w tym dosprzedaż":"в т.ч. допродажи"} +{fmtM((s.addons||[]).reduce((q,y)=>q+(+y.amount||0),0))}</div>}<div style={{fontSize:9,color:C.dim}}>{s.createdAt}</div></div></div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><SrcBadge source={s.source}/>{s.manager&&<div style={{display:"flex",alignItems:"center",gap:4}}><Avatar name={s.manager} color={MGR_COLOR[s.manager]} size={14}/><span style={{fontSize:10,color:MGR_COLOR[s.manager]}}>{s.manager}</span></div>}</div>{s.notes&&<div style={{fontSize:10,color:C.muted,marginTop:8,lineHeight:1.5}}>{s.notes}</div>}
+            {(s.addons||[]).length>0&&<div style={{marginTop:10,borderTop:`1px dashed ${C.border}`,paddingTop:8,display:"flex",flexDirection:"column",gap:4}}>
+              <div style={{display:"flex",fontSize:10,color:C.muted}}><span>{pl?"Sprzedaż":"Продажа"} · {s.createdAt}</span><span style={{marginLeft:"auto",fontWeight:700,color:C.text}}>{fmtM(s.baseAmount??s.saleAmount)}</span></div>
+              {(s.addons||[]).map(ad=>(<div key={ad.id} style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
+                <span style={{color:C.green,fontWeight:800,whiteSpace:"nowrap"}}>➕ {fmtM(ad.amount)}</span>
+                <span style={{color:C.text,fontWeight:700,whiteSpace:"nowrap"}}>📅 {ad.date}</span>
+                <span style={{color:C.muted,fontSize:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{ad.by&&ad.by!=="—"?ad.by:""}{ad.note?` · ${ad.note}`:""}</span>
+                <button onClick={()=>delAddon(s,ad)} title={pl?"Usuń":"Удалить"} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:11,padding:0}}>✕</button>
+              </div>))}
+            </div>}
+            {addFor===s.id?(
+              <div style={{marginTop:10,background:C.surface,border:`1px solid ${C.green}66`,borderRadius:9,padding:9,display:"flex",flexDirection:"column",gap:6}}>
+                <div style={{fontSize:11,fontWeight:800,color:C.green}}>➕ {pl?"Dosprzedaż do tej sprzedaży":"Допродажа к этой продаже"}</div>
+                <div style={{display:"flex",gap:6}}>
+                  <input autoFocus type="number" value={addAmt} onChange={e=>setAddAmt(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addAddon(s);if(e.key==="Escape")setAddFor(null);}} placeholder={pl?"Kwota":"Сумма"} style={{flex:1,minWidth:0,background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 8px",fontSize:13,fontWeight:700,outline:"none"}}/>
+                  <input type="date" value={addDate} onChange={e=>setAddDate(e.target.value)} style={{background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 6px",fontSize:12,outline:"none",colorScheme:"dark"}}/>
+                </div>
+                <input value={addNote} onChange={e=>setAddNote(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addAddon(s);}} placeholder={pl?"Co dosprzedano (opcjonalnie)":"Что допродали (необязательно)"} style={{background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 8px",fontSize:12,outline:"none"}}/>
+                <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+                  <button onClick={()=>setAddFor(null)} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"5px 12px",fontSize:12,cursor:"pointer"}}>{pl?"Anuluj":"Отмена"}</button>
+                  <button onClick={()=>addAddon(s)} disabled={!(parseFloat(String(addAmt).replace(",","."))>0)} style={{background:C.green,border:"none",color:"#00132f",borderRadius:7,padding:"5px 14px",fontSize:12,fontWeight:800,cursor:"pointer",opacity:(parseFloat(String(addAmt).replace(",","."))>0)?1:0.5}}>{pl?"Dodaj":"Добавить"}{parseFloat(String(addAmt).replace(",","."))>0?` → ${fmtM((+s.saleAmount||0)+parseFloat(String(addAmt).replace(",",".")))}`:""}</button>
+                </div>
+              </div>
+            ):(
+              <button onClick={()=>openAdd(s.id)} style={{marginTop:10,width:"100%",background:"transparent",border:`1px dashed ${C.green}88`,color:C.green,borderRadius:8,padding:"5px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>➕ {pl?"Dosprzedaż":"Допродажа"}</button>
+            )}
           </div>))}
         </div>}
     </div>
@@ -5087,10 +5241,10 @@ function GarnoCRM(){
     const fresh=[...FRESH.keys()].map(id=>(db?.leads||[]).find(l=>l.id===id)).filter(Boolean).filter(l=>!l.manager||l.manager===me||seesAll).filter(l=>!wasPopped("lead:"+l.id)&&!isSnoozed("lead:"+l.id));
     if(fresh.length){const l=fresh[0];out.push({key:"lead:"+l.id,kind:"lead",kicker:ru?"🚨 Новая заявка — реагируй сразу":"🚨 Nowy lead",title:l.name||l.phone||"—",body:`${l.phone||""}${l.source?"  ·  "+srcShort(l.source):""}${l.notes?"\n"+l.notes:""}`,count:fresh.length,ids:fresh.map(x=>x.id),lead:l});}
     // 2. Задачи от других
-    const myT=(db?.tasks||[]).filter(x=>x.assignee===me&&x.from&&x.from!==me&&!(x.seenBy||[]).includes(me)&&!wasPopped("task:"+x.id)&&!isSnoozed("task:"+x.id));
+    const myT=(db?.tasks||[]).filter(x=>x.assignee===me&&x.from&&x.from!==me&&(x.status||"all")!=="done"&&!(x.seenBy||[]).includes(me)&&!wasPopped("task:"+x.id)&&!isSnoozed("task:"+x.id));
     if(myT.length){const x=myT[0];out.push({key:"task:"+x.id,kind:"task",kicker:(ru?"☰ Тебе закинул задачу: ":"☰ Zadanie od: ")+x.from,title:x.title,body:[x.priority?`${ru?"Приоритет":"Priorytet"}: ${x.priority}`:"",x.deadline?`📅 ${x.deadline.split("-").reverse().join(".")}`:"",x.leadName?`◈ ${x.leadName}`:""].filter(Boolean).join("   "),count:myT.length,task:x});}
     // 3. Напоминания (визит / push / просчёт)
-    const rems=(db?.chat||[]).filter(m=>m.kind==="reminder"&&!m.ackBy&&!isSnoozed(m.key)&&!wasPopped(m.key)).filter(m=>{const mgrs=m.rtype==="push"?(m.data?.items||[]).map(x=>x.mgr):[m.data?.mgr];return seesAll||!mgrs.some(Boolean)||mgrs.includes(me);});
+    const rems=(db?.chat||[]).filter(m=>m.kind==="reminder"&&!m.ackBy&&!reminderStale(m,db)&&!isSnoozed(m.key)&&!wasPopped(m.key)).filter(m=>{const mgrs=m.rtype==="push"?(m.data?.items||[]).map(x=>x.mgr):[m.data?.mgr];return seesAll||!mgrs.some(Boolean)||mgrs.includes(me);});
     if(rems.length){const m=rems[0];const txt=formatReminder(m,T[lang]||T.ru);const nl=txt.indexOf("\n");out.push({key:m.key,kind:"reminder",rtype:m.rtype,kicker:m.rtype==="push"?"🚀 Push":m.rtype==="quote"?"💰 "+(T[lang]||T.ru).quote:"📅 "+(T[lang]||T.ru).visit,title:nl>0?txt.slice(0,nl):txt,body:nl>0?txt.slice(nl+1).trim():"",count:rems.length,rem:m});}
     return out;
   })();
@@ -5129,7 +5283,9 @@ function GarnoCRM(){
       const cur=dbRef.current;
       if(!cur||!cur.leads)return;
       const rems=buildReminders(cur);
-      if(!rems.length)return;
+      // Уже выполненное — закрываем автоматически, чтобы не висело в непринятых
+      const staleKeys=new Set((cur.chat||[]).filter(m=>m.kind==="reminder"&&!m.ackBy&&reminderStale(m,cur)).map(m=>m.key));
+      if(!rems.length&&!staleKeys.size)return;
       // Системный поп-ап на рабочий стол по каждому новому напоминанию (кроме Danya)
       if(currentUserRef.current!=="Danya"){
         rems.forEach(r=>{
@@ -5144,7 +5300,7 @@ function GarnoCRM(){
       const cutoff=new Date(Date.now()-60*86400000).toISOString().slice(0,10);
       updRef.current(prev=>({
         ...prev,
-        chat:[...(prev.chat||[]),...rems.map(r=>({role:"assistant",kind:"reminder",rtype:r.rtype,key:r.key,data:r.data,ackBy:null,ackAt:null}))],
+        chat:[...(prev.chat||[]).map(m=>(m.kind==="reminder"&&!m.ackBy&&staleKeys.has(m.key))?{...m,ackBy:"auto",ackAt:Date.now()}:m),...rems.filter(r=>!(prev.chat||[]).some(m=>m.kind==="reminder"&&m.key===r.key)).map(r=>({role:"assistant",kind:"reminder",rtype:r.rtype,key:r.key,data:r.data,ackBy:null,ackAt:null}))],
         sentReminders:[...new Set([...(prev.sentReminders||[]),...rems.map(r=>r.key)])]
           .filter(k=>{const m=String(k).match(/(\d{4}-\d{2}-\d{2})/);return !m||m[1]>=cutoff;}),
       }),true);
@@ -5232,6 +5388,7 @@ function GarnoCRM(){
   };
   const unreadTasksCount = (db.tasks||[]).filter(t=>
     t.assignee===currentUser &&
+    (t.status||"all")!=="done" &&
     !(t.seenBy||[]).includes(currentUser)
   ).length;
   // Пуши, которые надо сделать сегодня (включая просроченные)
@@ -5306,7 +5463,7 @@ function GarnoCRM(){
           {(page==="funnel"||page==="analytics") && <FunnelPage leads={leads} sales={sales} srcList={srcList} funnels={db.funnels||[]} t={t} lang={lang} onOpenLead={setSelLead} currentUser={currentUser}/>}
           {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
           {page==="salescenter"&& <SalesCenterPage leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
-          {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={setSelLead}/>}
+          {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={setSelLead} currentUser={currentUser}/>}
           {page==="settings"   && <SettingsPage db={db} updateDb={updateDb} lang={lang} t={t} srcList={srcList} setDomains={setDomains}/>}
           {page==="tasks"      && <TasksPage orders={db.orders||[]} orderTaskTypes={db.orderTaskTypes||[]} tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t} leads={leads} taskTypes={db.taskTypes||[]} onOpenLead={setSelLead} initialModal={taskPreset} />}
         </div>
