@@ -76,7 +76,7 @@ const T = {
     podium:"Пьедестал",visits:"Визиты",source_label:"Источник",
     unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",mwp:"MWP квал",salon:"Визит назначен",sale:"Продажа",
     thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",quote:"Просчёт",undefined:"Не определено",waitingInfo:"Ждём инфо",visit:"Визит",inWork:"Лид в работе",
-    kitchenInfo:"Инфо по кухне",kiYes:"Есть",kiNo:"Нет",distance:"Расстояние",dNear:"30 км −",dFar:"30 км +",apartment:"Квартира",aNew:"Новая",aOld:"Старая",
+    kitchenInfo:"Инфо по кухне",kiYes:"Есть",kiNo:"Нет",distance:"Расстояние",dNear:"до 100 км",dFar:"100 км +",apartment:"Квартира",aNew:"Новая",aOld:"Старая",
     qualPairs:"Квалификация (обязательно)",fillPairs:"Заполните все 3 пары",whyNoVisit:"Почему не визит",rPrice:"Цена",rDistance:"Расстояние",rThinking:"Думают",autoScoreHint:"Оценка выставлена автоматически по парам",
     withinMonth:"В теч. месяца",within3m:"В теч. 3 мес.",within6m:"В теч. полугода",year:"Год",
     justPrice:"Только цена",unconfirmed:"Срок не подтвержден",
@@ -146,7 +146,7 @@ const T = {
     podium:"Podium",visits:"Wizyty",source_label:"Źródło",
     unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",mwp:"MWP kwal",salon:"Wizyta umówiona",sale:"Sprzedaż",
     thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",quote:"Wycena",undefined:"Nieokreślone",waitingInfo:"Czekamy na info",visit:"Wizyta",inWork:"Lead w pracy",
-    kitchenInfo:"Info o kuchni",kiYes:"Jest",kiNo:"Brak",distance:"Odległość",dNear:"30 km −",dFar:"30 km +",apartment:"Mieszkanie",aNew:"Nowe",aOld:"Stare",
+    kitchenInfo:"Info o kuchni",kiYes:"Jest",kiNo:"Brak",distance:"Odległość",dNear:"do 100 km",dFar:"100 km +",apartment:"Mieszkanie",aNew:"Nowe",aOld:"Stare",
     qualPairs:"Kwalifikacja (wymagane)",fillPairs:"Uzupełnij wszystkie 3 pary",whyNoVisit:"Dlaczego nie wizyta",rPrice:"Cena",rDistance:"Odległość",rThinking:"Myślą",autoScoreHint:"Ocena ustawiona automatycznie wg par",
     withinMonth:"W ciągu miesiąca",within3m:"W ciągu 3 mies.",within6m:"W ciągu pół roku",year:"Rok",
     justPrice:"Chce tylko cenę",unconfirmed:"Termin niepotwierdzony",
@@ -313,6 +313,29 @@ const SCORES=[0,1,2,2.5,3,4,4.5,5,5.5,6];
 const SCORE_LBL={0:"Нет связи",1:"Связь, без инфо",2:"Срок 4м+",2.5:"4м+ с инфо",3:"4м−, без инфо",4:"Квал",4.5:"MWP квал",5:"Визит назначен",5.5:"Визит состоялся",6:"Продажа"};
 const SCORE_LBL_PL={0:"Brak kontaktu",1:"Kontakt, bez info",2:"Termin 4m+",2.5:"4m+ z info",3:"4m−, bez info",4:"Kwal",4.5:"MWP kwal",5:"Wizyta umówiona",5.5:"Wizyta odbyta",6:"Sprzedaż"};
 const scoreLbl=(x,lang)=>((lang==="pl"?SCORE_LBL_PL:SCORE_LBL)[x]||"");
+// Срок, который клиент указал в формах: поле «Срок» (budgetTimeline) или строка «Termin/Kiedy/Срок: …» в описании.
+// "lt4" — до 4 месяцев (квал), "gt4" — больше 4 месяцев (точно не квал), null — срок не указан.
+function formTerm(l){
+  const b=l&&l.budgetTimeline;
+  if(b==="withinMonth"||b==="within3m")return "lt4";
+  if(b==="within6m"||b==="year")return "gt4";
+  const re=/(termin|kiedy|срок|когда|termín|kdy)\s*(realizacji|монтажа|kuchni)?\s*[:\-–—]\s*([^\n;|]{1,60})/gi;let m,res=null;
+  while((m=re.exec(String((l&&l.notes)||"")))){const v=m[3].toLowerCase();
+    if(/(pół\s*roku|6\s*mies|[5-9]\s*mies|1[0-2]\s*mies|powyżej|ponad|za rok|\brok\b|później|полгода|пол\s*года|[5-9]\s*мес|год|позже|půl\s*roku|[5-9]\s*měs|\brok\b|později)/.test(v))res="gt4";
+    else if(/(od razu|natychmiast|jak najszybciej|asap|teraz|miesiąc|[1-4]\s*mies|1\s*[-–]\s*3|do\s*[1-4]|w ciągu\s*(miesiąca|[1-4])|сразу|срочно|месяц|[1-4]\s*мес|до\s*[1-4]|ihned|hned|měsíc|[1-4]\s*měs)/.test(v))res="lt4";
+  }
+  return res;
+}
+// Оценка Эрики — по ТОЙ ЖЕ системе, что и основная (дерево квалификации): срок → инфо по кухне → расстояние → квартира.
+// Контакт есть (клиент сам оставил заявку). Срок по умолчанию берётся из форм, Эрика может уточнить.
+//   срок 4м+ → 2, с инфо по кухне → 2.5 · срок 4м− → 3, с инфо → 4, + до 100 км и новая квартира → 4.5
+function erikaEff(l){
+  const et=(l&&l.erikaTree)||{};const ft=formTerm(l);const term=et.term||ft;
+  const any=term||et.kitchenInfo||et.distance||et.apartment;
+  if(!any){return l&&l.erikaScore!=null?{v:parseFloat(l.erikaScore),auto:false,term:null,legacy:true,next:"term"}:{v:null,auto:false,term:null,next:"term"};}
+  const r=treeEval({c1:"yes",term,kitchenInfo:et.kitchenInfo,distance:et.distance,apartment:et.apartment,noVisitReason:"-"});
+  return {v:r.score,auto:true,term,termFromForm:!et.term&&!!ft,next:r.next,tree:{term,kitchenInfo:et.kitchenInfo,distance:et.distance,apartment:et.apartment}};
+}
 // Ключ сортировки «новее — выше»: день лида (createdAt) + точное время внутри дня.
 // Время берём из id (CRM: мс×1000, сайт: мс), createdMs или первой записи истории.
 function leadSortKey(l){
@@ -721,7 +744,7 @@ function useDatabase(){
         out={...out,seenBy:[...new Set([...(win.seenBy||[]),...(lose.seenBy||[])])],seenAt:win.seenAt||lose.seenAt};
       // Оценка Эрики живёт своим полем: побеждает та, что поставлена позже, независимо от правок лида
       if((lose.erikaScoreAt||0)>(win.erikaScoreAt||0)||(win.erikaScore==null&&lose.erikaScore!=null&&!win.erikaScoreAt))
-        out={...out,erikaScore:lose.erikaScore,erikaScoreAt:lose.erikaScoreAt,erikaBy:lose.erikaBy};
+        out={...out,erikaScore:lose.erikaScore,erikaScoreAt:lose.erikaScoreAt,erikaBy:lose.erikaBy,erikaTree:lose.erikaTree};
       mergedLeads.push(out);
     });
 
@@ -2610,7 +2633,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
                 <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<span style={{marginLeft:7,fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",verticalAlign:"middle"}}>▼ {f.name}</span>:null;})()}{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
-                <td style={{padding:"8px 10px"}}>{l.erikaScore!=null&&<div title={t.erikaScore} style={{display:"inline-block",fontSize:10,fontWeight:900,color:"#f472b6",background:"rgba(244,114,182,0.14)",border:"1px solid rgba(244,114,182,0.55)",borderRadius:8,padding:"0 6px",marginBottom:3,lineHeight:"16px",whiteSpace:"nowrap"}}>★ Erika {l.erikaScore}</div>}<ScoreBar score={l.score}/></td>
+                <td style={{padding:"8px 10px"}}>{(()=>{const e=erikaEff(l);return e.v!=null?<div title={`${t.erikaScore}${e.auto?" (по сроку из формы)":""}`} style={{fontSize:9,fontWeight:800,color:"#f472b6",lineHeight:"11px",marginBottom:1,whiteSpace:"nowrap",opacity:e.auto?0.75:1}}>Э {e.v}{e.term==="lt4"?" · <4м":e.term==="gt4"?" · 4м+":""}</div>:null;})()}<ScoreBar score={l.score}/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.qualification]} color={QUAL_COLOR[l.qualification]} small/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={(t[l.budgetTimeline]||"").slice(0,14)} color={BUD_COLOR[l.budgetTimeline]} small/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.action]} color={ACT_COLOR[l.action]} action={l.action} small/></td>
@@ -2661,14 +2684,16 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     setForm(f=>({...f,stickers:nStickers}));
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,history:histAdd(l,nStickers.length>(l.stickers||[]).length?`Стикер добавлен: «${String(nStickers[nStickers.length-1]?.text||"").slice(0,50)}»`:"Стикер удалён"),stickers:nStickers,updatedAt:Date.now()}:l)}),true);
   };
-  // Оценка Эрики — сохраняется СРАЗУ одним кликом (без «Редактировать»), отдельным полем со своим временем
-  const setErika=(v)=>{
+  // Оценка Эрики — её собственная ветка по той же системе; каждый клик сохраняется СРАЗУ (без «Редактировать»)
+  const setErikaTree=(k,v)=>{
     const now=Date.now();const by=currentUser||"Erika";
-    setForm(f=>({...f,erikaScore:v,erikaScoreAt:now,erikaBy:by}));
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,erikaScore:v,erikaScoreAt:now,erikaBy:by,updatedAt:now,history:[...(l.history||[]),{date:nowStr(),action:`${t.erikaScore}: ${l.erikaScore??"—"} → ${v??"—"}`,by}]}:l)}),true);
+    const apply=(l)=>{const et={...(l.erikaTree||{}),[k]:v};const nl={...l,erikaTree:et};const sc=erikaEff(nl).v;return {...nl,erikaScore:sc,erikaScoreAt:now,erikaBy:by};};
+    setForm(f=>apply(f));
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>{if(l.id!==lead.id)return l;const n=apply(l);const lbl={term:t.term,kitchenInfo:t.kitchenInfo,distance:t.distance,apartment:t.apartment}[k]||k;
+      return {...n,updatedAt:now,history:[...(l.history||[]),{date:nowStr(),action:`★ ${t.erikaScore} · ${lbl}: ${v??"—"} → ${t.erikaScore} ${n.erikaScore??"—"}`,by}]};})}),true);
   };
   // Любая запись карточки НЕ трогает оценку Эрики — берём её из базы (иначе открытая карточка затирала её)
-  const keepE=(l,x)=>({...l,...x,erikaScore:l.erikaScore,erikaScoreAt:l.erikaScoreAt,erikaBy:l.erikaBy});
+  const keepE=(l,x)=>({...l,...x,erikaScore:l.erikaScore,erikaScoreAt:l.erikaScoreAt,erikaBy:l.erikaBy,erikaTree:l.erikaTree});
   const prevAction=useRef(lead.action||"undefined");
   const set=(k,v)=>setForm(p=>{
     const u={...p,[k]:v};
@@ -2775,7 +2800,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
         <div style={{height:4,background:"linear-gradient(90deg,#bfa47e,#e2c996,#bfa47e)"}}/>
         <div style={{padding:22}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:18,paddingBottom:16,borderBottom:"1px solid rgba(191,164,126,0.2)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:14}}><div style={{position:"relative"}}>{form.erikaScore!=null&&<div title={t.erikaScore} style={{position:"absolute",left:-8,top:-8,zIndex:2,minWidth:24,height:24,padding:"0 5px",boxSizing:"border-box",borderRadius:12,background:"#f472b6",color:"#00132f",fontSize:11,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid #00132f",boxShadow:"0 2px 8px rgba(244,114,182,0.5)"}}>Э{form.erikaScore}</div>}<Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={56} noMedal/><div style={{position:"absolute",right:-3,bottom:-3,width:14,height:14,borderRadius:"50%",background:QUAL_COLOR[form.qualification]||C.accent,border:"2px solid #00132f"}}/></div><div><div style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:0.2}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowTask(true)} title={lang==="pl"?"Nowe zadanie":"Новая задача"} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#ef4444",cursor:"pointer"}}>☰ {leadTasks.length>0?leadTasks.length:"+"}</button><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
+          <div style={{display:"flex",alignItems:"center",gap:14}}><div style={{position:"relative"}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={56} noMedal/><div style={{position:"absolute",right:-3,bottom:-3,width:14,height:14,borderRadius:"50%",background:QUAL_COLOR[form.qualification]||C.accent,border:"2px solid #00132f"}}/></div><div><div style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:0.2}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowTask(true)} title={lang==="pl"?"Nowe zadanie":"Новая задача"} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#ef4444",cursor:"pointer"}}>☰ {leadTasks.length>0?leadTasks.length:"+"}</button><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
           <div style={{display:"flex",gap:8}}>{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(false);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}<Btn onClick={onClose} variant="ghost" small>✕</Btn></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
@@ -2791,11 +2816,24 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           </div>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>◈ Оценка 0–6</div>
-            {form.erikaScore!=null&&currentUser!=="Erika"&&<div style={{display:"inline-block",fontSize:11,color:"#f472b6",fontWeight:800,background:"rgba(244,114,182,0.12)",border:"1px solid rgba(244,114,182,0.45)",borderRadius:8,padding:"2px 9px",marginBottom:6}}>★ {t.erikaScore}: {form.erikaScore}</div>}
+            {(()=>{const e=erikaEff(form);const tr=e.tree||{};const V={term:{lt4:t.lt4,gt4:t.gt4},kitchenInfo:{yes:t.kiYes,no:t.kiNo},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld}};
+              const parts=[["term",t.term],["kitchenInfo",t.kitchenInfo],["distance",t.distance],["apartment",t.apartment]].filter(([k])=>tr[k]).map(([k,lb])=>`${lb}: ${V[k][tr[k]]}${k==="term"&&e.termFromForm?(lang==="pl"?" (z formularza)":" (из формы)"):""}`);
+              return <div style={{fontSize:10,color:"#f472b6",fontWeight:700,marginBottom:4}}>★ {t.erikaScore}: <b style={{fontSize:12}}>{e.v??"—"}</b> <span style={{color:C.muted,fontWeight:500}}>· {parts.length?parts.join(" · "):(e.legacy?(lang==="pl"?"ręczna (stara)":"ручная (старая)"):(lang==="pl"?"termin w formularzach nie podany":"срок в формах не указан"))}</span></div>;})()}
             {currentUser==="Erika"
-              ? <div style={{marginBottom:10}}><div style={{fontSize:10,color:"#f472b6",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800,marginBottom:6}}>★ {t.erikaScore}</div>
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{SCORES.map(s=>{const active=form.erikaScore===s;return(<button key={s} onClick={()=>setErika(active?null:s)} style={{minWidth:34,height:34,padding:"0 6px",borderRadius:8,border:`2px solid ${active?"#f472b6":C.borderMd}`,background:active?"rgba(244,114,182,0.2)":C.accentDim,color:active?"#f472b6":C.muted,cursor:"pointer",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>
-                  <div style={{fontSize:10,color:"#f472b6",marginTop:6}}>✓ {lang==="pl"?"Zapisuje się od razu po kliknięciu":"Сохраняется сразу по клику"}</div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{lang==="pl"?"Główna ocena":"Основная оценка"}: <b style={{color:QUAL_COLOR[scoreToQual(form.score)]}}>{form.score}</b></div></div>
+              ? (()=>{const e=erikaEff(form);const tr=e.tree||{};const et=form.erikaTree||{};const ft=formTerm(form);
+                  const showF=(f)=>f==="term"||(f==="kitchenInfo"&&!!tr.term)||(f==="distance"&&tr.term==="lt4"&&tr.kitchenInfo==="yes")||(f==="apartment"&&tr.term==="lt4"&&tr.kitchenInfo==="yes"&&tr.distance==="near");
+                  const ERow=({field,label,opts})=>(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,padding:"4px 6px",borderRadius:8,background:e.next===field?"rgba(244,114,182,0.10)":"transparent",border:e.next===field?"1px dashed rgba(244,114,182,0.6)":"1px solid transparent"}}>
+                    <div style={{fontSize:10,color:e.next===field?"#f472b6":C.muted,textTransform:"uppercase",letterSpacing:0.6,minWidth:92,fontWeight:e.next===field?800:400}}>{e.next===field?"➜ ":""}{label}</div>
+                    {opts.map(([v,lb])=>{const on=tr[field]===v;const fromForm=field==="term"&&!et.term&&ft===v;return(<button key={v} onClick={()=>setErikaTree(field,et[field]===v?null:v)} style={{padding:"4px 11px",borderRadius:7,border:`1.5px solid ${on?"#f472b6":C.borderMd}`,background:on?"rgba(244,114,182,0.2)":"transparent",color:on?"#f472b6":C.text,fontSize:11,fontWeight:on?800:500,cursor:"pointer"}}>{lb}{fromForm?(lang==="pl"?" · z formularza":" · из формы"):""}</button>);})}
+                  </div>);
+                  return <div style={{marginBottom:10,background:"rgba(244,114,182,0.05)",border:"1px solid rgba(244,114,182,0.4)",borderRadius:9,padding:"9px 11px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}><div style={{fontSize:10,color:"#f472b6",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800}}>★ {t.erikaScore} — {lang==="pl"?"ta sama skala":"та же система оценки"}</div>{e.v!=null&&<span style={{marginLeft:"auto",fontSize:12,fontWeight:900,color:"#f472b6"}}>⚡ {e.v}</span>}</div>
+                    {showF("term")&&<ERow field="term" label={t.term} opts={[["lt4",t.lt4],["gt4",t.gt4]]}/>}
+                    {showF("kitchenInfo")&&<ERow field="kitchenInfo" label={t.kitchenInfo} opts={[["yes",t.kiYes],["no",t.kiNo]]}/>}
+                    {showF("distance")&&<ERow field="distance" label={t.distance} opts={[["near",t.dNear],["far",t.dFar]]}/>}
+                    {showF("apartment")&&<ERow field="apartment" label={t.apartment} opts={[["new",t.aNew],["old",t.aOld]]}/>}
+                    <div style={{fontSize:10,color:"#f472b6",marginTop:4}}>✓ {lang==="pl"?"Zapisuje się od razu po kliknięciu":"Сохраняется сразу по клику"} · <span style={{color:C.muted}}>{lang==="pl"?"Główna ocena":"Основная оценка"}: <b style={{color:QUAL_COLOR[scoreToQual(form.score)]}}>{form.score}</b></span></div>
+                  </div>;})()
               : <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{SCORES.map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} title={lang==="pl"?"Korekta ręczna":"Ручная корректировка"} style={{minWidth:34,height:34,padding:"0 6px",borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>}
 
             {form.autoScored&&<div style={{fontSize:10,color:"#2dd4bf",marginTop:-6,marginBottom:8}}>⚡ {t.autoScoreHint}</div>}
@@ -3088,14 +3126,15 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
   const cur=scope(filterByCustomRange(leads,dateFrom,dateTo));
   const prev=prevRange[0]?scope(filterByCustomRange(leads,prevRange[0],prevRange[1])):[];
   const at=(arr,x)=>arr.filter(l=>(parseFloat(l.score)||0)===x);
-  const reached=(arr,x)=>arr.filter(l=>scoreEverReached(l,x));
+  // Только АКТУАЛЬНАЯ оценка лида (без истории): квал = сейчас 4+
+  const curScore=(l)=>parseFloat(l.score)||0;
+  const reached=(arr,x)=>arr.filter(l=>curScore(l)>=x);
   const pct=(a,b)=>b?Math.round(a/b*1000)/10:0;
   const dlt=(a,b)=>{if(!b)return a?"new":"—";const p=Math.round((a-b)/b*100);return (p>0?"+":"")+p+"%";};
   // ключевые переходы
-  const trans=(from,to,arr)=>{const base=arr.filter(l=>scoreEverReached(l,from));const ok=base.filter(l=>scoreEverReached(l,to));return {n:ok.length,of:base.length,p:pct(ok.length,base.length)};};
+  const trans=(from,to,arr)=>{const base=arr.filter(l=>curScore(l)>=from);const ok=base.filter(l=>curScore(l)>=to);return {n:ok.length,of:base.length,p:pct(ok.length,base.length)};};
   // 4.5 → 5.5: именно те, кто был на 4.5 (по истории оценок или сейчас), и дошли до «визит состоялся»
-  const was45=(l)=>(parseFloat(l.score)||0)===4.5||(l.scoreTrail||[]).some(v=>parseFloat(v)===4.5);
-  const t4555=(arr)=>{const base=arr.filter(was45);const ok=base.filter(l=>scoreEverReached(l,5.5));return {n:ok.length,of:base.length,p:pct(ok.length,base.length)};};
+  const t4555=(arr)=>trans(4.5,5.5,arr);
   const K=[["Лид → Квал (4+)",trans(0,4,cur),trans(0,4,prev)],["Квал 4 → Визит 5",trans(4,5,cur),trans(4,5,prev)],["MWP 4.5 → Визит состоялся 5.5",t4555(cur),t4555(prev)],["Визит назн. 5 → состоялся 5.5",trans(5,5.5,cur),trans(5,5.5,prev)],["Визит 5.5 → Продажа 6",trans(5.5,6,cur),trans(5.5,6,prev)]];
   const ss={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,outline:"none",colorScheme:"dark"};
   const pickList=pick?(pick.mode==="at"?at(cur,pick.x):reached(cur,pick.x)):[];
@@ -3148,8 +3187,8 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
               </tr>);})}</tbody>
           </table></div>
           <div style={{fontSize:11,color:C.muted,padding:"10px 14px",borderTop:`1px solid ${C.border}`,lineHeight:1.6}}>
-            {ru?<>Сверху <b style={{color:C.text}}>100 %</b> — все лиды за выбранный срок. В каждой строке — сколько из них <b style={{color:C.text}}>дошли до этой оценки или выше</b> (с учётом истории оценок) и какой это % от всех. «Отвалилось на шаге» — на сколько % от всех стало меньше по сравнению со строкой выше. «VS прошлый» — разница в процентных пунктах с прошлым периодом такой же длины. Клик по строке — список лидов.</>
-              :<>Na górze <b style={{color:C.text}}>100 %</b> — wszystkie leady z okresu. W wierszu — ile z nich doszło do tej oceny lub wyżej i jaki to % całości. «Odpadło» — o ile % całości mniej niż w wierszu wyżej. «VS» — różnica w p.p. z poprzednim okresem. Kliknij wiersz — lista leadów.</>}
+            {ru?<>Сверху <b style={{color:C.text}}>100 %</b> — все лиды за выбранный срок. В каждой строке — сколько из них <b style={{color:C.text}}>сейчас имеют эту оценку или выше</b> (только актуальная оценка, без истории) и какой это % от всех. Например, «4 · Квал» — лиды, у которых оценка 4+ на текущий момент. «Отвалилось на шаге» — на сколько % от всех стало меньше по сравнению со строкой выше. «VS прошлый» — разница в процентных пунктах с прошлым периодом такой же длины. Клик по строке — список лидов.</>
+              :<>Na górze <b style={{color:C.text}}>100 %</b> — wszystkie leady z okresu. W wierszu — ile z nich MA TERAZ tę ocenę lub wyższą (tylko aktualna ocena) i jaki to % całości. «Odpadło» — o ile % całości mniej niż w wierszu wyżej. «VS» — różnica w p.p. z poprzednim okresem. Kliknij wiersz — lista leadów.</>}
           </div>
         </div>);
       })()}
@@ -3170,7 +3209,7 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
         <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:`1px solid ${C.border}`,flexWrap:"wrap"}}>
           <div style={{fontSize:13,fontWeight:800,color:C.text}}>{pick.x===0&&pick.mode==="reached"?(ru?"Все лиды":"Wszystkie leady"):<>{ru?"Оценка":"Ocena"} {pick.x} — {scoreLbl(pick.x,lang)}</>} <span style={{color:C.muted}}>({pickList.length})</span></div>
           <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
-            {[["reached",ru?"Дошли до этапа":"Dotarli"],["at",ru?"Сейчас на этапе":"Teraz na etapie"]].map(([m,l])=><button key={m} onClick={()=>setPick({...pick,mode:m})} style={{background:pick.mode===m?C.accentDim:"transparent",border:`1px solid ${pick.mode===m?C.accentBorder:C.border}`,color:pick.mode===m?C.accent:C.muted,borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>{l}</button>)}
+            {[["reached",ru?"Эта оценка и выше":"Ta ocena i wyżej"],["at",ru?"Ровно эта оценка":"Dokładnie ta ocena"]].map(([m,l])=><button key={m} onClick={()=>setPick({...pick,mode:m})} style={{background:pick.mode===m?C.accentDim:"transparent",border:`1px solid ${pick.mode===m?C.accentBorder:C.border}`,color:pick.mode===m?C.accent:C.muted,borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>{l}</button>)}
             <button onClick={()=>setPick(null)} style={{background:"transparent",border:"none",color:C.muted,fontSize:16,cursor:"pointer"}}>✕</button>
           </div>
         </div>
