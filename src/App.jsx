@@ -326,15 +326,18 @@ function formTerm(l){
   }
   return res;
 }
-// Оценка Эрики — по ТОЙ ЖЕ системе, что и основная (дерево квалификации): срок → инфо по кухне → расстояние → квартира.
-// Контакт есть (клиент сам оставил заявку). Срок по умолчанию берётся из форм, Эрика может уточнить.
-//   срок 4м+ → 2, с инфо по кухне → 2.5 · срок 4м− → 3, с инфо → 4, + до 100 км и новая квартира → 4.5
+// Оценка Эрики — по ПОЛНОЙ системе индексации, тем же деревом, что и основная оценка:
+//   Контакт 1 / Контакт 2 → Срок (4 мес − / +) → Инфо по кухне → Расстояние (100 км) → Квартира
+//   0 нет связи · 1 связь, без инфо · 2 срок 4м+ · 2.5 4м+ с инфо · 3 4м− без инфо · 4 4м− с инфо (квал) · 4.5 + до 100 км + новая
+// Срок, указанный клиентом в формах, подставляется в ответ «Срок», пока Эрика не выберет сама.
+// Оценка появляется только когда Эрика начала отвечать (сам по себе срок из формы оценку не ставит).
 function erikaEff(l){
-  const et=(l&&l.erikaTree)||{};const ft=formTerm(l);const term=et.term||ft;
-  const any=term||et.kitchenInfo||et.distance||et.apartment;
-  if(!any){return l&&l.erikaScore!=null?{v:parseFloat(l.erikaScore),auto:false,term:null,legacy:true,next:"term"}:{v:null,auto:false,term:null,next:"term"};}
-  const r=treeEval({c1:"yes",term,kitchenInfo:et.kitchenInfo,distance:et.distance,apartment:et.apartment,noVisitReason:"-"});
-  return {v:r.score,auto:true,term,termFromForm:!et.term&&!!ft,next:r.next,tree:{term,kitchenInfo:et.kitchenInfo,distance:et.distance,apartment:et.apartment}};
+  const et=(l&&l.erikaTree)||{};const ft=formTerm(l);
+  const touched=Object.keys(et).some(k=>et[k]!=null);
+  const tree={c1:et.c1,c2:et.c2,term:et.term||ft||null,kitchenInfo:et.kitchenInfo,distance:et.distance,apartment:et.apartment};
+  if(!touched){return l&&l.erikaScore!=null?{v:parseFloat(l.erikaScore),legacy:true,tree,termFromForm:!!ft,next:"c1"}:{v:null,tree,termFromForm:!!ft,next:"c1"};}
+  const r=treeEval({...tree,noVisitReason:"-"});
+  return {v:r.score,tree,termFromForm:!et.term&&!!ft,next:r.next,hint:r.hint};
 }
 // Ключ сортировки «новее — выше»: день лида (createdAt) + точное время внутри дня.
 // Время берём из id (CRM: мс×1000, сайт: мс), createdMs или первой записи истории.
@@ -2633,7 +2636,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
                 <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<span style={{marginLeft:7,fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",verticalAlign:"middle"}}>▼ {f.name}</span>:null;})()}{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
-                <td style={{padding:"8px 10px"}}>{(()=>{const e=erikaEff(l);return e.v!=null?<div title={`${t.erikaScore}${e.auto?" (по сроку из формы)":""}`} style={{fontSize:9,fontWeight:800,color:"#f472b6",lineHeight:"11px",marginBottom:1,whiteSpace:"nowrap",opacity:e.auto?0.75:1}}>Э {e.v}{e.term==="lt4"?" · <4м":e.term==="gt4"?" · 4м+":""}</div>:null;})()}<ScoreBar score={l.score}/></td>
+                <td style={{padding:"8px 10px"}}>{(()=>{const e=erikaEff(l);return e.v!=null?<div title={t.erikaScore} style={{fontSize:9,fontWeight:800,color:"#f472b6",lineHeight:"11px",marginBottom:1,whiteSpace:"nowrap",opacity:1}}>Э {e.v}</div>:null;})()}<ScoreBar score={l.score}/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.qualification]} color={QUAL_COLOR[l.qualification]} small/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={(t[l.budgetTimeline]||"").slice(0,14)} color={BUD_COLOR[l.budgetTimeline]} small/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.action]} color={ACT_COLOR[l.action]} action={l.action} small/></td>
@@ -2689,7 +2692,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     const now=Date.now();const by=currentUser||"Erika";
     const apply=(l)=>{const et={...(l.erikaTree||{}),[k]:v};const nl={...l,erikaTree:et};const sc=erikaEff(nl).v;return {...nl,erikaScore:sc,erikaScoreAt:now,erikaBy:by};};
     setForm(f=>apply(f));
-    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>{if(l.id!==lead.id)return l;const n=apply(l);const lbl={term:t.term,kitchenInfo:t.kitchenInfo,distance:t.distance,apartment:t.apartment}[k]||k;
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>{if(l.id!==lead.id)return l;const n=apply(l);const lbl={c1:t.c1,c2:t.c2,term:t.term,kitchenInfo:t.kitchenInfo,distance:t.distance,apartment:t.apartment}[k]||k;
       return {...n,updatedAt:now,history:[...(l.history||[]),{date:nowStr(),action:`★ ${t.erikaScore} · ${lbl}: ${v??"—"} → ${t.erikaScore} ${n.erikaScore??"—"}`,by}]};})}),true);
   };
   // Любая запись карточки НЕ трогает оценку Эрики — берём её из базы (иначе открытая карточка затирала её)
@@ -2816,22 +2819,27 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           </div>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>◈ Оценка 0–6</div>
-            {(()=>{const e=erikaEff(form);const tr=e.tree||{};const V={term:{lt4:t.lt4,gt4:t.gt4},kitchenInfo:{yes:t.kiYes,no:t.kiNo},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld}};
-              const parts=[["term",t.term],["kitchenInfo",t.kitchenInfo],["distance",t.distance],["apartment",t.apartment]].filter(([k])=>tr[k]).map(([k,lb])=>`${lb}: ${V[k][tr[k]]}${k==="term"&&e.termFromForm?(lang==="pl"?" (z formularza)":" (из формы)"):""}`);
-              return <div style={{fontSize:10,color:"#f472b6",fontWeight:700,marginBottom:4}}>★ {t.erikaScore}: <b style={{fontSize:12}}>{e.v??"—"}</b> <span style={{color:C.muted,fontWeight:500}}>· {parts.length?parts.join(" · "):(e.legacy?(lang==="pl"?"ręczna (stara)":"ручная (старая)"):(lang==="pl"?"termin w formularzach nie podany":"срок в формах не указан"))}</span></div>;})()}
+            {(()=>{const e=erikaEff(form);const tr=e.tree||{};const V={c1:{yes:t.cYes,no:t.cNo},c2:{yes:t.cYes,no:t.cNo},term:{lt4:t.lt4,gt4:t.gt4},kitchenInfo:{yes:t.kiYes,no:t.kiNo},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld}};
+              const parts=e.v==null&&!e.legacy?[]:[["c1",t.c1],["c2",t.c2],["term",t.term],["kitchenInfo",t.kitchenInfo],["distance",t.distance],["apartment",t.apartment]].filter(([k])=>tr[k]).map(([k,lb])=>`${lb}: ${V[k][tr[k]]}${k==="term"&&e.termFromForm?(lang==="pl"?" (z formularza)":" (из формы)"):""}`);
+              return <div style={{fontSize:10,color:"#f472b6",fontWeight:700,marginBottom:4}}>★ {t.erikaScore}: <b style={{fontSize:12}}>{e.v??"—"}</b> <span style={{color:C.muted,fontWeight:500}}>· {parts.length?parts.join(" · "):(e.legacy?(lang==="pl"?"ręczna (stara)":"ручная (старая)"):(lang==="pl"?"Erika jeszcze nie oceniała":"Эрика ещё не оценивала"))}</span></div>;})()}
             {currentUser==="Erika"
               ? (()=>{const e=erikaEff(form);const tr=e.tree||{};const et=form.erikaTree||{};const ft=formTerm(form);
-                  const showF=(f)=>f==="term"||(f==="kitchenInfo"&&!!tr.term)||(f==="distance"&&tr.term==="lt4"&&tr.kitchenInfo==="yes")||(f==="apartment"&&tr.term==="lt4"&&tr.kitchenInfo==="yes"&&tr.distance==="near");
-                  const ERow=({field,label,opts})=>(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,padding:"4px 6px",borderRadius:8,background:e.next===field?"rgba(244,114,182,0.10)":"transparent",border:e.next===field?"1px dashed rgba(244,114,182,0.6)":"1px solid transparent"}}>
-                    <div style={{fontSize:10,color:e.next===field?"#f472b6":C.muted,textTransform:"uppercase",letterSpacing:0.6,minWidth:92,fontWeight:e.next===field?800:400}}>{e.next===field?"➜ ":""}{label}</div>
+                  const contacted=tr.c1==="yes"||tr.c2==="yes";
+                  const rel=(f)=>f==="c1"||(f==="c2"&&tr.c1==="no")||(f==="term"&&contacted)||(f==="kitchenInfo"&&contacted&&!!tr.term)||(f==="distance"&&contacted&&tr.term==="lt4"&&tr.kitchenInfo==="yes")||(f==="apartment"&&contacted&&tr.term==="lt4"&&tr.kitchenInfo==="yes"&&tr.distance==="near");
+                  const ERow=({field,label,opts})=>{const nx=e.next===field;const r=rel(field);return(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,padding:"4px 6px",borderRadius:8,opacity:r?1:0.4,background:nx?"rgba(244,114,182,0.10)":"transparent",border:nx?"1px dashed rgba(244,114,182,0.6)":"1px solid transparent"}}>
+                    <div style={{fontSize:10,color:nx?"#f472b6":C.muted,textTransform:"uppercase",letterSpacing:0.6,minWidth:92,fontWeight:nx?800:400}}>{nx?"➜ ":""}{label}</div>
                     {opts.map(([v,lb])=>{const on=tr[field]===v;const fromForm=field==="term"&&!et.term&&ft===v;return(<button key={v} onClick={()=>setErikaTree(field,et[field]===v?null:v)} style={{padding:"4px 11px",borderRadius:7,border:`1.5px solid ${on?"#f472b6":C.borderMd}`,background:on?"rgba(244,114,182,0.2)":"transparent",color:on?"#f472b6":C.text,fontSize:11,fontWeight:on?800:500,cursor:"pointer"}}>{lb}{fromForm?(lang==="pl"?" · z formularza":" · из формы"):""}</button>);})}
-                  </div>);
+                  </div>);};
+                  const hint=e.hint==="call58"?t.hintCall58:e.hint==="meters"?t.hintMeters:null;
                   return <div style={{marginBottom:10,background:"rgba(244,114,182,0.05)",border:"1px solid rgba(244,114,182,0.4)",borderRadius:9,padding:"9px 11px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}><div style={{fontSize:10,color:"#f472b6",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800}}>★ {t.erikaScore} — {lang==="pl"?"ta sama skala":"та же система оценки"}</div>{e.v!=null&&<span style={{marginLeft:"auto",fontSize:12,fontWeight:900,color:"#f472b6"}}>⚡ {e.v}</span>}</div>
-                    {showF("term")&&<ERow field="term" label={t.term} opts={[["lt4",t.lt4],["gt4",t.gt4]]}/>}
-                    {showF("kitchenInfo")&&<ERow field="kitchenInfo" label={t.kitchenInfo} opts={[["yes",t.kiYes],["no",t.kiNo]]}/>}
-                    {showF("distance")&&<ERow field="distance" label={t.distance} opts={[["near",t.dNear],["far",t.dFar]]}/>}
-                    {showF("apartment")&&<ERow field="apartment" label={t.apartment} opts={[["new",t.aNew],["old",t.aOld]]}/>}
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}><div style={{fontSize:10,color:"#f472b6",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800}}>★ {t.erikaScore} — {lang==="pl"?"system indeksacji":"система индексации"}</div><span style={{marginLeft:"auto",fontSize:12,fontWeight:900,color:"#f472b6"}}>⚡ {e.v??"—"}{e.v!=null?` · ${scoreLbl(e.v,lang)}`:""}</span></div>
+                    <ERow field="c1" label={t.c1} opts={[["yes",t.cYes],["no",t.cNo]]}/>
+                    <ERow field="c2" label={t.c2} opts={[["yes",t.cYes],["no",t.cNo]]}/>
+                    <ERow field="term" label={t.term} opts={[["lt4",t.lt4],["gt4",t.gt4]]}/>
+                    <ERow field="kitchenInfo" label={t.kitchenInfo} opts={[["yes",t.kiYes],["no",t.kiNo]]}/>
+                    <ERow field="distance" label={t.distance} opts={[["near",t.dNear],["far",t.dFar]]}/>
+                    <ERow field="apartment" label={t.apartment} opts={[["new",t.aNew],["old",t.aOld]]}/>
+                    {hint&&<div style={{fontSize:11,color:"#facc15",fontWeight:700,marginTop:2}}>💡 {hint}</div>}
                     <div style={{fontSize:10,color:"#f472b6",marginTop:4}}>✓ {lang==="pl"?"Zapisuje się od razu po kliknięciu":"Сохраняется сразу по клику"} · <span style={{color:C.muted}}>{lang==="pl"?"Główna ocena":"Основная оценка"}: <b style={{color:QUAL_COLOR[scoreToQual(form.score)]}}>{form.score}</b></span></div>
                   </div>;})()
               : <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{SCORES.map(s=>{const q=scoreToQual(s);const c=QUAL_COLOR[q];const active=form.score===s;return(<button key={s} onClick={()=>editing&&set("score",s)} title={lang==="pl"?"Korekta ręczna":"Ручная корректировка"} style={{minWidth:34,height:34,padding:"0 6px",borderRadius:8,border:`2px solid ${active?c:C.borderMd}`,background:active?`${c}30`:C.accentDim,color:active?c:C.muted,cursor:editing?"pointer":"default",fontWeight:700,fontSize:13}}>{s}</button>);})}</div>}
@@ -3149,46 +3157,48 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
       </div>
       {prevRange[0]&&<div style={{fontSize:11,color:C.dim,marginTop:-8}}>{ru?"Сравнение с периодом":"Porównanie z okresem"} {isoToDot(prevRange[0])} — {isoToDot(prevRange[1])} ({prev.length} {ru?"лидов":"leadów"})</div>}
 
-      {/* ВОРОНКА — сверху 100 % (все лиды периода), дальше: сколько дошли до оценки и сколько % отвалилось на шаге */}
+      {/* ВОРОНКА — сверху 100 % (все лиды периода); каждая строка — лиды РОВНО с этой оценкой сейчас (4 — только 4, 4.5 — только 4.5) */}
       {(()=>{
-        const st=[{x:null},...SCORES.filter(x=>x>0).map(x=>({x}))];
-        const N=(arr,x)=>x==null?arr.length:reached(arr,x).length;
-        const rows=st.map(r=>({...r,n:N(cur,r.x),np:N(prev,r.x)})).map(r=>({...r,pc:pct(r.n,cur.length),pcp:pct(r.np,prev.length)}));
+        const st=[{x:null},...SCORES.map(x=>({x}))];
+        const N=(arr,x)=>x==null?arr.length:at(arr,x).length;
+        const above=(arr,x)=>arr.filter(l=>curScore(l)>x).length;
+        const rows=st.map(r=>({...r,n:N(cur,r.x),np:N(prev,r.x),up:r.x==null?null:above(cur,r.x)})).map(r=>({...r,pc:pct(r.n,cur.length),pcp:pct(r.np,prev.length),pup:r.up==null?null:pct(r.up,cur.length)}));
         const th={padding:"8px 10px",fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,fontWeight:700,whiteSpace:"nowrap"};
         const pp=(v)=>(v>0?"+":"")+(Math.round(v*10)/10)+(ru?" п.п.":" p.p.");
+        const maxN=Math.max(1,...rows.filter(r=>r.x!=null).map(r=>r.n));
         return(
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
           <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
             <thead><tr style={{background:C.surface}}>
               <th style={{...th,textAlign:"left"}}>{ru?"Оценка":"Ocena"}</th>
-              <th style={{...th,textAlign:"left",minWidth:220}}>{ru?"Лидов за период":"Leadów w okresie"}</th>
+              <th style={{...th,textAlign:"left",minWidth:220}}>{ru?"Лидов с этой оценкой":"Leadów z tą oceną"}</th>
               <th style={{...th,textAlign:"right"}}>{ru?"% от всех":"% z całości"}</th>
-              <th style={{...th,textAlign:"right"}}>{ru?"Отвалилось на шаге":"Odpadło na etapie"}</th>
+              <th style={{...th,textAlign:"right"}}>{ru?"Прошли выше":"Wyżej"}</th>
               <th style={{...th,textAlign:"right"}}>{ru?"Прошлый период":"Poprzedni okres"}</th>
               <th style={{...th,textAlign:"right"}}>{ru?"VS прошлый":"VS poprzedni"}</th>
             </tr></thead>
-            <tbody>{rows.map((r,i)=>{
+            <tbody>{rows.map((r)=>{
               const c=r.x==null?C.accent:(QUAL_COLOR[scoreToQual(r.x)]||C.accent);
-              const pr=i>0?rows[i-1]:null;const drop=pr?Math.round((pr.pc-r.pc)*10)/10:null;const dropN=pr?pr.n-r.n:null;
-              const dv=r.pc-r.pcp;const sel=pick&&pick.x===(r.x==null?0:r.x)&&pick.mode==="reached";
+              const dv=r.pc-r.pcp;const mode=r.x==null?"reached":"at";const xx=r.x==null?0:r.x;
+              const sel=pick&&pick.x===xx&&pick.mode===mode;
               return(
-              <tr key={String(r.x)} onClick={()=>setPick(sel?null:{x:r.x==null?0:r.x,mode:"reached"})} style={{borderTop:`1px solid ${C.border}`,cursor:"pointer",background:sel?`${c}14`:"transparent"}}>
+              <tr key={String(r.x)} onClick={()=>setPick(sel?null:{x:xx,mode})} style={{borderTop:`1px solid ${C.border}`,cursor:"pointer",background:sel?`${c}14`:"transparent"}}>
                 <td style={{padding:"9px 10px",whiteSpace:"nowrap"}}>{r.x==null
                   ?<span style={{fontSize:13,fontWeight:900,color:C.accent}}>{ru?"Все лиды":"Wszystkie leady"}</span>
                   :<span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{minWidth:34,textAlign:"center",fontSize:15,fontWeight:900,color:"#fff",background:c,borderRadius:7,padding:"2px 6px"}}>{r.x}</span><span style={{fontSize:12,color:C.text,fontWeight:600}}>{scoreLbl(r.x,lang)}</span></span>}</td>
                 <td style={{padding:"9px 10px"}}><div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{flex:1,height:20,background:"rgba(255,255,255,0.05)",borderRadius:5,overflow:"hidden"}}><div style={{width:`${Math.max(r.n?2:0,r.pc)}%`,height:"100%",background:`linear-gradient(90deg,${c},${c}88)`}}/></div>
+                  <div style={{flex:1,height:20,background:"rgba(255,255,255,0.05)",borderRadius:5,overflow:"hidden"}}><div style={{width:`${r.x==null?100:Math.max(r.n?2:0,Math.round(r.n/maxN*100))}%`,height:"100%",background:`linear-gradient(90deg,${c},${c}88)`}}/></div>
                   <b style={{minWidth:44,textAlign:"right",fontSize:15,color:C.text}}>{r.n}</b></div></td>
                 <td style={{padding:"9px 10px",textAlign:"right",fontSize:15,fontWeight:900,color:c}}>{r.pc}%</td>
-                <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}>{pr?(drop>0?<span style={{color:C.red,fontWeight:800}}>−{drop}% <span style={{color:C.muted,fontWeight:500,fontSize:11}}>({dropN} {ru?"лид.":"lead."})</span></span>:<span style={{color:C.dim}}>0%</span>):<span style={{color:C.dim}}>—</span>}</td>
+                <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap",color:C.muted}}>{r.x==null?"—":<>{r.up} · <b style={{color:C.text}}>{r.pup}%</b></>}</td>
                 <td style={{padding:"9px 10px",textAlign:"right",color:C.muted,whiteSpace:"nowrap"}}>{r.np} · <b style={{color:C.text}}>{r.pcp}%</b></td>
                 <td style={{padding:"9px 10px",textAlign:"right",fontWeight:800,whiteSpace:"nowrap",color:r.x==null?(r.n>=r.np?C.green:C.red):(Math.abs(dv)<0.05?C.muted:dv>0?C.green:C.red)}}>{r.x==null?dlt(r.n,r.np):(prev.length?pp(dv):"—")}</td>
               </tr>);})}</tbody>
           </table></div>
           <div style={{fontSize:11,color:C.muted,padding:"10px 14px",borderTop:`1px solid ${C.border}`,lineHeight:1.6}}>
-            {ru?<>Сверху <b style={{color:C.text}}>100 %</b> — все лиды за выбранный срок. В каждой строке — сколько из них <b style={{color:C.text}}>сейчас имеют эту оценку или выше</b> (только актуальная оценка, без истории) и какой это % от всех. Например, «4 · Квал» — лиды, у которых оценка 4+ на текущий момент. «Отвалилось на шаге» — на сколько % от всех стало меньше по сравнению со строкой выше. «VS прошлый» — разница в процентных пунктах с прошлым периодом такой же длины. Клик по строке — список лидов.</>
-              :<>Na górze <b style={{color:C.text}}>100 %</b> — wszystkie leady z okresu. W wierszu — ile z nich MA TERAZ tę ocenę lub wyższą (tylko aktualna ocena) i jaki to % całości. «Odpadło» — o ile % całości mniej niż w wierszu wyżej. «VS» — różnica w p.p. z poprzednim okresem. Kliknij wiersz — lista leadów.</>}
+            {ru?<>Сверху <b style={{color:C.text}}>100 %</b> — все лиды за выбранный срок. Каждая строка — лиды, у которых <b style={{color:C.text}}>сейчас ровно эта оценка</b>: в «4» только 4, в «4.5» только 4.5. «% от всех» — сколько лидов остановились на этой оценке. «Прошли выше» — сколько лидов сейчас с оценкой выше этой. «VS прошлый» — разница в процентных пунктах с прошлым периодом такой же длины. Клик по строке — список лидов.</>
+              :<>Na górze <b style={{color:C.text}}>100 %</b> — wszystkie leady z okresu. Każdy wiersz — leady z DOKŁADNIE tą oceną teraz (w «4» tylko 4, w «4.5» tylko 4.5). «Wyżej» — ile leadów ma teraz wyższą ocenę. «VS» — różnica w p.p. z poprzednim okresem. Kliknij wiersz — lista leadów.</>}
           </div>
         </div>);
       })()}
@@ -3207,7 +3217,7 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
       {/* СПИСОК ЛИДОВ ЭТАПА */}
       {pick&&<div style={{background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:14,overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:`1px solid ${C.border}`,flexWrap:"wrap"}}>
-          <div style={{fontSize:13,fontWeight:800,color:C.text}}>{pick.x===0&&pick.mode==="reached"?(ru?"Все лиды":"Wszystkie leady"):<>{ru?"Оценка":"Ocena"} {pick.x} — {scoreLbl(pick.x,lang)}</>} <span style={{color:C.muted}}>({pickList.length})</span></div>
+          <div style={{fontSize:13,fontWeight:800,color:C.text}}>{pick.x===0&&pick.mode==="reached"?(ru?"Все лиды":"Wszystkie leady"):<>{ru?"Оценка":"Ocena"} {pick.x}{pick.mode==="reached"?"+":""} — {scoreLbl(pick.x,lang)}</>} <span style={{color:C.muted}}>({pickList.length})</span></div>
           <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
             {[["reached",ru?"Эта оценка и выше":"Ta ocena i wyżej"],["at",ru?"Ровно эта оценка":"Dokładnie ta ocena"]].map(([m,l])=><button key={m} onClick={()=>setPick({...pick,mode:m})} style={{background:pick.mode===m?C.accentDim:"transparent",border:`1px solid ${pick.mode===m?C.accentBorder:C.border}`,color:pick.mode===m?C.accent:C.muted,borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>{l}</button>)}
             <button onClick={()=>setPick(null)} style={{background:"transparent",border:"none",color:C.muted,fontSize:16,cursor:"pointer"}}>✕</button>
