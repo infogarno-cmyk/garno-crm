@@ -339,6 +339,56 @@ function erikaEff(l){
   const r=treeEval({...tree,noVisitReason:"-"});
   return {v:r.score,tree,termFromForm:!et.term&&!!ft,next:r.next,hint:r.hint};
 }
+// ─── ВРЕМЯ ПОСТУПЛЕНИЯ И ПЕРВОГО КОНТАКТА ───────────────────────────────────
+function _p2(n){return String(n).padStart(2,"0");}
+function fmtDT(ms){const d=new Date(ms);return `${_p2(d.getDate())}.${_p2(d.getMonth()+1)}.${d.getFullYear()} ${_p2(d.getHours())}:${_p2(d.getMinutes())}`;}
+// "дд.мм.гггг чч:мм" (как в истории) или ISO → мс; null, если не распознали
+function parseHistMs(str){const v=String(str||"");if(/^\d{4}-\d{2}-\d{2}T/.test(v)){const t=Date.parse(v);return isNaN(t)?null:t;}
+  const m=v.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})\D+(\d{1,2}):(\d{2})/);return m?new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5]).getTime():null;}
+// Точный момент из полей/ID лида (абсолютное время, без часовых поясов)
+function leadAbsMs(l){
+  if(!l)return null;
+  for(const k of ["createdMs","receivedAt","created_at","createdTs","timestamp","ts"]){const v=l[k];if(v==null||v==="")continue;const n=typeof v==="number"?v:(/^\d+$/.test(String(v))?+v:Date.parse(v));if(n&&!isNaN(n))return n>1e14?Math.floor(n/1000):n;}
+  const id=l.id;
+  if(typeof id==="number"){if(id>1e14)return Math.floor(id/1000);if(id>1e12)return id;}
+  else if(id!=null){const m=String(id).match(/\d{13,16}/);if(m){const n=+m[0];return n>1e14?Math.floor(n/1000):n;}}
+  return null;
+}
+// Первые записи истории, которые пишет сервер (сайт / chat-leads), — во времени UTC → показываем на 2 ч раньше.
+// Определяем, сколько добавить: сверяем с точным временем лида, если оно есть; иначе — сдвиг на часовой пояс.
+const CRM_ADDED_RE=/^(Лид добавлен|Lead dodany)/;
+function histShift(l){
+  const h=((l&&l.history)||[])[0];if(!h)return {n:0,ms:0};
+  const crmMade=(typeof l.id==="number"&&l.id>1e14)||CRM_ADDED_RE.test(String(h.action||""));
+  if(crmMade)return {n:0,ms:0};
+  let n=0;for(const x of l.history){if(x&&(USERS.includes(x.by)||x.by==="Admin"))break;n++;} // серверные — подряд с начала, до первой записи менеджера
+  const p=parseHistMs(h.date);if(p==null||/^\d{4}-\d{2}-\d{2}T/.test(String(h.date)))return {n:0,ms:0};
+  const off=-new Date(p).getTimezoneOffset()*60000;if(!off)return {n:0,ms:0};
+  const abs=leadAbsMs(l);
+  if(abs!=null){const d=abs-p;return Math.abs(d-off)<=10*60000?{n,ms:off}:{n:0,ms:0};}
+  return {n,ms:off};
+}
+// Дата записи истории для показа (с поправкой UTC → местное для серверных записей)
+function histDateShown(l,i){const h=l.history[i];const v=String(h&&h.date||"");
+  if(/^\d{4}-\d{2}-\d{2}T/.test(v)){const t=Date.parse(v);return isNaN(t)?v:fmtDT(t);}
+  const sh=histShift(l);if(i<sh.n&&sh.ms){const p=parseHistMs(v);if(p!=null)return fmtDT(p+sh.ms);}return v;}
+// Когда лид попал в CRM (мс) — точное время лида, иначе первая запись истории (с поправкой пояса)
+function leadArrivalMs(l){
+  const abs=leadAbsMs(l);if(abs!=null)return abs;
+  const h=((l&&l.history)||[])[0];if(!h)return null;const p=parseHistMs(h.date);if(p==null)return null;
+  const sh=histShift(l);return p+(sh.n>0?sh.ms:0);
+}
+// Первый контакт — момент, когда отметили «Контакт 1» (есть/нет — звонок сделан). Для старых лидов — из истории.
+function firstContactMs(l){
+  if(!l)return null;if(l.c1At)return +l.c1At;
+  const h=(l.history||[]).find(x=>/^(Контакт 1|Kontakt 1):/.test(String(x&&x.action||"")));
+  return h?parseHistMs(h.date):null;
+}
+function fmtWait(ms,pl){if(ms==null||isNaN(ms))return "—";const m=Math.max(0,Math.round(ms/60000));
+  if(m<1)return pl?"<1 min":"<1 мин";if(m<60)return `${m} ${pl?"min":"мин"}`;const h=Math.floor(m/60),mm=m%60;
+  if(h<24)return `${h} ${pl?"godz.":"ч"} ${_p2(mm)} ${pl?"min":"мин"}`;const d=Math.floor(h/24);return `${d} ${pl?"dn.":"д"} ${h%24} ${pl?"godz.":"ч"}`;}
+function durColor(ms){if(ms==null)return "#94a3b8";const m=ms/60000;return m<=15?"#22c55e":m<=60?"#facc15":"#ef4444";}
+
 // Ключ сортировки «новее — выше»: день лида (createdAt) + точное время внутри дня.
 // Время берём из id (CRM: мс×1000, сайт: мс), createdMs или первой записи истории.
 function leadSortKey(l){
@@ -347,7 +397,7 @@ function leadSortKey(l){
   if(typeof id==="number"){if(id>1e14)ts=Math.floor(id/1000);else if(id>1e12)ts=id;}
   else if(id!=null){const m=String(id).match(/\d{13,16}/);if(m){const n=+m[0];ts=n>1e14?Math.floor(n/1000):n;}}
   if(!ts&&l&&l.createdMs)ts=+l.createdMs||0;
-  if(!ts){const h=((l&&l.history)||[])[0];const m=h&&String(h.date||"").match(/(\d{1,2})\.(\d{1,2})\.(\d{4})\D+(\d{1,2}):(\d{2})/);if(m)ts=new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5]).getTime();}
+  if(!ts){const a=leadArrivalMs(l);if(a)ts=a;}
   if(!ts)return day;
   const t=new Date(ts);const tod=ts-new Date(t.getFullYear(),t.getMonth(),t.getDate()).getTime();
   return (day||new Date(t.getFullYear(),t.getMonth(),t.getDate()).getTime())+Math.max(0,Math.min(86399999,tod));
@@ -2725,6 +2775,8 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const treeSet=(k,v)=>{
     if(!editing)return;
     const u={...form,[k]:v};
+    // Первый контакт: момент первой отметки «Контакт 1» (звонок сделан — дозвонились или нет)
+    if(k==="c1"&&v!=null&&!form.c1At&&!firstContactMs(form)){u.c1At=Date.now();u.c1By=creatorLD||currentUser||"—";}
     // Первое касание дерева — запоминаем исходную оценку/действие (для старых лидов и отката)
     if(form.preTreeScore==null){u.preTreeScore=parseFloat(form.score)||0;u.preTreeAction=form.action||"undefined";}
     // Смена/снятие ответа сбрасывает все зависимые ответы ниже по ветке
@@ -2806,6 +2858,12 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           <div style={{display:"flex",alignItems:"center",gap:14}}><div style={{position:"relative"}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={56} noMedal/><div style={{position:"absolute",right:-3,bottom:-3,width:14,height:14,borderRadius:"50%",background:QUAL_COLOR[form.qualification]||C.accent,border:"2px solid #00132f"}}/></div><div><div style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:0.2}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowTask(true)} title={lang==="pl"?"Nowe zadanie":"Новая задача"} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#ef4444",cursor:"pointer"}}>☰ {leadTasks.length>0?leadTasks.length:"+"}</button><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
           <div style={{display:"flex",gap:8}}>{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(false);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}<Btn onClick={onClose} variant="ghost" small>✕</Btn></div>
         </div>
+        {(()=>{const pl=lang==="pl";const arr=leadArrivalMs(form);const fc=firstContactMs(form);const d=arr!=null&&fc!=null?fc-arr:null;const waiting=arr!=null&&fc==null?Date.now()-arr:null;
+          return <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:"6px 16px",marginTop:-6,marginBottom:14,fontSize:12,color:C.muted}}>
+            <span>📥 {pl?"Wpłynął do CRM":"Поступил в CRM"}: <b style={{color:C.text}}>{arr!=null?fmtDT(arr):"—"}</b></span>
+            {fc!=null?<span>📞 {pl?"1. kontakt":"1-й контакт"}: <b style={{color:C.text}}>{fmtDT(fc)}</b>{form.c1By?<span style={{color:MGR_COLOR[form.c1By]||C.muted}}> · {form.c1By}</span>:null}{d!=null&&<> · <b style={{color:durColor(d)}}>{pl?"po":"через"} {fmtWait(d,pl)}</b></>}</span>
+              :<span>📞 {pl?"1. kontakt":"1-й контакт"}: <b style={{color:waiting!=null?durColor(waiting):C.muted}}>{pl?"jeszcze nie":"ещё не было"}{waiting!=null?` · ${pl?"minęło":"прошло"} ${fmtWait(waiting,pl)}`:""}</b></span>}
+          </div>;})()}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📞 Контакт</div>
@@ -2898,7 +2956,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           </div>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>◷ {t.history}</div>
-            {(form.history||[]).length===0?<div style={{color:C.dim,fontSize:12}}>—</div>:[...(form.history||[])].reverse().map((h,i)=>(<div key={i} style={{display:"flex",gap:8,marginBottom:8}}><div style={{width:2,background:C.accentBorder,borderRadius:1}}/><div><div style={{fontSize:11,color:C.text}}>{h.action}</div><div style={{fontSize:10,color:C.muted}}>{h.date} · <span style={{color:MGR_COLOR[h.by]||C.accent,fontWeight:600}}>{h.by}</span></div></div></div>))}
+            {(form.history||[]).length===0?<div style={{color:C.dim,fontSize:12}}>—</div>:[...(form.history||[])].reverse().map((h,i)=>(<div key={i} style={{display:"flex",gap:8,marginBottom:8}}><div style={{width:2,background:C.accentBorder,borderRadius:1}}/><div><div style={{fontSize:11,color:C.text}}>{h.action}</div><div style={{fontSize:10,color:C.muted}}>{histDateShown(form,(form.history||[]).length-1-i)} · <span style={{color:MGR_COLOR[h.by]||C.accent,fontWeight:600}}>{h.by}</span></div></div></div>))}
           </div>
         </div>
         </div>
@@ -3200,6 +3258,39 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
             {ru?<>Сверху <b style={{color:C.text}}>100 %</b> — все лиды за выбранный срок. Каждая строка — лиды, у которых <b style={{color:C.text}}>сейчас ровно эта оценка</b>: в «4» только 4, в «4.5» только 4.5. «% от всех» — сколько лидов остановились на этой оценке. «Прошли выше» — сколько лидов сейчас с оценкой выше этой. «VS прошлый» — разница в процентных пунктах с прошлым периодом такой же длины. Клик по строке — список лидов.</>
               :<>Na górze <b style={{color:C.text}}>100 %</b> — wszystkie leady z okresu. Każdy wiersz — leady z DOKŁADNIE tą oceną teraz (w «4» tylko 4, w «4.5» tylko 4.5). «Wyżej» — ile leadów ma teraz wyższą ocenę. «VS» — różnica w p.p. z poprzednim okresem. Kliknij wiersz — lista leadów.</>}
           </div>
+        </div>);
+      })()}
+
+      {/* ВРЕМЯ ДО 1-ГО КОНТАКТА */}
+      {(()=>{
+        const pl=!ru;
+        const stat=(arr)=>{const ds=arr.map(l=>{const a=leadArrivalMs(l),f=firstContactMs(l);return a!=null&&f!=null&&f>=a?f-a:null;}).filter(x=>x!=null).sort((a,b)=>a-b);
+          const n=ds.length;return {n,avg:n?ds.reduce((x,y)=>x+y,0)/n:null,med:n?(n%2?ds[(n-1)/2]:(ds[n/2-1]+ds[n/2])/2):null,f15:n?Math.round(ds.filter(x=>x<=15*60000).length/n*100):null,none:arr.filter(l=>firstContactMs(l)==null).length};};
+        const c=stat(cur),p=stat(prev);
+        const byM=MANAGERS.map(m=>({m,s:stat(cur.filter(l=>l.manager===m)),sp:stat(prev.filter(l=>l.manager===m))})).filter(x=>x.s.n||x.s.none);
+        const vs=(a,b)=>{if(a==null||b==null)return null;const d=a-b;return <span style={{color:d<=0?C.green:C.red,fontWeight:800}}>{d<=0?"−":"+"}{fmtWait(Math.abs(d),pl)}</span>;};
+        const box={background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"};
+        const lab={fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.6,fontWeight:700,marginBottom:6};
+        return(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:-4}}>⏱ {ru?"Время от поступления лида в CRM до 1-го контакта":"Czas od wpływu leada do 1. kontaktu"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
+            <div style={box}><div style={lab}>{ru?"Среднее":"Średnio"}</div><div style={{fontSize:24,fontWeight:900,color:durColor(c.avg)}}>{fmtWait(c.avg,pl)}</div><div style={{fontSize:11,color:C.muted}}>{ru?"прошлый":"poprz."}: {fmtWait(p.avg,pl)} {vs(c.avg,p.avg)}</div></div>
+            <div style={box}><div style={lab}>{ru?"Медиана (типичное)":"Mediana"}</div><div style={{fontSize:24,fontWeight:900,color:durColor(c.med)}}>{fmtWait(c.med,pl)}</div><div style={{fontSize:11,color:C.muted}}>{ru?"прошлый":"poprz."}: {fmtWait(p.med,pl)} {vs(c.med,p.med)}</div></div>
+            <div style={box}><div style={lab}>{ru?"Связались за 15 мин":"Kontakt do 15 min"}</div><div style={{fontSize:24,fontWeight:900,color:C.text}}>{c.f15==null?"—":c.f15+"%"}</div><div style={{fontSize:11,color:C.muted}}>{ru?"прошлый":"poprz."}: {p.f15==null?"—":p.f15+"%"}</div></div>
+            <div style={box}><div style={lab}>{ru?"Без 1-го контакта":"Bez 1. kontaktu"}</div><div style={{fontSize:24,fontWeight:900,color:c.none?C.red:C.green}}>{c.none}</div><div style={{fontSize:11,color:C.muted}}>{ru?"посчитано лидов":"policzono"}: {c.n}</div></div>
+          </div>
+          {byM.length>0&&<div style={{...box,padding:0,overflow:"hidden"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr style={{background:C.surface,color:C.muted,fontSize:10,textTransform:"uppercase"}}>{[ru?"Менеджер":"Menedżer",ru?"Среднее":"Średnio",ru?"Медиана":"Mediana",ru?"За 15 мин":"Do 15 min",ru?"Без контакта":"Bez kontaktu",ru?"VS прошлый (среднее)":"VS poprz."].map((h,i)=><th key={i} style={{padding:"7px 10px",textAlign:i?"right":"left"}}>{h}</th>)}</tr></thead>
+            <tbody>{byM.map(({m,s,sp})=>(<tr key={m} style={{borderTop:`1px solid ${C.border}`}}>
+              <td style={{padding:"7px 10px",fontWeight:700,color:MGR_COLOR[m]||C.text}}>{m}</td>
+              <td style={{padding:"7px 10px",textAlign:"right",fontWeight:800,color:durColor(s.avg)}}>{fmtWait(s.avg,pl)}</td>
+              <td style={{padding:"7px 10px",textAlign:"right",color:C.text}}>{fmtWait(s.med,pl)}</td>
+              <td style={{padding:"7px 10px",textAlign:"right",color:C.text}}>{s.f15==null?"—":s.f15+"%"}</td>
+              <td style={{padding:"7px 10px",textAlign:"right",color:s.none?C.red:C.muted}}>{s.none}</td>
+              <td style={{padding:"7px 10px",textAlign:"right"}}>{vs(s.avg,sp.avg)||"—"}</td>
+            </tr>))}</tbody></table></div>}
+          <div style={{fontSize:10,color:C.dim}}>{ru?"1-й контакт — момент, когда менеджер отметил «Контакт 1» (дозвонился или нет). Зелёный — до 15 мин, жёлтый — до часа, красный — дольше.":"1. kontakt — moment zaznaczenia «Kontakt 1». Zielony — do 15 min, żółty — do godziny, czerwony — dłużej."}</div>
         </div>);
       })()}
 
