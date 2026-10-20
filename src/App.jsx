@@ -305,7 +305,7 @@ function leadHistoryDiff(before,after,t,by){
 }
 function whoNow(){try{return localStorage.getItem("garno_user")||"—";}catch{return "—";}}
 function histAdd(l,action){return [...(l.history||[]),{date:nowStr(),action,by:whoNow()}];}
-function leadCreatedMsSafe(l){ if(typeof l.id==="number"&&l.id>1e14) return Math.floor(l.id/1000); const d=parseCreatedAt(l.createdAt); return d?d.getTime():0; }
+function leadCreatedMsSafe(l){ const a=leadArrivalMs(l); if(a)return a; const d=parseCreatedAt(l.createdAt); return d?d.getTime():0; }
 function scoreToQual(s){const n=parseFloat(s)||0;if(n<=2)return"unqualified";if(n<=3)return"prequalified";if(n===4)return"qualified";if(n===4.5)return"mwp";if(n===5)return"salon";if(n===5.5)return"visited";return"sale";}
 const QUALS=["unqualified","prequalified","qualified","mwp","salon","visited","sale"];
 const QUAL_COLOR={unqualified:C.red,prequalified:C.yellow,qualified:C.green,mwp:"#2dd4bf",salon:C.blue,visited:"#818cf8",sale:C.accent};
@@ -338,6 +338,31 @@ function erikaEff(l){
   if(!touched){return l&&l.erikaScore!=null?{v:parseFloat(l.erikaScore),legacy:true,tree,termFromForm:!!ft,next:"c1"}:{v:null,tree,termFromForm:!!ft,next:"c1"};}
   const r=treeEval({...tree,noVisitReason:"-"});
   return {v:r.score,tree,termFromForm:!et.term&&!!ft,next:r.next,hint:r.hint};
+}
+// ─── ЯЗЫК ОБСЛУЖИВАНИЯ ───────────────────────────────────────────────────────
+// Если язык не выбран вручную: украинский источник (ukr / .ua / ukrain…) или кириллица в имени/описании → 🇺🇦
+function detectLang(l){
+  const src=String((l&&l.source)||"").toLowerCase();
+  if(/(ukr|ukrain|украї|україн|\.ua(\b|\/|$)|(^|[./-])ua([./-]|$))/.test(src))return "ua";
+  const txt=`${(l&&l.name)||""} ${(l&&l.notes)||""}`;
+  if(/[а-яА-ЯёЁіїєґІЇЄҐ]/.test(txt))return "ua";
+  return null;
+}
+const LANG_OPTS=[["pl","🇵🇱"],["ua","🇺🇦"],["en","🇬🇧"]];
+function withLang(l){if(!l||l.clientLang)return l;const g=detectLang(l);return g?{...l,clientLang:g,clientLangAuto:true}:l;}
+// ─── ФОТО / ФАЙЛЫ ИЗ ЗАЯВКИ ──────────────────────────────────────────────────
+// Ищем вложения в любых привычных полях лида и ссылки на картинки/хранилище в описании.
+const ATT_FIELDS=["photos","photo","images","image","files","file","attachments","attachment","zdjecia","zdjęcia","foto","fotos","media","uploads","photoUrls","imageUrls","fileUrls","pictures"];
+function leadAttachments(l){
+  const out=[];const seen=new Set();
+  const add=(u,name)=>{u=String(u||"").trim();if(!u||seen.has(u))return;if(!/^(https?:\/\/|data:image\/)/i.test(u))return;seen.add(u);out.push({url:u,name:name||decodeURIComponent((u.split("?")[0].split("/").pop()||"plik").slice(0,60)),img:/^data:image\//i.test(u)||/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)(\?|#|$)/i.test(u)});};
+  const walk=(v,name)=>{if(!v)return;if(typeof v==="string"){v.split(/[\s,;]+/).forEach(x=>add(x,name));return;}
+    if(Array.isArray(v)){v.forEach(x=>walk(x));return;}
+    if(typeof v==="object"){const u=v.url||v.href||v.src||v.link||v.publicUrl||v.path;if(u)add(u,v.name||v.filename||v.fileName);else Object.values(v).forEach(x=>typeof x==="string"&&add(x));}};
+  ATT_FIELDS.forEach(f=>walk(l&&l[f]));
+  const txt=`${(l&&l.notes)||""}\n${((l&&l.history)||[]).map(h=>h&&h.action).join("\n")}`;
+  (txt.match(/https?:\/\/[^\s"'<>]+/g)||[]).forEach(u=>{if(/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif|pdf)(\?|#|$)/i.test(u)||/\/storage\/v1\/object\//.test(u))add(u);});
+  return out;
 }
 // ─── ВРЕМЯ ПОСТУПЛЕНИЯ И ПЕРВОГО КОНТАКТА ───────────────────────────────────
 function _p2(n){return String(n).padStart(2,"0");}
@@ -432,7 +457,9 @@ function srcShort(s){return String(s||"—").replace(".calculatorkuchni.online",
 const EVENT_TYPES=["visit","measure","contract","phone","delivery"];
 const EVENT_COLOR={visit:C.blue,measure:C.accent,contract:C.green,phone:C.purple,delivery:C.cyan};
 const DATE_RANGES=[{key:"1d",days:1},{key:"3d",days:3},{key:"7d",days:7},{key:"14d",days:14},{key:"30d",days:30},{key:"90d",days:90},{key:"365d",days:365},{key:"all",days:99999}];
-function getToday(){return new Date().toISOString().slice(0,10);}
+// Местная дата ГГГГ-ММ-ДД (не UTC: иначе с 00:00 до 02:00 по Варшаве «сегодня» было вчерашним днём)
+function isoLocal(d){d=d instanceof Date?d:new Date(d);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
+function getToday(){return isoLocal(new Date());}
 const TODAY = getToday(); // module-level default; use getToday() for runtime-critical checks
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -501,7 +528,7 @@ function filterEventsByRange(events,range){
   if(range==="90d"){const q=Math.floor(now.getMonth()/3);return events.filter(e=>{const d=new Date(e.date);return d.getFullYear()===now.getFullYear()&&Math.floor(d.getMonth()/3)===q;});}
   if(range==="365d")return events.filter(e=>e.date.startsWith(String(now.getFullYear())));
   const r=DATE_RANGES.find(d=>d.key===range);if(!r)return events;
-  const cutoff=new Date(Date.now()-r.days*86400000).toISOString().slice(0,10);
+  const cutoff=isoLocal(new Date(Date.now()-r.days*86400000));
   return events.filter(e=>e.date>=cutoff&&e.date<=TODAY);
 }
 const evLabel=(type,lang)=>({visit:{ru:"Визит",pl:"Wizyta"},measure:{ru:"Замер",pl:"Pomiar"},contract:{ru:"Договор",pl:"Umowa"},phone:{ru:"Телефон",pl:"Telefon"},delivery:{ru:"Доставка",pl:"Dostawa"}}[type]?.[lang]||type);
@@ -594,18 +621,35 @@ function authKeepAlive(){
   },5*60*1000);
 }
 
+// Запрос к базе с защитой от «чужого/устаревшего» токена (401: JWT не подходит — например, в Supabase
+// сменили ключи подписи). Один раз обновляем токен и повторяем; не вышло — сбрасываем вход и показываем
+// окно логина, а не «режим просмотра».
+let _refreshing=null;
+async function sbFetch(url,opts={}){
+  const r=await fetch(url,opts);
+  if(r.status!==401)return r;
+  _refreshing=_refreshing||authRefresh().finally(()=>{setTimeout(()=>{_refreshing=null;},0);});
+  const ns=await _refreshing;
+  if(ns&&ns.access_token){
+    const r2=await fetch(url,{...opts,headers:{...(opts.headers||{}),Authorization:`Bearer ${ns.access_token}`}});
+    if(r2.status!==401)return r2;
+  }
+  authClear();
+  try{window.dispatchEvent(new Event("garno-auth-lost"));}catch{}
+  return r;
+}
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 
 async function sbRead(){
-  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&select=data`,{headers:SB_HDR,cache:"no-store"});
+  const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&select=data`,{headers:SB_HDR,cache:"no-store"});
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   const j=await r.json();
   if(!j||j.length===0)throw new Error("empty");
   return j[0].data;
 }
 async function sbWrite(data){
-  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1`,{
+  const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1`,{
     method:"PATCH",headers:{...SB_HDR,"Prefer":"return=minimal"},
     body:JSON.stringify({data,updated_at:new Date().toISOString()})
   });
@@ -617,7 +661,7 @@ async function sbWrite(data){
 // база вернёт 0 строк, и вызывающий перечитает + перемёржит. Так параллельные
 // сохранения НЕ МОГУТ затирать друг друга (это и была причина пропажи лидов).
 async function sbReadV(){
-  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&select=data,updated_at`,{headers:SB_HDR,cache:"no-store"});
+  const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&select=data,updated_at`,{headers:SB_HDR,cache:"no-store"});
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   const j=await r.json();
   if(!j||j.length===0)throw new Error("empty");
@@ -628,14 +672,14 @@ async function sbWriteCAS(data, ver){
   const now=new Date().toISOString();
   if(!ver){
     // Версия неизвестна (пустая строка) — затирать нечего, обычная запись.
-    const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1`,{
+    const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1`,{
       method:"PATCH",headers:{...SB_HDR,"Prefer":"return=minimal"},
       body:JSON.stringify({data,updated_at:now})
     });
     if(!r.ok)throw new Error(`HTTP ${r.status}`);
     return true;
   }
-  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&updated_at=eq.${encodeURIComponent(ver)}`,{
+  const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&updated_at=eq.${encodeURIComponent(ver)}`,{
     method:"PATCH",headers:{...SB_HDR,"Prefer":"return=representation"},
     body:JSON.stringify({data,updated_at:now})
   });
@@ -661,14 +705,14 @@ async function casCommit(transform){
 }
 // Domains stored in separate row (id=2) — never mixed with leads/events/sales
 async function sbReadDomains(){
-  const r=await fetch(`${SB_URL}/rest/v1/garnocrm?id=eq.2&select=data`,{headers:SB_HDR,cache:"no-store"});
+  const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm?id=eq.2&select=data`,{headers:SB_HDR,cache:"no-store"});
   if(!r.ok)return null;
   const j=await r.json();
   return j&&j.length>0?j[0].data:null;
 }
 async function sbWriteDomains(domains){
   // Upsert row id=2 with domains
-  const r=await fetch(`${SB_URL}/rest/v1/garnocrm`,{
+  const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm`,{
     method:"POST",
     headers:{...SB_HDR,"Prefer":"resolution=merge-duplicates"},
     body:JSON.stringify({id:2,data:{domains},updated_at:new Date().toISOString()})
@@ -719,7 +763,12 @@ function useDatabase(){
       data={...data,domains:normDoms(data.domains.filter(d=>d&&(typeof d==="string"?d.length>0:d.name&&d.name!=="undefined"&&!String(d.name).includes("[object"))))};
     }
     const leads=(data.leads||[]).map(l=>{
-      let updated=l;
+      let updated=withLang(l);
+      // Дата лида с сервера — по UTC: заявки 00:00–02:00 по Варшаве попадали во вчерашний день. Ставим местную дату.
+      try{const sh=histShift(updated);const a=sh.n>0?leadArrivalMs(updated):null;
+        if(a){const loc=new Date(a);const utc=new Date(a-sh.ms);const cd=parseCreatedAt(updated.createdAt);
+          const same=(x,y)=>x&&y&&x.getFullYear()===y.getFullYear()&&x.getMonth()===y.getMonth()&&x.getDate()===y.getDate();
+          if(cd&&!same(cd,loc)&&same(cd,utc))updated={...updated,createdAt:loc.toLocaleDateString("ru-RU")};}}catch{}
       if(updated.erikaScore==null&&!updated.erikaScoreAt&&(updated.history||[]).length){
         let er;(updated.history||[]).forEach(h=>{const m=String(h&&h.action||"").match(/(?:Оценка Эрики|Ocena Eriki):\s*[^→]*→\s*([0-9.]+|—)/);if(m)er=m[1]==="—"?null:parseFloat(m[1]);});
         if(er!=null&&!isNaN(er))updated={...updated,erikaScore:er,erikaScoreAt:1};
@@ -784,8 +833,8 @@ function useDatabase(){
       if(deletedIds.has(id)) return; // skip deleted
       const loc=localLeadMap.get(id);
       const rem=remoteLeadMap.get(id);
-      if(!loc && rem){ mergedLeads.push(rem); return; } // new from remote
-      if(loc && !rem){ mergedLeads.push(loc); return; } // only local
+      if(!loc && rem){ mergedLeads.push(withLang(rem)); return; } // new from remote
+      if(loc && !rem){ mergedLeads.push(withLang(loc)); return; } // only local
       // Both exist — pick the one with newer updatedAt
       const locTs=loc.updatedAt||0;
       const remTs=rem.updatedAt||0;
@@ -798,7 +847,7 @@ function useDatabase(){
       // Оценка Эрики живёт своим полем: побеждает та, что поставлена позже, независимо от правок лида
       if((lose.erikaScoreAt||0)>(win.erikaScoreAt||0)||(win.erikaScore==null&&lose.erikaScore!=null&&!win.erikaScoreAt))
         out={...out,erikaScore:lose.erikaScore,erikaScoreAt:lose.erikaScoreAt,erikaBy:lose.erikaBy,erikaTree:lose.erikaTree};
-      mergedLeads.push(out);
+      mergedLeads.push(withLang(out));
     });
 
     // Events conflict resolution by updatedAt
@@ -1169,7 +1218,7 @@ function useDatabase(){
 // Каждое напоминание имеет ключ и отправляется ровно один раз (db.sentReminders).
 function buildReminders(db){
   const today=getToday();
-  const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const tomorrow=isoLocal(new Date(Date.now()+86400000));
   const sent=new Set(db.sentReminders||[]);
   const out=[];
 
@@ -1242,7 +1291,7 @@ function reminderStale(m,db){
   return false;
 }
 // Ключи с датой старше 60 дней выкидываем, чтобы списки не росли бесконечно
-function pruneDatedKeys(keys){const cutoff=new Date(Date.now()-60*86400000).toISOString().slice(0,10);return (keys||[]).filter(k=>{const m=String(k).match(/(\d{4}-\d{2}-\d{2})/);return !m||m[1]>=cutoff;});}
+function pruneDatedKeys(keys){const cutoff=isoLocal(new Date(Date.now()-60*86400000));return (keys||[]).filter(k=>{const m=String(k).match(/(\d{4}-\d{2}-\d{2})/);return !m||m[1]>=cutoff;});}
 // Слияние ленты напоминаний: по ключу, без дублей; принятое (ackBy) с любой стороны сохраняется
 function mergeChat(lc,rc,purged){
   const dead=new Set(purged||[]);const out=[];const idx=new Map();const old=Date.now()-45*86400000;
@@ -1499,23 +1548,23 @@ function DashboardDatePicker({dateFrom,dateTo,setDateFrom,setDateTo,t,lang}){
     {key:"365d",days:null,mode:"year"},{key:"all",days:null,mode:"all"}
   ];
   const applyPreset=(p)=>{
-    const now=new Date();const to=now.toISOString().slice(0,10);
+    const now=new Date();const to=isoLocal(now);
     if(p.mode==="all"){setDateFrom("");setDateTo("");return;}
     if(p.mode==="month"){const from=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`;setDateFrom(from);setDateTo(to);return;}
     if(p.mode==="quarter"){const q=Math.floor(now.getMonth()/3);const from=`${now.getFullYear()}-${String(q*3+1).padStart(2,"0")}-01`;setDateFrom(from);setDateTo(to);return;}
     if(p.mode==="year"){setDateFrom(`${now.getFullYear()}-01-01`);setDateTo(to);return;}
-    const from=new Date(now-p.days*86400000).toISOString().slice(0,10);
+    const from=isoLocal(new Date(now-p.days*86400000));
     setDateFrom(from);setDateTo(to);
   };
   const activePreset=PRESETS.find(p=>{
     if(p.mode==="all")return!dateFrom&&!dateTo;
     if(!dateFrom||!dateTo)return false;
-    const now=new Date();const to=now.toISOString().slice(0,10);
+    const now=new Date();const to=isoLocal(now);
     if(dateTo!==to)return false;
     if(p.mode==="month"){return dateFrom===`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`;}
     if(p.mode==="quarter"){const q=Math.floor(now.getMonth()/3);return dateFrom===`${now.getFullYear()}-${String(q*3+1).padStart(2,"0")}-01`;}
     if(p.mode==="year")return dateFrom===`${now.getFullYear()}-01-01`;
-    if(p.days){const f=new Date(now-p.days*86400000).toISOString().slice(0,10);return dateFrom===f;}
+    if(p.days){const f=isoLocal(new Date(now-p.days*86400000));return dateFrom===f;}
     return false;
   });
   return(
@@ -1893,7 +1942,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=
 
 // ─── SALE MODAL ───────────────────────────────────────────────────────────────
 function VisitModal({lead,t,initDate,initTime,onConfirm,onCancel}){
-  const [vDate,setVDate]=useState(initDate||new Date().toISOString().slice(0,10));
+  const [vDate,setVDate]=useState(initDate||isoLocal(new Date()));
   const [vTime,setVTime]=useState(initTime||"12:00");
   const ins={background:C.card,border:`2px solid ${C.blue}66`,color:C.text,borderRadius:9,padding:"12px 16px",fontSize:15,width:"100%",boxSizing:"border-box",outline:"none"};
   const confirm=()=>{if(!vDate)return;onConfirm(vDate,vTime);};
@@ -1967,7 +2016,7 @@ function StickerModal({lead,t,currentUser,onSave,onDelete,onClose}){
 }
 
 function PushModal({lead,t,initDate,initTime,onConfirm,onCancel}){
-  const [pDate,setPDate]=useState(initDate||new Date().toISOString().slice(0,10));
+  const [pDate,setPDate]=useState(initDate||isoLocal(new Date()));
   const [pTime,setPTime]=useState(initTime||"12:00");
   const ins={background:C.card,border:`2px solid ${PUSH_C}66`,color:C.text,borderRadius:9,padding:"12px 16px",fontSize:15,width:"100%",boxSizing:"border-box",outline:"none"};
   const confirm=()=>{if(!pDate)return;onConfirm(pDate,pTime);};
@@ -2006,7 +2055,7 @@ function SaleModal({lead,t,onConfirm,onCancel,suggestNum="",usedNums=[]}){
   const [amt,setAmt]=useState("");
   const [orderNum,setOrderNum]=useState(String(suggestNum||""));
   const numTaken=!!orderNum.trim()&&usedNums.includes(orderNum.trim());
-  const [saleDate,setSaleDate]=useState(new Date().toISOString().slice(0,10));
+  const [saleDate,setSaleDate]=useState(isoLocal(new Date()));
   const ins={background:C.card,border:`2px solid ${C.accentBorder}`,color:C.text,borderRadius:9,padding:"12px 16px",fontSize:15,width:"100%",boxSizing:"border-box",outline:"none"};
   const canOk=!!amt&&!!orderNum.trim()&&!numTaken;
   const confirm=()=>{if(!canOk)return;onConfirm(parseInt(amt)||0,saleDate,orderNum.trim());};
@@ -2049,7 +2098,7 @@ function SaleModal({lead,t,onConfirm,onCancel,suggestNum="",usedNums=[]}){
 
 // ─── ADD LEAD MODAL ───────────────────────────────────────────────────────────
 function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
-  const todayIso=new Date().toISOString().slice(0,10);
+  const todayIso=isoLocal(new Date());
   const allDomains=normDoms(srcList&&srcList.length?srcList:SOURCES);
   const [form,setForm]=useState({name:"",phone:"",action:"undefined",pushDate:todayIso,pushTime:"12:00",clientLang:"pl",source:(allDomains[0]&&(allDomains[0].name||allDomains[0]))||SOURCES[0],manager:currentUser||"",notes:"",budgetTimeline:"unconfirmed",dateOverride:todayIso});
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
@@ -2188,7 +2237,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({leads,events,t,lang}){
   const [dateFrom,setDateFrom]=useState(()=>{const now=new Date();return`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`;});
-  const [dateTo,setDateTo]=useState(()=>new Date().toISOString().slice(0,10));
+  const [dateTo,setDateTo]=useState(()=>isoLocal(new Date()));
   const fl=filterByCustomRange(leads,dateFrom,dateTo);
   const qual=fl.filter(l=>["qualified","salon","sale"].includes(l.qualification));
   const funnelData=QUALS.map(q=>({name:t[q],val:fl.filter(l=>l.qualification===q).length,color:QUAL_COLOR[q]}));
@@ -2684,7 +2733,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                     : <span style={{color:C.dim,fontSize:15,opacity:0.3,cursor:"pointer"}}>＋</span>}
                 </td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
-                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<span style={{marginLeft:7,fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",verticalAlign:"middle"}}>▼ {f.name}</span>:null;})()}{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
+                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{leadAttachments(l).length>0&&<span title="Фото / файлы от клиента" style={{marginLeft:6,fontSize:11,color:"#38bdf8",fontWeight:800}}>📎{leadAttachments(l).length}</span>}{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<span style={{marginLeft:7,fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",verticalAlign:"middle"}}>▼ {f.name}</span>:null;})()}{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
                 <td style={{padding:"8px 10px"}}>{(()=>{const e=erikaEff(l);return e.v!=null?<div title={t.erikaScore} style={{fontSize:9,fontWeight:800,color:"#f472b6",lineHeight:"11px",marginBottom:1,whiteSpace:"nowrap",opacity:1}}>Э {e.v}</div>:null;})()}<ScoreBar score={l.score}/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.qualification]} color={QUAL_COLOR[l.qualification]} small/></td>
@@ -2806,7 +2855,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     }
     setForm(u);
   };
-  const createdAtToIso=(str)=>{if(!str)return new Date().toISOString().slice(0,10);const p=str.split(".");if(p.length!==3)return new Date().toISOString().slice(0,10);return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;};
+  const createdAtToIso=(str)=>{if(!str)return isoLocal(new Date());const p=str.split(".");if(p.length!==3)return isoLocal(new Date());return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;};
   const isoToCreatedAt=(iso)=>{try{const d=new Date(iso);if(isNaN(d))return iso;return d.toLocaleDateString("ru-RU");}catch{return iso;}};
   const save=()=>{
     const by=currentUser||"—";
@@ -2860,10 +2909,18 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
         </div>
         {(()=>{const pl=lang==="pl";const arr=leadArrivalMs(form);const fc=firstContactMs(form);const d=arr!=null&&fc!=null?fc-arr:null;const waiting=arr!=null&&fc==null?Date.now()-arr:null;
           return <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:"6px 16px",marginTop:-6,marginBottom:14,fontSize:12,color:C.muted}}>
+            <span style={{display:"inline-flex",alignItems:"center",gap:3}}>{pl?"Język obsługi":"Язык обслуживания"}:{LANG_OPTS.map(([v,fl])=>{const cur=form.clientLang||LANG_OPTS[0][0];const on=cur===v;return <button key={v} title={v.toUpperCase()} onClick={()=>{if(on)return;const now=Date.now();setForm(f=>({...f,clientLang:v,clientLangAuto:false}));updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,clientLang:v,clientLangAuto:false,updatedAt:now,history:[...(l.history||[]),{date:nowStr(),action:`${pl?"Język obsługi":"Язык обслуживания"}: ${(l.clientLang||LANG_OPTS[0][0]).toUpperCase()} → ${v.toUpperCase()}`,by:currentUser||"—"}]}:l)}),true);}} style={{fontSize:15,lineHeight:1,padding:"1px 4px",borderRadius:6,border:`1.5px solid ${on?C.accent:"transparent"}`,background:on?C.accentDim:"transparent",cursor:on?"default":"pointer",opacity:on?1:0.55}}>{fl}</button>;})}{form.clientLangAuto&&<span style={{fontSize:9,color:C.dim}}>({pl?"auto":"авто"})</span>}</span>
             <span>📥 {pl?"Wpłynął do CRM":"Поступил в CRM"}: <b style={{color:C.text}}>{arr!=null?fmtDT(arr):"—"}</b></span>
             {fc!=null?<span>📞 {pl?"1. kontakt":"1-й контакт"}: <b style={{color:C.text}}>{fmtDT(fc)}</b>{form.c1By?<span style={{color:MGR_COLOR[form.c1By]||C.muted}}> · {form.c1By}</span>:null}{d!=null&&<> · <b style={{color:durColor(d)}}>{pl?"po":"через"} {fmtWait(d,pl)}</b></>}</span>
               :<span>📞 {pl?"1. kontakt":"1-й контакт"}: <b style={{color:waiting!=null?durColor(waiting):C.muted}}>{pl?"jeszcze nie":"ещё не было"}{waiting!=null?` · ${pl?"minęło":"прошло"} ${fmtWait(waiting,pl)}`:""}</b></span>}
           </div>;})()}
+        {(()=>{const at=leadAttachments(form);if(!at.length)return null;const pl=lang==="pl";return(
+          <div style={{marginTop:-6,marginBottom:14,background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:12,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:"#38bdf8",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800,marginBottom:8}}>📎 {pl?"Zdjęcia / pliki od klienta":"Фото / файлы от клиента"} ({at.length})</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{at.map((f,i)=>f.img
+              ?<a key={i} href={f.url} target="_blank" rel="noreferrer" title={f.name}><img src={f.url} alt={f.name} style={{width:96,height:96,objectFit:"cover",borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",display:"block"}}/></a>
+              :<a key={i} href={f.url} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 10px",borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",color:"#38bdf8",fontSize:12,textDecoration:"none",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📄 {f.name}</a>)}</div>
+          </div>);})()}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📞 Контакт</div>
@@ -3470,7 +3527,7 @@ function KPWizard({leads,onGenerate,onClose,t,lang}){
           </div>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",marginTop:6}}>{lang!=="pl"?"Бесплатный монтаж и −50 % на столешницу действуют до этой даты":"Darmowy montaż i −50% na blat obowiązują do tej daty"}</div>
           {promoOn
-            ? <input type="date" value={promoDate} min={new Date().toISOString().slice(0,10)} onChange={e=>setPromoDate(e.target.value)} style={{...ins,marginTop:8,colorScheme:"dark"}}/>
+            ? <input type="date" value={promoDate} min={isoLocal(new Date())} onChange={e=>setPromoDate(e.target.value)} style={{...ins,marginTop:8,colorScheme:"dark"}}/>
             : <div style={{fontSize:11,color:"rgba(191,164,126,0.8)",marginTop:6}}>{lang!=="pl"?"Авто: +14 дней":"Auto: +14 dni"} — {isoToDot(plus14)}</div>}
         </div>
         {/* Налог в КП: прилагается / не прибавляется */}
@@ -3518,7 +3575,7 @@ function markPopped(key){try{const m=JSON.parse(sessionStorage.getItem(POPPED_KE
 // Полноэкранный поп-ап аллерта с кнопками Принять / Напомнить позже / Открыть
 // ─── GARNO TODAY — утренний брифинг менеджера ───────────────────────────────
 // Показывается раз в день при входе. «Новое» считается с момента ПРОШЛОГО открытия TODAY.
-function leadCreatedMs(l){ if(typeof l.id==="number"&&l.id>1e14) return Math.floor(l.id/1000); const d=parseCreatedAt(l.createdAt); return d?d.getTime():0; }
+function leadCreatedMs(l){ return leadCreatedMsSafe(l); }
 function GarnoTodayPopup({leads,sales,tasks,currentUser,lang,setPage,onOpenLead,onClose}){
   const ru=lang!=="pl";
   const now=Date.now(), today=getToday();
@@ -3737,7 +3794,7 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
   // Рекомендации: не проданные лиды, совпадающие ≥2 сильных признаков
   const recs=pat.top.length?L.filter(l=>l.score<6&&l.score>=2).map(l=>({l,hits:pat.top.filter(r=>(SALE_ATTR_FN[r.attr]?SALE_ATTR_FN[r.attr](l):l[r.attr])===r.value).length})).filter(x=>x.hits>=Math.min(2,pat.top.length)).sort((a,b)=>b.hits-a.hits).slice(0,12):[];
   // ПРИОРИТЕТ: оценка 2.5 (срок 4м+, инфо по кухне есть), лид пришёл 3+ месяца назад → срок подошёл
-  const daysAgo=(l)=>{const d=parseCreatedAt(l.createdAt);return d?Math.floor((Date.now()-d.getTime())/86400000):null;};
+  const daysAgo=(l)=>{const d=parseCreatedAt(l.createdAt);return d?Math.round((new Date(getToday()).getTime()-d.getTime())/86400000):null;};
   const prio25=L.filter(l=>(parseFloat(l.score)||0)===2.5&&l.action!=="sale").map(l=>({l,d:daysAgo(l)})).filter(x=>x.d!==null&&x.d>=90).sort((a,b)=>a.d-b.d);
   // 3.2 Оценка 2 + думают, поставлены ≥3 мес назад
   const ripe=L.filter(l=>l.score===2&&l.action==="thinking").map(l=>({l,m:monthsAgo(l.createdAt)})).filter(x=>x.m!==null&&x.m>=3&&x.m<=6).sort((a,b)=>b.m-a.m);
@@ -5045,8 +5102,8 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
 
 // ─── SALES DYNAMICS PAGE ──────────────────────────────────────────────────────
 function DynamicsPage({leads,sales,t,lang}){
-  const [dateFrom,setDateFrom]=useState(()=>{const d=new Date();d.setDate(d.getDate()-29);return d.toISOString().slice(0,10);});
-  const [dateTo,setDateTo]=useState(()=>new Date().toISOString().slice(0,10));
+  const [dateFrom,setDateFrom]=useState(()=>{const d=new Date();d.setDate(d.getDate()-29);return isoLocal(d);});
+  const [dateTo,setDateTo]=useState(()=>isoLocal(new Date()));
   const [mgr,setMgr]=useState("all");
   const [visible,setVisible]=useState({qual:true,visits:true,sales:true,avg:false,conv45:true,conv56:true});
   const [smooth,setSmooth]=useState(true);
@@ -5122,9 +5179,9 @@ function DynamicsPage({leads,sales,t,lang}){
   ];
   const applyPreset=(p)=>{
     const now=new Date();
-    setDateTo(now.toISOString().slice(0,10));
+    setDateTo(isoLocal(now));
     const f=new Date(now);f.setDate(now.getDate()-(p.days-1));
-    setDateFrom(f.toISOString().slice(0,10));
+    setDateFrom(isoLocal(f));
   };
 
   const ins={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 9px",fontSize:12,outline:"none",colorScheme:"dark",cursor:"pointer"};
@@ -5406,7 +5463,10 @@ function AuthGate(){
     let alive=true;
     authRestore().then(ok=>{ if(alive) setAuthed(ok); }).catch(()=>{ if(alive) setAuthed(false); });
     const ka=authKeepAlive();
-    return()=>{ alive=false; clearInterval(ka); };
+    // База отвергла токен и обновить его не удалось → сразу окно входа
+    const lost=()=>{ if(alive) setAuthed(false); };
+    window.addEventListener("garno-auth-lost",lost);
+    return()=>{ alive=false; clearInterval(ka); window.removeEventListener("garno-auth-lost",lost); };
   },[]);
   if(authed===null) return(
     <div style={{display:"flex",height:"100vh",background:"#00132f",alignItems:"center",justifyContent:"center",color:"#bfa47e",fontFamily:"'DM Sans','Segoe UI',sans-serif",fontSize:14}}>Проверка сессии…</div>
@@ -5515,7 +5575,7 @@ function GarnoCRM(){
         });
       }
       // Чистим ключи старше 60 дней, чтобы список не рос бесконечно
-      const cutoff=new Date(Date.now()-60*86400000).toISOString().slice(0,10);
+      const cutoff=isoLocal(new Date(Date.now()-60*86400000));
       updRef.current(prev=>({
         ...prev,
         chat:[...(prev.chat||[]).map(m=>(m.kind==="reminder"&&!m.ackBy&&staleKeys.has(m.key))?{...m,ackBy:"auto",ackAt:Date.now()}:m),...rems.filter(r=>!(prev.chat||[]).some(m=>m.kind==="reminder"&&m.key===r.key)).map(r=>({role:"assistant",kind:"reminder",rtype:r.rtype,key:r.key,data:r.data,ackBy:null,ackAt:null}))],
