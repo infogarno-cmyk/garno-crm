@@ -1521,9 +1521,12 @@ function Badge({label,color=C.blue,small,action}){
     </span>
   );
 }
+// Фото-аватарки менеджеров (по всей CRM и в КП). Клиентские аватарки (noMedal) — всегда инициалы.
+const MGR_AVATAR={Mateusz:IMG_MATEUSZ,Taras:IMG_TARAS};
 function Avatar({name,color,size=32,noMedal}){
   const ini=(name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
-  const av=<div style={{width:size,height:size,borderRadius:"50%",background:color?`${color}25`:C.accentDim,border:`1.5px solid ${color||C.accent}50`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:color||C.accent,flexShrink:0}}>{ini}</div>;
+  const ph=!noMedal&&name&&MGR_AVATAR[name];
+  const av=ph?<img src={ph} alt={name} title={name} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",border:`1.5px solid ${color||C.accent}`,flexShrink:0,display:"block"}}/>:<div style={{width:size,height:size,borderRadius:"50%",background:color?`${color}25`:C.accentDim,border:`1.5px solid ${color||C.accent}50`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:color||C.accent,flexShrink:0}}>{ini}</div>;
   const isLeader=!noMedal&&name&&name===SALES_LEADER;
   if(!isLeader)return av;
   // Венок занимает место в потоке — соседние элементы раздвигаются сами
