@@ -3351,11 +3351,12 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
   const [dateFrom,setDateFrom]=useState(mS);const [dateTo,setDateTo]=useState(td);
   const [fm,setFm]=useState(currentUser&&MANAGERS.includes(currentUser)&&currentUser!=="Danya"?currentUser:"all");
   const [ff,setFf]=useState("all");
+  const [fLang,setFLang]=useState("all"); // язык клиента
   const [pick,setPick]=useState(null); // {x, mode:"at"|"reached"}
   const [showMore,setShowMore]=useState(false);
   // прошлый период такой же длины, сразу перед текущим
   const prevRange=(()=>{if(!dateFrom||!dateTo)return [null,null];const a=new Date(dateFrom+"T00:00:00"),b=new Date(dateTo+"T00:00:00");const len=Math.round((b-a)/86400000)+1;const pe=new Date(a);pe.setDate(pe.getDate()-1);const ps=new Date(pe);ps.setDate(ps.getDate()-len+1);const iso=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;return [iso(ps),iso(pe)];})();
-  const scope=(arr)=>(arr||[]).filter(l=>fm==="all"||l.manager===fm).filter(l=>{if(ff==="all")return true;const f=leadFunnel(l,srcList,funnels);return ff==="none"?!f:(f&&String(f.id)===ff);});
+  const scope=(arr)=>(arr||[]).filter(l=>fm==="all"||l.manager===fm).filter(l=>{if(ff==="all")return true;const f=leadFunnel(l,srcList,funnels);return ff==="none"?!f:(f&&String(f.id)===ff);}).filter(l=>fLang==="all"||(l.clientLang||LANG_OPTS[0][0])===fLang);
   const cur=scope(filterByCustomRange(leads,dateFrom,dateTo));
   const prev=prevRange[0]?scope(filterByCustomRange(leads,prevRange[0],prevRange[1])):[];
   const at=(arr,x)=>arr.filter(l=>(parseFloat(l.score)||0)===x);
@@ -3371,13 +3372,14 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
   const K=[["Лид → Квал (4+)",trans(0,4,cur),trans(0,4,prev)],["Квал 4 → Визит 5",trans(4,5,cur),trans(4,5,prev)],["MWP 4.5 → Визит состоялся 5.5",t4555(cur),t4555(prev)],["Визит назн. 5 → состоялся 5.5",trans(5,5.5,cur),trans(5,5.5,prev)],["Визит 5.5 → Продажа 6",trans(5.5,6,cur),trans(5.5,6,prev)]];
   const ss={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,outline:"none",colorScheme:"dark"};
   const pickList=pick?(pick.mode==="at"?at(cur,pick.x):reached(cur,pick.x)):[];
-  const curSales=filterByCustomRange(sales||[],dateFrom,dateTo).filter(x=>fm==="all"||x.manager===fm);
+  const curSales=filterByCustomRange(sales||[],dateFrom,dateTo).filter(x=>fm==="all"||x.manager===fm).filter(x=>{if(fLang==="all")return true;const l=(leads||[]).find(y=>y.leadId===x.leadId||y.id===x.leadId)||(leads||[]).find(y=>y.phone===x.phone);return ((l&&l.clientLang)||LANG_OPTS[0][0])===fLang;});
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <div style={{fontSize:18,fontWeight:800,color:C.text}}>▼ {ru?"Воронка продаж":"Lejek sprzedaży"} <span style={{fontSize:12,color:C.muted}}>({cur.length})</span></div>
         <select value={fm} onChange={e=>setFm(e.target.value)} style={ss}><option value="all">{ru?"Все менеджеры":"Wszyscy"}</option>{MANAGERS.map(m=><option key={m} value={m}>{m}</option>)}</select>
         <select value={ff} onChange={e=>setFf(e.target.value)} style={ss}><option value="all">{ru?"Все воронки":"Wszystkie lejki"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— {ru?"без воронки":"bez lejka"}</option></select>
+        <select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {ru?"Все языки":"Wszystkie języki"}</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()}</option>)}</select>
         <div style={{marginLeft:"auto"}}><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t} lang={lang}/></div>
       </div>
       {prevRange[0]&&<div style={{fontSize:11,color:C.dim,marginTop:-8}}>{ru?"Сравнение с периодом":"Porównanie z okresem"} {isoToDot(prevRange[0])} — {isoToDot(prevRange[1])} ({prev.length} {ru?"лидов":"leadów"})</div>}
