@@ -291,6 +291,8 @@ function treeEval(l){
 // Ветка не закрыта (мигает и уходит в аллерты): новые лиды или начатые ветки, без визита/продажи/отмены
 function treeIncomplete(l){
   if(!l||l.action==="cancelled"||(parseFloat(l.score)||0)>=5)return false;
+  // Менеджер уже назначил следующий шаг (повторный звонок / недозвон / пуш) — ветку дозаполнит при следующем контакте
+  if(["callback","missedCall","push"].includes(l.action))return false;
   if(leadCreatedMsSafe(l)<TREE_START_MS)return false; // все текущие лиды не мигают — только со следующего
   return !treeEval(l).done;
 }
@@ -640,6 +642,35 @@ async function sbFetch(url,opts={}){
   try{window.dispatchEvent(new Event("garno-auth-lost"));}catch{}
   return r;
 }
+// ─── ФАЙЛЫ ЛИДОВ: Supabase Storage, закрытый bucket «lead-files» (видно только после входа в CRM) ───
+const LEAD_BUCKET="lead-files";
+async function compressImage(file,max=1920,q=0.85){
+  if(!/^image\/(jpeg|png|webp)$/i.test(file.type||""))return file;
+  try{
+    const bmp=await createImageBitmap(file);const k=Math.min(1,max/Math.max(bmp.width,bmp.height));
+    if(k>=1&&file.size<1.5e6)return file;
+    const c=document.createElement("canvas");c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
+    c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+    const b=await new Promise(r=>c.toBlob(r,"image/jpeg",q));
+    return b&&b.size<file.size?new File([b],(file.name||"foto").replace(/\.\w+$/,"")+".jpg",{type:"image/jpeg"}):file;
+  }catch{return file;}
+}
+async function uploadLeadFile(leadId,file){
+  const f=await compressImage(file);
+  const safe=(f.name||"plik").normalize("NFKD").replace(/[^\w.\-]+/g,"_").slice(-80)||"plik";
+  const path=`${String(leadId).replace(/[^\w.-]/g,"_")}/${Date.now()}_${Math.random().toString(36).slice(2,6)}_${safe}`;
+  const r=await sbFetch(`${SB_URL}/storage/v1/object/${LEAD_BUCKET}/${path}`,{method:"POST",headers:{apikey:SB_KEY,Authorization:SB_HDR.Authorization,"Content-Type":f.type||"application/octet-stream","x-upsert":"false"},body:f});
+  if(!r.ok){let t="";try{t=await r.text();}catch{} throw new Error(/bucket not found|not.?found/i.test(t)?"BUCKET":(/row-level security|policy|unauthorized|403/i.test(t+r.status)?"POLICY":(t||("HTTP "+r.status)).slice(0,160)));}
+  return {path,bucket:LEAD_BUCKET,name:file.name||safe,type:f.type||"",size:f.size||0};
+}
+const _leadFileUrls=new Map();
+async function leadFileUrl(path){
+  if(_leadFileUrls.has(path))return _leadFileUrls.get(path);
+  const r=await sbFetch(`${SB_URL}/storage/v1/object/authenticated/${LEAD_BUCKET}/${path}`,{headers:{apikey:SB_KEY,Authorization:SB_HDR.Authorization}});
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  const u=URL.createObjectURL(await r.blob());_leadFileUrls.set(path,u);return u;
+}
+function deleteLeadFile(path){try{sbFetch(`${SB_URL}/storage/v1/object/${LEAD_BUCKET}/${path}`,{method:"DELETE",headers:{apikey:SB_KEY,Authorization:SB_HDR.Authorization}}).catch(()=>{});}catch{}}
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 
@@ -735,6 +766,7 @@ function useDatabase(){
   const retryTimer=useRef(null);
   const retryCount=useRef(0);
   const dirtyRef=useRef(false);
+  const editSeqRef=useRef(0); // растёт при каждой локальной правке — чтобы не затирать правки, сделанные во время записи
   const provisionalRef=useRef(false); // true = база не прочитана при старте → запись заблокирована (защита от подмешивания демо-данных в реальную базу)
   const LS_BACKUP="garno_backup";
 
@@ -846,6 +878,9 @@ function useDatabase(){
       let out=win;
       if(win.forwardedAt===lose.forwardedAt&&win.manager===lose.manager&&(lose.seenBy||[]).some(x=>!(win.seenBy||[]).includes(x)))
         out={...out,seenBy:[...new Set([...(win.seenBy||[]),...(lose.seenBy||[])])],seenAt:win.seenAt||lose.seenAt};
+      if(win.files||lose.files){const dead=new Set([...(win.deletedFiles||[]),...(lose.deletedFiles||[])]);const fm=new Map();
+        [...(lose.files||[]),...(win.files||[])].forEach(f=>{const k=typeof f==="string"?f:(f&&(f.path||f.url));if(k)fm.set(k,f);});
+        out={...out,files:[...fm.values()].filter(f=>!dead.has(typeof f==="string"?f:(f.path||f.url))),deletedFiles:[...dead]};}
       // Оценка Эрики живёт своим полем: побеждает та, что поставлена позже, независимо от правок лида
       if((lose.erikaScoreAt||0)>(win.erikaScoreAt||0)||(win.erikaScore==null&&lose.erikaScore!=null&&!win.erikaScoreAt))
         out={...out,erikaScore:lose.erikaScore,erikaScoreAt:lose.erikaScoreAt,erikaBy:lose.erikaBy,erikaTree:lose.erikaTree};
@@ -944,12 +979,22 @@ function useDatabase(){
       // Единая безопасная запись: casCommit читает свежий remote+версию, мёржит
       // с АКТУАЛЬНЫМ локальным стейтом (внутри transform на каждой попытке) и
       // пишет через compare-and-swap. При конфликте — перечитывает и повторяет.
+      let seqUsed=-1;
       const final=await casCommit((remote)=>{
+        seqUsed=editSeqRef.current;
         const localData=JSON.parse(localRef.current||"{}");
         try{lsSet(LS_BACKUP,localData);}catch{}
         return mergeData(localData,remote);
       });
-      if(final){localRef.current=JSON.stringify(final);setDbState(final);}
+      if(final){
+        if(editSeqRef.current===seqUsed){localRef.current=JSON.stringify(final);setDbState(final);}
+        else{
+          // Пока шла запись, менеджер успел ещё что-то отметить — НЕ откатываем экран к записанному,
+          // а сливаем: свежие локальные правки + то, что пришло с сервера. Следом запишем и их.
+          const merged=mergeData(JSON.parse(localRef.current||"{}"),final);
+          localRef.current=JSON.stringify(merged);setDbState(merged);dirtyRef.current=true;
+        }
+      }
       setSyncLabel("✓");setSyncError("");
       retryCount.current=0;
       setTimeout(()=>setSyncLabel("●"),2000);
@@ -1013,9 +1058,26 @@ function useDatabase(){
             if(!loc)return true;
             return (t.updatedAt||0)>(loc.updatedAt||0);
           });
-          if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0&&remoteTaskChanges.length===0)return;
+          const localOrd=new Map((local.orders||[]).map(o=>[o.id,o]));
+          const deadOrd=new Set(local.deletedOrderIds||[]);
+          const remoteOrderChanges=(remote?.orders||[]).filter(o=>!deadOrd.has(o.id)&&(!localOrd.has(o.id)||(o.updatedAt||0)>(localOrd.get(o.id).updatedAt||0)));
+          const localAck=new Set((local.chat||[]).filter(m=>m.kind==="reminder"&&m.ackBy).map(m=>m.key));
+          const localKeys=new Set((local.chat||[]).filter(m=>m.kind==="reminder").map(m=>m.key));
+          const remoteChatChanges=(remote?.chat||[]).filter(m=>m&&m.kind==="reminder"&&(!localKeys.has(m.key)||(m.ackBy&&!localAck.has(m.key))));
+          if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0&&remoteTaskChanges.length===0&&remoteOrderChanges.length===0&&remoteChatChanges.length===0)return;
           // 🚨 Новые заявки прилетели извне (лендинг/другой менеджер) — тревога
-          if(remoteNewLeads.length>0){
+          // Лид, который менеджер сам добавил в CRM, не тревожит команду. Если он закреплён за другим
+          // менеджером — тревога только у этого менеджера.
+          const me=whoNow();
+          const alarmLeads=remoteNewLeads.filter(l=>{
+            const h0=((l.history||[])[0])||{};
+            const crmMade=(typeof l.id==="number"&&l.id>1e14)||CRM_ADDED_RE.test(String(h0.action||""));
+            if(!crmMade)return true;
+            const creator=l.createdBy||h0.by||"";
+            return !!l.manager&&l.manager===me&&l.manager!==creator;
+          });
+          if(alarmLeads.length>0){
+            const remoteNewLeads=alarmLeads;
             markFresh(remoteNewLeads.map(l=>l.id));
             playSiren(SIREN_SECONDS,soundFor(remoteNewLeads));
             startTitleStrobe(freshCount,"новых заявок");
@@ -1188,6 +1250,7 @@ function useDatabase(){
   const updateDb=(upd,immediate=false)=>{
     setDbState(prev=>{
       const next=typeof upd==="function"?upd(prev):upd;
+      editSeqRef.current++;
       localRef.current=JSON.stringify(next);
       try{lsSet(LS_BACKUP,next);}catch{}
       if(immediate){
@@ -1540,6 +1603,17 @@ function Avatar({name,color,size=32,noMedal}){
       {av}
     </div>
   );
+}
+function LeadFileThumb({f,onDelete,pl}){
+  const [url,setUrl]=useState(null);const [err,setErr]=useState(false);
+  const isImg=/^image\//.test(f.type||"")||/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(f.name||"");
+  useEffect(()=>{let alive=true;leadFileUrl(f.path).then(u=>{if(alive)setUrl(u);}).catch(()=>{if(alive)setErr(true);});return()=>{alive=false;};},[f.path]);
+  const open=()=>{if(url)window.open(url,"_blank");};
+  return(<div style={{position:"relative"}} title={`${f.name||""} · ${f.by||""}${f.at?" · "+new Date(f.at).toLocaleString(pl?"pl-PL":"ru-RU"):""}`}>
+    {isImg&&url?<img src={url} alt={f.name} onClick={open} style={{width:96,height:96,objectFit:"cover",borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",display:"block",cursor:"zoom-in"}}/>
+      :<div onClick={open} style={{width:96,height:96,borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,cursor:url?"pointer":"default",color:err?"#ef4444":"#38bdf8",fontSize:10,textAlign:"center",padding:4,boxSizing:"border-box",overflow:"hidden"}}><span style={{fontSize:22}}>{err?"⚠":isImg?"⏳":"📄"}</span><span style={{wordBreak:"break-all",maxHeight:28,overflow:"hidden"}}>{f.name}</span></div>}
+    {onDelete&&<button onClick={()=>onDelete(f)} title={pl?"Usuń":"Удалить"} style={{position:"absolute",top:-6,right:-6,width:20,height:20,borderRadius:"50%",border:"none",background:"#ef4444",color:"#fff",fontSize:11,fontWeight:900,cursor:"pointer",lineHeight:"20px",padding:0}}>✕</button>}
+  </div>);
 }
 function Dot({color}){return <span style={{width:7,height:7,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>;}
 function SrcBadge({source,color}){const c=color||SRC_COLOR[source]||C.muted;return <span style={{fontSize:9,color:c,background:`${c}20`,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",display:"inline-block"}}>{srcShort(source)}</span>;}
@@ -2118,7 +2192,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
     // устройствах ключ слияния не может совпасть, поэтому лид не потеряется при merge.
     const shortId=Date.now()*1000+Math.floor(Math.random()*1000);
     onAdd({...form,id:shortId,leadId:makeLeadId(nextNum,createdAt),score:0,qualification:"unqualified",createdAt,updatedAt:Date.now(),isDone:false,quoteAmt:null,clientLang:form.clientLang||"pl",
-      history:[{date:nowStr(),action:lang==="ru"?"Лид добавлен":"Lead dodany",by:currentUser||"Admin"}]});
+      createdBy:currentUser||"Admin",history:[{date:nowStr(),action:lang==="ru"?"Лид добавлен":"Lead dodany",by:currentUser||"Admin"}]});
     onClose();
   };
 
@@ -2654,7 +2728,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
   };
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
-  const [fSc,setFSc]=useState([]);const [fA,setFA]=useState("all");const [fS,setFS]=useState([]);const [fFun,setFFun]=useState("all");const [fWhy,setFWhy]=useState("all");
+  const [fSc,setFSc]=useState([]);const [fA,setFA]=useState("all");const [fS,setFS]=useState([]);const [fFun,setFFun]=useState("all");const [fWhy,setFWhy]=useState("all");const [fLang,setFLang]=useState("all");
   const [selected,setSelected]=useState(new Set());
   const ss={background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
   const fl=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||String(l.name||"").toLowerCase().includes(search.toLowerCase())||String(l.phone||"").includes(search)||String(l.leadId||"").includes(search))
@@ -2663,6 +2737,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
     .filter(l=>fS.length===0||fS.includes(l.source))
     .filter(l=>{if(fFun==="all")return true;const f=leadFunnel(l,srcList,funnels);return fFun==="none"?!f:(f&&String(f.id)===fFun);})
     .filter(l=>fWhy==="all"||(fWhy==="none"?!l.noVisitReason:(l.noVisitReason||"")===fWhy))
+    .filter(l=>fLang==="all"||(l.clientLang||LANG_OPTS[0][0])===fLang)
     // Всегда: чем новее лид — тем выше (сначала день, внутри дня — по времени поступления)
     .map((l,i)=>({l,i,k:leadSortKey(l)})).sort((a,b)=>(b.k-a.k)||(a.i-b.i)).map(x=>x.l);
 
@@ -2715,7 +2790,8 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
         <MultiPick label={t.source} selected={fS} onChange={setFS} width={260} options={normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=>({value:d.name,label:d.name,color:d.color}))}/>
         <select value={fFun} onChange={e=>setFFun(e.target.value)} style={ss}><option value="all">▼ {lang==="pl"?"Lejek":"Воронка"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— {lang==="pl"?"bez lejka":"без воронки"}</option></select>
         <select value={fWhy} onChange={e=>setFWhy(e.target.value)} style={ss}><option value="all">{t.whyNoVisit}</option><option value="thinking">{t.rThinking}</option><option value="price">{t.rPrice}</option><option value="distance">{t.rDistance}</option><option value="term">{t.rTerm}</option><option value="none">—</option></select>
-        {(fSc.length>0||fA!=="all"||fS.length>0||fFun!=="all"||fWhy!=="all")&&<button onClick={()=>{setFSc([]);setFA("all");setFS([]);setFFun("all");setFWhy("all");}} style={{...ss,color:C.muted}}>✕ {lang==="pl"?"Wyczyść":"Сбросить"}</button>}
+        <select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {lang==="pl"?"Język klienta":"Язык клиента"}</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()}</option>)}</select>
+        {(fSc.length>0||fA!=="all"||fS.length>0||fFun!=="all"||fWhy!=="all"||fLang!=="all")&&<button onClick={()=>{setFSc([]);setFA("all");setFS([]);setFFun("all");setFWhy("all");setFLang("all");}} style={{...ss,color:C.muted}}>✕ {lang==="pl"?"Wyczyść":"Сбросить"}</button>}
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
@@ -2740,7 +2816,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                     : <span style={{color:C.dim,fontSize:15,opacity:0.3,cursor:"pointer"}}>＋</span>}
                 </td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
-                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{leadAttachments(l).length>0&&<span title="Фото / файлы от клиента" style={{marginLeft:6,fontSize:11,color:"#38bdf8",fontWeight:800}}>📎{leadAttachments(l).length}</span>}{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<span style={{marginLeft:7,fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",verticalAlign:"middle"}}>▼ {f.name}</span>:null;})()}{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
+                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{(()=>{const n=leadAttachments(l).length+(l.files||[]).filter(f=>f&&typeof f==="object"&&f.path).length;return n>0?<span title="Фото / файлы" style={{marginLeft:6,fontSize:11,color:"#38bdf8",fontWeight:800}}>📎{n}</span>:null;})()}{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<span style={{marginLeft:7,fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",verticalAlign:"middle"}}>▼ {f.name}</span>:null;})()}{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
                 <td style={{padding:"8px 10px"}}>{(()=>{const e=erikaEff(l);return e.v!=null?<div title={t.erikaScore} style={{fontSize:9,fontWeight:800,color:"#f472b6",lineHeight:"11px",marginBottom:1,whiteSpace:"nowrap",opacity:1}}>Э {e.v}</div>:null;})()}<ScoreBar score={l.score}/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.qualification]} color={QUAL_COLOR[l.qualification]} small/></td>
@@ -2802,7 +2878,25 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
       return {...n,updatedAt:now,history:[...(l.history||[]),{date:nowStr(),action:`★ ${t.erikaScore} · ${lbl}: ${v??"—"} → ${t.erikaScore} ${n.erikaScore??"—"}`,by}]};})}),true);
   };
   // Любая запись карточки НЕ трогает оценку Эрики — берём её из базы (иначе открытая карточка затирала её)
-  const keepE=(l,x)=>({...l,...x,erikaScore:l.erikaScore,erikaScoreAt:l.erikaScoreAt,erikaBy:l.erikaBy,erikaTree:l.erikaTree});
+  const keepE=(l,x)=>({...l,...x,erikaScore:l.erikaScore,erikaScoreAt:l.erikaScoreAt,erikaBy:l.erikaBy,erikaTree:l.erikaTree,files:l.files,deletedFiles:l.deletedFiles});
+  // ── Фото / файлы лида: загрузка (кнопка, перетаскивание, Ctrl+V), удаление ──
+  const [upl,setUpl]=useState({busy:0,err:""});const fileInp=useRef(null);const [drag,setDrag]=useState(false);
+  const addFiles=async(list)=>{
+    const files=[...(list||[])].filter(Boolean);if(!files.length)return;
+    const pl=lang==="pl";setUpl({busy:files.length,err:""});const done=[];let err="";
+    for(const f of files){try{const meta=await uploadLeadFile(lead.id,f);done.push({...meta,id:Date.now()+Math.random(),by:currentUser||"—",at:Date.now()});}
+      catch(e){err=e.message==="BUCKET"?(pl?"Magazyn zdjęć nie jest jeszcze utworzony w Supabase — trzeba raz uruchomić SQL z instrukcji.":"Хранилище для фото ещё не создано в Supabase — нужно один раз выполнить SQL из инструкции.")
+        :e.message==="POLICY"?(pl?"Brak uprawnień do magazynu zdjęć — uruchom SQL z instrukcji.":"Нет прав на хранилище фото — выполните SQL из инструкции."):`${pl?"Błąd wysyłania":"Ошибка загрузки"}: ${e.message}`;}}
+    if(done.length){const now=Date.now();setForm(fm=>({...fm,files:[...(fm.files||[]),...done]}));
+      updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,files:[...(l.files||[]),...done],updatedAt:now,history:[...(l.history||[]),{date:nowStr(),action:`📎 ${pl?"Dodano plików":"Добавлено файлов"}: ${done.length} (${done.map(x=>x.name).join(", ").slice(0,80)})`,by:currentUser||"—"}]}:l)}),true);}
+    setUpl({busy:0,err});
+  };
+  const delFile=(f)=>{const pl=lang==="pl";if(!window.confirm(pl?`Usunąć plik «${f.name}»?`:`Удалить файл «${f.name}»?`))return;const now=Date.now();
+    setForm(fm=>({...fm,files:(fm.files||[]).filter(x=>x.path!==f.path)}));
+    updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,files:(l.files||[]).filter(x=>!(x&&x.path===f.path)),deletedFiles:[...new Set([...(l.deletedFiles||[]),f.path])],updatedAt:now,history:[...(l.history||[]),{date:nowStr(),action:`🗑 ${pl?"Usunięto plik":"Удалён файл"}: ${f.name}`,by:currentUser||"—"}]}:l)}),true);
+    deleteLeadFile(f.path);};
+  // Ctrl+V с картинкой (например, скопированной из WhatsApp) — сразу в лида
+  useEffect(()=>{const h=(e)=>{const fs=[...((e.clipboardData&&e.clipboardData.files)||[])];if(fs.length){e.preventDefault();addFiles(fs);}};window.addEventListener("paste",h);return()=>window.removeEventListener("paste",h);},[lead.id]);
   const prevAction=useRef(lead.action||"undefined");
   const set=(k,v)=>setForm(p=>{
     const u={...p,[k]:v};
@@ -2921,12 +3015,21 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
             {fc!=null?<span>📞 {pl?"1. kontakt":"1-й контакт"}: <b style={{color:C.text}}>{fmtDT(fc)}</b>{form.c1By?<span style={{color:MGR_COLOR[form.c1By]||C.muted}}> · {form.c1By}</span>:null}{d!=null&&<> · <b style={{color:durColor(d)}}>{pl?"po":"через"} {fmtWait(d,pl)}</b></>}</span>
               :<span>📞 {pl?"1. kontakt":"1-й контакт"}: <b style={{color:waiting!=null?durColor(waiting):C.muted}}>{pl?"jeszcze nie":"ещё не было"}{waiting!=null?` · ${pl?"minęło":"прошло"} ${fmtWait(waiting,pl)}`:""}</b></span>}
           </div>;})()}
-        {(()=>{const at=leadAttachments(form);if(!at.length)return null;const pl=lang==="pl";return(
-          <div style={{marginTop:-6,marginBottom:14,background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:12,padding:"10px 12px"}}>
-            <div style={{fontSize:10,color:"#38bdf8",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800,marginBottom:8}}>📎 {pl?"Zdjęcia / pliki od klienta":"Фото / файлы от клиента"} ({at.length})</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{at.map((f,i)=>f.img
+        {(()=>{const at=leadAttachments(form);const up=(form.files||[]).filter(f=>f&&typeof f==="object"&&f.path);const pl=lang==="pl";return(
+          <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer&&e.dataTransfer.files);}}
+            style={{marginTop:-6,marginBottom:14,background:drag?"rgba(56,189,248,0.16)":"rgba(56,189,248,0.06)",border:`1px ${drag?"dashed":"solid"} rgba(56,189,248,${drag?0.9:0.4})`,borderRadius:12,padding:"10px 12px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:(at.length||up.length)?8:0,flexWrap:"wrap"}}>
+              <div style={{fontSize:10,color:"#38bdf8",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800}}>📎 {pl?"Zdjęcia / pliki":"Фото / файлы"} ({at.length+up.length})</div>
+              <span style={{fontSize:10,color:C.muted}}>{pl?"przeciągnij tutaj lub wklej Ctrl+V":"перетащите сюда или вставьте Ctrl+V"}</span>
+              <input ref={fileInp} type="file" multiple accept="image/*,application/pdf" style={{display:"none"}} onChange={e=>{addFiles(e.target.files);e.target.value="";}}/>
+              <button onClick={()=>fileInp.current&&fileInp.current.click()} disabled={upl.busy>0} style={{marginLeft:"auto",background:"rgba(56,189,248,0.15)",border:"1px solid rgba(56,189,248,0.6)",color:"#38bdf8",borderRadius:8,padding:"5px 12px",fontSize:12,fontWeight:800,cursor:upl.busy?"wait":"pointer"}}>{upl.busy?`⏳ ${pl?"Wysyłanie":"Загрузка"}… (${upl.busy})`:`＋ ${pl?"Dodaj zdjęcia":"Добавить фото"}`}</button>
+            </div>
+            {upl.err&&<div style={{fontSize:11,color:"#f87171",fontWeight:700,marginBottom:6}}>⚠ {upl.err}</div>}
+            {(at.length>0||up.length>0)&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {up.map(f=><LeadFileThumb key={f.path} f={f} pl={pl} onDelete={delFile}/>)}
+              {at.map((f,i)=>f.img
               ?<a key={i} href={f.url} target="_blank" rel="noreferrer" title={f.name}><img src={f.url} alt={f.name} style={{width:96,height:96,objectFit:"cover",borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",display:"block"}}/></a>
-              :<a key={i} href={f.url} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 10px",borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",color:"#38bdf8",fontSize:12,textDecoration:"none",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📄 {f.name}</a>)}</div>
+              :<a key={i} href={f.url} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 10px",borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",color:"#38bdf8",fontSize:12,textDecoration:"none",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📄 {f.name}</a>)}</div>}
           </div>);})()}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
           <div className="ld-sec">
@@ -4036,6 +4139,11 @@ function LeadDropdown({leads,value,onChange,lang,ins}){
 // админ (Даня) может открыть этап вручную только с причиной (пишется в историю).
 const ORDER_ADMIN=["Danya"];
 const ORDER_RESP=[["manager","Менеджер"],["measure","Замер"],["production","Производство / технолог"],["install","Монтаж"]];
+// ─── Язык модуля «Заказы»: польский для менеджеров с польским интерфейсом ─────────
+// Внутренние ключи (названия этапов/пунктов) не меняются — переводится только показ.
+let ORD_LANG="ru";
+function oL(s){if(ORD_LANG!=="pl"||s==null)return s;const k=String(s);return Object.prototype.hasOwnProperty.call(ORD_PL,k)?ORD_PL[k]:k;}
+const ORD_PL={"· создан":"· utworzono","Авто: отмечено":"Auto: zaznaczono","Авто: этап":"Auto: etap","Бригада назначена":"Ekipa przydzielona","Бригада получила информацию по заказу":"Ekipa otrzymała informacje o zamówieniu","В группу добавлены сотрудники":"Pracownicy dodani do grupy","В задачи":"Do zadań","В работе":"W realizacji","Вияр подтвердил получение":"Viyar potwierdził odbiór","Время":"Godzina","Время замера":"Godzina pomiaru","Время монтажа":"Godzina montażu","Все комплектующие на производстве":"Wszystkie akcesoria na produkcji","Все материалы на производстве":"Wszystkie materiały na produkcji","Все необходимые файлы отправлены":"Wszystkie potrzebne pliki wysłane","Все размеры проверены":"Wszystkie wymiary sprawdzone","Готовность":"Gotowość","Готовность порезки — план":"Gotowość rozkroju — plan","Готовность порезки — факт":"Gotowość rozkroju — fakt","Да, удалить":"Tak, usuń","Данные заказа":"Dane zamówienia","Дата вручения":"Data wręczenia","Дата готовности зафиксирована":"Data gotowości zapisana","Дата доставки":"Data dostawy","Дата доставки назначена":"Data dostawy ustalona","Дата доставки подтверждена":"Data dostawy potwierdzona","Дата доставки с Вияра":"Data dostawy z Viyar","Дата заказа":"Data zamówienia","Дата замера":"Data pomiaru","Дата оплаты":"Data płatności","Дата отправки в Вияр":"Data wysłania do Viyar","Дата получения задатка":"Data otrzymania zaliczki","Дата получения задатка указана":"Data otrzymania zaliczki wpisana","Дата сборки назначена":"Data montażu w zakładzie ustalona","Дата фактической доплаты":"Data faktycznej dopłaty","Дедлайн":"Termin","Дедлайн до":"Termin do","Дедлайн отправки в работу":"Termin przekazania do realizacji","Дедлайн сборки на производстве":"Termin złożenia na produkcji","Дедлайн сегодня":"Termin dziś","Действительно удалить заказ №":"Na pewno usunąć zamówienie nr ","До дедлайна":"Do terminu","Добавить комплектующие":"Dodać akcesoria","Добавлено":"Dodano","Договор/документы оформлены":"Umowa/dokumenty przygotowane","Документ загружен в CRM":"Dokument wgrany do CRM","Документы/проект подписаны":"Dokumenty/projekt podpisane","Должны доплату":"Do dopłaty","Доплата запрошена":"Poproszono o dopłatę","Доплата клиента":"Dopłata klienta","Доплата получена":"Dopłata otrzymana","Дополнительные элементы":"Elementy dodatkowe","Доставка выполнена":"Dostawa wykonana","Доставка заказана":"Dostawa zamówiona","Доставка на объект":"Dostawa na obiekt","Доставка организована":"Dostawa zorganizowana","Доставка получена":"Dostawa odebrana","Другие комплектующие":"Inne akcesoria","Ждут Вияр":"Czekają na Viyar","Ждут доставки":"Czekają na dostawę","Ждут монтажа":"Czekają na montaż","Ждут отзыв":"Czekają na opinię","Ждут протокол":"Czekają na protokół","ЗАКАЗ ЗАВЕРШЁН":"ZAMÓWIENIE ZAKOŃCZONE","Задаток получен":"Zaliczka otrzymana","Задаток:":"Zaliczka:","Заказ":"Zamówienie","Заказ готов к доставке":"Zamówienie gotowe do dostawy","Заказ готов к производству":"Zamówienie gotowe do produkcji","Заказ доставлен на объект":"Zamówienie dostarczone na obiekt","Заказ переведён на этап":"Zamówienie przeszło na etap","Заказ передан технологу":"Zamówienie przekazane technologowi","Заказ проверен после сборки":"Zamówienie sprawdzone po złożeniu","Заказ со всеми этапами, отметками, файлами и историей будет удалён безвозвратно.":"Zamówienie ze wszystkimi etapami, zaznaczeniami, plikami i historią zostanie usunięte bezpowrotnie.","Заказ создан из продажи":"Zamówienie utworzone ze sprzedaży","Заказ №":"Zamówienie nr ","Заказано":"Zamówiono","Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически.":"Brak zamówień — utwórz ze sprzedaży (przycisk w prawym górnym rogu). Nowe sprzedaże tworzą zamówienie automatycznie.","Замер":"Pomiar","Замер назначен":"Pomiar umówiony","Замер проведён":"Pomiar wykonany","Замер проверен":"Pomiar sprawdzony","Замечания технолога":"Uwagi technologa","Замечания/вопросы зафиксированы":"Uwagi/pytania zapisane","Клиент":"Klient","Клиент подтвердил выполнение":"Klient potwierdził wykonanie","Клиент подтверждён":"Klient potwierdził termin","Клиент согласовал финальный вариант":"Klient zaakceptował wersję finalną","Клиент уведомлён":"Klient powiadomiony","Клиенту отправлен запрос на оплату":"Wysłano klientowi prośbę o płatność","Клиенту отправлена просьба оставить отзыв":"Wysłano klientowi prośbę o opinię","Клиенту отправлено напоминание":"Wysłano klientowi przypomnienie","Кол-во":"Ilość","Комментарий":"Komentarz","Комментарий в историю (Enter)":"Komentarz do historii (Enter)","Комментарий по замеру":"Komentarz do pomiaru","Комплектация проверена":"Kompletacja sprawdzona","Комплектующие":"Akcesoria","Контакт перевозчика":"Kontakt do przewoźnika","Контроль: технолог подтвердил получение и нет вопросов":"Kontrola: technolog potwierdził odbiór i brak pytań","Маршрут":"Trasa","Материалы проверены":"Materiały sprawdzone","Менеджер":"Menedżer","Механизмы":"Mechanizmy","Монтаж":"Montaż","Монтаж завершён":"Montaż zakończony","Монтаж назначен":"Montaż umówiony","Монтаж начат":"Montaż rozpoczęty","Монтаж — план":"Montaż — plan","Монтаж — факт":"Montaż — fakt","Монтажная бригада":"Ekipa montażowa","На производстве":"Na produkcji","Название позиции":"Nazwa pozycji","Название файла":"Nazwa pliku","Направляющие":"Prowadnice","Номер заказа":"Numer zamówienia","Номер фактуры":"Numer faktury","Общая стоимость:":"Wartość całkowita:","Ожидает":"Oczekuje","Остаток к оплате":"Do zapłaty","Остаток к оплате:":"Do zapłaty:","Ответственный":"Odpowiedzialny","Ответственный:":"Odpowiedzialny:","Отзыв":"Opinia","Отзыв получен":"Opinia otrzymana","Открытые задачи по заказу":"Otwarte zadania zamówienia","Открыть вручную (с причиной)":"Otwórz ręcznie (z powodem)","Открыть этап":"Otworzyć etap","Отмена":"Anuluj","Перевозчик":"Przewoźnik","Перевозчик назначен":"Przewoźnik wybrany","Переименовано":"Zmieniono nazwę","Петли":"Zawiasy","Плановая дата монтажа":"Planowana data montażu","Платёж зафиксирован":"Płatność zaksięgowana","По плану":"Zgodnie z planem","По фильтрам ничего":"Brak wyników dla filtrów","Подарок выбран":"Prezent wybrany","Подарок клиенту":"Prezent dla klienta","Подарок передан клиенту":"Prezent przekazany klientowi","Подарок подготовлен":"Prezent przygotowany","Подтверждена готовность порезки":"Potwierdzono gotowość rozkroju","Позиция":"Pozycja","Получено":"Otrzymano","Получить":"Odebrać","Порезка / логистика Вияр":"Rozkrój / logistyka Viyar","Поставщик":"Dostawca","Проблема":"Problem","Проверено, нужна ли доставка с Вияра":"Sprawdzono, czy potrzebna dostawa z Viyar","Проверить дату готовности порезки Вияр":"Sprawdzić datę gotowości rozkroju Viyar","Продажа / задаток":"Sprzedaż / zaliczka","Продажа останется — из неё можно создать заказ заново.":"Sprzedaż zostanie — można z niej utworzyć zamówienie ponownie.","Продажа подтверждена":"Sprzedaż potwierdzona","Проект подготовлен":"Projekt przygotowany","Проекты отправлены в Вияр":"Projekty wysłane do Viyar","Проекты получены от технолога":"Projekty otrzymane od technologa","Проекты проверены":"Projekty sprawdzone","Проекты → Вияр":"Projekty → Viyar","Производство / технолог":"Produkcja / technolog","Производство уведомлено":"Produkcja powiadomiona","Просрочено":"Po terminie","Просрочено задач":"Zadania po terminie","Просрочено на":"Po terminie o","Протокол отправлен клиенту":"Protokół wysłany klientowi","Протокол подготовлен":"Protokół przygotowany","Протокол подписан":"Protokół podpisany","Протокол приёмки / odbioru":"Protokół odbioru","Пункт в":"Punkt w","Пункт убран из":"Punkt usunięty z","Пункты применяются ко всем заказам. Переименование пункта сбросит его отметку в уже начатых заказах. Для «Комплектующих» — это стартовый список позиций новых заказов.":"Punkty dotyczą wszystkich zamówień. Zmiana nazwy punktu usunie jego zaznaczenie w rozpoczętych zamówieniach. Dla «Akcesoriów» to startowa lista pozycji nowych zamówień.","Разрешение на публикацию получено":"Zgoda na publikację otrzymana","Результаты замера переданы ответственному":"Wyniki pomiaru przekazane odpowiedzialnemu","Ручки":"Uchwyty","Ручной переход на этап":"Ręczne przejście na etap","Сборка завершена":"Złożenie zakończone","Сборка на производстве":"Złożenie na produkcji","Сборка начата":"Złożenie rozpoczęte","Сборка — план (дедлайн)":"Złożenie — plan (termin)","Сборка — факт":"Złożenie — fakt","Следующий шаг":"Następny krok","Собрано":"Złożone","Создана группа заказа в Telegram":"Utworzono grupę zamówienia w Telegram","Создать задачу из пункта":"Utwórz zadanie z punktu","Сохранить шаблон":"Zapisz szablon","Сразу на фабрику":"Od razu do fabryki","Срок доплаты":"Termin dopłaty","Срок не задан":"Brak terminu","Срок оплаты":"Termin płatności","Срок этапа":"Termin etapu","Ссылка (Google Drive, Dropbox…)":"Link (Google Drive, Dropbox…)","Ссылка на отзыв":"Link do opinii","Ссылка на отзыв добавлена в CRM":"Link do opinii dodany do CRM","Статус":"Status","Статус заказа":"Status zamówienia","Статус сборки":"Status złożenia","Стоимость доставки":"Koszt dostawy","Стоимость подтверждена":"Cena potwierdzona","Сумма доплаты":"Kwota dopłaty","Сумма задатка":"Kwota zaliczki","Сумма задатка внесена":"Kwota zaliczki wpisana","Сумма продажи":"Kwota sprzedaży","Сумма фактуры":"Kwota faktury","Текущий этап":"Bieżący etap","Технолог / фабрика":"Technolog / fabryka","Технолог подтвердил получение":"Technolog potwierdził odbiór","Тип подарка":"Rodzaj prezentu","Удалено":"Usunięto","Удалить":"Usuń","Удалить заказ":"Usuń zamówienie","Файл в":"Plik w","Фактура оплачена":"Faktura opłacona","Фактура получена":"Faktura otrzymana","Фактура проверена":"Faktura sprawdzona","Финализация проекта":"Finalizacja projektu","Финальная оплата":"Płatność końcowa","Финальная сумма":"Kwota końcowa","Финальная сумма рассчитана":"Kwota końcowa wyliczona","Финальный проект подготовлен для клиента":"Projekt finalny przygotowany dla klienta","Финальный проект проверен":"Projekt finalny sprawdzony","Фото после монтажа загружены":"Zdjęcia po montażu wgrane","Фото/видео от клиента получены":"Zdjęcia/wideo od klienta otrzymane","Фото/материалы загружены":"Zdjęcia/materiały wgrane","Фурнитура":"Okucia","Через технолога":"Przez technologa","Этап":"Etap","Этап завершён":"Etap zakończony","админ). Причина":"admin). Powód","в работе)":"w realizacji)","вручную, минуя незавершённые этапы.\nУкажи причину (обязательно":"ręcznie, z pominięciem niezakończonych etapów.\nPodaj powód (obowiązkowo","дата заказа":"data zamówienia","дн":"dn","завершён → следующий шаг":"zakończony → następny krok","заказано":"zamówiono","карточка лида →":"karta leada →","кол-во":"ilość","комментарий":"komentarz","не заказано":"nie zamówiono","не получено":"nie otrzymano","показать завершённые":"pokaż zakończone","получено":"otrzymano","поставщик":"dostawca","пропущен вручную (":"pominięty ręcznie (","тоже удалятся":"też zostaną usunięte","№ заказа":"Nr zamówienia","▼ Где сейчас заказы":"▼ Gdzie są teraz zamówienia","☐ Снята отметка":"☐ Odznaczono","☑ Выполнено":"☑ Wykonano","☰ Задачи заказа (":"☰ Zadania zamówienia (","⚙ Шаблон этапов":"⚙ Szablon etapów","⚙ Шаблон этапов заказа":"⚙ Szablon etapów zamówienia","⚠ задач просрочено:":"⚠ zadań po terminie:","✕ Сброс":"✕ Wyczyść","＋ Создать заказ из продажи (":"＋ Utwórz zamówienie ze sprzedaży (","＋ новый пункт (Enter)":"＋ nowy punkt (Enter)","＋ позиция":"＋ pozycja","＋ свой пункт для этого заказа (Enter)":"＋ własny punkt dla tego zamówienia (Enter)","🏁 ЗАКАЗ ЗАВЕРШЁН":"🏁 ZAMÓWIENIE ZAKOŃCZONE","🏁 Завершён":"🏁 Zakończone","📅 Срок этапа → задача":"📅 Termin etapu → zadanie","📎 Добавить":"📎 Dodaj","📝 Сгенерировать протокол odbioru":"📝 Wygeneruj protokół odbioru","📦 Заказы":"📦 Zamówienia","🔍 Клиент / телефон":"🔍 Klient / telefon","🔒 Этап закрыт — сначала завершите предыдущие этапы.":"🔒 Etap zamknięty — najpierw zakończ poprzednie etapy.","🔴 Просроченные":"🔴 Po terminie","🕓 История заказа":"🕓 Historia zamówienia","🗑 Удалить заказ":"🗑 Usuń zamówienie"};
 const ORDER_STAGES=[
  {key:"deposit",name:"Продажа / задаток",icon:"💰",resp:"manager",date:"depositDate",items:["Продажа подтверждена","Задаток получен","Сумма задатка внесена","Дата получения задатка указана","Договор/документы оформлены"],fields:[["amount","Сумма продажи","num"],["deposit","Сумма задатка","num"],["depositDate","Дата получения задатка","date"]]},
  {key:"measure",name:"Замер",icon:"📏",resp:"measure",date:"measureDate",items:["Замер назначен","Замер проведён","Фото/материалы загружены","Результаты замера переданы ответственному","Замер проверен"],fields:[["measureDate","Дата замера","date"],["measureTime","Время замера","time"],["measureComment","Комментарий по замеру","text"]]},
@@ -4067,20 +4175,20 @@ function orderProgress(o,tpl){let tot=0,dn=0;ORDER_STAGES.forEach(st=>{if(st.key
 function orderRemaining(o){const f=o.f||{};const total=+f.amount||+o.amount||0;const paid=(+f.deposit||0)+(f.payFact?(+f.payAmount||0):0)+(f.finalPaid?(+f.finalAmount||0):0);return Math.max(0,total-paid);}
 function stageDeadline(o,st){if(!st)return null;return (o.sdl||{})[st.key]||(st.date&&(o.f||{})[st.date])||null;}
 function orderStatus(o,tpl){
-  const ci=orderCur(o,tpl);if(ci>=ORDER_STAGES.length)return {color:"#22c55e",emoji:"🏁",label:"ЗАКАЗ ЗАВЕРШЁН",days:null,dl:null,ci};
+  const ci=orderCur(o,tpl);if(ci>=ORDER_STAGES.length)return {color:"#22c55e",emoji:"🏁",label:oL("ЗАКАЗ ЗАВЕРШЁН"),days:null,dl:null,ci};
   const st=ORDER_STAGES[ci];const dl=stageDeadline(o,st);
-  if(!dl)return {color:"#94a3b8",emoji:"⚪",label:"Срок не задан",days:null,dl:null,ci};
+  if(!dl)return {color:"#94a3b8",emoji:"⚪",label:oL("Срок не задан"),days:null,dl:null,ci};
   const days=Math.round((new Date(dl+"T00:00:00")-new Date(getToday()+"T00:00:00"))/86400000);
-  if(days<0)return {color:"#ef4444",emoji:"🔴",label:`Просрочено на ${-days} дн.`,days,dl,ci};
-  if(days<=3)return {color:"#facc15",emoji:"🟡",label:days===0?"Дедлайн сегодня":`До дедлайна ${days} дн.`,days,dl,ci};
-  return {color:"#22c55e",emoji:"🟢",label:`По плану · ${days} дн.`,days,dl,ci};
+  if(days<0)return {color:"#ef4444",emoji:"🔴",label:`${oL("Просрочено на")} ${-days} ${oL("дн")}.`,days,dl,ci};
+  if(days<=3)return {color:"#facc15",emoji:"🟡",label:days===0?oL("Дедлайн сегодня"):`${oL("До дедлайна")} ${days} ${oL("дн")}.`,days,dl,ci};
+  return {color:"#22c55e",emoji:"🟢",label:`${oL("По плану")} · ${days} ${oL("дн")}.`,days,dl,ci};
 }
-function orderNextStep(o,tpl){const ci=orderCur(o,tpl);if(ci>=ORDER_STAGES.length)return "—";const st=ORDER_STAGES[ci];if(st.key==="components"){const c=(o.components||[]).find(x=>!x.received);return c?`Получить: ${c.name}`:"Добавить комплектующие";}const ch=(o.checks||{})[st.key]||{};return orderItems(o,tpl,st).find(x=>!ch[x])||st.name;}
+function orderNextStep(o,tpl){const ci=orderCur(o,tpl);if(ci>=ORDER_STAGES.length)return "—";const st=ORDER_STAGES[ci];if(st.key==="components"){const c=(o.components||[]).find(x=>!x.received);return c?`${oL("Получить")}: ${oL(c.name)}`:oL("Добавить комплектующие");}const ch=(o.checks||{})[st.key]||{};return oL(orderItems(o,tpl,st).find(x=>!ch[x])||st.name);}
 function makeOrder({sale,lead,num,by,tpl}){
   const now=Date.now();const comps=((tpl&&tpl.stages&&tpl.stages.components)||ORDER_STAGES[4].items).map((n,i)=>({id:now+i,name:n,qty:"",supplier:"",ordered:false,orderDate:"",received:false,comment:""}));
   return {id:now+Math.floor(Math.random()*1000),num:String(num),saleId:sale?.id||null,leadId:lead?.id||null,client:sale?.name||lead?.name||"",phone:sale?.phone||lead?.phone||"",amount:+(sale?.saleAmount||0),
     resp:{manager:sale?.manager||lead?.manager||by||""},f:{amount:+(sale?.saleAmount||0)},checks:{deposit:{"Продажа подтверждена":{by:by||"—",at:now}}},components:comps,files:[],extra:{},sdl:{},forced:{},
-    history:[{date:nowStr(),by:by||"—",action:"Заказ создан из продажи"}],status:"active",createdAt:nowStr(),createdMs:now,updatedAt:now};
+    history:[{date:nowStr(),by:by||"—",action:oL("Заказ создан из продажи")}],status:"active",createdAt:nowStr(),createdMs:now,updatedAt:now};
 }
 function nextOrderNum(orders){const n=(orders||[]).map(o=>parseInt(o.num)||0);return String(Math.max(1000,...n)+1);}
 // Протокол приёмки (odbioru) — печатный документ из данных заказа
@@ -4099,6 +4207,7 @@ function printProtocol(o){
 }
 
 function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead}){
+  ORD_LANG=lang==="pl"?"pl":"ru";
   const orders=db.orders||[];const tpl=db.orderTemplate||null;
   const isAdmin=ORDER_ADMIN.includes(currentUser);
   const me=currentUser&&currentUser!=="all"?currentUser:"—";
@@ -4123,12 +4232,12 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
         if(hist)h.push({date:nowStr(),by:me,action:hist});
         // Этап завершён → авто-задача на следующий этап
         if(after>before){
-          for(let i=before;i<after;i++)h.push({date:nowStr(),by:me,action:`✓ Этап завершён: ${ORDER_STAGES[i].name}`});
+          for(let i=before;i<after;i++)h.push({date:nowStr(),by:me,action:`✓ ${oL("Этап завершён")}: ${oL(ORDER_STAGES[i].name)}`});
           if(after<ORDER_STAGES.length){
             const st=ORDER_STAGES[after];
-            h.push({date:nowStr(),by:me,action:`→ Заказ переведён на этап: ${st.name}`});
-            newTasks.push(buildNewTask({title:`📦 №${n.num} · ${st.name}`,comment:`Авто: этап «${ORDER_STAGES[after-1].name}» завершён → следующий шаг: ${orderNextStep(n,p.orderTemplate)}`,status:"all",priority:(st.key==="prepay"||st.key==="finalpay")?"HIGH":"MID",assignee:respOf(n,st),deadline:stageDeadline(n,st)||oPlus(2),orderId:n.id,orderNum:n.num,orderStage:st.key,leadId:n.leadId,leadName:n.client},me==="—"?null:me,[...(p.tasks||[]),...newTasks]));
-          }else{n.status="done";n.doneAt=Date.now();h.push({date:nowStr(),by:me,action:"🏁 ЗАКАЗ ЗАВЕРШЁН"});}
+            h.push({date:nowStr(),by:me,action:`→ ${oL("Заказ переведён на этап")}: ${oL(st.name)}`});
+            newTasks.push(buildNewTask({title:`📦 №${n.num} · ${oL(st.name)}`,comment:`${oL("Авто: этап")} «${oL(ORDER_STAGES[after-1].name)}» ${oL("завершён → следующий шаг")}: ${orderNextStep(n,p.orderTemplate)}`,status:"all",priority:(st.key==="prepay"||st.key==="finalpay")?"HIGH":"MID",assignee:respOf(n,st),deadline:stageDeadline(n,st)||oPlus(2),orderId:n.id,orderNum:n.num,orderStage:st.key,leadId:n.leadId,leadName:n.client},me==="—"?null:me,[...(p.tasks||[]),...newTasks]));
+          }else{n.status="done";n.doneAt=Date.now();h.push({date:nowStr(),by:me,action:oL("🏁 ЗАКАЗ ЗАВЕРШЁН")});}
         }
         if(mkTasks)newTasks=[...newTasks,...mkTasks(n,[...(p.tasks||[]),...newTasks])];
         return {...n,history:h,updatedAt:Date.now()};
@@ -4176,15 +4285,15 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
   const act=orders.filter(o=>o.status!=="done").map(o=>({o,i:info(o)}));
   const at=(k)=>(x)=>x.i.st&&x.i.st.key===k;
   const KPI=[
-    ["В работе","#38bdf8",()=>true],
-    ["Просрочено","#ef4444",(o,i)=>(i.days!==null&&i.days<0)||i.ot>0],
-    ["На производстве","#fb923c",(o,i)=>i.st&&["technolog","components","assembly"].includes(i.st.key)],
-    ["Ждут Вияр","#c084fc",(o,i)=>i.st&&["viyar","logistics"].includes(i.st.key)],
-    ["Ждут доставки","#facc15",(o,i)=>at("delivery")({i})],
-    ["Ждут монтажа","#2dd4bf",(o,i)=>at("montage")({i})],
-    ["Должны доплату","#f87171",(o,i)=>i.rem>0&&i.st&&["prepay","finalpay"].includes(i.st.key)],
-    ["Ждут протокол","#818cf8",(o,i)=>at("protocol")({i})],
-    ["Ждут отзыв","#f0c040",(o,i)=>at("review")({i})],
+    [oL("В работе"),"#38bdf8",()=>true],
+    [oL("Просрочено"),"#ef4444",(o,i)=>(i.days!==null&&i.days<0)||i.ot>0],
+    [oL("На производстве"),"#fb923c",(o,i)=>i.st&&["technolog","components","assembly"].includes(i.st.key)],
+    [oL("Ждут Вияр"),"#c084fc",(o,i)=>i.st&&["viyar","logistics"].includes(i.st.key)],
+    [oL("Ждут доставки"),"#facc15",(o,i)=>at("delivery")({i})],
+    [oL("Ждут монтажа"),"#2dd4bf",(o,i)=>at("montage")({i})],
+    [oL("Должны доплату"),"#f87171",(o,i)=>i.rem>0&&i.st&&["prepay","finalpay"].includes(i.st.key)],
+    [oL("Ждут протокол"),"#818cf8",(o,i)=>at("protocol")({i})],
+    [oL("Ждут отзыв"),"#f0c040",(o,i)=>at("review")({i})],
   ];
   const ss={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,outline:"none",colorScheme:"dark"};
   const allPeople=[...new Set([...MANAGERS,...orders.flatMap(o=>Object.values(o.resp||{})).filter(Boolean)])];
@@ -4194,11 +4303,11 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-        <div style={{fontSize:18,fontWeight:800,color:C.text}}>📦 Заказы <span style={{fontSize:12,color:C.muted}}>({act.length} в работе)</span></div>
-        <button onClick={()=>setShowTpl(true)} style={{...ss,cursor:"pointer",fontWeight:700}}>⚙ Шаблон этапов</button>
-        <label style={{fontSize:12,color:C.muted,display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}><input type="checkbox" checked={showDone} onChange={e=>setShowDone(e.target.checked)}/> показать завершённые</label>
+        <div style={{fontSize:18,fontWeight:800,color:C.text}}>{oL("📦 Заказы")} <span style={{fontSize:12,color:C.muted}}>({act.length} {oL("в работе)")}</span></div>
+        <button onClick={()=>setShowTpl(true)} style={{...ss,cursor:"pointer",fontWeight:700}}>{oL("⚙ Шаблон этапов")}</button>
+        <label style={{fontSize:12,color:C.muted,display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}><input type="checkbox" checked={showDone} onChange={e=>setShowDone(e.target.checked)}/> {oL("показать завершённые")}</label>
         {salesNoOrder.length>0&&<select value="" onChange={e=>{const s=salesNoOrder.find(x=>String(x.id)===e.target.value);if(s)createFromSale(s);}} style={{...ss,marginLeft:"auto",borderColor:C.accentBorder,color:C.accent,fontWeight:700}}>
-          <option value="">＋ Создать заказ из продажи ({salesNoOrder.length})</option>
+          <option value="">{oL("＋ Создать заказ из продажи (")}{salesNoOrder.length})</option>
           {salesNoOrder.slice(0,200).map(s=><option key={s.id} value={String(s.id)}>{s.createdAt} · {s.name||s.phone} · {fmtM(s.saleAmount)} · {s.manager}</option>)}
         </select>}
       </div>
@@ -4206,51 +4315,51 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
       {/* KPI — клик фильтрует таблицу */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(118px,1fr))",gap:8}}>
         {KPI.map(([lab,col,fn])=>{const n=act.filter(x=>fn(x.o,x.i)).length;const on=kpi&&kpi.lab===lab;return(
-          <div key={lab} onClick={()=>setKpi(on||lab==="В работе"?null:{lab,fn})} style={{background:on?`${col}22`:C.card,border:`1px solid ${on?col:C.border}`,borderRadius:11,padding:"10px 12px",cursor:"pointer"}}>
-            <div style={{fontSize:22,fontWeight:900,color:n&&lab!=="В работе"?col:C.text}}>{n}</div>
-            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.4,fontWeight:700}}>{lab}</div>
+          <div key={lab} onClick={()=>setKpi(on||lab===oL("В работе")?null:{lab,fn})} style={{background:on?`${col}22`:C.card,border:`1px solid ${on?col:C.border}`,borderRadius:11,padding:"10px 12px",cursor:"pointer"}}>
+            <div style={{fontSize:22,fontWeight:900,color:n&&lab!==oL("В работе")?col:C.text}}>{n}</div>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.4,fontWeight:700}}>{oL(lab)}</div>
           </div>);})}
       </div>
 
       {/* Воронка заказов по этапам */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"12px 16px"}}>
-        <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>▼ Где сейчас заказы</div>
+        <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{oL("▼ Где сейчас заказы")}</div>
         {ORDER_STAGES.map((st,i)=>{const n=byStage[i];const on=fStage===String(i);return(
           <div key={st.key} onClick={()=>setFStage(on?"all":String(i))} style={{display:"flex",alignItems:"center",gap:10,marginBottom:3,cursor:"pointer"}}>
-            <div style={{width:210,fontSize:11,color:on?C.accent:C.text,fontWeight:on?800:500,textAlign:"right",whiteSpace:"nowrap"}}>{i+1}. {st.icon} {st.name}</div>
+            <div style={{width:210,fontSize:11,color:on?C.accent:C.text,fontWeight:on?800:500,textAlign:"right",whiteSpace:"nowrap"}}>{i+1}. {st.icon} {oL(st.name)}</div>
             <div style={{flex:1,display:"flex",justifyContent:"center"}}><div style={{width:`${Math.max(4,n/maxS*100)}%`,minWidth:28,background:n?`linear-gradient(90deg,${C.accent}cc,${C.accent}55)`:"rgba(255,255,255,0.05)",border:on?"2px solid #fff":"1px solid transparent",borderRadius:6,padding:"3px 8px",fontSize:12,fontWeight:900,color:n?"#00132f":C.dim,textAlign:"center"}}>{n}</div></div>
           </div>);})}
       </div>
 
       {/* Фильтры */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-        <select value={fResp} onChange={e=>setFResp(e.target.value)} style={ss}><option value="all">Ответственный</option>{allPeople.map(p=><option key={p} value={p}>{p}</option>)}</select>
-        <select value={fStage} onChange={e=>setFStage(e.target.value)} style={ss}><option value="all">Этап</option>{ORDER_STAGES.map((st,i)=><option key={st.key} value={String(i)}>{i+1}. {st.name}</option>)}<option value={String(ORDER_STAGES.length)}>🏁 Завершён</option></select>
-        <label style={{...ss,display:"flex",alignItems:"center",gap:5,cursor:"pointer",color:fOver?C.red:C.text}}><input type="checkbox" checked={fOver} onChange={e=>setFOver(e.target.checked)}/> 🔴 Просроченные</label>
-        <span style={{fontSize:11,color:C.muted}}>Дедлайн до</span><input type="date" value={fDl} onChange={e=>setFDl(e.target.value)} style={ss}/>
-        <input value={fClient} onChange={e=>setFClient(e.target.value)} placeholder="🔍 Клиент / телефон" style={{...ss,width:160}}/>
-        <input value={fNum} onChange={e=>setFNum(e.target.value)} placeholder="№ заказа" style={{...ss,width:100}}/>
-        {(fResp!=="all"||fStage!=="all"||fOver||fDl||fClient||fNum||kpi)&&<button onClick={()=>{setFResp("all");setFStage("all");setFOver(false);setFDl("");setFClient("");setFNum("");setKpi(null);}} style={{...ss,cursor:"pointer",color:C.muted}}>✕ Сброс</button>}
+        <select value={fResp} onChange={e=>setFResp(e.target.value)} style={ss}><option value="all">{oL("Ответственный")}</option>{allPeople.map(p=><option key={p} value={p}>{p}</option>)}</select>
+        <select value={fStage} onChange={e=>setFStage(e.target.value)} style={ss}><option value="all">{oL("Этап")}</option>{ORDER_STAGES.map((st,i)=><option key={st.key} value={String(i)}>{i+1}. {oL(st.name)}</option>)}<option value={String(ORDER_STAGES.length)}>{oL("🏁 Завершён")}</option></select>
+        <label style={{...ss,display:"flex",alignItems:"center",gap:5,cursor:"pointer",color:fOver?C.red:C.text}}><input type="checkbox" checked={fOver} onChange={e=>setFOver(e.target.checked)}/> {oL("🔴 Просроченные")}</label>
+        <span style={{fontSize:11,color:C.muted}}>{oL("Дедлайн до")}</span><input type="date" value={fDl} onChange={e=>setFDl(e.target.value)} style={ss}/>
+        <input value={fClient} onChange={e=>setFClient(e.target.value)} placeholder={oL("🔍 Клиент / телефон")} style={{...ss,width:160}}/>
+        <input value={fNum} onChange={e=>setFNum(e.target.value)} placeholder={oL("№ заказа")} style={{...ss,width:100}}/>
+        {(fResp!=="all"||fStage!=="all"||fOver||fDl||fClient||fNum||kpi)&&<button onClick={()=>{setFResp("all");setFStage("all");setFOver(false);setFDl("");setFClient("");setFNum("");setKpi(null);}} style={{...ss,cursor:"pointer",color:C.muted}}>{oL("✕ Сброс")}</button>}
       </div>
 
       {/* Таблица руководителя */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-          <thead><tr style={{background:C.surface}}>{["Заказ","Клиент","Этап","Следующий шаг","Ответственный","Дедлайн","Статус","Готовность",""].map(h=><th key={h} style={{padding:"9px 10px",textAlign:"left",fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+          <thead><tr style={{background:C.surface}}>{[oL("Заказ"),oL("Клиент"),oL("Этап"),oL("Следующий шаг"),oL("Ответственный"),oL("Дедлайн"),oL("Статус"),oL("Готовность"),""].map(h=><th key={h} style={{padding:"9px 10px",textAlign:"left",fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
           <tbody>
             {rows.map(({o,i})=>(
               <tr key={o.id} onClick={()=>setOpenId(o.id)} style={{borderTop:`1px solid ${C.border}`,cursor:"pointer"}}>
                 <td style={{padding:"9px 10px",fontWeight:900,color:C.accent,whiteSpace:"nowrap"}}>№{o.num}</td>
                 <td style={{padding:"9px 10px"}}><div style={{fontWeight:700,color:C.text}}>{o.client||"—"}</div><div style={{fontSize:10,color:C.muted}}>{o.phone}</div></td>
-                <td style={{padding:"9px 10px",whiteSpace:"nowrap",color:C.text}}>{i.st?`${i.st.icon} ${i.st.name}`:"🏁 Завершён"}</td>
+                <td style={{padding:"9px 10px",whiteSpace:"nowrap",color:C.text}}>{i.st?`${i.st.icon} ${oL(i.st.name)}`:oL("🏁 Завершён")}</td>
                 <td style={{padding:"9px 10px",color:C.muted,maxWidth:220,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i.next}</td>
                 <td style={{padding:"9px 10px",fontWeight:700,color:MGR_COLOR[respOf(o,i.st)]||C.text}}>{respOf(o,i.st)}</td>
                 <td style={{padding:"9px 10px",whiteSpace:"nowrap",color:C.text}}>{i.dl?isoToDot(i.dl):"—"}</td>
-                <td style={{padding:"9px 10px",whiteSpace:"nowrap"}}><span style={{color:i.color,fontWeight:800}}>{i.emoji} {i.label}</span>{i.ot>0&&<div style={{fontSize:10,color:C.red,fontWeight:700}}>⚠ задач просрочено: {i.ot}</div>}</td>
+                <td style={{padding:"9px 10px",whiteSpace:"nowrap"}}><span style={{color:i.color,fontWeight:800}}>{i.emoji} {i.label}</span>{i.ot>0&&<div style={{fontSize:10,color:C.red,fontWeight:700}}>{oL("⚠ задач просрочено:")} {i.ot}</div>}</td>
                 <td style={{padding:"9px 10px",minWidth:110}}><div style={{height:7,background:"rgba(255,255,255,0.08)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${i.prog}%`,height:"100%",background:i.prog===100?C.green:C.accent}}/></div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{i.prog}%</div></td>
-                <td style={{padding:"9px 6px",textAlign:"center"}}><button onClick={e=>{e.stopPropagation();setDelId(o.id);}} title="Удалить заказ" style={{background:"rgba(248,113,113,0.12)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}}>🗑</button></td>
+                <td style={{padding:"9px 6px",textAlign:"center"}}><button onClick={e=>{e.stopPropagation();setDelId(o.id);}} title={oL("Удалить заказ")} style={{background:"rgba(248,113,113,0.12)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}}>🗑</button></td>
               </tr>))}
-            {rows.length===0&&<tr><td colSpan={9} style={{padding:24,textAlign:"center",color:C.dim}}>{orders.length?"По фильтрам ничего":"Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически."}</td></tr>}
+            {rows.length===0&&<tr><td colSpan={9} style={{padding:24,textAlign:"center",color:C.dim}}>{orders.length?oL("По фильтрам ничего"):oL("Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически.")}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -4258,12 +4367,12 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
       {delO&&<div onClick={()=>setDelId(null)} style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.9)",backdropFilter:"blur(4px)",zIndex:2700,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
         <div onClick={e=>e.stopPropagation()} style={{width:"min(440px,100%)",background:"linear-gradient(165deg,#0a1a3a,#00132f)",border:"1px solid rgba(239,68,68,0.6)",borderRadius:18,padding:24,textAlign:"center",boxShadow:"0 30px 90px rgba(0,0,0,0.65)"}}>
           <div style={{fontSize:36,marginBottom:6}}>🗑</div>
-          <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:6}}>Действительно удалить заказ №{delO.num}?</div>
+          <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:6}}>{oL("Действительно удалить заказ №")}{delO.num}?</div>
           <div style={{fontSize:13,color:"#bfa47e",fontWeight:700,marginBottom:12}}>{delO.client||"—"}{delO.phone?` · ${delO.phone}`:""} · {fmtM(+(delO.f||{}).amount||+delO.amount||0)}</div>
-          <div style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginBottom:20,lineHeight:1.55}}>Заказ со всеми этапами, отметками, файлами и историей будет удалён безвозвратно.{delOpenTasks>0?` Открытые задачи по заказу (${delOpenTasks}) тоже удалятся.`:""} Продажа останется — из неё можно создать заказ заново.</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginBottom:20,lineHeight:1.55}}>{oL("Заказ со всеми этапами, отметками, файлами и историей будет удалён безвозвратно.")}{delOpenTasks>0?` ${oL("Открытые задачи по заказу")} (${delOpenTasks}) ${oL("тоже удалятся")}.`:""} {oL("Продажа останется — из неё можно создать заказ заново.")}</div>
           <div style={{display:"flex",gap:10,justifyContent:"center"}}>
-            <button autoFocus onClick={()=>setDelId(null)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.25)",color:"#ddd",borderRadius:10,padding:"10px 22px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Отмена</button>
-            <button onClick={()=>deleteOrder(delO.id)} style={{background:"#ef4444",border:"none",color:"#fff",borderRadius:10,padding:"10px 22px",fontSize:13,fontWeight:900,cursor:"pointer"}}>Да, удалить</button>
+            <button autoFocus onClick={()=>setDelId(null)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.25)",color:"#ddd",borderRadius:10,padding:"10px 22px",fontSize:13,fontWeight:700,cursor:"pointer"}}>{oL("Отмена")}</button>
+            <button onClick={()=>deleteOrder(delO.id)} style={{background:"#ef4444",border:"none",color:"#fff",borderRadius:10,padding:"10px 22px",fontSize:13,fontWeight:900,cursor:"pointer"}}>{oL("Да, удалить")}</button>
           </div>
         </div>
       </div>}
@@ -4279,23 +4388,23 @@ function OrderTemplateEditor({tpl,onSave,onClose}){
   return(
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.86)",zIndex:2600,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <div onClick={e=>e.stopPropagation()} style={{width:"min(760px,100%)",maxHeight:"90vh",overflowY:"auto",background:"linear-gradient(165deg,#0a1a3a,#00132f)",border:"1px solid rgba(191,164,126,0.45)",borderRadius:18,padding:22}}>
-        <div style={{display:"flex",alignItems:"center",marginBottom:6}}><div style={{fontSize:18,fontWeight:900,color:"#fff"}}>⚙ Шаблон этапов заказа</div><button onClick={onClose} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#aaa",fontSize:20,cursor:"pointer"}}>✕</button></div>
-        <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:14}}>Пункты применяются ко всем заказам. Переименование пункта сбросит его отметку в уже начатых заказах. Для «Комплектующих» — это стартовый список позиций новых заказов.</div>
+        <div style={{display:"flex",alignItems:"center",marginBottom:6}}><div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{oL("⚙ Шаблон этапов заказа")}</div><button onClick={onClose} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#aaa",fontSize:20,cursor:"pointer"}}>✕</button></div>
+        <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:14}}>{oL("Пункты применяются ко всем заказам. Переименование пункта сбросит его отметку в уже начатых заказах. Для «Комплектующих» — это стартовый список позиций новых заказов.")}</div>
         {ORDER_STAGES.map((s,i)=>(
           <div key={s.key} style={{marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:11,padding:"10px 12px"}}>
-            <div style={{fontSize:12,fontWeight:800,color:"#bfa47e",marginBottom:6}}>{i+1}. {s.icon} {s.name}</div>
+            <div style={{fontSize:12,fontWeight:800,color:"#bfa47e",marginBottom:6}}>{i+1}. {s.icon} {oL(s.name)}</div>
             {st[s.key].map((it,j)=>(
               <div key={j} style={{display:"flex",gap:6,marginBottom:4}}>
                 <input value={it} onChange={e=>setSt(m=>({...m,[s.key]:m[s.key].map((x,k)=>k===j?e.target.value:x)}))} style={{...ins,flex:1}}/>
                 <button onClick={()=>setSt(m=>({...m,[s.key]:m[s.key].filter((_,k)=>k!==j)}))} style={{background:"transparent",border:"1px solid rgba(239,68,68,0.4)",color:"#ef4444",borderRadius:7,padding:"0 9px",cursor:"pointer"}}>✕</button>
               </div>))}
             <div style={{display:"flex",gap:6,marginTop:4}}>
-              <input value={add[s.key]||""} onChange={e=>setAdd(a=>({...a,[s.key]:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"&&(add[s.key]||"").trim()){setSt(m=>({...m,[s.key]:[...m[s.key],add[s.key].trim()]}));setAdd(a=>({...a,[s.key]:""}));}}} placeholder="＋ новый пункт (Enter)" style={{...ins,flex:1}}/>
+              <input value={add[s.key]||""} onChange={e=>setAdd(a=>({...a,[s.key]:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"&&(add[s.key]||"").trim()){setSt(m=>({...m,[s.key]:[...m[s.key],add[s.key].trim()]}));setAdd(a=>({...a,[s.key]:""}));}}} placeholder={oL("＋ новый пункт (Enter)")} style={{...ins,flex:1}}/>
             </div>
           </div>))}
         <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-          <button onClick={onClose} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.2)",color:"#aaa",borderRadius:9,padding:"9px 18px",cursor:"pointer"}}>Отмена</button>
-          <button onClick={()=>onSave(Object.fromEntries(Object.entries(st).map(([k,v])=>[k,v.map(x=>x.trim()).filter(Boolean)])))} style={{background:"#bfa47e",border:"none",color:"#00132f",borderRadius:9,padding:"9px 22px",fontWeight:900,cursor:"pointer"}}>Сохранить шаблон</button>
+          <button onClick={onClose} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.2)",color:"#aaa",borderRadius:9,padding:"9px 18px",cursor:"pointer"}}>{oL("Отмена")}</button>
+          <button onClick={()=>onSave(Object.fromEntries(Object.entries(st).map(([k,v])=>[k,v.map(x=>x.trim()).filter(Boolean)])))} style={{background:"#bfa47e",border:"none",color:"#00132f",borderRadius:9,padding:"9px 22px",fontWeight:900,cursor:"pointer"}}>{oL("Сохранить шаблон")}</button>
         </div>
       </div>
     </div>);
@@ -4310,30 +4419,30 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
   const ins={background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:7,padding:"5px 8px",fontSize:12,outline:"none",colorScheme:"dark",width:"100%",boxSizing:"border-box"};
   const toggle=(k)=>setOpenSt(s=>{const n=new Set(s);n.has(k)?n.delete(k):n.add(k);return n;});
   const unlocked=(i)=>ORDER_STAGES.slice(0,i).every(st=>stagePassed(o,tpl,st));
-  const setField=(k,v,label)=>commit(o.id,x=>({...x,f:{...(x.f||{}),[k]:v},amount:k==="amount"?+v||0:x.amount}),`✎ ${label}: ${f[k]??"—"} → ${v||"—"}`);
-  const setResp=(k,v,label)=>commit(o.id,x=>({...x,resp:{...(x.resp||{}),[k]:v}}),`👤 ${label}: ${(o.resp||{})[k]||"—"} → ${v||"—"}`);
+  const setField=(k,v,label)=>commit(o.id,x=>({...x,f:{...(x.f||{}),[k]:v},amount:k==="amount"?+v||0:x.amount}),`✎ ${oL(label)}: ${f[k]??"—"} → ${v||"—"}`);
+  const setResp=(k,v,label)=>commit(o.id,x=>({...x,resp:{...(x.resp||{}),[k]:v}}),`👤 ${oL(label)}: ${(o.resp||{})[k]||"—"} → ${v||"—"}`);
   // Пункты-триггеры отдельных задач (раздел 4 ТЗ)
-  const ITEM_TASKS={"Заказ передан технологу":{title:"Контроль: технолог подтвердил получение и нет вопросов",days:2,stage:"technolog"},"Фактура оплачена":{title:"Проверить дату готовности порезки Вияр",days:2,stage:"viyar",dateField:"cutPlan"}};
+  const ITEM_TASKS={"Заказ передан технологу":{title:oL("Контроль: технолог подтвердил получение и нет вопросов"),days:2,stage:"technolog"},"Фактура оплачена":{title:oL("Проверить дату готовности порезки Вияр"),days:2,stage:"viyar",dateField:"cutPlan"}};
   const check=(st,it)=>{const was=!!((o.checks||{})[st.key]||{})[it];const trig=!was&&ITEM_TASKS[it];
-    commit(o.id,x=>{const c={...(x.checks||{})};const sc={...(c[st.key]||{})};if(was)delete sc[it];else sc[it]={by:me,at:Date.now()};c[st.key]=sc;return {...x,checks:c};},`${was?"☐ Снята отметка":"☑ Выполнено"}: ${st.name} → ${it}`,
-      trig?(n,all)=>[buildNewTask({title:`📦 №${n.num} · ${trig.title}`,comment:`Авто: отмечено «${it}» (${me})`,status:"all",priority:"MID",assignee:respOf(n,st),deadline:(trig.dateField&&(n.f||{})[trig.dateField])||oPlus(trig.days),orderId:n.id,orderNum:n.num,orderStage:trig.stage,leadId:n.leadId,leadName:n.client},me==="—"?null:me,all)]:null);};
-  const addItem=(st)=>{const v=(newItem[st.key]||"").trim();if(!v)return;commit(o.id,x=>({...x,extra:{...(x.extra||{}),[st.key]:[...((x.extra||{})[st.key]||[]),v]}}),`＋ Пункт в «${st.name}»: ${v}`);setNewItem(a=>({...a,[st.key]:""}));};
-  const delExtra=(st,it)=>commit(o.id,x=>({...x,extra:{...(x.extra||{}),[st.key]:((x.extra||{})[st.key]||[]).filter(y=>y!==it)}}),`− Пункт убран из «${st.name}»: ${it}`);
+    commit(o.id,x=>{const c={...(x.checks||{})};const sc={...(c[st.key]||{})};if(was)delete sc[it];else sc[it]={by:me,at:Date.now()};c[st.key]=sc;return {...x,checks:c};},`${was?oL("☐ Снята отметка"):oL("☑ Выполнено")}: ${oL(st.name)} → ${oL(it)}`,
+      trig?(n,all)=>[buildNewTask({title:`📦 №${n.num} · ${trig.title}`,comment:`${oL("Авто: отмечено")} «${oL(it)}» (${me})`,status:"all",priority:"MID",assignee:respOf(n,st),deadline:(trig.dateField&&(n.f||{})[trig.dateField])||oPlus(trig.days),orderId:n.id,orderNum:n.num,orderStage:trig.stage,leadId:n.leadId,leadName:n.client},me==="—"?null:me,all)]:null);};
+  const addItem=(st)=>{const v=(newItem[st.key]||"").trim();if(!v)return;commit(o.id,x=>({...x,extra:{...(x.extra||{}),[st.key]:[...((x.extra||{})[st.key]||[]),v]}}),`＋ ${oL("Пункт в")} «${oL(st.name)}»: ${v}`);setNewItem(a=>({...a,[st.key]:""}));};
+  const delExtra=(st,it)=>commit(o.id,x=>({...x,extra:{...(x.extra||{}),[st.key]:((x.extra||{})[st.key]||[]).filter(y=>y!==it)}}),`− ${oL("Пункт убран из")} «${oL(st.name)}»: ${oL(it)}`);
   // Срок этапа → задача (создаёт или обновляет задачу этого этапа)
-  const setStageDl=(st,v)=>commit(o.id,x=>({...x,sdl:{...(x.sdl||{}),[st.key]:v}}),`📅 Срок этапа «${st.name}»: ${(o.sdl||{})[st.key]?isoToDot((o.sdl||{})[st.key]):"—"} → ${v?isoToDot(v):"—"}`,(n,all)=>{
+  const setStageDl=(st,v)=>commit(o.id,x=>({...x,sdl:{...(x.sdl||{}),[st.key]:v}}),`📅 ${oL("Срок этапа")} «${oL(st.name)}»: ${(o.sdl||{})[st.key]?isoToDot((o.sdl||{})[st.key]):"—"} → ${v?isoToDot(v):"—"}`,(n,all)=>{
     if(!v)return [];
     if(all.some(x=>x.orderId===n.id&&x.orderStage===st.key&&(x.status||"all")!=="done"))return []; // есть задача — обновим срок патчем ниже
-    return [buildNewTask({title:`📦 №${n.num} · ${st.name}`,status:"all",priority:"MID",assignee:respOf(n,st),deadline:v,orderId:n.id,orderNum:n.num,orderStage:st.key,leadId:n.leadId,leadName:n.client},me==="—"?null:me,all)];
+    return [buildNewTask({title:`📦 №${n.num} · ${oL(st.name)}`,status:"all",priority:"MID",assignee:respOf(n,st),deadline:v,orderId:n.id,orderNum:n.num,orderStage:st.key,leadId:n.leadId,leadName:n.client},me==="—"?null:me,all)];
   },(tk)=>v?tk.map(x=>(x.orderId===o.id&&x.orderStage===st.key&&(x.status||"all")!=="done")?{...x,deadline:v,updatedAt:Date.now()}:x):tk);
-  const itemToTask=(st,it)=>commit(o.id,x=>x,`→ В задачи: ${st.name} · ${it}`,(n,all)=>[buildNewTask({title:`📦 №${n.num} · ${it}`,status:"all",priority:"MID",assignee:respOf(n,st),deadline:stageDeadline(n,st)||td,orderId:n.id,orderNum:n.num,orderStage:st.key,leadId:n.leadId,leadName:n.client},me==="—"?null:me,all)]);
-  const force=(i)=>{const r=prompt(`Открыть этап «${ORDER_STAGES[i].name}» вручную, минуя незавершённые этапы.\nУкажи причину (обязательно):`);if(!r||!r.trim())return;
-    commit(o.id,x=>{const fz={...(x.forced||{})};ORDER_STAGES.slice(0,i).forEach(st=>{if(!stageDone(x,tpl,st))fz[st.key]={by:me,reason:r.trim(),at:Date.now()};});return {...x,forced:fz};},`⚠ Ручной переход на этап «${ORDER_STAGES[i].name}» (админ). Причина: ${r.trim()}`);};
+  const itemToTask=(st,it)=>commit(o.id,x=>x,`→ ${oL("В задачи")}: ${oL(st.name)} · ${oL(it)}`,(n,all)=>[buildNewTask({title:`📦 №${n.num} · ${oL(it)}`,status:"all",priority:"MID",assignee:respOf(n,st),deadline:stageDeadline(n,st)||td,orderId:n.id,orderNum:n.num,orderStage:st.key,leadId:n.leadId,leadName:n.client},me==="—"?null:me,all)]);
+  const force=(i)=>{const r=prompt(`${oL("Открыть этап")} «${oL(ORDER_STAGES[i].name)}» ${oL("вручную, минуя незавершённые этапы.\nУкажи причину (обязательно")}):`);if(!r||!r.trim())return;
+    commit(o.id,x=>{const fz={...(x.forced||{})};ORDER_STAGES.slice(0,i).forEach(st=>{if(!stageDone(x,tpl,st))fz[st.key]={by:me,reason:r.trim(),at:Date.now()};});return {...x,forced:fz};},`⚠ ${oL("Ручной переход на этап")} «${oL(ORDER_STAGES[i].name)}» (${oL("админ). Причина")}: ${r.trim()}`);};
   const comp=(id,upd,label)=>commit(o.id,x=>({...x,components:(x.components||[]).map(c=>c.id===id?{...c,...upd}:c)}),label);
-  const addFile=(st)=>{const v=fileIn[st.key]||{};if(!v.url)return;const file={id:Date.now(),stage:st.key,name:v.name||v.url,url:v.url,by:me,at:Date.now()};commit(o.id,x=>({...x,files:[...(x.files||[]),file]}),`📎 Файл в «${st.name}»: ${file.name}`);setFileIn(a=>({...a,[st.key]:{}}));};
+  const addFile=(st)=>{const v=fileIn[st.key]||{};if(!v.url)return;const file={id:Date.now(),stage:st.key,name:v.name||v.url,url:v.url,by:me,at:Date.now()};commit(o.id,x=>({...x,files:[...(x.files||[]),file]}),`📎 ${oL("Файл в")} «${oL(st.name)}»: ${file.name}`);setFileIn(a=>({...a,[st.key]:{}}));};
   const orderTasks=(tasks||[]).filter(x=>x.orderId===o.id);
   const lead=(leads||[]).find(l=>l.id===o.leadId);
   const renderField=([k,label,type])=>{
-    if(type.startsWith("select:")){const opts=type.slice(7).split("|").map(x=>x.split("="));return <select value={f[k]||""} onChange={e=>setField(k,e.target.value,label)} style={ins}><option value="">—</option>{opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>;}
+    if(type.startsWith("select:")){const opts=type.slice(7).split("|").map(x=>x.split("="));return <select value={f[k]||""} onChange={e=>setField(k,e.target.value,label)} style={ins}><option value="">—</option>{opts.map(([v,l])=><option key={v} value={v}>{oL(l)}</option>)}</select>;}
     return <input key={`${k}-${f[k]}`} type={type==="num"?"number":type==="date"?"date":type==="time"?"time":"text"} defaultValue={f[k]||""} onBlur={e=>{const v=e.target.value;if(String(v)!==String(f[k]||""))setField(k,type==="num"?(+v||0):v,label);}} style={ins}/>;
   };
   return(
@@ -4344,26 +4453,26 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
           {/* ШАПКА — сводка заказа */}
           <div style={{display:"flex",alignItems:"flex-start",gap:12,marginBottom:16}}>
             <div style={{flex:1}}>
-              <div style={{fontSize:24,fontWeight:900,color:"#fff"}}>Заказ №{o.num} <span style={{fontSize:14,color:"#bfa47e",fontWeight:700}}>· {o.client||"—"}</span></div>
-              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{o.phone} · создан {o.createdAt}{lead&&<> · <span onClick={()=>{onClose();onOpenLead&&onOpenLead(lead);}} style={{color:"#38bdf8",cursor:"pointer"}}>карточка лида →</span></>}</div>
+              <div style={{fontSize:24,fontWeight:900,color:"#fff"}}>{oL("Заказ №")}{o.num} <span style={{fontSize:14,color:"#bfa47e",fontWeight:700}}>· {o.client||"—"}</span></div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{o.phone} {oL("· создан")} {o.createdAt}{lead&&<> · <span onClick={()=>{onClose();onOpenLead&&onOpenLead(lead);}} style={{color:"#38bdf8",cursor:"pointer"}}>{oL("карточка лида →")}</span></>}</div>
             </div>
-            {onDelete&&<button onClick={onDelete} title="Удалить заказ" style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.5)",color:"#f87171",borderRadius:10,height:36,padding:"0 12px",fontSize:12,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>🗑 Удалить заказ</button>}
+            {onDelete&&<button onClick={onDelete} title={oL("Удалить заказ")} style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.5)",color:"#f87171",borderRadius:10,height:36,padding:"0 12px",fontSize:12,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>{oL("🗑 Удалить заказ")}</button>}
             <button onClick={onClose} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:10,width:36,height:36,fontSize:16,cursor:"pointer"}}>✕</button>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:14}}>
-            {[["Готовность",`${info.prog}%`,C.accent],["Текущий этап",info.st?`${info.st.icon} ${info.st.name}`:"🏁 Завершён","#fff"],["Следующий шаг",info.next,"#fff"],["Ответственный",respOf(o,info.st),MGR_COLOR[respOf(o,info.st)]||"#fff"],["Дедлайн",info.dl?isoToDot(info.dl):"—","#fff"],["Статус",`${info.emoji} ${info.label}`,info.color],["Просрочено задач",String(info.ot),info.ot?"#ef4444":"#fff"],["Остаток к оплате",fmtM(info.rem),info.rem?"#f87171":"#22c55e"]].map(([l,v,c])=>(
-              <div key={l} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:11,padding:"8px 11px"}}><div style={{fontSize:9,color:"rgba(255,255,255,0.45)",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800}}>{l}</div><div style={{fontSize:13,fontWeight:800,color:c,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v}</div></div>))}
+            {[[oL("Готовность"),`${info.prog}%`,C.accent],[oL("Текущий этап"),info.st?`${info.st.icon} ${oL(info.st.name)}`:oL("🏁 Завершён"),"#fff"],[oL("Следующий шаг"),info.next,"#fff"],[oL("Ответственный"),respOf(o,info.st),MGR_COLOR[respOf(o,info.st)]||"#fff"],[oL("Дедлайн"),info.dl?isoToDot(info.dl):"—","#fff"],[oL("Статус"),`${info.emoji} ${info.label}`,info.color],[oL("Просрочено задач"),String(info.ot),info.ot?"#ef4444":"#fff"],[oL("Остаток к оплате"),fmtM(info.rem),info.rem?"#f87171":"#22c55e"]].map(([l,v,c])=>(
+              <div key={l} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:11,padding:"8px 11px"}}><div style={{fontSize:9,color:"rgba(255,255,255,0.45)",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800}}>{oL(l)}</div><div style={{fontSize:13,fontWeight:800,color:c,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v}</div></div>))}
           </div>
           <div style={{height:8,background:"rgba(255,255,255,0.08)",borderRadius:5,overflow:"hidden",marginBottom:16}}><div style={{width:`${info.prog}%`,height:"100%",background:"linear-gradient(90deg,#bfa47e,#22c55e)"}}/></div>
 
           {/* ОСНОВНЫЕ ДАННЫЕ ЗАКАЗА */}
           <div style={{background:"rgba(255,255,255,0.035)",border:"1px solid rgba(191,164,126,0.22)",borderRadius:14,padding:14,marginBottom:16}}>
-            <div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,marginBottom:10}}>Данные заказа</div>
+            <div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,marginBottom:10}}>{oL("Данные заказа")}</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
-              <div><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>Номер заказа</div><input key={"num"+o.num} defaultValue={o.num} onBlur={e=>{const v=e.target.value.trim();if(v&&v!==o.num)commit(o.id,x=>({...x,num:v}),`✎ Номер заказа: ${o.num} → ${v}`);}} style={ins}/></div>
-              {[["amount","Сумма продажи","num"],["measureDate","Дата замера","date"],["sendToWork","Дедлайн отправки в работу","date"],["assemblyPlan","Дедлайн сборки на производстве","date"],["montagePlan","Плановая дата монтажа","date"]].map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{fd[1]}</div>{renderField(fd)}</div>)}
-              {ORDER_RESP.map(([k,l])=><div key={k}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>Ответственный: {l}</div><input key={k+((o.resp||{})[k]||"")} list="order-people" defaultValue={(o.resp||{})[k]||""} onBlur={e=>{const v=e.target.value.trim();if(v!==((o.resp||{})[k]||""))setResp(k,v,l);}} style={ins}/></div>)}
-              <div><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>Статус заказа</div><div style={{...ins,fontWeight:800,color:info.color}}>{info.emoji} {o.status==="done"?"ЗАКАЗ ЗАВЕРШЁН":info.st?info.st.name:"—"}</div></div>
+              <div><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL("Номер заказа")}</div><input key={"num"+o.num} defaultValue={o.num} onBlur={e=>{const v=e.target.value.trim();if(v&&v!==o.num)commit(o.id,x=>({...x,num:v}),`✎ ${oL("Номер заказа")}: ${o.num} → ${v}`);}} style={ins}/></div>
+              {[["amount",oL("Сумма продажи"),"num"],["measureDate",oL("Дата замера"),"date"],["sendToWork",oL("Дедлайн отправки в работу"),"date"],["assemblyPlan",oL("Дедлайн сборки на производстве"),"date"],["montagePlan",oL("Плановая дата монтажа"),"date"]].map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL(fd[1])}</div>{renderField(fd)}</div>)}
+              {ORDER_RESP.map(([k,l])=><div key={k}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL("Ответственный:")} {oL(l)}</div><input key={k+((o.resp||{})[k]||"")} list="order-people" defaultValue={(o.resp||{})[k]||""} onBlur={e=>{const v=e.target.value.trim();if(v!==((o.resp||{})[k]||""))setResp(k,v,l);}} style={ins}/></div>)}
+              <div><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL("Статус заказа")}</div><div style={{...ins,fontWeight:800,color:info.color}}>{info.emoji} {o.status==="done"?oL("ЗАКАЗ ЗАВЕРШЁН"):info.st?oL(info.st.name):"—"}</div></div>
             </div>
             <datalist id="order-people">{MANAGERS.map(m=><option key={m} value={m}/>)}</datalist>
           </div>
@@ -4381,76 +4490,76 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
                 <div onClick={()=>toggle(i)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer"}}>
                   <div style={{width:26,height:26,borderRadius:"50%",background:done?"#22c55e":forced?"#fb923c":cur?"#bfa47e":"rgba(255,255,255,0.08)",color:done||cur||forced?"#00132f":"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900,flexShrink:0}}>{done?"✓":forced?"!":i+1}</div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13,fontWeight:900,color:col,textTransform:"uppercase",letterSpacing:0.6}}>{st.icon} {st.name}{!unl&&!done&&" 🔒"}</div>
-                    {forced&&<div style={{fontSize:10,color:"#fb923c"}}>пропущен вручную ({forced.by}): {forced.reason}</div>}
+                    <div style={{fontSize:13,fontWeight:900,color:col,textTransform:"uppercase",letterSpacing:0.6}}>{st.icon} {oL(st.name)}{!unl&&!done&&" 🔒"}</div>
+                    {forced&&<div style={{fontSize:10,color:"#fb923c"}}>{oL("пропущен вручную (")}{forced.by}): {forced.reason}</div>}
                   </div>
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.55)",fontWeight:700}}>{cnt}</span>
                   {dl&&<span style={{fontSize:10,fontWeight:800,color:done?"#22c55e":dd<0?"#ef4444":dd<=3?"#facc15":"#22c55e"}}>{done?"✓":dd<0?"🔴":dd<=3?"🟡":"🟢"} {isoToDot(dl)}</span>}
                   <span style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>{isOpen?"▴":"▾"}</span>
                 </div>
                 {isOpen&&<div style={{padding:"0 14px 14px 50px"}}>
-                  {!unl&&!done&&<div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:9,padding:"8px 10px",marginBottom:10,fontSize:12,color:"#fca5a5",display:"flex",alignItems:"center",gap:10}}>🔒 Этап закрыт — сначала завершите предыдущие этапы.{isAdmin&&<button onClick={()=>force(i)} style={{marginLeft:"auto",background:"#fb923c",border:"none",color:"#00132f",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>Открыть вручную (с причиной)</button>}</div>}
+                  {!unl&&!done&&<div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:9,padding:"8px 10px",marginBottom:10,fontSize:12,color:"#fca5a5",display:"flex",alignItems:"center",gap:10}}>{oL("🔒 Этап закрыт — сначала завершите предыдущие этапы.")}{isAdmin&&<button onClick={()=>force(i)} style={{marginLeft:"auto",background:"#fb923c",border:"none",color:"#00132f",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>{oL("Открыть вручную (с причиной)")}</button>}</div>}
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-                    <span style={{fontSize:10,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:0.6,fontWeight:700}}>📅 Срок этапа → задача</span>
+                    <span style={{fontSize:10,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:0.6,fontWeight:700}}>{oL("📅 Срок этапа → задача")}</span>
                     <input type="date" key={"sdl"+((o.sdl||{})[st.key]||"")} defaultValue={(o.sdl||{})[st.key]||""} onChange={e=>setStageDl(st,e.target.value)} style={{...ins,width:150}}/>
                     <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>👤 {respOf(o,st)}</span>
                   </div>
-                  {st.fields.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:10}}>{st.fields.map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{fd[1]}</div>{renderField(fd)}</div>)}</div>}
-                  {st.key==="prepay"&&<div style={{fontSize:12,color:"#fff",marginBottom:10,display:"flex",gap:14,flexWrap:"wrap"}}><span>Общая стоимость: <b>{fmtM(+f.amount||o.amount||0)}</b></span><span>Задаток: <b>{fmtM(+f.deposit||0)}</b></span><span>Остаток к оплате: <b style={{color:info.rem?"#f87171":"#22c55e"}}>{fmtM(info.rem)}</b></span></div>}
-                  {st.key==="protocol"&&<button onClick={()=>printProtocol(o)} style={{background:"#818cf8",border:"none",color:"#00132f",borderRadius:9,padding:"8px 14px",fontSize:12,fontWeight:800,cursor:"pointer",marginBottom:10}}>📝 Сгенерировать протокол odbioru</button>}
+                  {st.fields.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:10}}>{st.fields.map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL(fd[1])}</div>{renderField(fd)}</div>)}</div>}
+                  {st.key==="prepay"&&<div style={{fontSize:12,color:"#fff",marginBottom:10,display:"flex",gap:14,flexWrap:"wrap"}}><span>{oL("Общая стоимость:")} <b>{fmtM(+f.amount||o.amount||0)}</b></span><span>{oL("Задаток:")} <b>{fmtM(+f.deposit||0)}</b></span><span>{oL("Остаток к оплате:")} <b style={{color:info.rem?"#f87171":"#22c55e"}}>{fmtM(info.rem)}</b></span></div>}
+                  {st.key==="protocol"&&<button onClick={()=>printProtocol(o)} style={{background:"#818cf8",border:"none",color:"#00132f",borderRadius:9,padding:"8px 14px",fontSize:12,fontWeight:800,cursor:"pointer",marginBottom:10}}>{oL("📝 Сгенерировать протокол odbioru")}</button>}
                   {st.key==="components"
                     ? <div style={{overflowX:"auto",marginBottom:8}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                        <thead><tr style={{color:"rgba(255,255,255,0.5)",fontSize:9,textTransform:"uppercase"}}>{["Позиция","Кол-во","Поставщик","Заказано","Дата заказа","Получено","Комментарий",""].map(h=><th key={h} style={{textAlign:"left",padding:"4px 5px"}}>{h}</th>)}</tr></thead>
+                        <thead><tr style={{color:"rgba(255,255,255,0.5)",fontSize:9,textTransform:"uppercase"}}>{[oL("Позиция"),oL("Кол-во"),oL("Поставщик"),oL("Заказано"),oL("Дата заказа"),oL("Получено"),oL("Комментарий"),""].map(h=><th key={h} style={{textAlign:"left",padding:"4px 5px"}}>{h}</th>)}</tr></thead>
                         <tbody>{(o.components||[]).map(c=>(
                           <tr key={c.id} style={{borderTop:"1px solid rgba(255,255,255,0.07)"}}>
-                            <td style={{padding:"4px 5px",minWidth:120}}><input key={"n"+c.name} defaultValue={c.name} onBlur={e=>e.target.value!==c.name&&comp(c.id,{name:e.target.value},`🔩 Переименовано: ${c.name} → ${e.target.value}`)} style={ins}/></td>
-                            <td style={{padding:"4px 5px",width:60}}><input key={"q"+c.qty} defaultValue={c.qty} onBlur={e=>e.target.value!==String(c.qty)&&comp(c.id,{qty:e.target.value},`🔩 ${c.name}: кол-во ${e.target.value}`)} style={ins}/></td>
-                            <td style={{padding:"4px 5px",minWidth:100}}><input key={"s"+c.supplier} defaultValue={c.supplier} onBlur={e=>e.target.value!==c.supplier&&comp(c.id,{supplier:e.target.value},`🔩 ${c.name}: поставщик ${e.target.value}`)} style={ins}/></td>
-                            <td style={{padding:"4px 5px",textAlign:"center"}}><input type="checkbox" checked={!!c.ordered} onChange={e=>comp(c.id,{ordered:e.target.checked,orderDate:e.target.checked&&!c.orderDate?td:c.orderDate},`🔩 ${c.name}: ${e.target.checked?"заказано":"не заказано"}`)}/></td>
-                            <td style={{padding:"4px 5px",width:125}}><input type="date" key={"d"+c.orderDate} defaultValue={c.orderDate||""} onChange={e=>comp(c.id,{orderDate:e.target.value},`🔩 ${c.name}: дата заказа ${e.target.value}`)} style={ins}/></td>
-                            <td style={{padding:"4px 5px",textAlign:"center"}}><input type="checkbox" checked={!!c.received} onChange={e=>comp(c.id,{received:e.target.checked},`🔩 ${c.name}: ${e.target.checked?"получено":"не получено"}`)}/></td>
-                            <td style={{padding:"4px 5px",minWidth:110}}><input key={"c"+c.comment} defaultValue={c.comment} onBlur={e=>e.target.value!==c.comment&&comp(c.id,{comment:e.target.value},`🔩 ${c.name}: комментарий`)} style={ins}/></td>
-                            <td style={{padding:"4px 5px",whiteSpace:"nowrap"}}><button title="В задачи" onClick={()=>itemToTask(st,c.name)} style={{background:"transparent",border:"none",color:"#38bdf8",cursor:"pointer"}}>→☰</button><button title="Удалить" onClick={()=>commit(o.id,x=>({...x,components:(x.components||[]).filter(y=>y.id!==c.id)}),`🔩 Удалено: ${c.name}`)} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer"}}>✕</button></td>
+                            <td style={{padding:"4px 5px",minWidth:120}}><input key={"n"+c.name} defaultValue={oL(c.name)} onBlur={e=>e.target.value!==oL(c.name)&&comp(c.id,{name:e.target.value},`🔩 ${oL("Переименовано")}: ${oL(c.name)} → ${e.target.value}`)} style={ins}/></td>
+                            <td style={{padding:"4px 5px",width:60}}><input key={"q"+c.qty} defaultValue={c.qty} onBlur={e=>e.target.value!==String(c.qty)&&comp(c.id,{qty:e.target.value},`🔩 ${oL(c.name)}: ${oL("кол-во")} ${e.target.value}`)} style={ins}/></td>
+                            <td style={{padding:"4px 5px",minWidth:100}}><input key={"s"+c.supplier} defaultValue={c.supplier} onBlur={e=>e.target.value!==c.supplier&&comp(c.id,{supplier:e.target.value},`🔩 ${oL(c.name)}: ${oL("поставщик")} ${e.target.value}`)} style={ins}/></td>
+                            <td style={{padding:"4px 5px",textAlign:"center"}}><input type="checkbox" checked={!!c.ordered} onChange={e=>comp(c.id,{ordered:e.target.checked,orderDate:e.target.checked&&!c.orderDate?td:c.orderDate},`🔩 ${oL(c.name)}: ${e.target.checked?oL("заказано"):oL("не заказано")}`)}/></td>
+                            <td style={{padding:"4px 5px",width:125}}><input type="date" key={"d"+c.orderDate} defaultValue={c.orderDate||""} onChange={e=>comp(c.id,{orderDate:e.target.value},`🔩 ${oL(c.name)}: ${oL("дата заказа")} ${e.target.value}`)} style={ins}/></td>
+                            <td style={{padding:"4px 5px",textAlign:"center"}}><input type="checkbox" checked={!!c.received} onChange={e=>comp(c.id,{received:e.target.checked},`🔩 ${oL(c.name)}: ${e.target.checked?oL("получено"):oL("не получено")}`)}/></td>
+                            <td style={{padding:"4px 5px",minWidth:110}}><input key={"c"+c.comment} defaultValue={c.comment} onBlur={e=>e.target.value!==c.comment&&comp(c.id,{comment:e.target.value},`🔩 ${oL(c.name)}: ${oL("комментарий")}`)} style={ins}/></td>
+                            <td style={{padding:"4px 5px",whiteSpace:"nowrap"}}><button title={oL("В задачи")} onClick={()=>itemToTask(st,c.name)} style={{background:"transparent",border:"none",color:"#38bdf8",cursor:"pointer"}}>→☰</button><button title={oL("Удалить")} onClick={()=>commit(o.id,x=>({...x,components:(x.components||[]).filter(y=>y.id!==c.id)}),`🔩 ${oL("Удалено")}: ${oL(c.name)}`)} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer"}}>✕</button></td>
                           </tr>))}</tbody></table>
-                        <button onClick={()=>{const n=prompt("Название позиции");if(n&&n.trim())commit(o.id,x=>({...x,components:[...(x.components||[]),{id:Date.now(),name:n.trim(),qty:"",supplier:"",ordered:false,orderDate:"",received:false,comment:""}]}),`🔩 Добавлено: ${n.trim()}`);}} style={{marginTop:6,background:"transparent",border:"1px dashed rgba(191,164,126,0.5)",color:"#bfa47e",borderRadius:8,padding:"5px 12px",fontSize:11,cursor:"pointer"}}>＋ позиция</button>
+                        <button onClick={()=>{const n=prompt(oL("Название позиции"));if(n&&n.trim())commit(o.id,x=>({...x,components:[...(x.components||[]),{id:Date.now(),name:n.trim(),qty:"",supplier:"",ordered:false,orderDate:"",received:false,comment:""}]}),`🔩 ${oL("Добавлено")}: ${n.trim()}`);}} style={{marginTop:6,background:"transparent",border:"1px dashed rgba(191,164,126,0.5)",color:"#bfa47e",borderRadius:8,padding:"5px 12px",fontSize:11,cursor:"pointer"}}>{oL("＋ позиция")}</button>
                       </div>
                     : <div style={{display:"flex",flexDirection:"column",gap:3,marginBottom:8}}>
                         {items.map(it=>{const c=ch[it];const isExtra=extra.includes(it);return(
                           <div key={it} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 6px",borderRadius:7,background:c?"rgba(34,197,94,0.07)":"transparent"}}>
                             <button disabled={!unl&&!done} onClick={()=>check(st,it)} style={{width:20,height:20,borderRadius:5,border:`2px solid ${c?"#22c55e":"rgba(255,255,255,0.3)"}`,background:c?"#22c55e":"transparent",color:"#00132f",fontSize:12,fontWeight:900,cursor:unl||done?"pointer":"not-allowed",lineHeight:1,padding:0,flexShrink:0}}>{c?"✓":""}</button>
-                            <span style={{flex:1,fontSize:12,color:c?"#86efac":"#fff",textDecoration:c?"line-through":"none"}}>{it}</span>
+                            <span style={{flex:1,fontSize:12,color:c?"#86efac":"#fff",textDecoration:c?"line-through":"none"}}>{oL(it)}</span>
                             {c&&<span style={{fontSize:9,color:"rgba(255,255,255,0.4)"}}>{c.by} · {new Date(c.at).toLocaleDateString("ru-RU")}</span>}
-                            {!c&&<button title="Создать задачу из пункта" onClick={()=>itemToTask(st,it)} style={{background:"transparent",border:"none",color:"#38bdf8",cursor:"pointer",fontSize:11}}>→☰</button>}
+                            {!c&&<button title={oL("Создать задачу из пункта")} onClick={()=>itemToTask(st,it)} style={{background:"transparent",border:"none",color:"#38bdf8",cursor:"pointer",fontSize:11}}>→☰</button>}
                             {isExtra&&<button onClick={()=>delExtra(st,it)} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer",fontSize:11}}>✕</button>}
                           </div>);})}
-                        <input value={newItem[st.key]||""} onChange={e=>setNewItem(a=>({...a,[st.key]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addItem(st)} placeholder="＋ свой пункт для этого заказа (Enter)" style={{...ins,marginTop:4,background:"transparent",border:"1px dashed rgba(255,255,255,0.15)"}}/>
+                        <input value={newItem[st.key]||""} onChange={e=>setNewItem(a=>({...a,[st.key]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addItem(st)} placeholder={oL("＋ свой пункт для этого заказа (Enter)")} style={{...ins,marginTop:4,background:"transparent",border:"1px dashed rgba(255,255,255,0.15)"}}/>
                       </div>}
                   {/* Файлы/ссылки этапа */}
                   <div style={{marginTop:6}}>
                     {files.map(x=><div key={x.id} style={{fontSize:11,marginBottom:2}}>📎 <a href={x.url} target="_blank" rel="noopener noreferrer" style={{color:"#38bdf8"}}>{x.name}</a> <span style={{color:"rgba(255,255,255,0.35)"}}>· {x.by}</span></div>)}
                     <div style={{display:"flex",gap:6,marginTop:4}}>
-                      <input value={(fileIn[st.key]||{}).name||""} onChange={e=>setFileIn(a=>({...a,[st.key]:{...(a[st.key]||{}),name:e.target.value}}))} placeholder="Название файла" style={{...ins,width:150}}/>
-                      <input value={(fileIn[st.key]||{}).url||""} onChange={e=>setFileIn(a=>({...a,[st.key]:{...(a[st.key]||{}),url:e.target.value}}))} placeholder="Ссылка (Google Drive, Dropbox…)" style={{...ins,flex:1}}/>
-                      <button onClick={()=>addFile(st)} style={{background:"rgba(56,189,248,0.15)",border:"1px solid rgba(56,189,248,0.5)",color:"#38bdf8",borderRadius:7,padding:"0 10px",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📎 Добавить</button>
+                      <input value={(fileIn[st.key]||{}).name||""} onChange={e=>setFileIn(a=>({...a,[st.key]:{...(a[st.key]||{}),name:e.target.value}}))} placeholder={oL("Название файла")} style={{...ins,width:150}}/>
+                      <input value={(fileIn[st.key]||{}).url||""} onChange={e=>setFileIn(a=>({...a,[st.key]:{...(a[st.key]||{}),url:e.target.value}}))} placeholder={oL("Ссылка (Google Drive, Dropbox…)")} style={{...ins,flex:1}}/>
+                      <button onClick={()=>addFile(st)} style={{background:"rgba(56,189,248,0.15)",border:"1px solid rgba(56,189,248,0.5)",color:"#38bdf8",borderRadius:7,padding:"0 10px",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>{oL("📎 Добавить")}</button>
                     </div>
                   </div>
                 </div>}
               </div>
               {i<ORDER_STAGES.length-1&&<div style={{textAlign:"center",color:done?"#22c55e":"rgba(255,255,255,0.25)",fontSize:14,lineHeight:"18px"}}>↓</div>}
             </div>);})}
-          <div style={{textAlign:"center",marginTop:8,padding:"10px",borderRadius:12,background:o.status==="done"?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${o.status==="done"?"#22c55e":"rgba(255,255,255,0.08)"}`,fontSize:14,fontWeight:900,color:o.status==="done"?"#22c55e":"rgba(255,255,255,0.35)",letterSpacing:1}}>🏁 ЗАКАЗ ЗАВЕРШЁН</div>
+          <div style={{textAlign:"center",marginTop:8,padding:"10px",borderRadius:12,background:o.status==="done"?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${o.status==="done"?"#22c55e":"rgba(255,255,255,0.08)"}`,fontSize:14,fontWeight:900,color:o.status==="done"?"#22c55e":"rgba(255,255,255,0.35)",letterSpacing:1}}>{oL("🏁 ЗАКАЗ ЗАВЕРШЁН")}</div>
 
           {/* ЗАДАЧИ ЗАКАЗА */}
           {orderTasks.length>0&&<div style={{marginTop:16,background:"rgba(255,255,255,0.035)",border:"1px solid rgba(191,164,126,0.22)",borderRadius:14,padding:14}}>
-            <div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,marginBottom:8}}>☰ Задачи заказа ({orderTasks.length})</div>
+            <div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,marginBottom:8}}>{oL("☰ Задачи заказа (")}{orderTasks.length})</div>
             {orderTasks.map(x=>{const dn=(x.status||"all")==="done";const od=!dn&&x.deadline&&x.deadline<td;return <div key={x.id} style={{display:"flex",gap:8,fontSize:12,padding:"3px 0",color:dn?"rgba(255,255,255,0.35)":"#fff",textDecoration:dn?"line-through":"none"}}><span style={{flex:1}}>{x.title}</span><span style={{color:MGR_COLOR[x.assignee]||"#aaa"}}>{x.assignee}</span><span style={{color:od?"#ef4444":"rgba(255,255,255,0.5)",fontWeight:od?800:400}}>{x.deadline?isoToDot(x.deadline):"—"}</span></div>;})}
           </div>}
 
           {/* ИСТОРИЯ */}
           <div style={{marginTop:16,background:"rgba(255,255,255,0.035)",border:"1px solid rgba(191,164,126,0.22)",borderRadius:14,padding:14}}>
-            <div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,marginBottom:8}}>🕓 История заказа</div>
+            <div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,marginBottom:8}}>{oL("🕓 История заказа")}</div>
             <div style={{display:"flex",gap:6,marginBottom:10}}>
-              <input value={comment} onChange={e=>setComment(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&comment.trim()){commit(o.id,x=>x,`💬 ${comment.trim()}`);setComment("");}}} placeholder="Комментарий в историю (Enter)" style={{...ins,flex:1}}/>
+              <input value={comment} onChange={e=>setComment(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&comment.trim()){commit(o.id,x=>x,`💬 ${comment.trim()}`);setComment("");}}} placeholder={oL("Комментарий в историю (Enter)")} style={{...ins,flex:1}}/>
             </div>
             <div style={{maxHeight:260,overflowY:"auto"}}>
               {[...(o.history||[])].reverse().map((h,k)=><div key={k} style={{display:"flex",gap:8,fontSize:11,padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}><span style={{color:"rgba(255,255,255,0.4)",whiteSpace:"nowrap"}}>{h.date}</span><span style={{color:MGR_COLOR[h.by]||"#bfa47e",fontWeight:700,whiteSpace:"nowrap"}}>{h.by}</span><span style={{color:"#fff"}}>{h.action}</span></div>)}
@@ -5596,6 +5705,7 @@ function GarnoCRM(){
   },[]);
   const toggleTheme=()=>{const t=theme==="dark"?"light":"dark";setTheme(t);localStorage.setItem("garno_theme",t);};
   const t=T[lang];
+  ORD_LANG=lang==="pl"?"pl":"ru"; // язык заказов (история/автозадачи) — по языку CRM текущего менеджера
 
   const saveUser=(u)=>{localStorage.setItem("garno_user",u);setCurrentUser(u);};
   // Язык CRM по менеджеру: Mateusz — польский, остальные — русский (можно переключить вручную)
