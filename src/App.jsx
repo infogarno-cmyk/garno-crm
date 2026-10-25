@@ -353,7 +353,24 @@ function detectLang(l){
   return null;
 }
 const LANG_OPTS=[["pl","🇵🇱"],["ua","🇺🇦"],["en","🇬🇧"]];
-function withLang(l){if(!l||l.clientLang)return l;const g=detectLang(l);return g?{...l,clientLang:g,clientLangAuto:true}:l;}
+// Коды языка из разных источников (сайт пишет cs/uk, старые лиды — pl в чешской CRM и т.п.) → коды CRM
+function normLang(v){
+  const x=String(v||"").trim().toLowerCase();if(!x)return null;
+  let n=x;
+  if(/^(ua|uk|ukr|ukrain|укр|україн|uk-ua|ua-ua)/.test(x))n="ua";
+  else if(/^(cz|cs|cze|ces|czech|česk|cesk|cs-cz)/.test(x))n="cz";
+  else if(/^(pl|pol|polish|polsk|pl-pl)/.test(x))n="pl";
+  else if(/^(en|eng|english|gb|uk-en)/.test(x))n="en";
+  else if(/^(ru|rus|рус)/.test(x))n="ua";
+  // язык, которого нет в этой CRM (например «pl» в чешской) → язык страны по умолчанию
+  if(!LANG_OPTS.some(o=>o[0]===n))n=LANG_OPTS[0][0];
+  return n;
+}
+function withLang(l){
+  if(!l)return l;
+  if(l.clientLang){const n=normLang(l.clientLang);return n===l.clientLang?l:{...l,clientLang:n,clientLangRaw:l.clientLang};}
+  const g=detectLang(l);return g?{...l,clientLang:g,clientLangAuto:true}:l;
+}
 // ─── ФОТО / ФАЙЛЫ ИЗ ЗАЯВКИ ──────────────────────────────────────────────────
 // Ищем вложения в любых привычных полях лида и ссылки на картинки/хранилище в описании.
 const ATT_FIELDS=["photos","photo","images","image","files","file","attachments","attachment","zdjecia","zdjęcia","foto","fotos","media","uploads","photoUrls","imageUrls","fileUrls","pictures"];
@@ -2731,13 +2748,14 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
   const [fSc,setFSc]=useState([]);const [fA,setFA]=useState("all");const [fS,setFS]=useState([]);const [fFun,setFFun]=useState("all");const [fWhy,setFWhy]=useState("all");const [fLang,setFLang]=useState("all");
   const [selected,setSelected]=useState(new Set());
   const ss={background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
+  const _langCnt={all:0}; // сколько лидов каждого языка при остальных фильтрах
   const fl=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||String(l.name||"").toLowerCase().includes(search.toLowerCase())||String(l.phone||"").includes(search)||String(l.leadId||"").includes(search))
     .filter(l=>fSc.length===0||fSc.includes(String(parseFloat(l.score)||0)))
     .filter(l=>fA==="all"||l.action===fA)
     .filter(l=>fS.length===0||fS.includes(l.source))
     .filter(l=>{if(fFun==="all")return true;const f=leadFunnel(l,srcList,funnels);return fFun==="none"?!f:(f&&String(f.id)===fFun);})
     .filter(l=>fWhy==="all"||(fWhy==="none"?!l.noVisitReason:(l.noVisitReason||"")===fWhy))
-    .filter(l=>fLang==="all"||(fLang==="none"?!l.clientLang:l.clientLang===fLang))
+    .filter(l=>{_langCnt[l.clientLang||"none"]=(_langCnt[l.clientLang||"none"]||0)+1;_langCnt.all++;return fLang==="all"||(fLang==="none"?!l.clientLang:l.clientLang===fLang);})
     // Всегда: чем новее лид — тем выше (сначала день, внутри дня — по времени поступления)
     .map((l,i)=>({l,i,k:leadSortKey(l)})).sort((a,b)=>(b.k-a.k)||(a.i-b.i)).map(x=>x.l);
 
@@ -2790,7 +2808,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
         <MultiPick label={t.source} selected={fS} onChange={setFS} width={260} options={normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=>({value:d.name,label:d.name,color:d.color}))}/>
         <select value={fFun} onChange={e=>setFFun(e.target.value)} style={ss}><option value="all">▼ {lang==="pl"?"Lejek":"Воронка"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— {lang==="pl"?"bez lejka":"без воронки"}</option></select>
         <select value={fWhy} onChange={e=>setFWhy(e.target.value)} style={ss}><option value="all">{t.whyNoVisit}</option><option value="thinking">{t.rThinking}</option><option value="price">{t.rPrice}</option><option value="distance">{t.rDistance}</option><option value="term">{t.rTerm}</option><option value="none">—</option></select>
-        <select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {lang==="pl"?"Język klienta":"Язык клиента"}</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()}</option>)}<option value="none">— {lang==="pl"?"bez języka":"без языка"}</option></select>
+        <select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {lang==="pl"?"Język klienta":"Язык клиента"} ({_langCnt.all})</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()} ({_langCnt[v]||0})</option>)}<option value="none">— {lang==="pl"?"bez języka":"без языка"} ({_langCnt.none||0})</option></select>
         {(fSc.length>0||fA!=="all"||fS.length>0||fFun!=="all"||fWhy!=="all"||fLang!=="all")&&<button onClick={()=>{setFSc([]);setFA("all");setFS([]);setFFun("all");setFWhy("all");setFLang("all");}} style={{...ss,color:C.muted}}>✕ {lang==="pl"?"Wyczyść":"Сбросить"}</button>}
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
@@ -3379,7 +3397,8 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
         <div style={{fontSize:18,fontWeight:800,color:C.text}}>▼ {ru?"Воронка продаж":"Lejek sprzedaży"} <span style={{fontSize:12,color:C.muted}}>({cur.length})</span></div>
         <select value={fm} onChange={e=>setFm(e.target.value)} style={ss}><option value="all">{ru?"Все менеджеры":"Wszyscy"}</option>{MANAGERS.map(m=><option key={m} value={m}>{m}</option>)}</select>
         <select value={ff} onChange={e=>setFf(e.target.value)} style={ss}><option value="all">{ru?"Все воронки":"Wszystkie lejki"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— {ru?"без воронки":"bez lejka"}</option></select>
-        <select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {ru?"Все языки":"Wszystkie języki"}</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()}</option>)}<option value="none">— {ru?"без языка":"bez języka"}</option></select>
+        {(()=>{const base=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>fm==="all"||l.manager===fm).filter(l=>{if(ff==="all")return true;const f=leadFunnel(l,srcList,funnels);return ff==="none"?!f:(f&&String(f.id)===ff);});const cnt=(v)=>base.filter(l=>v==="none"?!l.clientLang:l.clientLang===v).length;
+          return <select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {ru?"Все языки":"Wszystkie języki"} ({base.length})</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()} ({cnt(v)})</option>)}<option value="none">— {ru?"без языка":"bez języka"} ({cnt("none")})</option></select>;})()}
         <div style={{marginLeft:"auto"}}><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t} lang={lang}/></div>
       </div>
       {prevRange[0]&&<div style={{fontSize:11,color:C.dim,marginTop:-8}}>{ru?"Сравнение с периодом":"Porównanie z okresem"} {isoToDot(prevRange[0])} — {isoToDot(prevRange[1])} ({prev.length} {ru?"лидов":"leadów"})</div>}
