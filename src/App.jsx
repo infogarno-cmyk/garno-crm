@@ -2428,8 +2428,8 @@ function Dashboard({leads,events,t,lang}){
 // Цели хранятся в db.goals (общая база), удалённые — в deletedGoalIds.
 // Ставить и менять цели могут только GOAL_EDITORS; остальные видят их в режиме просмотра.
 const GOAL_EDITORS=["Danya","Oleh","Dmytro"];
-// Дашборд (голограмма + цели + воронка) всегда на польском в PL-версии; null — язык интерфейса
-const DASH_LANG="pl";
+// Дашборд — на языке аккаунта (null = язык интерфейса)
+const DASH_LANG=null;
 const CUR=" zł";
 const GOAL_SCORES=[0,1,2,2.5,3,4,4.5,5,5.5,6];
 const GOAL_STEPS=[["lead","Лид","Lead"],["contact","Контакт (оценка 1+)","Kontakt (ocena 1+)"],["qual","Квал (4+)","Kwalifikacja (4+)"],["vset","Визит назначен (5)","Wizyta umówiona (5)"],["vdone","Визит состоялся (5.5)","Wizyta odbyta (5.5)"],["sale","Продажа (6)","Sprzedaż (6)"]];
@@ -3340,23 +3340,108 @@ function ksScanlines(ctx,W,H,t){ctx.fillStyle="rgba(0,10,30,0.16)";for(let y=(t*
 /* ── A1. DRUK 3D: лазер сверху «печатает» каждый новый элемент снизу вверх ────── */
 function ksDrawPrint(ctx,W,H,S){
   const t=S.t,cam=ksCam(W,H,t,true),p=Math.min(1,S.p);
-  ksHoloFloor(ctx,cam,"#7dd3fc",1);
+  const fin=S.p>=1,ft=fin?(S.doneT||0):0,mix=fin?Math.min(1,ft/1.8):0;
+  ksHoloFloor(ctx,cam,fin?"#3b82f6":"#7dd3fc",1);
   ctx.globalCompositeOperation="lighter";
   const sc=ksScene(p,cam,false);const emit=cam.P(1.6,3.3,1.0);let printing=[];
   sc.forEach(o=>{const {b,e,it}=o;const col=ksColorAt(S,it.start+it.len/2);
+    if(fin){ksBrandBox(ctx,cam,b,col,mix,t,o.ii);return;}
     if(e>0&&e<1){const h=b.b[1]-b.a[1];const yy=b.a[1]+h*Math.min(1,e*1.05);const bb={...b,b:[b.b[0],yy,b.b[2]],decal:null,split:e>0.9?b.split:null};
-      // призрак верхней (ещё не напечатанной) части
       ksHoloBox(ctx,cam,{...b,a:[b.a[0],yy,b.a[2]],front:null},col,0,t,o.ii);
       ksHoloBox(ctx,cam,bb,col,1,t,o.ii);printing.push({b,yy,col});}
     else ksHoloBox(ctx,cam,b,col,e,t,o.ii);});
-  printing.forEach(({b,yy,col})=>{const q=[[b.a[0],yy,b.a[2]],[b.b[0],yy,b.a[2]],[b.b[0],yy,b.b[2]],[b.a[0],yy,b.b[2]]];
-    ksPoly(ctx,cam,q);ctx.fillStyle=ksRgba("#ffffff",0.35);ctx.fill();ctx.strokeStyle=ksRgba(col,1);ctx.lineWidth=1.5;ctx.stroke();
-    q.forEach(v=>{const s=cam.P(...v);const g=ctx.createLinearGradient(emit[0],emit[1],s[0],s[1]);g.addColorStop(0,"rgba(255,255,255,0.05)");g.addColorStop(1,ksRgba(col,0.55));ctx.strokeStyle=g;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(emit[0],emit[1]);ctx.lineTo(s[0],s[1]);ctx.stroke();});
-    for(let k=0;k<10;k++){const u=Math.random(),w=Math.random();const s=cam.P(b.a[0]+(b.b[0]-b.a[0])*u,yy,b.a[2]+(b.b[2]-b.a[2])*w);ctx.fillStyle=ksRgba(k%2?"#ffffff":col,0.8);ctx.fillRect(s[0],s[1]-Math.random()*6,1.6,1.6);}});
-  // излучатель
-  const eg=ctx.createRadialGradient(emit[0],emit[1],0,emit[0],emit[1],22);eg.addColorStop(0,printing.length?"rgba(255,255,255,0.95)":"rgba(125,211,252,0.6)");eg.addColorStop(1,"rgba(125,211,252,0)");ctx.fillStyle=eg;ctx.beginPath();ctx.arc(emit[0],emit[1],22,0,Math.PI*2);ctx.fill();
-  ctx.beginPath();ctx.ellipse(emit[0],emit[1],30,8,0,0,Math.PI*2);ctx.strokeStyle="rgba(125,211,252,0.5)";ctx.lineWidth=1;ctx.stroke();
-  ctx.globalCompositeOperation="source-over";ksScanlines(ctx,W,H,t);
+  if(!fin){
+    printing.forEach(({b,yy,col})=>{const q=[[b.a[0],yy,b.a[2]],[b.b[0],yy,b.a[2]],[b.b[0],yy,b.b[2]],[b.a[0],yy,b.b[2]]];
+      ksPoly(ctx,cam,q);ctx.fillStyle=ksRgba("#ffffff",0.35);ctx.fill();ctx.strokeStyle=ksRgba(col,1);ctx.lineWidth=1.5;ctx.stroke();
+      q.forEach(v=>{const s=cam.P(...v);const g=ctx.createLinearGradient(emit[0],emit[1],s[0],s[1]);g.addColorStop(0,"rgba(255,255,255,0.05)");g.addColorStop(1,ksRgba(col,0.55));ctx.strokeStyle=g;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(emit[0],emit[1]);ctx.lineTo(s[0],s[1]);ctx.stroke();});
+      for(let k=0;k<10;k++){const u=Math.random(),w=Math.random();const s=cam.P(b.a[0]+(b.b[0]-b.a[0])*u,yy,b.a[2]+(b.b[2]-b.a[2])*w);ctx.fillStyle=ksRgba(k%2?"#ffffff":col,0.8);ctx.fillRect(s[0],s[1]-Math.random()*6,1.6,1.6);}});
+    const eg=ctx.createRadialGradient(emit[0],emit[1],0,emit[0],emit[1],22);eg.addColorStop(0,printing.length?"rgba(255,255,255,0.95)":"rgba(125,211,252,0.6)");eg.addColorStop(1,"rgba(125,211,252,0)");ctx.fillStyle=eg;ctx.beginPath();ctx.arc(emit[0],emit[1],22,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(emit[0],emit[1],30,8,0,0,Math.PI*2);ctx.strokeStyle="rgba(125,211,252,0.5)";ctx.lineWidth=1;ctx.stroke();
+  }else ksFinale(ctx,W,H,S,cam,ft);
+  ctx.globalCompositeOperation="source-over";
+  if(fin)ksFinaleText(ctx,W,H,S,ft);
+  ksScanlines(ctx,W,H,t);
+}
+
+/* ── ФИНАЛ: кухня готова → фирменные цвета GARNO + клиенты пользуются кухней ── */
+function ksLerpHex(a,b,m){const A=String(a).replace("#",""),B=String(b).replace("#","");if(A.length!==6||B.length!==6)return b;const c=k=>Math.round(parseInt(A.slice(k,k+2),16)*(1-m)+parseInt(B.slice(k,k+2),16)*m).toString(16).padStart(2,"0");return "#"+c(0)+c(2)+c(4);}
+const KS_BRAND={carcass:["#2563eb",0.30,"#7fb0ff"],upper:["#2563eb",0.30,"#7fb0ff"],tall:["#1d4ed8",0.32,"#7fb0ff"],dw:["#2563eb",0.30,"#7fb0ff"],plinth:["#1e3a8a",0.35,"#3b82f6"],
+  top:["#f0c040",0.30,"#ffd966"],handle:["#f5c542",0.9,"#ffe08a"],steel:["#cbd5e1",0.22,"#e2e8f0"],steelFront:["#94a3b8",0.25,"#e2e8f0"],glass:["#0f172a",0.5,"#93c5fd"],sink:["#cbd5e1",0.35,"#e2e8f0"],led:["#ffd27a",0.9,"#ffe7a8"]};
+function ksBrandBox(ctx,cam,b,fromCol,mix,t,ii){
+  const br=KS_BRAND[b.k]||KS_BRAND.carcass;const fill=ksLerpHex(fromCol,br[0],mix),edge=ksLerpHex(fromCol,br[2],mix),fa=0.12+(br[1]-0.12)*mix;
+  const {c,E}=ksBoxEdges(b);
+  ksFaces(b,cam).forEach(([n,f])=>{ksPoly(ctx,cam,f);ctx.fillStyle=ksRgba(fill,fa*(n==="+y"?1.15:n==="+z"||n==="-z"?0.95:0.8));ctx.fill();});
+  ctx.lineWidth=2.4;ctx.strokeStyle=ksRgba(edge,0.14);E.forEach(([i,j])=>ksLine(ctx,cam,[c[i],c[j]]));
+  ctx.lineWidth=1;ctx.strokeStyle=ksRgba(edge,0.85);E.forEach(([i,j])=>ksLine(ctx,cam,[c[i],c[j]]));
+  ctx.strokeStyle=ksRgba(ksLerpHex(fromCol,"#f0c040",mix),0.7);ksFrontLines(b).forEach(l=>ksLine(ctx,cam,l));
+  if(b.decal)ksDecal(ctx,cam,b,{ring:ksRgba(ksLerpHex(fromCol,"#93c5fd",mix),0.9),bowl:ksRgba(fill,0.3),ovenWin:ksRgba(ksLerpHex(fromCol,"#1e3a8a",mix),0.5)});
+}
+// станции: где стоит клиент и что делает
+const KS_STATIONS={sink:{p:[1.3,0.98]},hob:{p:[1.02,1.48]},fridge:{p:[3.2,1.0]},oven:{p:[2.6,1.0]},prep:{p:[2.0,0.98]},corner:{p:[0.95,0.95]}};
+const KS_PEOPLE=[
+  {c:"#f0c040",h:1.72,route:["fridge","prep","hob","sink"],off:0},
+  {c:"#93c5fd",h:1.62,route:["sink","oven","hob","prep"],off:5.5},
+  {c:"#ffd27a",h:1.18,route:["corner","fridge","prep"],off:11,late:6},
+];
+function ksPersonAt(pp,tt){
+  const legs=[];const R=pp.route;let T=0;
+  for(let i=0;i<R.length;i++){const a=KS_STATIONS[R[i]].p,b=KS_STATIONS[R[(i+1)%R.length]].p;const d=Math.hypot(b[0]-a[0],b[1]-a[1]);legs.push({st:R[i],stay:3.6,walk:d/0.7,a,b});T+=3.6+d/0.7;}
+  let x=((tt+pp.off)%T+T)%T;
+  for(const l of legs){if(x<l.stay)return {pos:l.a,act:l.st,walk:false,ph:0};x-=l.stay;if(x<l.walk){const u=x/l.walk;return {pos:[l.a[0]+(l.b[0]-l.a[0])*u,l.a[1]+(l.b[1]-l.a[1])*u],act:null,walk:true,ph:x*7};}x-=l.walk;}
+  return {pos:legs[0].a,act:legs[0].st,walk:false,ph:0};
+}
+function ksFigure(ctx,cam,pp,st,alpha,t){
+  const [x,z]=st.pos;const f=cam.P(x,0,z),hd=cam.P(x,pp.h,z);const h=f[1]-hd[1];if(h<=4)return;
+  const col=pp.c,cx=f[0];ctx.lineCap="round";ctx.lineJoin="round";
+  ctx.beginPath();ctx.ellipse(cx,f[1],h*0.12,h*0.035,0,0,Math.PI*2);ctx.fillStyle=ksRgba(col,0.2*alpha);ctx.fill();
+  const top=hd[1],r=h*0.062,sh=top+h*0.19,hip=top+h*0.53,sw=st.walk?Math.sin(st.ph):0,bob=st.walk?Math.abs(Math.cos(st.ph))*h*0.012:0;
+  const T=(y)=>y-bob;const shW=h*0.105,hipW=h*0.07,lw=Math.max(1.2,h*0.03);
+  const stroke=(fn,w)=>{ctx.lineWidth=w*2.4;ctx.strokeStyle=ksRgba(col,0.14*alpha);ctx.beginPath();fn();ctx.stroke();ctx.lineWidth=w;ctx.strokeStyle=ksRgba(col,0.95*alpha);ctx.beginPath();fn();ctx.stroke();};
+  // ноги
+  const legL=[cx-hipW*0.55+sw*h*0.12,f[1]],legR=[cx+hipW*0.55-sw*h*0.12,f[1]];
+  stroke(()=>{ctx.moveTo(cx-hipW*0.45,T(hip));ctx.lineTo(...legL);ctx.moveTo(cx+hipW*0.45,T(hip));ctx.lineTo(...legR);},lw);
+  // корпус
+  ctx.beginPath();ctx.moveTo(cx-shW,T(sh));ctx.lineTo(cx+shW,T(sh));ctx.lineTo(cx+hipW,T(hip));ctx.lineTo(cx-hipW,T(hip));ctx.closePath();ctx.fillStyle=ksRgba(col,0.42*alpha);ctx.fill();ctx.lineWidth=1.2;ctx.strokeStyle=ksRgba(col,0.95*alpha);ctx.stroke();
+  // голова и шея
+  ctx.beginPath();ctx.arc(cx,T(top+r),r,0,Math.PI*2);ctx.fillStyle=ksRgba(col,0.85*alpha);ctx.fill();
+  stroke(()=>{ctx.moveTo(cx,T(top+r*2));ctx.lineTo(cx,T(sh));},lw*0.8);
+  // руки
+  let hL,hR;
+  if(st.act){const S2={sink:[1.3,0.92,0.3],hob:[0.31,0.95,1.48],fridge:[3.2,1.2,0.62],oven:[2.6,1.2,0.62],prep:[2.0,0.92,0.3],corner:[0.6,0.92,0.4]}[st.act];const tg=cam.P(...S2);
+    const len=h*0.3,wob=Math.sin(t*6)*h*0.018;const ang=Math.atan2(tg[1]-T(sh),tg[0]-cx);
+    hL=[cx-shW*0.8+Math.cos(ang)*len,T(sh)+Math.sin(ang)*len+wob];hR=[cx+shW*0.8+Math.cos(ang)*len*0.9,T(sh)+Math.sin(ang)*len*0.9-wob];}
+  else{hL=[cx-shW-sw*h*0.08,T(sh)+h*0.27];hR=[cx+shW+sw*h*0.08,T(sh)+h*0.27];}
+  stroke(()=>{ctx.moveTo(cx-shW*0.85,T(sh)+lw*0.5);ctx.lineTo(...hL);ctx.moveTo(cx+shW*0.85,T(sh)+lw*0.5);ctx.lineTo(...hR);},lw*0.85);
+  ctx.lineCap="butt";ctx.lineJoin="miter";
+}
+function ksFinale(ctx,W,H,S,cam,ft){
+  const t=S.t;
+  // волна «готово»: светящаяся плоскость поднимается по кухне
+  if(ft<2.4){const y=(ft/2.0)*2.3;const a=Math.max(0,1-ft/2.4);const q=[[-0.1,y,-0.1],[3.6,y,-0.1],[3.6,y,0.7],[0.7,y,0.7],[0.7,y,2.3],[-0.1,y,2.3]];ksPoly(ctx,cam,q);ctx.fillStyle=`rgba(240,192,64,${0.22*a})`;ctx.fill();ctx.strokeStyle=`rgba(255,224,138,${0.9*a})`;ctx.lineWidth=1.6;ctx.stroke();
+    for(let k=0;k<40;k++){const u=(k*0.6180339)%1,w=(k*0.414)%1;const s=cam.P(-0.1+u*3.7,y+((ft*3+k)%1)*0.3,w<0.5?w*1.4:0.2+(w-0.5)*4);ctx.fillStyle=`rgba(255,224,138,${a})`;ctx.fillRect(s[0],s[1],2,2);}}
+  // тёплый свет подсветки
+  const pulse=0.85+0.15*Math.sin(t*1.5);[[1.15,1.41,0.3,1.6],[0.3,1.41,1.4,1.2]].forEach(([x,y,z,r])=>{const m=cam.P(x,y,z);const lg=ctx.createRadialGradient(m[0],m[1]+cam.sc*0.25,0,m[0],m[1]+cam.sc*0.25,cam.sc*r);lg.addColorStop(0,`rgba(255,210,122,${0.22*pulse})`);lg.addColorStop(1,"rgba(255,210,122,0)");ctx.fillStyle=lg;ctx.fillRect(0,0,W,H);});
+  if(ft<1.6)return;
+  const pa=Math.min(1,(ft-1.6)/1.2);const tt=ft-1.6;const acts=new Set();
+  const people=KS_PEOPLE.filter(pp=>!pp.late||tt>pp.late).map(pp=>{const st=ksPersonAt(pp,tt);if(st.act)acts.add(st.act);return {pp,st,a:pp.late?Math.min(1,(tt-pp.late)/1.2)*pa:pa};});
+  // действия у станций
+  if(acts.has("hob")){ksPoly(ctx,cam,[[0.18,0.868,1.36],[0.44,0.868,1.36],[0.44,0.98,1.36],[0.18,0.98,1.36]]);ctx.fillStyle="rgba(240,192,64,0.35)";ctx.fill();
+    for(let k=0;k<14;k++){const u=((t*0.5+k*0.071)%1);const s=cam.P(0.31+Math.sin(t*2+k)*0.05*u,0.98+u*0.6,1.48+Math.cos(t*1.7+k)*0.04);ctx.fillStyle=`rgba(226,232,240,${(1-u)*0.55})`;ctx.beginPath();ctx.arc(s[0],s[1],1.5+u*3,0,Math.PI*2);ctx.fill();}}
+  if(acts.has("sink")){const a=cam.P(1.3,1.08,0.22),b=cam.P(1.3,0.87,0.22);ctx.save();ctx.setLineDash([3,3]);ctx.lineDashOffset=-t*30;ctx.strokeStyle="rgba(147,197,253,0.95)";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();ctx.restore();}
+  if(acts.has("fridge")){const ang=1.1;const hx=3.48,hz=0.6,w=0.56;const ox=hx-Math.cos(ang)*w,oz=hz+Math.sin(ang)*w;ksPoly(ctx,cam,[[hx,0.12,hz],[ox,0.12,oz],[ox,2.08,oz],[hx,2.08,hz]]);ctx.fillStyle="rgba(147,197,253,0.18)";ctx.fill();ctx.strokeStyle="rgba(226,232,240,0.8)";ctx.lineWidth=1;ctx.stroke();
+    const m=cam.P(3.2,1.2,0.6);const cg=ctx.createRadialGradient(m[0],m[1],0,m[0],m[1],cam.sc*0.6);cg.addColorStop(0,"rgba(191,219,254,0.4)");cg.addColorStop(1,"rgba(191,219,254,0)");ctx.fillStyle=cg;ctx.fillRect(m[0]-cam.sc*0.6,m[1]-cam.sc*0.6,cam.sc*1.2,cam.sc*1.2);}
+  if(acts.has("oven")){ksPoly(ctx,cam,[[2.4,1.04,0.605],[2.8,1.04,0.605],[2.8,1.34,0.605],[2.4,1.34,0.605]]);ctx.fillStyle=`rgba(251,146,60,${0.45+0.15*Math.sin(t*4)})`;ctx.fill();}
+  if(acts.has("prep")||acts.has("corner")){[acts.has("prep")?[2.0,0.87,0.3]:null,acts.has("corner")?[0.55,0.87,0.35]:null].filter(Boolean).forEach(v=>{for(let k=0;k<5;k++){const s=cam.P(v[0]+Math.sin(t*9+k)*0.08,v[1]+Math.abs(Math.sin(t*7+k))*0.08,v[2]);ctx.fillStyle="rgba(255,224,138,0.8)";ctx.fillRect(s[0],s[1],1.6,1.6);}});}
+  // клиенты (дальние → ближние)
+  people.sort((a,b)=>cam.P(a.st.pos[0],0,a.st.pos[1])[2]-cam.P(b.st.pos[0],0,b.st.pos[1])[2]).forEach(o=>ksFigure(ctx,cam,o.pp,o.st,o.a,t));
+}
+function ksFinaleText(ctx,W,H,S,ft){
+  const big=ft<3.2,a=big?Math.min(1,ft/0.5):1;const pl=S.pl;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  if(big){const k=0.8+0.2*Math.min(1,ft/0.6);ctx.font=`900 ${Math.round(30*k)}px system-ui,sans-serif`;ctx.fillStyle=`rgba(255,224,138,${a})`;ctx.shadowColor="rgba(240,192,64,0.8)";ctx.shadowBlur=18;ctx.fillText(pl?"CEL WYKONANY!":"ЦЕЛЬ ВЫПОЛНЕНА!",W/2,H*0.14);ctx.shadowBlur=0;
+    ctx.font="700 13px system-ui,sans-serif";ctx.fillStyle=`rgba(238,243,251,${a*0.9})`;ctx.fillText(pl?"Kuchnia złożona w całości":"Кухня собрана полностью",W/2,H*0.14+26);}
+  else{ctx.font="800 12px system-ui,sans-serif";ctx.fillStyle="rgba(255,224,138,0.95)";ctx.fillText(pl?"✓ CEL WYKONANY · klienci już gotują":"✓ ЦЕЛЬ ВЫПОЛНЕНА · клиенты уже готовят",W/2,16);}
+  ctx.textBaseline="alphabetic";
 }
 
 /* ── A2. MONTAŻ Z CZĘŚCI: детали парят вокруг и прилетают на место ─────────────── */
@@ -3460,7 +3545,8 @@ function HoloStage({g,A,idx,mgrs,pl}){
       if(!MG.length&&sv.segs.length)sv.segs=sv.segs.map(x=>({...x,c:"#e2cfa9"}));
       const tf=A?A.total:1;const fc=A&&A.add&&s.pos>0?(sv.total/(Math.max(s.pos,0.5)/tf))/(target||1):sv.p;
       const S={t,p:sv.p,fc,segs:sv.segs,mgrs:MG,pulses:s.pulses.map(q=>({mi:q.mi,age:Math.min(1,(t-q.born)/1.3)})),pct:target?Math.round(sv.p*100)+"%":"—",goalLabel:target?`${pl?"Cel":"Цель"} ${gFmt(target,g,pl,true)}`:"",launchLabel:"START!"};
-      ctx.clearRect(0,0,W,H);ksDrawPrint(ctx,W,H,{...S,pl});
+      if(sv.p>=1){if(s.doneAt==null)s.doneAt=t;}else s.doneAt=null;
+      ctx.clearRect(0,0,W,H);ksDrawPrint(ctx,W,H,{...S,pl,doneT:s.doneAt==null?0:t-s.doneAt});
       if(now-lastUi>90){lastUi=now;if(stageRef.current){const ks=ksStatus(sv.p,pl);stageRef.current.innerHTML=ks.stages.map(x=>{const done=x.e>=1,cur=x.e>0&&x.e<1;const c=done?"#4ade80":cur?"#e2cfa9":"rgba(238,243,251,0.4)";return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;border:1px solid ${done?"rgba(74,222,128,0.45)":cur?"rgba(226,207,169,0.55)":"rgba(125,211,252,0.15)"};color:${c}">${done?"✓":cur?"▸":"○"} ${x.name}${cur?" "+Math.round(x.e*100)+"%":""}</span>`;}).join("")+(ks.cur?`<span style="font-size:11.5px;color:rgba(238,243,251,0.7);align-self:center">${pl?"Teraz montujemy:":"Сейчас монтируем:"} <b style="color:#e2cfa9">${pl?ks.cur.pl:ks.cur.ru}</b></span>`:`<span style="font-size:11.5px;color:#4ade80;font-weight:800;align-self:center">${pl?"Kuchnia złożona w całości!":"Кухня собрана полностью!"}</span>`);}if(sliderRef.current)sliderRef.current.value=String(s.pos);if(dayRef.current){const fr=data.frames[Math.max(1,Math.min(data.days,Math.ceil(s.pos)||1))];dayRef.current.textContent=data.days?`${fmtD(fr&&fr.label)} · ${gFmt(sv.total,g,pl,true)}`:"";}}
       raf=requestAnimationFrame(draw);
     };
