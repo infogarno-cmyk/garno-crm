@@ -2291,7 +2291,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const NAV=[{key:"dashboard",icon:"🎯",ru:"Цели",pl:"Cele"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"funnel",icon:"▼",ru:"Воронка продаж",pl:"Lejek sprzedaży"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
+const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
 function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,aiUnread=0,freshLeads=0,t}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
@@ -2428,6 +2428,8 @@ function Dashboard({leads,events,t,lang}){
 // Цели хранятся в db.goals (общая база), удалённые — в deletedGoalIds.
 // Ставить и менять цели могут только GOAL_EDITORS; остальные видят их в режиме просмотра.
 const GOAL_EDITORS=["Danya","Oleh","Dmytro"];
+// Дашборд (голограмма + цели + воронка) всегда на польском в PL-версии; null — язык интерфейса
+const DASH_LANG="pl";
 const CUR=" zł";
 const GOAL_SCORES=[0,1,2,2.5,3,4,4.5,5,5.5,6];
 const GOAL_STEPS=[["lead","Лид","Lead"],["contact","Контакт (оценка 1+)","Kontakt (ocena 1+)"],["qual","Квал (4+)","Kwalifikacja (4+)"],["vset","Визит назначен (5)","Wizyta umówiona (5)"],["vdone","Визит состоялся (5.5)","Wizyta odbyta (5.5)"],["sale","Продажа (6)","Sprzedaż (6)"]];
@@ -2638,6 +2640,7 @@ function GoalCard({g,A,kids,api,canEdit,canMark,mine,drag,pl}){
             <span style={tag}><span style={{width:8,height:8,borderRadius:"50%",background:g.scope.type==="team"?C.accent:(MGR_COLOR[g.scope.id]||C.accent)}}/>{gScopeName(g.scope,pl)}</span>
             <span style={tag}>{gPeriodLabel(g.period,pl)}</span>
             {g.title&&<span style={tag}>{gKpiTitle(g,pl)}</span>}
+            {g.main&&<span style={{...tag,color:C.accent,background:C.accentDim}}>★ {L("главная","główny")}</span>}
           </div>
         </div>
         <span style={{fontSize:10.5,fontWeight:800,borderRadius:999,padding:"3px 9px",whiteSpace:"nowrap",background:`${col}22`,color:col}}>{A.st.l}</span>
@@ -2676,6 +2679,7 @@ function GoalCard({g,A,kids,api,canEdit,canMark,mine,drag,pl}){
             <button style={sb} onClick={()=>api.edit(g)}>✎ {L("Изменить","Edytuj")}</button>
             <button style={sb} onClick={()=>api.duplicate(g)}>⧉ {L("Копия","Kopia")}</button>
             <button style={sb} title={L("Такая же цель на следующий период","Taki sam cel na kolejny okres")} onClick={()=>api.carry(g)}>→ {L("На след. период","Na kolejny okres")}</button>
+            {!g.main&&!g.parentId&&<button style={sb} title={L("Показывать наверху дашборда","Pokazuj na górze panelu")} onClick={()=>api.setMain(g.id)}>★ {L("Сделать главной","Ustaw jako główny")}</button>}
             {canSplit&&<button style={sb} onClick={()=>api.split(g)}>⑂ {kids.length?L("Пересчитать доли","Przelicz udziały"):L("Разбить по менеджерам","Rozdziel na managerów")}</button>}
             <button style={{...sb,marginLeft:"auto",color:C.red,borderColor:"transparent"}} title={L("Удалить","Usuń")} onClick={()=>setConfirm(true)}>🗑</button>
           </div>}
@@ -2805,7 +2809,7 @@ function GoalEditor({draft,isNew,idx,mgrs,onChange,onSave,onClose,onDelete,pl}){
     </div>);
 }
 
-function GoalsPage({db,updateDb,currentUser,lang}){
+function GoalsPage({db,updateDb,currentUser,lang,withHero}){
   const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;
   const me=currentUser||"";
   const mgrs=MANAGERS.filter(m=>m!=="Danya");
@@ -2846,6 +2850,7 @@ function GoalsPage({db,updateDb,currentUser,lang}){
       setToast(prevOk?L("Цель разбита по долям прошлого периода. Любую долю можно поправить.","Cel rozdzielony wg udziałów z poprzedniego okresu."):L("Цель разбита поровну.","Cel rozdzielony po równo."));
     },
     remove:id=>save((gs,p)=>{const dead=gs.filter(g=>g.id===id||g.parentId===id).map(g=>g.id);return {goals:gs.filter(g=>!dead.includes(g.id)),deletedGoalIds:[...new Set([...(p.deletedGoalIds||[]),...dead])]};}),
+    setMain:id=>save(gs=>gs.map(g=>g.id===id?touch({...g,main:true}):g.main?touch({...g,main:false}):g)),
     move:(id,k)=>{const top=goals.filter(g=>!g.parentId);const i=top.findIndex(g=>g.id===id),j=i+k;if(i<0||j<0||j>=top.length)return;const a=top[i],b=top[j];save(gs=>gs.map(g=>g.id===a.id?touch({...g,ord:b.ord??j}):g.id===b.id?touch({...g,ord:a.ord??i}):g));setSort("custom");}
   };
   const drag={dragId,overId,
@@ -2914,8 +2919,12 @@ function GoalsPage({db,updateDb,currentUser,lang}){
         {canEdit&&<td style={tdS}><button onClick={()=>api.edit(g)} style={{...ss,padding:"3px 8px",cursor:"pointer"}}>✎</button></td>}
       </tr>);})}</tbody></table></div>);};
 
+  const isActive=g=>{const [a,b]=gRange(g.period);return a<=td&&b>=td;};
+  const topTeam=g=>!g.parentId&&g.scope.type==="team"&&isActive(g);
+  const heroG=goals.find(g=>g.main&&isActive(g))||goals.find(g=>topTeam(g)&&g.metric==="revenue"&&g.period.type==="month")||goals.find(g=>topTeam(g)&&g.metric==="sales"&&g.period.type==="month")||goals.find(g=>topTeam(g)&&g.metric==="revenue")||null;
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
+      {withHero&&<GoalHero g={heroG} A={heroG?analyzed[heroG.id]:null} idx={idx} mgrs={mgrs} pl={pl} canEdit={canEdit} onCreate={()=>setEditor({draft:mk({metric:"revenue",main:true}),isNew:true})}/>}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
         <div><div style={{fontSize:18,fontWeight:900,color:C.text}}>🎯 {L("Цели","Cele")}</div><div style={{fontSize:11,color:C.muted}}>{isMgr?L("Сначала ваши личные цели, ниже — цели команды","Najpierw Twoje cele, niżej — zespołu"):L("План и факт по команде и менеджерам","Plan i wykonanie zespołu i managerów")}</div></div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",position:"relative"}}>
@@ -2957,6 +2966,176 @@ function GoalsPage({db,updateDb,currentUser,lang}){
       {editor&&canEdit&&<GoalEditor draft={editor.draft} isNew={editor.isNew} idx={idx} mgrs={mgrs} pl={pl} onChange={d=>setEditor(e=>({...e,draft:d}))} onSave={commitEditor} onClose={()=>setEditor(null)} onDelete={()=>{api.remove(editor.draft.id);setEditor(null);setToast(L("Цель удалена","Cel usunięty"));}}/>}
       {toast&&<div style={{position:"fixed",left:"50%",transform:"translateX(-50%)",bottom:24,background:C.card,border:`1px solid ${C.accent}`,borderRadius:10,padding:"10px 16px",zIndex:2100,fontWeight:700,color:C.text,fontSize:13}}>{toast}</div>}
     </div>);
+}
+
+// ─── 🛠 ГОЛОГРАММА ГЛАВНОЙ ЦЕЛИ: «кухня команды» собирается по модулям ─────────
+// Каждый модуль = 1/36 цели. Модули загораются цветом менеджера по его вкладу,
+// пунктир — куда дойдём по прогнозу. Вместе собираем одну общую кухню.
+const HOLO_MODULES=(()=>{const m=[];
+  // нижние модули: возврат (вдоль Z) → основной ряд (вдоль X) → колонна
+  for(let i=0;i<5;i++)m.push({x:0,z:5-i,w:0.92,d:0.92,y:0,h:1.35,rz:true});
+  for(let i=0;i<10;i++)m.push({x:1+i,z:0,w:0.92,d:0.92,y:0,h:1.35});
+  for(let k=0;k<3;k++)for(let i=0;i<2;i++)m.push({x:11+i,z:0,w:0.92,d:0.92,y:k*1.07,h:1.0});
+  // верхние шкафы
+  for(let i=0;i<5;i++)m.push({x:0,z:5-i,w:0.92,d:0.55,y:2.15,h:1.05,rz:true});
+  for(let i=0;i<10;i++)m.push({x:1+i,z:0,w:0.92,d:0.55,y:2.15,h:1.05});
+  return m;})();
+
+function GoalHologram({fill,forecast,colors,animKey}){
+  const ref=useRef(null);
+  useEffect(()=>{
+    const cv=ref.current;if(!cv)return;const ctx=cv.getContext&&cv.getContext("2d");if(!ctx)return;
+    let raf=0,W=0,H=0,dpr=1;const t0=performance.now();const N=HOLO_MODULES.length;
+    const parts=Array.from({length:46},(_,i)=>({a:Math.random()*Math.PI*2,r:0.2+Math.random()*0.8,s:0.15+Math.random()*0.5,o:Math.random()}));
+    const size=()=>{dpr=Math.min(2,window.devicePixelRatio||1);W=cv.clientWidth;H=cv.clientHeight;cv.width=Math.max(1,W*dpr);cv.height=Math.max(1,H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);};
+    size();const ro=typeof ResizeObserver!=="undefined"?new ResizeObserver(size):null;ro&&ro.observe(cv);
+    const reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const hex=(c,a)=>{const h=String(c).replace("#","");if(h.length!==6)return `rgba(191,164,126,${a})`;return `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`;};
+    const draw=(now)=>{
+      const t=(now-t0)/1000;ctx.clearRect(0,0,W,H);
+      const build=reduce?1:Math.min(1,t/2.4);const ease=1-Math.pow(1-build,3);
+      const lit=fill*N*ease, fc=Math.min(N,forecast*N);
+      const ang=-0.62+Math.sin(t*0.22)*0.32;const ca=Math.cos(ang),sa=Math.sin(ang);
+      const sc=Math.min(W/16,H/7.2);const cx=W*0.5,cy=H*0.63;
+      const P=(x,y,z)=>{x-=6.5;z-=2.6;const rx=x*ca-z*sa,rz=x*sa+z*ca;const f=9/(9+rz*0.55);return [cx+rx*sc*f,cy-(y-1.6)*sc*f*0.92+rz*sc*0.16*f,rz];};
+      // проектор
+      const by=cy+1.75*sc;
+      for(let i=0;i<3;i++){ctx.beginPath();ctx.ellipse(cx,by+i*7,sc*(5.6-i*0.9),sc*(0.62-i*0.1),0,0,Math.PI*2);ctx.strokeStyle=`rgba(125,211,252,${0.28-i*0.07})`;ctx.lineWidth=1.2;ctx.stroke();}
+      const g=ctx.createRadialGradient(cx,by,0,cx,by,sc*5.5);g.addColorStop(0,"rgba(125,211,252,0.20)");g.addColorStop(1,"rgba(125,211,252,0)");ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(cx,by,sc*5.6,sc*0.65,0,0,Math.PI*2);ctx.fill();
+      const beam=ctx.createLinearGradient(0,by,0,by-sc*4.6);beam.addColorStop(0,"rgba(125,211,252,0.10)");beam.addColorStop(1,"rgba(125,211,252,0)");ctx.fillStyle=beam;ctx.beginPath();ctx.moveTo(cx-sc*5.6,by);ctx.lineTo(cx-sc*6.6,by-sc*4.6);ctx.lineTo(cx+sc*6.6,by-sc*4.6);ctx.lineTo(cx+sc*5.6,by);ctx.closePath();ctx.fill();
+      // модули: сортировка по глубине
+      const boxes=HOLO_MODULES.map((m,i)=>{const x0=m.x+(1-m.w)/2,z0=m.z+(m.rz?(1-m.w)/2:0),w=m.rz?m.d:m.w,d=m.rz?m.w:m.d;
+        const c=[[x0,m.y,z0],[x0+w,m.y,z0],[x0+w,m.y,z0+d],[x0,m.y,z0+d],[x0,m.y+m.h,z0],[x0+w,m.y+m.h,z0],[x0+w,m.y+m.h,z0+d],[x0,m.y+m.h,z0+d]].map(p=>P(...p));
+        return {i,c,depth:c.reduce((a,p)=>a+p[2],0)/8};}).sort((a,b)=>b.depth-a.depth);
+      const F=[[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7],[4,5,6,7]];
+      const E=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+      ctx.globalCompositeOperation="lighter";
+      boxes.forEach(b=>{
+        const on=b.i<Math.floor(lit),part=b.i===Math.floor(lit)?lit%1:0,inFc=!on&&b.i<fc;
+        const col=colors[b.i]||"#bfa47e";
+        const flick=0.85+0.15*Math.sin(t*3+b.i);
+        if(on||part>0){const a=(on?0.16:0.16*part)*flick;F.forEach(f=>{ctx.beginPath();f.forEach((k,j)=>{const p=b.c[k];j?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]);});ctx.closePath();ctx.fillStyle=hex(col,a);ctx.fill();});}
+        const ea=on?0.95*flick:part>0?0.5:inFc?0.55:0.22;
+        const ecol=on||part>0?col:inFc?"#bfa47e":"#7dd3fc";
+        ctx.setLineDash(inFc?[3,3]:[]);
+        if(on){ctx.lineWidth=3.2;ctx.strokeStyle=hex(ecol,0.18);E.forEach(([p,q])=>{ctx.beginPath();ctx.moveTo(b.c[p][0],b.c[p][1]);ctx.lineTo(b.c[q][0],b.c[q][1]);ctx.stroke();});}
+        ctx.lineWidth=1;ctx.strokeStyle=hex(ecol,ea);E.forEach(([p,q])=>{ctx.beginPath();ctx.moveTo(b.c[p][0],b.c[p][1]);ctx.lineTo(b.c[q][0],b.c[q][1]);ctx.stroke();});
+        ctx.setLineDash([]);
+      });
+      // частицы, поднимающиеся с проектора
+      parts.forEach(p=>{const life=((t*p.s+p.o)%1);const x=cx+Math.cos(p.a)*p.r*sc*5.2;const y=by-life*sc*4.4;ctx.fillStyle=`rgba(125,211,252,${(1-life)*0.55})`;ctx.fillRect(x,y,1.6,1.6);});
+      ctx.globalCompositeOperation="source-over";
+      // скан-линии
+      ctx.fillStyle="rgba(0,10,30,0.18)";for(let y=(t*14)%4;y<H;y+=4)ctx.fillRect(0,y,W,1);
+      const sy=(t*0.35%1)*H;const sg=ctx.createLinearGradient(0,sy-30,0,sy+30);sg.addColorStop(0,"rgba(125,211,252,0)");sg.addColorStop(0.5,"rgba(125,211,252,0.07)");sg.addColorStop(1,"rgba(125,211,252,0)");ctx.fillStyle=sg;ctx.fillRect(0,sy-30,W,60);
+      if(!reduce||build<1)raf=requestAnimationFrame(draw);
+    };
+    raf=requestAnimationFrame(draw);
+    const vis=()=>{cancelAnimationFrame(raf);if(!document.hidden)raf=requestAnimationFrame(draw);};
+    document.addEventListener("visibilitychange",vis);
+    return()=>{cancelAnimationFrame(raf);ro&&ro.disconnect();document.removeEventListener("visibilitychange",vis);};
+  },[fill,forecast,colors.join(","),animKey]);
+  return <canvas ref={ref} aria-label="Hologram celu" style={{width:"100%",height:"100%",display:"block"}}/>;
+}
+
+function GoalHero({g,A,idx,mgrs,pl,canEdit,onCreate}){
+  const L=(ru,p)=>pl?p:ru;
+  const td=getToday();const now=new Date();
+  const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const eyebrow=`${GOAL_MONTHS[now.getMonth()][pl?1:0].toUpperCase()} ${now.getFullYear()} · ${L("ДЕНЬ","DZIEŃ")} ${now.getDate()} ${L("ИЗ","Z")} ${dim}`;
+  // вклад менеджеров (для накопительных KPI)
+  const contrib=(()=>{if(!g||!A||!A.add||g.metric==="manual")return [];const known=A.b<td?A.b:td;if(A.el===0)return [];
+    const rows=mgrs.map(m=>({m,v:goalEval(g.metric,g.params,goalCtx(idx,{...g,scope:{type:"mgr",id:m}}),A.a,known)})).filter(r=>r.v>0);
+    if(g.scope.type==="mgr")return rows.filter(r=>r.m===g.scope.id);
+    const rest=A.fact-rows.reduce((s,r)=>s+r.v,0);if(rest>0.5)rows.push({m:L("Без менеджера","Bez managera"),v:rest,other:true});
+    return rows.sort((a,b)=>b.v-a.v);})();
+  const N=HOLO_MODULES.length;
+  const fill=A&&A.target?Math.max(0,Math.min(1,A.up?A.fact/A.target:A.pct)):0;
+  const fcst=A&&A.target&&A.forecast!=null?Math.max(0,Math.min(1,A.up?A.forecast/A.target:A.pct)):0;
+  const colors=(()=>{const out=[];if(!contrib.length||!A||!A.fact){for(let i=0;i<N;i++)out.push("#bfa47e");return out;}
+    contrib.forEach(r=>{const k=Math.round(r.v/A.fact*fill*N);for(let i=0;i<k;i++)out.push(r.other?"#94a3b8":(MGR_COLOR[r.m]||"#bfa47e"));});
+    while(out.length<N)out.push(out.length?out[out.length-1]:"#bfa47e");return out;})();
+  const col=A?{ok:"#4ade80",warn:"#fbbf24",bad:"#f87171",idle:"#94a3b8"}[A.st.k]:"#94a3b8";
+  const fg="#eef3fb",mut="rgba(238,243,251,0.62)";
+  const expected=A&&A.add?A.target*A.frac:null;const delta=expected!=null?A.fact-expected:null;
+  const left=A?Math.max(0,A.target-A.fact):0;
+  const tiles=A?[
+    [L("Осталось до цели","Zostało do celu"),A.up?gFmt(left,g,pl,true):"—",fg],
+    [L("К плану на сегодня","Względem planu na dziś"),delta==null?"—":(delta>=0?"+":"−")+gFmt(Math.abs(delta),g,pl,true),delta==null?fg:delta>=0?"#4ade80":"#f87171"],
+    [L("Нужно в день","Potrzeba dziennie"),A.need?gFmt(A.need,g,pl,true):A.fact>=A.target?"✓":"—",A.fact>=A.target?"#4ade80":fg],
+    [L("Прогноз на конец","Prognoza na koniec")+(A.forecast!=null&&A.target?` · ${Math.round(A.forecast/A.target*100)}%`:""),A.forecast==null?"—":gFmt(A.forecast,g,pl,true),col],
+    [L("Дней до конца","Dni do końca"),String(A.left),fg],
+  ]:[];
+  const msg=!A?null:A.st.k==="ok"?L(`Идём в графике. Прогноз ${gFmt(A.forecast,g,pl,true)} при цели ${gFmt(A.target,g,pl,true)}.`,`Jesteśmy w planie. Prognoza ${gFmt(A.forecast,g,pl,true)} przy celu ${gFmt(A.target,g,pl,true)}.`)
+    :A.st.k==="idle"?L("Период ещё не начался.","Okres jeszcze się nie zaczął.")
+    :L(`${A.st.k==="bad"?"Не успеваем":"Отстаём"}: до плана на сегодня не хватает ${gFmt(Math.max(0,-(delta||0)),g,pl,true)}. Чтобы закрыть цель, нужно ${A.need?gFmt(A.need,g,pl,true):"—"} в день ещё ${A.left} дн.`,`${A.st.k==="bad"?"Nie zdążymy":"Opóźnienie"}: do planu na dziś brakuje ${gFmt(Math.max(0,-(delta||0)),g,pl,true)}. Aby domknąć cel, potrzeba ${A.need?gFmt(A.need,g,pl,true):"—"} dziennie przez ${A.left} dni.`);
+  return(
+    <div style={{position:"relative",borderRadius:18,overflow:"hidden",border:"1px solid rgba(125,211,252,0.18)",background:"radial-gradient(120% 90% at 30% 20%, #0b2a5c 0%, #00132f 55%, #000a1c 100%)",color:fg}}>
+      <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.35) 1px, transparent 1px)",backgroundSize:"46px 46px",opacity:0.12,pointerEvents:"none"}}/>
+      <div style={{position:"relative",display:"flex",flexWrap:"wrap",gap:10,padding:"18px 22px 0",alignItems:"baseline",justifyContent:"space-between"}}>
+        <div><div style={{fontSize:10.5,fontWeight:800,letterSpacing:2,color:mut}}>{eyebrow}</div><div style={{fontSize:28,fontWeight:300,color:"#e2cfa9",letterSpacing:-0.3,marginTop:2}}>{L("Цель команды","Cel zespołu")}</div></div>
+        <div style={{fontSize:11.5,color:mut,maxWidth:420}}>{L("Каждый модуль — часть общей кухни. Цвет — менеджер, который его «собрал». Пунктир — куда дойдём по прогнозу.","Każdy moduł to część wspólnej kuchni. Kolor — manager, który go „zmontował”. Przerywana linia — dokąd dojdziemy wg prognozy.")}</div>
+      </div>
+      <div style={{position:"relative",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:10,padding:"6px 22px 22px",alignItems:"center"}}>
+        <div style={{position:"relative",height:360,minWidth:0}}>
+          <GoalHologram fill={fill} forecast={fcst} colors={colors} animKey={g?g.id:"none"}/>
+          <div style={{position:"absolute",left:0,right:0,top:6,textAlign:"center",pointerEvents:"none"}}>
+            <div style={{fontSize:46,fontWeight:900,letterSpacing:-1,color:fg,textShadow:"0 0 24px rgba(125,211,252,0.45)",fontVariantNumeric:"tabular-nums"}}>{A&&A.target?Math.round(fill*100)+"%":"—"}</div>
+            <div style={{fontSize:11,color:mut,letterSpacing:1}}>{A&&A.target?`${Math.floor(fill*N)} / ${N} ${L("модулей","modułów")} · 1 ${L("модуль","moduł")} = ${gFmt(A.target/N,g,pl,true)}`:L("цель не задана","cel nie ustawiony")}</div>
+          </div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:12,minWidth:0}}>
+          {g&&A?<>
+            <div><div style={{fontSize:10.5,fontWeight:800,letterSpacing:2,color:mut}}>{L("ГЛАВНАЯ ЦЕЛЬ","GŁÓWNY CEL")} · {gPeriodLabel(g.period,pl).toUpperCase()}</div>
+              <div style={{fontSize:22,fontWeight:800,color:"#e2cfa9",marginTop:3}}>{gTitle(g,pl)} · {gScopeName(g.scope,pl).toLowerCase()}</div></div>
+            <div style={{display:"flex",alignItems:"baseline",gap:10,flexWrap:"wrap"}}>
+              <span style={{fontSize:40,fontWeight:900,color:fg,fontVariantNumeric:"tabular-nums",letterSpacing:-0.5}}>{gFmt(A.fact,g,pl)}</span>
+              <span style={{fontSize:17,fontWeight:700,color:mut}}>/ {gFmt(A.target,g,pl)}</span>
+              <span style={{marginLeft:"auto",fontSize:11,fontWeight:800,borderRadius:999,padding:"4px 11px",background:`${col}22`,color:col}}>{A.st.l}</span>
+            </div>
+            <div style={{position:"relative",height:10,borderRadius:6,background:"rgba(125,211,252,0.12)"}}>
+              <div style={{position:"absolute",left:0,top:0,bottom:0,width:`${fill*100}%`,borderRadius:6,background:`linear-gradient(90deg,#7dd3fc,${col})`,boxShadow:`0 0 14px ${col}88`}}/>
+              {A.add&&A.frac>0&&!A.finished&&<div title={L("Где нужно быть сегодня","Gdzie powinniśmy być dziś")} style={{position:"absolute",top:-5,bottom:-5,width:2,left:`calc(${Math.min(100,A.frac*100)}% - 1px)`,background:fg}}/>}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(118px,1fr))",gap:8}}>
+              {tiles.map(([k,v,c])=><div key={k} style={{background:"rgba(0,10,30,0.55)",border:"1px solid rgba(125,211,252,0.14)",borderRadius:11,padding:"9px 11px",minWidth:0}}>
+                <div style={{fontSize:18,fontWeight:900,color:c,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontVariantNumeric:"tabular-nums"}}>{v}</div><div style={{fontSize:10.5,color:mut}}>{k}</div></div>)}
+            </div>
+            {contrib.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {contrib.map(r=><span key={r.m} style={{display:"inline-flex",alignItems:"center",gap:7,fontSize:12,fontWeight:700,borderRadius:999,padding:"5px 11px",background:"rgba(0,10,30,0.55)",border:`1px solid ${r.other?"rgba(148,163,184,0.4)":(MGR_COLOR[r.m]||"#bfa47e")+"66"}`}}>
+                <span style={{width:9,height:9,borderRadius:"50%",background:r.other?"#94a3b8":(MGR_COLOR[r.m]||"#bfa47e"),boxShadow:`0 0 8px ${r.other?"#94a3b8":(MGR_COLOR[r.m]||"#bfa47e")}`}}/>{r.m}<span style={{color:mut,fontWeight:600}}>{gFmt(r.v,g,pl,true)} · {A.fact?Math.round(r.v/A.fact*100):0}%</span></span>)}
+            </div>}
+            {msg&&<div style={{fontSize:12.5,borderRadius:10,padding:"9px 12px",background:`${col}14`,border:`1px solid ${col}55`,color:fg}}><b style={{color:col}}>{A.st.l[0].toUpperCase()+A.st.l.slice(1)}.</b> {(x=>x.charAt(0).toUpperCase()+x.slice(1))(msg.replace(/^[^:.]+[:.]\s*/,""))}</div>}
+          </>:<div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{fontSize:22,fontWeight:800,color:"#e2cfa9"}}>{L("Главная цель месяца не задана","Główny cel miesiąca nie jest ustawiony")}</div>
+            <div style={{fontSize:13,color:mut}}>{canEdit?L("Поставьте цель команды по выручке на этот месяц — голограмма начнёт собираться.","Ustaw cel zespołu (przychód) na ten miesiąc — hologram zacznie się składać."):L("Как только руководитель поставит цель, здесь появится прогресс команды.","Gdy kierownik ustawi cel, pojawi się tu postęp zespołu.")}</div>
+            {canEdit&&<button onClick={onCreate} style={{alignSelf:"flex-start",background:"#bfa47e",border:"none",color:"#00132f",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:900,cursor:"pointer"}}>＋ {L("Поставить главную цель","Ustaw główny cel")}</button>}
+          </div>}
+        </div>
+      </div>
+    </div>);
+}
+
+// ─── ДАШБОРД: голограмма → цели → воронка (текущий месяц) ─────────────────────
+function DashboardPage({db,updateDb,currentUser,lang,t,srcList,onOpenLead}){
+  const pl=lang==="pl";
+  return(
+    <div style={{display:"flex",flexDirection:"column"}}>
+      <GoalsPage db={db} updateDb={updateDb} currentUser={currentUser} lang={lang} withHero/>
+      <div style={{padding:"4px 18px 0",fontSize:18,fontWeight:900,color:C.text}}>▼ {pl?"Lejek sprzedaży · bieżący miesiąc":"Воронка продаж · текущий месяц"}</div>
+      <FunnelPage leads={db?.leads||[]} sales={db?.sales||[]} srcList={srcList} funnels={db?.funnels||[]} t={t} lang={lang} onOpenLead={onOpenLead} currentUser={currentUser}/>
+    </div>);
+}
+
+// ─── ЦЕНТР ПРОДАЖ: вкладки «Центр» | «Воронка продаж» ─────────────────────────
+function SalesCenterTabs(props){
+  const {lang,initialTab}=props;const pl=lang==="pl";
+  const [tab,setTab]=useState(initialTab||"center");
+  useEffect(()=>{if(initialTab)setTab(initialTab);},[initialTab]);
+  return(<div>
+    <TabBar tabs={[{key:"center",icon:"◆",label:pl?"Centrum sprzedaży":"Центр продаж"},{key:"funnel",icon:"▼",label:pl?"Lejek sprzedaży":"Воронка продаж"}]} active={tab} onChange={setTab}/>
+    {tab==="center"?<SalesCenterPage {...props}/>:<FunnelPage leads={props.leads} sales={props.sales} srcList={props.srcList} funnels={props.funnels} t={props.t} lang={lang} onOpenLead={props.onOpenLead} currentUser={props.currentUser}/>}
+  </div>);
 }
 
 // ─── LEADS PAGE ───────────────────────────────────────────────────────────────
@@ -3956,7 +4135,7 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
   const trans=(from,to,arr)=>{const base=arr.filter(l=>curScore(l)>=from);const ok=base.filter(l=>curScore(l)>=to);return {n:ok.length,of:base.length,p:pct(ok.length,base.length)};};
   // 4.5 → 5.5: именно те, кто был на 4.5 (по истории оценок или сейчас), и дошли до «визит состоялся»
   const t4555=(arr)=>trans(4.5,5.5,arr);
-  const K=[["Лид → Квал (4+)",trans(0,4,cur),trans(0,4,prev)],["Квал 4 → Визит 5",trans(4,5,cur),trans(4,5,prev)],["MWP 4.5 → Визит состоялся 5.5",t4555(cur),t4555(prev)],["Визит назн. 5 → состоялся 5.5",trans(5,5.5,cur),trans(5,5.5,prev)],["Визит 5.5 → Продажа 6",trans(5.5,6,cur),trans(5.5,6,prev)]];
+  const K=[[ru?"Лид → Квал (4+)":"Lead → Kwalifikacja (4+)",trans(0,4,cur),trans(0,4,prev)],[ru?"Квал 4 → Визит 5":"Kwal. 4 → Wizyta 5",trans(4,5,cur),trans(4,5,prev)],[ru?"MWP 4.5 → Визит состоялся 5.5":"MWP 4.5 → Wizyta odbyta 5.5",t4555(cur),t4555(prev)],[ru?"Визит назн. 5 → состоялся 5.5":"Wizyta um. 5 → odbyta 5.5",trans(5,5.5,cur),trans(5,5.5,prev)],[ru?"Визит 5.5 → Продажа 6":"Wizyta 5.5 → Sprzedaż 6",trans(5.5,6,cur),trans(5.5,6,prev)]];
   const ss={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,outline:"none",colorScheme:"dark"};
   const pickList=pick?(pick.mode==="at"?at(cur,pick.x):reached(cur,pick.x)):[];
   const curSales=filterByCustomRange(sales||[],dateFrom,dateTo).filter(x=>fm==="all"||x.manager===fm).filter(x=>{if(fLang==="all")return true;const l=(leads||[]).find(y=>y.leadId===x.leadId||y.id===x.leadId)||(leads||[]).find(y=>y.phone===x.phone);const cl=l&&l.clientLang;return fLang==="none"?!cl:cl===fLang;}).filter(x=>buyerMatch(x.source,fBuy));
@@ -6467,13 +6646,13 @@ function GarnoCRM(){
         <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} unreadTasks={unreadTasksCount} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
-          {page==="dashboard"  && <GoalsPage db={db} updateDb={updateDb} currentUser={currentUser} lang={lang}/>}
+          {page==="dashboard"  && <DashboardPage db={db} updateDb={updateDb} currentUser={currentUser} lang={DASH_LANG||lang} t={T[DASH_LANG||lang]||t} srcList={srcList} onOpenLead={setSelLead}/>}
           {page==="leads"      && <LeadsSection lang={lang} funnels={db.funnels||[]} leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead}/>}
-          {(page==="funnel"||page==="analytics") && <FunnelPage leads={leads} sales={sales} srcList={srcList} funnels={db.funnels||[]} t={t} lang={lang} onOpenLead={setSelLead} currentUser={currentUser}/>}
+          
           {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
-          {page==="salescenter"&& <SalesCenterPage leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
+          {(page==="salescenter"||page==="funnel"||page==="analytics")&& <SalesCenterTabs initialTab={page==="salescenter"?"center":"funnel"} srcList={srcList} funnels={db.funnels||[]} leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
           {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={setSelLead} currentUser={currentUser}/>}
           {page==="settings"   && <SettingsPage db={db} updateDb={updateDb} lang={lang} t={t} srcList={srcList} setDomains={setDomains}/>}
           {page==="tasks"      && <TasksPage orders={db.orders||[]} orderTaskTypes={db.orderTaskTypes||[]} tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t} leads={leads} taskTypes={db.taskTypes||[]} onOpenLead={setSelLead} initialModal={taskPreset} />}
