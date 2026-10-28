@@ -344,7 +344,7 @@ function erikaEff(l){
   return {v:r.score,tree,termFromForm:!et.term&&!!ft,next:r.next,hint:r.hint};
 }
 // ─── БАЕРЫ (медиабаинг) по источнику: «D…» — Даня, «I…» — Илля ─────────────────
-const BUYERS=[["Danya","D","#22d3ee"],["Illia","I","#a78bfa"]];
+const BUYERS=[["Danya","D","#22d3ee"],["Illia","i","#a78bfa"]]; // регистр важен: Илля — маленькая i (Instagram и т.п. с большой I — не баер)
 function buyerOf(source){const c=String(source||"").trim().charAt(0);const b=BUYERS.find(x=>x[1]===c);return b?b[0]:null;}
 function BuyerPick({value,onChange,lang,style}){const pl=lang==="pl";return(
   <select value={value} onChange={e=>onChange(e.target.value)} style={style}>
@@ -975,6 +975,11 @@ function useDatabase(){
       deletedFunnelIds:[...new Set([...(local.deletedFunnelIds||[]),...(remote?.deletedFunnelIds||[])])],
       orders:(()=>{const dead=new Set([...(local.deletedOrderIds||[]),...(remote?.deletedOrderIds||[])]);const m=new Map();(remote?.orders||[]).forEach(x=>m.set(x.id,x));(local.orders||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()].filter(x=>!dead.has(x.id));})(),
       deletedOrderIds:[...new Set([...(local.deletedOrderIds||[]),...(remote?.deletedOrderIds||[])])],
+      // 🎯 Цели: по id, побеждает более свежая правка; удалённые не возвращаются
+      goals:(()=>{const dead=new Set([...(local.deletedGoalIds||[]),...(remote?.deletedGoalIds||[])]);const m=new Map();(remote?.goals||[]).forEach(x=>m.set(x.id,x));(local.goals||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()].filter(x=>!dead.has(x.id));})(),
+      deletedGoalIds:[...new Set([...(local.deletedGoalIds||[]),...(remote?.deletedGoalIds||[])])],
+      // Журнал выполненных задач (чтобы KPI «выполнено задач» не обнулялся после «Очистить DONE»)
+      taskDoneLog:(()=>{const m=new Map();[...(remote?.taskDoneLog||[]),...(local.taskDoneLog||[])].forEach(x=>x&&m.set(x.id,x));const cut=Date.now()-400*86400000;return [...m.values()].filter(x=>(x.doneAt||0)>cut);})(),
       orderTaskTypes:(()=>{const dead=new Set([...(local.deletedOrderTaskTypeIds||[]),...(remote?.deletedOrderTaskTypeIds||[])]);const m=new Map();(remote?.orderTaskTypes||[]).forEach(x=>m.set(x.id,x));(local.orderTaskTypes||[]).forEach(x=>m.set(x.id,x));return [...m.values()].filter(x=>!dead.has(x.id));})(),
       deletedOrderTaskTypeIds:[...new Set([...(local.deletedOrderTaskTypeIds||[]),...(remote?.deletedOrderTaskTypeIds||[])])],
       orderTemplate:((local.orderTemplate?.updatedAt||0)>=(remote?.orderTemplate?.updatedAt||0))?local.orderTemplate:remote?.orderTemplate,
@@ -1105,7 +1110,9 @@ function useDatabase(){
           const localAck=new Set((local.chat||[]).filter(m=>m.kind==="reminder"&&m.ackBy).map(m=>m.key));
           const localKeys=new Set((local.chat||[]).filter(m=>m.kind==="reminder").map(m=>m.key));
           const remoteChatChanges=(remote?.chat||[]).filter(m=>m&&m.kind==="reminder"&&(!localKeys.has(m.key)||(m.ackBy&&!localAck.has(m.key))));
-          if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0&&remoteTaskChanges.length===0&&remoteOrderChanges.length===0&&remoteChatChanges.length===0)return;
+          const localGoal=new Map((local.goals||[]).map(g=>[g.id,g]));const deadGoal=new Set(local.deletedGoalIds||[]);
+          const remoteGoalChanges=(remote?.goals||[]).filter(g=>!deadGoal.has(g.id)&&(!localGoal.has(g.id)||(g.updatedAt||0)>(localGoal.get(g.id).updatedAt||0))).length+(remote?.deletedGoalIds||[]).filter(id=>!deadGoal.has(id)&&localGoal.has(id)).length;
+          if(remoteNewLeads.length===0&&remoteUpdatedLeads.length===0&&remoteNewEvs.length===0&&remoteNewSales.length===0&&remoteTaskChanges.length===0&&remoteOrderChanges.length===0&&remoteChatChanges.length===0&&remoteGoalChanges===0)return;
           // 🚨 Новые заявки прилетели извне (лендинг/другой менеджер) — тревога
           // Лид, который менеджер сам добавил в CRM, не тревожит команду. Если он закреплён за другим
           // менеджером — тревога только у этого менеджера.
@@ -2284,7 +2291,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"funnel",icon:"▼",ru:"Воронка продаж",pl:"Lejek sprzedaży"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
+const NAV=[{key:"dashboard",icon:"🎯",ru:"Цели",pl:"Cele"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"funnel",icon:"▼",ru:"Воронка продаж",pl:"Lejek sprzedaży"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
 function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,aiUnread=0,freshLeads=0,t}){
   return(
     <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
@@ -2415,6 +2422,541 @@ function Dashboard({leads,events,t,lang}){
       </div>
     </div>
   );
+}
+
+// ─── 🎯 ЦЕЛИ (вместо дашборда) ────────────────────────────────────────────────
+// Цели хранятся в db.goals (общая база), удалённые — в deletedGoalIds.
+// Ставить и менять цели могут только GOAL_EDITORS; остальные видят их в режиме просмотра.
+const GOAL_EDITORS=["Danya","Oleh","Dmytro"];
+const CUR=" zł";
+const GOAL_SCORES=[0,1,2,2.5,3,4,4.5,5,5.5,6];
+const GOAL_STEPS=[["lead","Лид","Lead"],["contact","Контакт (оценка 1+)","Kontakt (ocena 1+)"],["qual","Квал (4+)","Kwalifikacja (4+)"],["vset","Визит назначен (5)","Wizyta umówiona (5)"],["vdone","Визит состоялся (5.5)","Wizyta odbyta (5.5)"],["sale","Продажа (6)","Sprzedaż (6)"]];
+const GOAL_STEP_MIN={lead:0,contact:1,qual:4,vset:5,vdone:5.5,sale:6};
+const GOAL_STEP_SHORT={lead:["Лид","Lead"],contact:["Контакт","Kontakt"],qual:["Квал","Kwal."],vset:["Визит назн.","Wizyta um."],vdone:["Визит сост.","Wizyta odb."],sale:["Продажа","Sprzedaż"]};
+// u: money | cnt | pct | min | custom;  kind: sum (копится) | level (уровень) | manual
+const GOAL_KPIS=[
+  {k:"revenue",g:["Продажи","Sprzedaż"],l:["Выручка","Przychód"],u:"money",kind:"sum",up:true,d:["Продажи по дате продажи + допродажи по дате допродажи","Sprzedaże wg daty + dosprzedaże wg ich daty"]},
+  {k:"sales",g:["Продажи","Sprzedaż"],l:["Количество продаж","Liczba sprzedaży"],u:"cnt",kind:"sum",up:true,d:["Сколько продаж оформлено за период","Ile sprzedaży w okresie"]},
+  {k:"avgCheck",g:["Продажи","Sprzedaż"],l:["Средний чек","Średni paragon"],u:"money",kind:"level",up:true,d:["Сумма продаж ÷ их количество","Suma sprzedaży ÷ ich liczba"]},
+  {k:"addonRev",g:["Продажи","Sprzedaż"],l:["Допродажи, сумма","Dosprzedaże, kwota"],u:"money",kind:"sum",up:true,d:["Суммы, дописанные к продажам, по дате допродажи","Kwoty dopisane do sprzedaży, wg daty"]},
+  {k:"addonCnt",g:["Продажи","Sprzedaż"],l:["Допродажи, количество","Dosprzedaże, liczba"],u:"cnt",kind:"sum",up:true,d:["Сколько раз дописывали сумму к продаже","Ile razy dopisano kwotę"]},
+  {k:"revPerLead",g:["Продажи","Sprzedaż"],l:["Выручка на один лид","Przychód na leada"],u:"money",kind:"level",up:true,d:["Выручка периода ÷ новые лиды периода","Przychód ÷ nowe leady w okresie"]},
+  {k:"leads",g:["Лиды и оценки","Leady i oceny"],l:["Новые лиды","Nowe leady"],u:"cnt",kind:"sum",up:true,d:["Лиды, попавшие в CRM за период","Leady, które wpadły do CRM w okresie"]},
+  {k:"scoreIs",g:["Лиды и оценки","Leady i oceny"],l:["Лиды с выбранной оценкой","Leady z wybraną oceną"],u:"cnt",kind:"sum",up:true,p:{scores:[4.5]},d:["Текущая оценка — ровно одна из выбранных (4 — это только 4, без 4.5)","Aktualna ocena — dokładnie jedna z wybranych (4 to tylko 4)"]},
+  {k:"scoreMin",g:["Лиды и оценки","Leady i oceny"],l:["Лиды с оценкой не ниже…","Leady z oceną co najmniej…"],u:"cnt",kind:"sum",up:true,p:{min:4},d:["Текущая оценка больше или равна выбранной","Aktualna ocena ≥ wybranej"]},
+  {k:"quals",g:["Лиды и оценки","Leady i oceny"],l:["Квалы (оценка 4+)","Kwalifikowane (4+)"],u:"cnt",kind:"sum",up:true,d:["Лиды периода с текущей оценкой 4 и выше","Leady z okresu z aktualną oceną 4+"]},
+  {k:"noContact",g:["Лиды и оценки","Leady i oceny"],l:["Лиды с оценкой 0","Leady z oceną 0"],u:"cnt",kind:"sum",up:false,d:["Нет контакта или лид ещё не обработан. Чем меньше, тем лучше","Brak kontaktu lub nieobsłużony. Im mniej, tym lepiej"]},
+  {k:"erikaQual",g:["Лиды и оценки","Leady i oceny"],l:["Квалы по оценке Эрики (4+)","Kwalifikowane wg Eriki (4+)"],u:"cnt",kind:"sum",up:true,d:["Лиды, которым Эрика поставила 4 и выше","Leady z oceną Eriki 4+"]},
+  {k:"erikaMatch",g:["Лиды и оценки","Leady i oceny"],l:["Совпадение оценки Эрики и менеджера","Zgodność oceny Eriki i managera"],u:"pct",kind:"level",up:true,d:["Доля лидов, где оценка Эрики равна оценке менеджера","Odsetek leadów, gdzie ocena Eriki = ocena managera"]},
+  {k:"visitsSet",g:["Визиты","Wizyty"],l:["Визит назначен","Wizyta umówiona"],u:"cnt",kind:"sum",up:true,d:["Лиды с оценкой 5+ и датой визита в периоде","Leady z oceną 5+ i datą wizyty w okresie"]},
+  {k:"visitsDone",g:["Визиты","Wizyty"],l:["Визит состоялся","Wizyta odbyta"],u:"cnt",kind:"sum",up:true,d:["Лиды с оценкой 5.5+ и датой визита в периоде","Leady z oceną 5.5+ i datą wizyty w okresie"]},
+  {k:"conv",g:["Конверсии","Konwersje"],l:["Конверсия из шага в шаг","Konwersja między etapami"],u:"pct",kind:"level",up:true,p:{from:"qual",to:"vset"},d:["Любые два шага воронки, по лидам периода (как в Воронке продаж)","Dowolne dwa etapy lejka, wg leadów z okresu"]},
+  {k:"fcMedian",g:["Скорость","Szybkość"],l:["Время до 1-го контакта, медиана","Czas do 1. kontaktu, mediana"],u:"min",kind:"level",up:false,d:["От попадания лида в CRM до «Контакт 1»","Od wpadnięcia leada do „Kontakt 1”"]},
+  {k:"fcAvg",g:["Скорость","Szybkość"],l:["Время до 1-го контакта, среднее","Czas do 1. kontaktu, średnia"],u:"min",kind:"level",up:false,d:["Среднее время до первого контакта","Średni czas do pierwszego kontaktu"]},
+  {k:"fcWithin",g:["Скорость","Szybkość"],l:["Доля лидов с контактом за N минут","Odsetek leadów z kontaktem w N min"],u:"pct",kind:"level",up:true,p:{min:15},d:["Сколько лидов получили первый контакт не позже N минут","Ile leadów miało 1. kontakt w ciągu N min"]},
+  {k:"ordersNew",g:["Заказы","Zamówienia"],l:["Новых заказов","Nowe zamówienia"],u:"cnt",kind:"sum",up:true,d:["Заказы, созданные за период (по ответственному)","Zamówienia utworzone w okresie"]},
+  {k:"ordersDone",g:["Заказы","Zamówienia"],l:["Заказов завершено","Zamówienia zakończone"],u:"cnt",kind:"sum",up:true,d:["Заказы, дошедшие до «Заказ завершён»","Zamówienia zakończone w okresie"]},
+  {k:"tasksDone",g:["Задачи","Zadania"],l:["Выполнено задач","Wykonane zadania"],u:"cnt",kind:"sum",up:true,d:["Задачи, переведённые в DONE за период","Zadania przeniesione do DONE w okresie"]},
+  {k:"tasksOverdue",g:["Задачи","Zadania"],l:["Просроченные задачи","Zaległe zadania"],u:"cnt",kind:"sum",up:false,d:["Дедлайн в периоде, а задача закрыта позже или не закрыта. Чем меньше, тем лучше","Termin w okresie, zamknięte po terminie lub wcale"]},
+  {k:"formula",g:["Конструктор","Konstruktor"],l:["Своя формула: A ÷ B","Własna formuła: A ÷ B"],u:"pct",kind:"level",up:true,p:{num:"visitsDone",den:"visitsSet"},d:["Делит любой счётный показатель на другой, × 100%","Dzieli dowolny licznik przez inny, × 100%"]},
+  {k:"manual",g:["Конструктор","Konstruktor"],l:["Ручная метрика","Metryka ręczna"],u:"custom",kind:"manual",up:true,d:["Для того, чего нет в CRM: факт отмечается вручную","Dla rzeczy spoza CRM: fakt wpisuje się ręcznie"]},
+];
+const GOAL_KMAP={};GOAL_KPIS.forEach(k=>{GOAL_KMAP[k.k]=k;});
+const GOAL_FORMULA_OPTS=["revenue","sales","addonRev","addonCnt","leads","quals","noContact","erikaQual","visitsSet","visitsDone","ordersNew","ordersDone","tasksDone","tasksOverdue"];
+const GOAL_MONTHS=[["Январь","Styczeń"],["Февраль","Luty"],["Март","Marzec"],["Апрель","Kwiecień"],["Май","Maj"],["Июнь","Czerwiec"],["Июль","Lipiec"],["Август","Sierpień"],["Сентябрь","Wrzesień"],["Октябрь","Październik"],["Ноябрь","Listopad"],["Декабрь","Grudzień"]];
+const gK=g=>GOAL_KMAP[g.metric]||GOAL_KMAP.revenue;
+const gAdditive=g=>gK(g).kind!=="level";
+const gIso=(y,m,d)=>isoLocal(new Date(y,m,d));
+const gAddDays=(a,n)=>{const d=new Date(a+"T00:00:00");d.setDate(d.getDate()+n);return isoLocal(d);};
+const gDays=(a,b)=>Math.round((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/86400000)+1;
+const gMonthKey=(y,m)=>{const d=new Date(y,m,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;};
+const gCurMonth=()=>{const t=getToday();return t.slice(0,7);};
+const gCurQuarter=()=>{const t=getToday();return `${t.slice(0,4)}-Q${Math.floor((+t.slice(5,7)-1)/3)+1}`;};
+function gRange(p){
+  if(p.type==="month"){const [y,m]=p.key.split("-").map(Number);return [gIso(y,m-1,1),gIso(y,m,0)];}
+  if(p.type==="quarter"){const y=+p.key.slice(0,4),q=+p.key.slice(6),m0=(q-1)*3;return [gIso(y,m0,1),gIso(y,m0+3,0)];}
+  return [p.from,p.to];
+}
+function gShift(p,k){
+  if(p.type==="month"){const [y,m]=p.key.split("-").map(Number);return {type:"month",key:gMonthKey(y,m-1+k)};}
+  if(p.type==="quarter"){const y=+p.key.slice(0,4),q=+p.key.slice(6)-1+k;const yy=y+Math.floor(q/4),qq=((q%4)+4)%4+1;return {type:"quarter",key:`${yy}-Q${qq}`};}
+  const [a,b]=gRange(p),len=gDays(a,b);return {type:"custom",from:gAddDays(a,k*len),to:gAddDays(b,k*len)};
+}
+function gPeriodLabel(p,pl){
+  if(p.type==="month"){const [y,m]=p.key.split("-").map(Number);return `${GOAL_MONTHS[m-1][pl?1:0]} ${y}`;}
+  if(p.type==="quarter")return `${p.key.slice(5)} ${p.key.slice(0,4)}`;
+  return `${isoToDot(p.from)} – ${isoToDot(p.to)}`;
+}
+function gFmt(v,g,pl,compact){
+  const u=gK(g).u;
+  if(v==null||isNaN(v))return "—";
+  if(u==="pct")return String(Math.round(v*10)/10).replace(".",",")+"%";
+  if(u==="min")return String(Math.round(v*10)/10).replace(".",",")+(pl?" min":" мин");
+  if(u==="money"){if(compact&&Math.abs(v)>=10000)return (Math.abs(v)>=1e6?(v/1e6).toFixed(2).replace(".",",")+"M":Math.round(v/1000)+"k")+CUR;return new Intl.NumberFormat("pl-PL").format(Math.round(v))+CUR;}
+  const r=Math.abs(v)<10&&v%1?Math.round(v*10)/10:Math.round(v);
+  const s=new Intl.NumberFormat("pl-PL").format(r);
+  return u==="custom"&&g.unit?`${s} ${g.unit}`:s;
+}
+function gRound(v,g){const u=gK(g).u;if(u==="money")return Math.round(v/1000)*1000;if(u==="pct"||u==="min")return Math.round(v*10)/10;return Math.max(0,Math.round(v));}
+function gKpiTitle(g,pl){
+  const p=g.params||{},i=pl?1:0;
+  switch(g.metric){
+    case "scoreIs":return (pl?"Leady z oceną ":"Лиды с оценкой ")+((p.scores||[]).length?p.scores.join(", "):"…");
+    case "scoreMin":return (pl?"Leady z oceną ":"Лиды с оценкой ")+(p.min??4)+"+";
+    case "conv":return (pl?"Konwersja ":"Конверсия ")+GOAL_STEP_SHORT[p.from||"lead"][i]+" → "+GOAL_STEP_SHORT[p.to||"sale"][i];
+    case "fcWithin":return (pl?"Kontakt w ≤ ":"Контакт за ≤ ")+(p.min??15)+(pl?" min":" мин");
+    case "formula":return GOAL_KMAP[p.num||"visitsDone"].l[i]+" ÷ "+GOAL_KMAP[p.den||"visitsSet"].l[i];
+    case "manual":return g.customName||(pl?"Własny cel":"Своя цель");
+    default:return gK(g).l[i];
+  }
+}
+function gTitle(g,pl){const l=g.langs||[];return g.title||(gKpiTitle(g,pl)+(l.length?" · "+l.map(x=>x.toUpperCase()).join("/"):""));}
+const gScopeName=(s,pl)=>s.type==="team"?(pl?"Zespół":"Команда"):s.id;
+
+// Индекс данных CRM для подсчёта KPI (строится один раз на изменение базы)
+function goalIndex(db){
+  const leads=db?.leads||[],sales=db?.sales||[],orders=db?.orders||[],tasks=db?.tasks||[],log=db?.taskDoneLog||[];
+  const iso=ms=>ms?isoLocal(new Date(+ms)):null;
+  const langOf=new Map();
+  leads.forEach(l=>{const c=l.clientLang?normLang(l.clientLang):null;langOf.set("i:"+l.id,c);if(l.leadId)langOf.set("i:"+l.leadId,c);if(l.phone)langOf.set("p:"+l.phone,c);});
+  const lg=(id,ph)=>{let v=langOf.get("i:"+id);if(v===undefined&&ph)v=langOf.get("p:"+ph);return v??null;};
+  const L=leads.map(l=>{const sc=parseFloat(l.score)||0;let ar=null,fc=null,es=null;
+    try{ar=leadArrivalMs(l);fc=firstContactMs(l);}catch{}
+    try{const e=erikaEff(l).v;es=e==null||isNaN(e)?null:+e;}catch{}
+    return {mgr:l.manager||"",lang:l.clientLang?normLang(l.clientLang):null,d:createdAtToIsoDate(l.createdAt),sc,vd:l.visitDate||null,fc:(ar!=null&&fc!=null&&fc>=ar)?(fc-ar)/60000:null,es};});
+  const S=sales.map(s=>{const ad=s.addons||[];const add=ad.reduce((q,y)=>q+(+y.amount||0),0);const base=s.baseAmount!=null?(+s.baseAmount||0):(+s.saleAmount||0)-add;
+    return {mgr:s.manager||"",lang:lg(s.leadId,s.phone),d:createdAtToIsoDate(String(s.createdAt||"").split(" ")[0]),base,ad:ad.map(a=>({d:createdAtToIsoDate(a.date)||iso(a.at),amt:+a.amount||0}))};});
+  const O=orders.map(o=>({mgr:(o.resp&&o.resp.manager)||"",lang:lg(o.leadId,o.phone),c:iso(o.createdMs)||createdAtToIsoDate(String(o.createdAt||"").split(" ")[0]),done:o.status==="done"?iso(o.doneAt||o.updatedAt):null}));
+  const seen=new Set();
+  const Tk=tasks.map(t=>{seen.add(t.id);const dn=(t.status||"all")==="done";return {mgr:t.assignee||"",lang:lg(t.leadId),due:t.deadline||null,done:dn?iso(t.doneAt):null,isDone:dn};});
+  log.forEach(x=>{if(seen.has(x.id))return;Tk.push({mgr:x.mgr||"",lang:lg(x.leadId),due:x.due||null,done:iso(x.doneAt),isDone:true});});
+  return {L,S,O,T:Tk};
+}
+function goalCtx(idx,g){
+  const s=g.scope||{type:"team"},lang=g.langs||[];
+  const ok=x=>(s.type==="team"||x.mgr===s.id)&&(!lang.length||lang.includes(x.lang));
+  return {L:idx.L.filter(ok),S:idx.S.filter(ok),O:idx.O.filter(ok),T:idx.T.filter(ok)};
+}
+const gIn=(x,a,b)=>x!=null&&x>=a&&x<=b;
+function goalEval(metric,p,c,a,b){
+  p=p||{};let n=0,s=0;
+  switch(metric){
+    case "revenue":c.S.forEach(x=>{if(gIn(x.d,a,b))s+=x.base;x.ad.forEach(y=>{if(gIn(y.d,a,b))s+=y.amt;});});return s;
+    case "sales":c.S.forEach(x=>{if(gIn(x.d,a,b))n++;});return n;
+    case "avgCheck":c.S.forEach(x=>{if(gIn(x.d,a,b)){n++;s+=x.base+x.ad.reduce((q,y)=>q+y.amt,0);}});return n?s/n:0;
+    case "addonRev":c.S.forEach(x=>x.ad.forEach(y=>{if(gIn(y.d,a,b))s+=y.amt;}));return s;
+    case "addonCnt":c.S.forEach(x=>x.ad.forEach(y=>{if(gIn(y.d,a,b))n++;}));return n;
+    case "revPerLead":{const r=goalEval("revenue",{},c,a,b),l=goalEval("leads",{},c,a,b);return l?r/l:0;}
+    case "leads":c.L.forEach(x=>{if(gIn(x.d,a,b))n++;});return n;
+    case "scoreIs":{const set=p.scores||[];c.L.forEach(x=>{if(gIn(x.d,a,b)&&set.includes(x.sc))n++;});return n;}
+    case "scoreMin":c.L.forEach(x=>{if(gIn(x.d,a,b)&&x.sc>=(p.min??4))n++;});return n;
+    case "quals":c.L.forEach(x=>{if(gIn(x.d,a,b)&&x.sc>=4)n++;});return n;
+    case "noContact":c.L.forEach(x=>{if(gIn(x.d,a,b)&&x.sc===0)n++;});return n;
+    case "erikaQual":c.L.forEach(x=>{if(gIn(x.d,a,b)&&x.es!=null&&x.es>=4)n++;});return n;
+    case "erikaMatch":c.L.forEach(x=>{if(gIn(x.d,a,b)&&x.es!=null){n++;if(x.es===x.sc)s++;}});return n?s/n*100:0;
+    case "visitsSet":c.L.forEach(x=>{if(x.sc>=5&&gIn(x.vd,a,b))n++;});return n;
+    case "visitsDone":c.L.forEach(x=>{if(x.sc>=5.5&&gIn(x.vd,a,b))n++;});return n;
+    case "conv":{const f=GOAL_STEP_MIN[p.from||"lead"],t=GOAL_STEP_MIN[p.to||"sale"];c.L.forEach(x=>{if(gIn(x.d,a,b)&&x.sc>=f){n++;if(x.sc>=t)s++;}});return n?s/n*100:0;}
+    case "fcMedian":{const v=[];c.L.forEach(x=>{if(gIn(x.d,a,b)&&x.fc!=null)v.push(x.fc);});if(!v.length)return 0;v.sort((q,w)=>q-w);const m=v.length>>1;return v.length%2?v[m]:(v[m-1]+v[m])/2;}
+    case "fcAvg":c.L.forEach(x=>{if(gIn(x.d,a,b)&&x.fc!=null){n++;s+=x.fc;}});return n?s/n:0;
+    case "fcWithin":{const lim=p.min??15;c.L.forEach(x=>{if(gIn(x.d,a,b)&&x.fc!=null){n++;if(x.fc<=lim)s++;}});return n?s/n*100:0;}
+    case "ordersNew":c.O.forEach(x=>{if(gIn(x.c,a,b))n++;});return n;
+    case "ordersDone":c.O.forEach(x=>{if(gIn(x.done,a,b))n++;});return n;
+    case "tasksDone":c.T.forEach(x=>{if(gIn(x.done,a,b))n++;});return n;
+    case "tasksOverdue":{const td=getToday(),e=b<td?b:td;c.T.forEach(x=>{if(gIn(x.due,a,e)&&((!x.isDone&&x.due<td)||(x.done&&x.done>x.due)))n++;});return n;}
+    case "formula":{const x=goalEval(p.num||"visitsDone",{},c,a,b),y=goalEval(p.den||"visitsSet",{},c,a,b);return y?x/y*100:0;}
+    default:return 0;
+  }
+}
+function goalStatus(g,val,target,frac,finished,pl){
+  const L=(ru,p)=>pl?p:ru;
+  if(!target&&target!==0)return {k:"idle",l:L("цель не задана","brak celu")};
+  if(frac===0)return {k:"idle",l:L("ещё не начался","jeszcze nie ruszył")};
+  const up=gK(g).up;const ok=up?val>=target:val<=target;const near=up?val>=target*0.9:val<=Math.max(target*1.15,target+1);
+  if(finished)return ok?{k:"ok",l:L("выполнено","wykonane")}:near?{k:"warn",l:L("почти","prawie")}:{k:"bad",l:L("не выполнено","niewykonane")};
+  return ok?{k:"ok",l:L("в графике","w planie")}:near?{k:"warn",l:L("отстаём","opóźnienie")}:{k:"bad",l:L("не успеваем","nie zdążymy")};
+}
+function goalAnalyze(g,idx,pl){
+  const td=getToday();const [a,b]=gRange(g.period);const total=Math.max(1,gDays(a,b));
+  const known=b<td?b:td;const el=td<a?0:Math.min(total,gDays(a,known));const frac=el/total;
+  const finished=td>b,left=total-el,add=gAdditive(g),up=gK(g).up;
+  const c=g.metric==="manual"?null:goalCtx(idx,g);
+  const fact=g.metric==="manual"?(+g.manualFact||0):el>0?goalEval(g.metric,g.params,c,a,known):0;
+  const target=+g.target||0;
+  const forecast=el===0?null:add?fact/frac:fact;
+  const st=goalStatus(g,forecast==null?0:forecast,target,frac,finished,pl);
+  const pct=up?(target?fact/target:0):(fact?Math.min(target/fact,1.5):1);
+  const need=add&&up&&left>0&&target>fact?(target-fact)/left:0;
+  let prev=null;
+  if(c){const pp=gShift(g.period,-1);const [pa,pb]=gRange(pp);if(pa<=td)prev=goalEval(g.metric,g.params,c,pa,pb<td?pb:td);}
+  const series=[];
+  if(el>0&&c){const N=Math.min(20,el);for(let i=1;i<=N;i++){const day=gAddDays(a,Math.round(i*(el-1)/N));series.push([gDays(a,day)/total,goalEval(g.metric,g.params,c,a,day)]);}}
+  return {a,b,total,el,frac,finished,left,fact,target,forecast,st,pct,need,prev,series,add,up};
+}
+
+function GoalSpark({A}){
+  if(!A.series.length)return null;
+  const col={ok:C.green,warn:C.yellow,bad:C.red,idle:C.muted}[A.st.k];
+  const mx=Math.max(A.target||0,A.forecast||0,...A.series.map(s=>s[1]))*1.1||1;
+  const Y=v=>(46-v/mx*44).toFixed(1);
+  const pts=(A.add?["0,46"]:[]).concat(A.series.map(([x,v])=>`${(x*200).toFixed(1)},${Y(v)}`)).join(" ");
+  const ex=(A.frac*200).toFixed(1);
+  return(<svg width="100%" height="46" viewBox="0 0 200 48" preserveAspectRatio="none" style={{display:"block"}}>
+    {A.add?<polyline points={`0,46 200,${Y(A.target)}`} fill="none" stroke={C.dim} strokeWidth="1.5" vectorEffect="non-scaling-stroke"/>:<line x1="0" x2="200" y1={Y(A.target)} y2={Y(A.target)} stroke={C.dim} strokeWidth="1.5" strokeDasharray="4 3" vectorEffect="non-scaling-stroke"/>}
+    {A.add&&!A.finished&&A.forecast!=null&&<polyline points={`${ex},${Y(A.fact)} 200,${Y(A.forecast)}`} fill="none" stroke={col} strokeWidth="1.5" strokeDasharray="5 4" vectorEffect="non-scaling-stroke"/>}
+    <polyline points={pts} fill="none" stroke={col} strokeWidth="2.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
+  </svg>);
+}
+
+function GoalTargetEdit({g,canEdit,onSet,pl}){
+  const [ed,setEd]=useState(false);const [v,setV]=useState("");
+  const pre=gK(g).up?"":"≤ ";
+  const base={background:"none",border:"none",padding:"0 1px",color:C.muted,fontSize:15,fontWeight:700};
+  if(!canEdit)return <span style={base}>/ {pre}{gFmt(g.target,g,pl)}</span>;
+  if(!ed)return <button title={pl?"Kliknij, aby zmienić cel":"Нажмите, чтобы изменить цель"} onClick={()=>{setV(String(g.target));setEd(true);}} style={{...base,cursor:"text",borderBottom:`1px dashed ${C.dim}`}}>/ {pre}{gFmt(g.target,g,pl)}</button>;
+  const commit=()=>{const n=Number(String(v).replace(",",".").replace(/\s/g,""));if(!isNaN(n)&&n>=0)onSet(n);setEd(false);};
+  return <input type="number" autoFocus value={v} onChange={e=>setV(e.target.value)} onBlur={commit} onKeyDown={e=>{if(e.key==="Enter")commit();if(e.key==="Escape")setEd(false);}} style={{width:120,background:C.surface,border:`1px solid ${C.accent}`,borderRadius:7,color:C.text,padding:"4px 8px",fontSize:14,outline:"none",colorScheme:"dark"}}/>;
+}
+
+function GoalCard({g,A,kids,api,canEdit,canMark,mine,drag,pl}){
+  const [confirm,setConfirm]=useState(false);
+  const L=(ru,p)=>pl?p:ru;
+  const col={ok:C.green,warn:C.yellow,bad:C.red,idle:C.muted}[A.st.k];
+  const canSplit=canEdit&&g.scope.type==="team"&&gAdditive(g)&&g.metric!=="manual";
+  const kidSum=kids.reduce((s,k)=>s+(+k.g.target||0),0);
+  const second=!A.add?[L("Цель","Cel"),(A.up?"≥ ":"≤ ")+gFmt(A.target,g,pl)]:!A.up?[L("Лимит","Limit"),"≤ "+gFmt(A.target,g,pl)]:A.finished?[L("Итог","Wynik"),A.fact>=A.target?L("выполнено","wykonane"):L("не хватило ","zabrakło ")+gFmt(A.target-A.fact,g,pl,true)]:A.el===0?[L("Нужно в день","Dziennie"),gFmt(A.target/A.total,g,pl,true)]:[L("Нужно в день","Dziennie"),A.need?gFmt(A.need,g,pl,true):L("уже есть","już jest")];
+  const sb={background:"transparent",border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 9px",fontSize:11,fontWeight:700,cursor:"pointer"};
+  const tag={fontSize:11,fontWeight:600,borderRadius:6,padding:"2px 7px",background:C.surface,color:C.muted,display:"inline-flex",alignItems:"center",gap:5};
+  const dragProps=canEdit?{draggable:true,onDragStart:e=>drag.start(e,g.id),onDragOver:e=>drag.over(e,g.id),onDrop:e=>drag.drop(e,g.id),onDragEnd:drag.end}:{};
+  return(
+    <div {...dragProps} style={{background:C.card,border:`1px solid ${drag.overId===g.id?C.accent:mine?C.accentBorder:C.border}`,borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:10,minWidth:0,opacity:drag.dragId===g.id?0.45:1}}>
+      <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+        {canEdit&&<span title={L("Перетащите, чтобы поменять порядок","Przeciągnij, aby zmienić kolejność")} style={{cursor:"grab",color:C.dim,fontSize:14,lineHeight:"18px"}}>⋮⋮</span>}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:14,fontWeight:800,color:C.text,lineHeight:1.3}}>{gTitle(g,pl)}</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:6}}>
+            <span style={tag}><span style={{width:8,height:8,borderRadius:"50%",background:g.scope.type==="team"?C.accent:(MGR_COLOR[g.scope.id]||C.accent)}}/>{gScopeName(g.scope,pl)}</span>
+            <span style={tag}>{gPeriodLabel(g.period,pl)}</span>
+            {g.title&&<span style={tag}>{gKpiTitle(g,pl)}</span>}
+          </div>
+        </div>
+        <span style={{fontSize:10.5,fontWeight:800,borderRadius:999,padding:"3px 9px",whiteSpace:"nowrap",background:`${col}22`,color:col}}>{A.st.l}</span>
+      </div>
+      <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
+        <span style={{fontSize:26,fontWeight:900,color:C.text,fontVariantNumeric:"tabular-nums"}}>{gFmt(A.fact,g,pl)}</span>
+        <GoalTargetEdit g={g} canEdit={canEdit} pl={pl} onSet={t=>api.patch(g.id,{target:t})}/>
+        <span style={{marginLeft:"auto",fontSize:15,fontWeight:900,color:col}}>{A.up&&A.target?Math.round(A.pct*100)+"%":""}</span>
+      </div>
+      <div style={{position:"relative",height:8,borderRadius:5,background:C.border}}>
+        <div style={{position:"absolute",left:0,top:0,bottom:0,width:`${Math.min(100,A.pct*100)}%`,background:col,borderRadius:5}}/>
+        {A.add&&A.up&&A.frac>0&&!A.finished&&<div title={L("Где нужно быть сегодня","Gdzie powinniśmy być dziś")} style={{position:"absolute",top:-4,bottom:-4,width:2,left:`calc(${A.frac*100}% - 1px)`,background:C.text,borderRadius:1}}/>}
+      </div>
+      {g.metric==="manual"
+        ?(canMark&&<div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{fontSize:11,color:C.muted}}>{L("Отметить факт:","Zaznacz fakt:")}</span><button style={sb} onClick={()=>api.patch(g.id,{manualFact:Math.max(0,(+g.manualFact||0)-1)})}>−1</button><button style={sb} onClick={()=>api.patch(g.id,{manualFact:(+g.manualFact||0)+1})}>+1</button></div>)
+        :<GoalSpark A={A}/>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6}}>
+        {[[A.add?L("Прогноз","Prognoza"):L("Сейчас","Teraz"),A.forecast==null?"—":gFmt(A.forecast,g,pl,true)],second,[L("Прошлый период","Poprz. okres"),A.prev==null?"—":gFmt(A.prev,g,pl,true)]].map(([k,v])=>(
+          <div key={k} style={{background:C.surface,borderRadius:8,padding:"6px 8px",minWidth:0}}><div style={{fontSize:10,color:C.muted}}>{k}</div><div style={{fontSize:12.5,fontWeight:800,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v}</div></div>))}
+      </div>
+      {kids.length>0&&<div style={{background:C.surface,borderRadius:10,padding:9,display:"flex",flexDirection:"column",gap:6}}>
+        <div style={{fontSize:11,color:C.muted}}>{L("Распределено по менеджерам: ","Rozdzielone na managerów: ")}<b style={{color:Math.abs(kidSum-g.target)<1?C.green:C.yellow}}>{gFmt(kidSum,g,pl,true)}</b> {L("из","z")} {gFmt(g.target,g,pl,true)}</div>
+        {kids.map(k=>{const kc={ok:C.green,warn:C.yellow,bad:C.red,idle:C.muted}[k.A.st.k];return(
+          <div key={k.g.id} style={{display:"grid",gridTemplateColumns:"minmax(70px,1fr) 2fr auto",gap:8,alignItems:"center",fontSize:12}}>
+            <span style={{display:"inline-flex",alignItems:"center",gap:6,fontWeight:700,color:MGR_COLOR[k.g.scope.id]||C.text}}>{k.g.scope.id}</span>
+            <div style={{height:5,borderRadius:3,background:C.border,position:"relative"}}><div style={{position:"absolute",left:0,top:0,bottom:0,width:`${Math.min(100,k.A.pct*100)}%`,background:kc,borderRadius:3}}/></div>
+            {canEdit?<button onClick={()=>api.edit(k.g)} style={{background:"none",border:"none",borderBottom:`1px dashed ${C.dim}`,color:C.muted,fontSize:11.5,cursor:"pointer",padding:0}}>{gFmt(k.A.fact,g,pl,true)} / {gFmt(k.g.target,g,pl,true)}</button>:<span style={{color:C.muted,fontSize:11.5}}>{gFmt(k.A.fact,g,pl,true)} / {gFmt(k.g.target,g,pl,true)}</span>}
+          </div>);})}
+      </div>}
+      {!canEdit?<div style={{fontSize:10.5,color:C.dim,borderTop:`1px solid ${C.border}`,paddingTop:8}}>{L("Цель поставил: ","Cel ustawił: ")}{g.createdBy||"—"}</div>
+        :confirm?<div style={{background:"rgba(248,113,113,0.12)",border:`1px solid ${C.red}`,borderRadius:9,padding:8,display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",fontSize:12,color:C.text}}>
+            <span style={{flex:1}}>{L("Удалить цель","Usunąć cel")}{kids.length?L(" вместе с целями менеджеров"," razem z celami managerów"):""}?</span>
+            <button style={{...sb,borderColor:C.red,color:C.red}} onClick={()=>api.remove(g.id)}>{L("Удалить","Usuń")}</button>
+            <button style={sb} onClick={()=>setConfirm(false)}>{L("Отмена","Anuluj")}</button></div>
+        :<div style={{display:"flex",flexWrap:"wrap",gap:5,borderTop:`1px solid ${C.border}`,paddingTop:9}}>
+            <button style={sb} onClick={()=>api.edit(g)}>✎ {L("Изменить","Edytuj")}</button>
+            <button style={sb} onClick={()=>api.duplicate(g)}>⧉ {L("Копия","Kopia")}</button>
+            <button style={sb} title={L("Такая же цель на следующий период","Taki sam cel na kolejny okres")} onClick={()=>api.carry(g)}>→ {L("На след. период","Na kolejny okres")}</button>
+            {canSplit&&<button style={sb} onClick={()=>api.split(g)}>⑂ {kids.length?L("Пересчитать доли","Przelicz udziały"):L("Разбить по менеджерам","Rozdziel na managerów")}</button>}
+            <button style={{...sb,marginLeft:"auto",color:C.red,borderColor:"transparent"}} title={L("Удалить","Usuń")} onClick={()=>setConfirm(true)}>🗑</button>
+          </div>}
+    </div>);
+}
+
+function GoalParams({g,set,pl}){
+  const L=(ru,p)=>pl?p:ru;const p=g.params||{};const setP=x=>set({params:{...p,...x}});
+  const box={background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:10,display:"flex",flexDirection:"column",gap:8};
+  const chip=on=>({fontSize:12,fontWeight:700,minHeight:30,padding:"0 11px",borderRadius:999,border:`1px solid ${on?C.accent:C.borderMd}`,background:on?C.accent:"transparent",color:on?"#00132f":C.muted,cursor:"pointer"});
+  const sel={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"7px 9px",fontSize:12,outline:"none",colorScheme:"dark",width:"100%"};
+  const lbl={fontSize:10.5,fontWeight:800,letterSpacing:.6,textTransform:"uppercase",color:C.muted};
+  if(g.metric==="scoreIs")return(<div style={box}><span style={lbl}>{L("Какие оценки считать","Które oceny liczyć")}</span>
+    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{GOAL_SCORES.map(s=>{const on=(p.scores||[]).includes(s);return <button key={s} style={chip(on)} onClick={()=>{const a=p.scores||[];setP({scores:(on?a.filter(x=>x!==s):[...a,s]).sort((x,y)=>x-y)});}}>{s}</button>;})}</div>
+    <span style={{fontSize:11,color:(p.scores||[]).length?C.muted:C.yellow}}>{(p.scores||[]).length?L("Можно выбрать несколько. 4 и 4.5 считаются отдельно.","Można kilka. 4 i 4.5 liczą się osobno."):L("Выберите хотя бы одну оценку.","Wybierz co najmniej jedną ocenę.")}</span></div>);
+  if(g.metric==="scoreMin")return(<div style={box}><span style={lbl}>{L("Оценка не ниже","Ocena co najmniej")}</span>
+    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{GOAL_SCORES.filter(s=>s>0).map(s=><button key={s} style={chip((p.min??4)===s)} onClick={()=>setP({min:s})}>{s}+</button>)}</div></div>);
+  if(g.metric==="conv"){const fi=GOAL_STEPS.findIndex(s=>s[0]===p.from),ti=GOAL_STEPS.findIndex(s=>s[0]===p.to);return(<div style={box}><span style={lbl}>{L("Из какого шага в какой","Z którego etapu do którego")}</span>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+      <label style={{fontSize:11,color:C.muted,display:"flex",flexDirection:"column",gap:4}}>{L("Из шага","Z etapu")}<select value={p.from} onChange={e=>setP({from:e.target.value})} style={sel}>{GOAL_STEPS.map(s=><option key={s[0]} value={s[0]}>{pl?s[2]:s[1]}</option>)}</select></label>
+      <label style={{fontSize:11,color:C.muted,display:"flex",flexDirection:"column",gap:4}}>{L("В шаг","Do etapu")}<select value={p.to} onChange={e=>setP({to:e.target.value})} style={sel}>{GOAL_STEPS.map(s=><option key={s[0]} value={s[0]}>{pl?s[2]:s[1]}</option>)}</select></label>
+    </div>
+    <span style={{fontSize:11,color:ti<=fi?C.yellow:C.muted}}>{ti<=fi?L("Второй шаг должен идти в воронке после первого.","Drugi etap musi być dalej w lejku."):L("Как в Воронке продаж: из лидов периода, дошедших до первого шага, какая доля дошла до второго (по текущей оценке).","Jak w Lejku: z leadów z okresu, które doszły do 1. etapu, jaki odsetek doszedł do 2.")}</span></div>);}
+  if(g.metric==="fcWithin")return(<div style={box}><span style={lbl}>{L("Порог, минут","Próg, minut")}</span>
+    <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center"}}>{[5,10,15,30,60].map(m=><button key={m} style={chip((p.min??15)===m)} onClick={()=>setP({min:m})}>{m}</button>)}
+    <input type="number" min="1" value={p.min??15} onChange={e=>setP({min:Math.max(1,+e.target.value||1)})} style={{...sel,width:80}}/></div></div>);
+  if(g.metric==="formula")return(<div style={box}><span style={lbl}>{L("Формула: A ÷ B × 100%","Formuła: A ÷ B × 100%")}</span>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+      <label style={{fontSize:11,color:C.muted,display:"flex",flexDirection:"column",gap:4}}>{L("A, числитель","A, licznik")}<select value={p.num} onChange={e=>setP({num:e.target.value})} style={sel}>{GOAL_FORMULA_OPTS.map(k=><option key={k} value={k}>{GOAL_KMAP[k].l[pl?1:0]}</option>)}</select></label>
+      <label style={{fontSize:11,color:C.muted,display:"flex",flexDirection:"column",gap:4}}>{L("B, знаменатель","B, mianownik")}<select value={p.den} onChange={e=>setP({den:e.target.value})} style={sel}>{GOAL_FORMULA_OPTS.map(k=><option key={k} value={k}>{GOAL_KMAP[k].l[pl?1:0]}</option>)}</select></label>
+    </div><span style={{fontSize:11,color:C.muted}}>{L("Например: «Визит состоялся ÷ Визит назначен» — доходимость визитов.","Np. „Wizyta odbyta ÷ Wizyta umówiona” — frekwencja wizyt.")}</span></div>);
+  if(g.metric==="manual")return(<div style={box}><span style={lbl}>{L("Своя метрика","Własna metryka")}</span>
+    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8}}>
+      <input placeholder={L("Название, например «Отзывы в Google»","Nazwa, np. „Opinie Google”")} value={g.customName||""} onChange={e=>set({customName:e.target.value})} style={sel}/>
+      <input placeholder={L("Единица: шт, %…","Jednostka: szt., %…")} value={g.unit||""} onChange={e=>set({unit:e.target.value})} style={sel}/>
+    </div>
+    <label style={{fontSize:11,color:C.muted,display:"flex",flexDirection:"column",gap:4}}>{L("Текущий факт","Aktualny fakt")}<input type="number" min="0" value={g.manualFact||0} onChange={e=>set({manualFact:+e.target.value||0})} style={{...sel,width:140}}/></label></div>);
+  return null;
+}
+
+function GoalEditor({draft,isNew,idx,mgrs,onChange,onSave,onClose,onDelete,pl}){
+  const L=(ru,p)=>pl?p:ru;const g=draft;const M=gK(g);
+  const A=goalAnalyze(g,idx,pl);
+  const [q,setQ]=useState("");
+  useEffect(()=>{const h=e=>{if(e.key==="Escape")onClose();};document.addEventListener("keydown",h);return()=>document.removeEventListener("keydown",h);},[]);
+  const set=p=>onChange({...g,...p});
+  const pick=k=>set({metric:k,params:GOAL_KMAP[k].p?JSON.parse(JSON.stringify(GOAL_KMAP[k].p)):{}});
+  const langs=g.langs||[];
+  const [r0,r1]=gRange(g.period);
+  const sug=A.prev!=null&&A.prev>0?A.prev:(A.forecast||0);
+  const qq=q.trim().toLowerCase();
+  const list=GOAL_KPIS.filter(k=>!qq||(k.l.join(" ")+" "+k.d.join(" ")+" "+k.g.join(" ")).toLowerCase().includes(qq));
+  const groups=[...new Set(GOAL_KPIS.map(k=>k.g[pl?1:0]))];
+  const valid=(+g.target>0||(!M.up&&g.target!==""&&+g.target>=0))&&!(g.metric==="scoreIs"&&!(g.params?.scores||[]).length)&&!(g.metric==="conv"&&GOAL_STEPS.findIndex(s=>s[0]===g.params?.to)<=GOAL_STEPS.findIndex(s=>s[0]===g.params?.from));
+  const chip=on=>({fontSize:12,fontWeight:700,minHeight:32,padding:"0 12px",borderRadius:999,border:`1px solid ${on?C.accent:C.borderMd}`,background:on?C.accent:"transparent",color:on?"#00132f":C.muted,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6});
+  const lbl={fontSize:10.5,fontWeight:800,letterSpacing:.6,textTransform:"uppercase",color:C.muted};
+  const inp={background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:8,padding:"8px 10px",fontSize:13,outline:"none",colorScheme:"dark",width:"100%",boxSizing:"border-box"};
+  const col={ok:C.green,warn:C.yellow,bad:C.red,idle:C.muted}[A.st.k];
+  const btn={background:"transparent",border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:9,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"};
+  return(
+    <div onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,background:"rgba(0,6,20,0.72)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div role="dialog" aria-modal="true" style={{width:"min(1080px,100%)",maxHeight:"calc(100vh - 32px)",background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:18,display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 30px 80px rgba(0,0,0,0.55)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{fontSize:17,fontWeight:900,color:C.text}}>🎯 {isNew?L("Новая цель","Nowy cel"):L("Изменить цель","Edytuj cel")}</div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{flex:1,minHeight:0,display:"grid",gridTemplateColumns:"minmax(0,360px) minmax(0,1fr)"}}>
+          <div style={{borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",minHeight:0}}>
+            <div style={{padding:"12px 12px 8px"}}><input value={q} onChange={e=>setQ(e.target.value)} placeholder={L(`🔍 Найти KPI (всего ${GOAL_KPIS.length})`,`🔍 Szukaj KPI (${GOAL_KPIS.length})`)} style={inp}/></div>
+            <div style={{flex:1,overflowY:"auto",padding:"0 8px 12px"}}>
+              {groups.map(gr=>{const items=list.filter(k=>k.g[pl?1:0]===gr);if(!items.length)return null;return(<div key={gr}>
+                <div style={{fontSize:10,fontWeight:900,letterSpacing:1,textTransform:"uppercase",color:C.dim,padding:"10px 8px 4px"}}>{gr}</div>
+                {items.map(k=>{const on=g.metric===k.k;return(<button key={k.k} onClick={()=>pick(k.k)} style={{display:"flex",flexDirection:"column",gap:1,width:"100%",textAlign:"left",background:on?C.accentDim:"transparent",border:`1px solid ${on?C.accent:"transparent"}`,borderRadius:9,padding:"7px 9px",cursor:"pointer",color:C.text}}>
+                  <b style={{fontSize:12.5}}>{k.l[pl?1:0]}</b><span style={{fontSize:11,color:C.muted,lineHeight:1.35}}>{k.d[pl?1:0]}</span></button>);})}
+              </div>);})}
+              {!list.length&&<div style={{fontSize:12,color:C.muted,padding:10}}>{L("Ничего не найдено. Попробуйте «Своя формула».","Nic nie znaleziono. Spróbuj „Własna formuła”.")}</div>}
+            </div>
+          </div>
+          <div style={{overflowY:"auto",padding:"14px 18px",display:"flex",flexDirection:"column",gap:14,minHeight:0}}>
+            <div><div style={lbl}>{L("Выбранный KPI","Wybrany KPI")}</div><div style={{fontSize:16,fontWeight:900,color:C.text,marginTop:3}}>{gKpiTitle(g,pl)}</div><div style={{fontSize:11.5,color:C.muted,marginTop:2}}>{M.d[pl?1:0]}</div></div>
+            <GoalParams g={g} set={set} pl={pl}/>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}><span style={lbl}>{L("Для кого","Dla kogo")}</span>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                <button style={chip(g.scope.type==="team")} onClick={()=>set({scope:{type:"team"}})}>{L("Вся команда","Cały zespół")}</button>
+                {mgrs.map(m=><button key={m} style={chip(g.scope.type==="mgr"&&g.scope.id===m)} onClick={()=>set({scope:{type:"mgr",id:m}})}><span style={{width:8,height:8,borderRadius:"50%",background:MGR_COLOR[m]||C.accent}}/>{m}</button>)}
+              </div></div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}><span style={lbl}>{L("Период","Okres")}</span>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
+                {[["month",L("Месяц","Miesiąc")],["quarter",L("Квартал","Kwartał")],["custom",L("Свои даты","Własne daty")]].map(([t,l])=><button key={t} style={chip(g.period.type===t)} onClick={()=>set({period:t==="month"?{type:"month",key:gCurMonth()}:t==="quarter"?{type:"quarter",key:gCurQuarter()}:{type:"custom",from:r0,to:r1}})}>{l}</button>)}
+                {g.period.type!=="custom"&&<><button style={{...chip(false),minHeight:30}} onClick={()=>set({period:gShift(g.period,-1)})}>‹</button><span style={{fontSize:13,fontWeight:800,color:C.text,minWidth:120,textAlign:"center"}}>{gPeriodLabel(g.period,pl)}</span><button style={{...chip(false),minHeight:30}} onClick={()=>set({period:gShift(g.period,1)})}>›</button></>}
+              </div>
+              {g.period.type==="custom"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                <input type="date" value={g.period.from} onChange={e=>e.target.value&&set({period:{...g.period,from:e.target.value}})} style={inp}/>
+                <input type="date" value={g.period.to} onChange={e=>e.target.value&&set({period:{...g.period,to:e.target.value}})} style={inp}/></div>}
+            </div>
+            {g.metric!=="manual"&&<div style={{display:"flex",flexDirection:"column",gap:6}}><span style={lbl}>{L("Язык клиента","Język klienta")}</span>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                <button style={chip(!langs.length)} onClick={()=>set({langs:[]})}>🌐 {L("Все языки","Wszystkie języki")}</button>
+                {LANG_OPTS.map(([v,fl])=>{const on=langs.includes(v);return <button key={v} style={chip(on)} onClick={()=>set({langs:on?langs.filter(x=>x!==v):[...langs,v]})}>{fl} {v.toUpperCase()}</button>;})}
+              </div></div>}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <label style={{display:"flex",flexDirection:"column",gap:6}}><span style={lbl}>{L("Цель","Cel")}{M.up?"":L(", не больше",", maks.")}</span><input type="number" min="0" value={g.target} onChange={e=>set({target:e.target.value===""?"":+e.target.value})} style={{...inp,fontSize:17,fontWeight:800}}/></label>
+              <label style={{display:"flex",flexDirection:"column",gap:6}}><span style={lbl}>{L("Название карточки","Nazwa karty")}</span><input value={g.title||""} placeholder={gTitle({...g,title:""},pl)} onChange={e=>set({title:e.target.value})} style={inp}/></label>
+            </div>
+            {g.metric!=="manual"&&sug>0&&<div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              <button style={chip(false)} onClick={()=>set({target:gRound(sug,g)})}>= {A.prev!=null&&A.prev>0?L("прошлый период","poprzedni okres"):L("прогноз","prognoza")} ({gFmt(sug,g,pl,true)})</button>
+              {(M.up?[1.1,1.2,1.3]:[0.9,0.8]).map(k=><button key={k} style={chip(false)} onClick={()=>set({target:gRound(sug*k,g)})}>{k>1?"+":"−"}{Math.round(Math.abs(k-1)*100)}%</button>)}
+            </div>}
+            <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:12,display:"flex",flexDirection:"column",gap:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={lbl}>{L("Как это выглядит сейчас","Jak to wygląda teraz")}</span><span style={{fontSize:10.5,fontWeight:800,borderRadius:999,padding:"3px 9px",background:`${col}22`,color:col}}>{A.st.l}</span></div>
+              <div style={{display:"flex",alignItems:"baseline",gap:8}}><span style={{fontSize:24,fontWeight:900,color:C.text}}>{gFmt(A.fact,g,pl)}</span><span style={{color:C.muted,fontWeight:700}}>/ {M.up?"":"≤ "}{gFmt(A.target,g,pl)}</span><span style={{marginLeft:"auto",fontWeight:900,color:col}}>{A.up&&A.target?Math.round(A.pct*100)+"%":""}</span></div>
+              <div style={{position:"relative",height:8,borderRadius:5,background:C.border}}><div style={{position:"absolute",left:0,top:0,bottom:0,width:`${Math.min(100,A.pct*100)}%`,background:col,borderRadius:5}}/></div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,fontSize:11,color:C.muted}}>
+                <div>{A.add?L("Прогноз","Prognoza"):L("Сейчас","Teraz")}: <b style={{color:C.text}}>{A.forecast==null?"—":gFmt(A.forecast,g,pl,true)}</b></div>
+                <div>{L("Прошлый период","Poprz. okres")}: <b style={{color:C.text}}>{A.prev==null?"—":gFmt(A.prev,g,pl,true)}</b></div>
+                <div>{L("Прошло дней","Minęło dni")}: <b style={{color:C.text}}>{A.el} / {A.total}</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",flexWrap:"wrap",padding:"12px 18px",borderTop:`1px solid ${C.border}`}}>
+          {!isNew&&<button style={{...btn,borderColor:C.red,color:C.red,marginRight:"auto"}} onClick={onDelete}>🗑 {L("Удалить","Usuń")}</button>}
+          <button style={btn} onClick={onClose}>{L("Отмена","Anuluj")}</button>
+          <button disabled={!valid} style={{...btn,background:C.accent,borderColor:C.accent,color:"#00132f",opacity:valid?1:0.4,cursor:valid?"pointer":"default"}} onClick={onSave}>{isNew?L("Создать цель","Utwórz cel"):L("Сохранить","Zapisz")}</button>
+        </div>
+      </div>
+    </div>);
+}
+
+function GoalsPage({db,updateDb,currentUser,lang}){
+  const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;
+  const me=currentUser||"";
+  const mgrs=MANAGERS.filter(m=>m!=="Danya");
+  const canEdit=GOAL_EDITORS.includes(me);
+  const isMgr=mgrs.includes(me);
+  const goals=[...(db?.goals||[])].sort((a,b)=>(a.ord??0)-(b.ord??0));
+  const [view,setView]=useState("cards");
+  const [scope,setScope]=useState("all");
+  const [per,setPer]=useState("now");
+  const [sort,setSort]=useState("custom");
+  const [stF,setStF]=useState("any");
+  const [editor,setEditor]=useState(null);
+  const [tpl,setTpl]=useState(false);
+  const [dragId,setDragId]=useState(null);const [overId,setOverId]=useState(null);
+  const [toast,setToast]=useState("");
+  useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(""),2600);return()=>clearTimeout(t);},[toast]);
+  const idx=React.useMemo(()=>goalIndex(db),[db?.leads,db?.sales,db?.orders,db?.tasks,db?.taskDoneLog]);
+  const analyzed=React.useMemo(()=>{const m={};goals.forEach(g=>{m[g.id]=goalAnalyze(g,idx,pl);});return m;},[db?.goals,idx,pl]);
+  goals.forEach(g=>{if(!analyzed[g.id])analyzed[g.id]=goalAnalyze(g,idx,pl);});
+  const nid=()=>Date.now()+Math.floor(Math.random()*100000);
+  const mk=o=>{const g={id:nid(),title:"",metric:"revenue",params:{},scope:{type:"team"},langs:[],period:{type:"month",key:gCurMonth()},target:0,parentId:null,manualFact:0,unit:"",customName:"",createdBy:me||"—",createdAt:Date.now(),...o};if(!o.params&&GOAL_KMAP[g.metric]?.p)g.params=JSON.parse(JSON.stringify(GOAL_KMAP[g.metric].p));return g;};
+  const save=(fn)=>updateDb(p=>{const next=fn(p.goals||[],p);return {...p,goals:next.goals||next,deletedGoalIds:next.deletedGoalIds||p.deletedGoalIds||[]};},true);
+  const touch=g=>({...g,updatedAt:Date.now()});
+  const maxOrd=()=>Math.max(0,...(db?.goals||[]).map(g=>g.ord||0));
+  const api={
+    patch:(id,pt)=>save(gs=>gs.map(g=>g.id===id?touch({...g,...pt}):g)),
+    edit:g=>setEditor({draft:JSON.parse(JSON.stringify(g)),isNew:false}),
+    duplicate:g=>setEditor({draft:{...JSON.parse(JSON.stringify(g)),id:nid(),parentId:null,createdBy:me,title:g.title?g.title+L(" (копия)"," (kopia)"):""},isNew:true}),
+    carry:g=>{const A=analyzed[g.id];const base=A.add&&A.up?Math.max(A.forecast||0,A.target)*1.1:A.target;setEditor({draft:{...JSON.parse(JSON.stringify(g)),id:nid(),parentId:null,createdBy:me,period:gShift(g.period,1),target:g.metric==="manual"?g.target:gRound(base,g),manualFact:0},isNew:true});},
+    split:g=>{
+      const [pa,pb]=gRange(gShift(g.period,-1));
+      let shares=mgrs.map(m=>goalEval(g.metric,g.params,goalCtx(idx,{...g,scope:{type:"mgr",id:m}}),pa,pb));
+      const prevOk=shares.some(x=>x>0);if(!prevOk)shares=mgrs.map(()=>1);
+      const tot=shares.reduce((a,b)=>a+b,0);const t=mgrs.map((m,i)=>gRound(g.target*shares[i]/tot,g));t[0]+=gRound(g.target-t.reduce((a,b)=>a+b,0),g);
+      const now=Date.now();
+      save((gs,p)=>{const old=gs.filter(x=>x.parentId===g.id).map(x=>x.id);const kids=mgrs.map((m,i)=>({...JSON.parse(JSON.stringify(g)),id:now+i+1,parentId:g.id,title:"",createdBy:me,scope:{type:"mgr",id:m},target:t[i],ord:(g.ord||0)+0.01*(i+1),updatedAt:now}));
+        return {goals:[...gs.filter(x=>x.parentId!==g.id),...kids],deletedGoalIds:[...new Set([...(p.deletedGoalIds||[]),...old])]};});
+      setToast(prevOk?L("Цель разбита по долям прошлого периода. Любую долю можно поправить.","Cel rozdzielony wg udziałów z poprzedniego okresu."):L("Цель разбита поровну.","Cel rozdzielony po równo."));
+    },
+    remove:id=>save((gs,p)=>{const dead=gs.filter(g=>g.id===id||g.parentId===id).map(g=>g.id);return {goals:gs.filter(g=>!dead.includes(g.id)),deletedGoalIds:[...new Set([...(p.deletedGoalIds||[]),...dead])]};}),
+    move:(id,k)=>{const top=goals.filter(g=>!g.parentId);const i=top.findIndex(g=>g.id===id),j=i+k;if(i<0||j<0||j>=top.length)return;const a=top[i],b=top[j];save(gs=>gs.map(g=>g.id===a.id?touch({...g,ord:b.ord??j}):g.id===b.id?touch({...g,ord:a.ord??i}):g));setSort("custom");}
+  };
+  const drag={dragId,overId,
+    start:(e,id)=>{setDragId(id);try{e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",String(id));}catch{}},
+    over:(e,id)=>{e.preventDefault();if(overId!==id)setOverId(id);},
+    drop:(e,id)=>{e.preventDefault();const from=dragId;setOverId(null);setDragId(null);if(!from||from===id)return;
+      const top=goals.filter(g=>!g.parentId).map(g=>g.id);const i=top.indexOf(from);if(i<0)return;top.splice(i,1);const j=top.indexOf(id);top.splice(j<0?top.length:j,0,from);
+      const ord=new Map(top.map((x,k)=>[x,(k+1)*10]));save(gs=>gs.map(g=>ord.has(g.id)&&g.ord!==ord.get(g.id)?touch({...g,ord:ord.get(g.id)}):g));setSort("custom");},
+    end:()=>{setDragId(null);setOverId(null);}};
+
+  const td=getToday();
+  const hasParent=g=>g.parentId&&goals.some(p=>p.id===g.parentId);
+  const overlaps=g=>{const [a,b]=gRange(g.period);if(per==="all")return true;if(per==="now")return a<=td&&b>=td;const p=per.startsWith("Q")?{type:"quarter",key:per.slice(1)}:{type:"month",key:per};const [x,y]=gRange(p);return a<=y&&b>=x;};
+  const pass=g=>overlaps(g)&&(stF==="any"||analyzed[g.id]?.st.k===stF);
+  const rank={bad:0,warn:1,idle:2,ok:3};
+  const order=arr=>sort==="risk"?[...arr].sort((x,y)=>rank[analyzed[x.id].st.k]-rank[analyzed[y.id].st.k]||analyzed[x.id].pct-analyzed[y.id].pct):sort==="progress"?[...arr].sort((x,y)=>analyzed[y.id].pct-analyzed[x.id].pct):arr;
+  let sections;
+  if(scope==="all"&&isMgr)sections=[
+    {t:L("Мои цели","Moje cele"),base:goals.filter(g=>g.scope.type==="mgr"&&g.scope.id===me),nest:false,mine:true},
+    {t:L("Цели команды","Cele zespołu"),base:goals.filter(g=>g.scope.type==="team"&&!hasParent(g)),nest:true},
+    {t:L("Цели коллег","Cele kolegów"),base:goals.filter(g=>g.scope.type==="mgr"&&g.scope.id!==me&&!hasParent(g)),nest:false}];
+  else if(scope==="all")sections=[{t:"",base:goals.filter(g=>!hasParent(g)),nest:true}];
+  else if(scope==="team")sections=[{t:"",base:goals.filter(g=>g.scope.type==="team"&&!hasParent(g)),nest:true}];
+  else sections=[{t:"",base:goals.filter(g=>g.scope.type==="mgr"&&g.scope.id===scope),nest:false,mine:scope===me}];
+  const counted=[];sections.forEach(s=>s.base.filter(overlaps).forEach(g=>counted.push(g)));
+  const counts={ok:0,warn:0,bad:0,idle:0};counted.forEach(g=>{const k=analyzed[g.id]?.st.k;if(k)counts[k]++;});
+  sections.forEach(s=>{s.goals=order(s.base.filter(pass));});
+  const kidsOf=(g,nest)=>nest?goals.filter(k=>k.parentId===g.id).map(k=>({g:k,A:analyzed[k.id]})):[];
+  const anyShown=sections.some(s=>s.goals.length);
+
+  const curM=gCurMonth(),nextM={type:"month",key:gShift({type:"month",key:curM},1).key};
+  const newGoal=()=>setEditor({draft:mk({scope:scope!=="all"&&scope!=="team"?{type:"mgr",id:scope}:{type:"team"},period:per.length===7?{type:"month",key:per}:per.startsWith("Q")?{type:"quarter",key:per.slice(1)}:{type:"month",key:curM}}),isNew:true});
+  const commitEditor=()=>{const d={...editor.draft,target:+editor.draft.target||0,updatedAt:Date.now()};if(editor.isNew)d.ord=maxOrd()+10;
+    save(gs=>editor.isNew?[...gs,d]:gs.map(g=>g.id===d.id?d:g));setToast(editor.isNew?L("Цель создана","Cel utworzony"):L("Цель сохранена","Cel zapisany"));setEditor(null);};
+  const addMany=(arr,msg)=>{let o=maxOrd();const now=Date.now();const add=arr.map((x,i)=>({...x,id:now+i+1,ord:(o+=10),updatedAt:now}));save(gs=>[...gs,...add]);setPer(nextM.key);setToast(msg);};
+  const fcOf=o=>{const g=mk(o);return goalAnalyze(g,idx,pl).forecast||0;};
+  const templates=[
+    {t:L("План команды на следующий месяц","Plan zespołu na kolejny miesiąc"),s:L("Выручка, продажи, квалы, визиты: прогноз текущего месяца +10%","Przychód, sprzedaże, kwalifikacje, wizyty: prognoza +10%"),run:()=>addMany(["revenue","sales","quals","visitsSet","visitsDone"].map(metric=>{const g=mk({metric,period:nextM});return {...g,target:gRound(fcOf({metric})*1.1,g)};}),L("Добавлено 5 целей команды","Dodano 5 celów zespołu"))},
+    {t:L("Личные планы по выручке","Osobiste plany przychodu"),s:L("Каждому менеджеру: его прогноз текущего месяца +10%","Każdemu: jego prognoza +10%"),run:()=>addMany(mgrs.map(m=>{const g=mk({metric:"revenue",scope:{type:"mgr",id:m},period:nextM});return {...g,target:gRound(fcOf({metric:"revenue",scope:{type:"mgr",id:m}})*1.1,g)};}),L("Добавлены личные планы","Dodano osobiste plany"))},
+    {t:L("Скорость первого контакта","Szybkość pierwszego kontaktu"),s:L("Каждому: медиана не больше 10 минут","Każdemu: mediana maks. 10 min"),run:()=>addMany(mgrs.map(m=>mk({metric:"fcMedian",scope:{type:"mgr",id:m},period:nextM,target:10})),L("Добавлены цели по скорости","Dodano cele szybkości"))},
+    {t:L("Конверсии воронки","Konwersje lejka"),s:L("Лид→Квал, Квал→Визит, Визит→Продажа","Lead→Kwal., Kwal.→Wizyta, Wizyta→Sprzedaż"),run:()=>addMany([["lead","qual",30],["qual","vset",45],["vdone","sale",55]].map(([from,to,target])=>mk({metric:"conv",params:{from,to},period:nextM,target})),L("Добавлены цели по конверсиям","Dodano cele konwersji"))},
+  ];
+  const perOpts=[["now",L("Идут сейчас","Trwające")]];
+  for(let k=-3;k<=3;k++){const p=gShift({type:"month",key:curM},k);perOpts.push([p.key,gPeriodLabel(p,pl)]);}
+  for(let k=-1;k<=1;k++){const p=gShift({type:"quarter",key:gCurQuarter()},k);perOpts.push(["Q"+p.key,gPeriodLabel(p,pl)]);}
+  perOpts.push(["all",L("Все периоды","Wszystkie okresy")]);
+  const ss={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,outline:"none",colorScheme:"dark"};
+  const chip=on=>({fontSize:12,fontWeight:700,padding:"6px 11px",borderRadius:999,border:`1px solid ${on?C.accent:C.borderMd}`,background:on?C.accent:"transparent",color:on?"#00132f":C.muted,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6});
+  const renderCards=s=>(<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:12,alignItems:"start"}}>
+    {s.goals.map(g=><GoalCard key={g.id} g={g} A={analyzed[g.id]} kids={kidsOf(g,s.nest)} api={api} canEdit={canEdit} canMark={canEdit||(g.scope.type==="mgr"&&g.scope.id===me)} mine={s.mine||(g.scope.type==="mgr"&&g.scope.id===me)} drag={drag} pl={pl}/>)}</div>);
+  const renderTable=()=>{const rows=[];sections.forEach(s=>{if(!s.goals.length)return;if(sections.length>1)rows.push({sec:s.t});s.goals.forEach(g=>{rows.push({g});kidsOf(g,s.nest).forEach(k=>rows.push({g:k.g,kid:true}));});});
+    const th={fontSize:10.5,letterSpacing:.6,textTransform:"uppercase",color:C.muted,textAlign:"left",fontWeight:800,padding:"9px 10px",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"};const tdS={padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:12.5,color:C.text};
+    return(<div style={{overflowX:"auto",background:C.card,border:`1px solid ${C.border}`,borderRadius:12}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
+      <thead><tr>{[L("Цель","Cel"),L("Для кого","Dla kogo"),L("Период","Okres"),L("Факт","Fakt"),L("Цель","Cel"),"%",L("Прогноз","Prognoza"),L("Статус","Status"),...(canEdit?["",""]:[])].map((h,i)=><th key={i} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map((r,i)=>{if(r.sec!=null)return <tr key={"s"+i}><td colSpan={canEdit?10:8} style={{...tdS,background:C.surface,color:C.accent,fontWeight:900}}>{r.sec}</td></tr>;
+        const g=r.g,A=analyzed[g.id],col={ok:C.green,warn:C.yellow,bad:C.red,idle:C.muted}[A.st.k];return(<tr key={g.id}>
+        <td style={{...tdS,fontWeight:700,paddingLeft:r.kid?30:10,minWidth:200}}>{gTitle(g,pl)}</td>
+        <td style={tdS}><span style={{color:g.scope.type==="team"?C.accent:(MGR_COLOR[g.scope.id]||C.text),fontWeight:700}}>{gScopeName(g.scope,pl)}</span></td>
+        <td style={{...tdS,color:C.muted}}>{gPeriodLabel(g.period,pl)}</td>
+        <td style={{...tdS,fontWeight:800}}>{gFmt(A.fact,g,pl)}</td>
+        <td style={tdS}>{canEdit?<input type="number" value={g.target} onChange={e=>api.patch(g.id,{target:+e.target.value||0})} style={{...ss,width:110}}/>:(A.up?"":"≤ ")+gFmt(g.target,g,pl)}</td>
+        <td style={{...tdS,color:col,fontWeight:900}}>{A.up&&A.target?Math.round(A.pct*100)+"%":"—"}</td>
+        <td style={tdS}>{A.forecast==null?"—":gFmt(A.forecast,g,pl,true)}</td>
+        <td style={tdS}><span style={{fontSize:10.5,fontWeight:800,borderRadius:999,padding:"3px 9px",background:`${col}22`,color:col,whiteSpace:"nowrap"}}>{A.st.l}</span></td>
+        {canEdit&&<td style={{...tdS,whiteSpace:"nowrap"}}>{!r.kid&&<><button onClick={()=>api.move(g.id,-1)} style={{...ss,padding:"3px 8px",cursor:"pointer"}}>↑</button> <button onClick={()=>api.move(g.id,1)} style={{...ss,padding:"3px 8px",cursor:"pointer"}}>↓</button></>}</td>}
+        {canEdit&&<td style={tdS}><button onClick={()=>api.edit(g)} style={{...ss,padding:"3px 8px",cursor:"pointer"}}>✎</button></td>}
+      </tr>);})}</tbody></table></div>);};
+
+  return(
+    <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+        <div><div style={{fontSize:18,fontWeight:900,color:C.text}}>🎯 {L("Цели","Cele")}</div><div style={{fontSize:11,color:C.muted}}>{isMgr?L("Сначала ваши личные цели, ниже — цели команды","Najpierw Twoje cele, niżej — zespołu"):L("План и факт по команде и менеджерам","Plan i wykonanie zespołu i managerów")}</div></div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",position:"relative"}}>
+          <div style={{display:"inline-flex",background:C.surface,border:`1px solid ${C.borderMd}`,borderRadius:9,padding:3,gap:3}}>
+            {[["cards",L("Карточки","Karty")],["table",L("Таблица","Tabela")]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{border:"none",borderRadius:6,padding:"6px 11px",fontSize:12,fontWeight:700,cursor:"pointer",background:view===v?C.card:"transparent",color:view===v?C.text:C.muted}}>{l}</button>)}
+          </div>
+          {canEdit&&<button onClick={()=>setTpl(x=>!x)} style={{...ss,cursor:"pointer",fontWeight:700,padding:"8px 12px"}}>▤ {L("Шаблоны","Szablony")}</button>}
+          {canEdit&&<button onClick={newGoal} style={{background:C.accent,border:"none",color:"#00132f",borderRadius:8,padding:"8px 14px",fontSize:13,fontWeight:900,cursor:"pointer"}}>＋ {L("Новая цель","Nowy cel")}</button>}
+          {tpl&&canEdit&&<div style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:50,background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:12,padding:6,width:320,boxShadow:"0 18px 48px rgba(0,0,0,0.45)"}}>
+            {templates.map(x=><button key={x.t} onClick={()=>{x.run();setTpl(false);}} style={{display:"flex",flexDirection:"column",gap:2,width:"100%",textAlign:"left",background:"transparent",border:"none",borderRadius:9,padding:"9px 11px",cursor:"pointer",color:C.text}}><b style={{fontSize:12.5}}>{x.t}</b><span style={{fontSize:11,color:C.muted}}>{x.s}</span></button>)}
+          </div>}
+        </div>
+      </div>
+      {!canEdit&&<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"9px 12px",fontSize:12,color:C.muted}}>🔒 {L("Режим просмотра. Цели ставят и меняют: ","Tryb podglądu. Cele ustawiają: ")}{GOAL_EDITORS.join(", ")}.</div>}
+      <div style={{display:"flex",flexWrap:"wrap",gap:"8px 14px",alignItems:"center",background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 12px"}}>
+        <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center"}}>
+          <button style={chip(scope==="all")} onClick={()=>setScope("all")}>{isMgr?L("Мои + команда","Moje + zespół"):L("Все цели","Wszystkie cele")}</button>
+          <button style={chip(scope==="team")} onClick={()=>setScope("team")}>{L("Команда","Zespół")}</button>
+          {mgrs.map(m=><button key={m} style={chip(scope===m)} onClick={()=>setScope(m)}><span style={{width:8,height:8,borderRadius:"50%",background:MGR_COLOR[m]||C.accent}}/>{m}{m===me?L(" (я)"," (ja)"):""}</button>)}
+        </div>
+        <select value={per} onChange={e=>setPer(e.target.value)} style={ss}>{perOpts.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
+        <select value={sort} onChange={e=>setSort(e.target.value)} style={ss}><option value="custom">{L("Мой порядок","Moja kolejność")}</option><option value="risk">{L("Сначала проблемные","Najpierw zagrożone")}</option><option value="progress">{L("По выполнению","Wg wykonania")}</option></select>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8}}>
+        {[["any",L("Всего целей","Wszystkich celów"),counted.length,C.text],["ok",L("В графике / выполнено","W planie / wykonane"),counts.ok,C.green],["warn",L("Отстают","Opóźnione"),counts.warn,C.yellow],["bad",L("Не успевают","Zagrożone"),counts.bad,C.red],["idle",L("Ещё не начались","Nie rozpoczęte"),counts.idle,C.muted]].map(([k,l,n,c])=>(
+          <button key={k} onClick={()=>setStF(stF===k?"any":k)} style={{background:C.card,border:`1px solid ${stF===k?C.accent:C.border}`,borderRadius:12,padding:"10px 12px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:2}}>
+            <span style={{fontSize:10,fontWeight:800,letterSpacing:.6,textTransform:"uppercase",color:C.muted}}>{l}</span><span style={{fontSize:22,fontWeight:900,color:c}}>{n}</span></button>))}
+      </div>
+      {!anyShown?<div style={{background:C.card,border:`1px dashed ${C.borderMd}`,borderRadius:14,padding:30,textAlign:"center",display:"flex",flexDirection:"column",gap:10,alignItems:"center"}}>
+          <div style={{fontSize:16,fontWeight:900,color:C.text}}>{L("Целей пока нет","Brak celów")}</div>
+          <div style={{fontSize:12,color:C.muted}}>{canEdit?L("Создайте цель или возьмите готовый набор из шаблонов.","Utwórz cel lub weź gotowy zestaw z szablonów."):L("Как только руководитель поставит цель, она появится здесь.","Gdy kierownik ustawi cel, pojawi się tutaj.")}</div>
+          {canEdit&&<div style={{display:"flex",gap:8}}><button onClick={newGoal} style={{background:C.accent,border:"none",color:"#00132f",borderRadius:8,padding:"8px 14px",fontSize:13,fontWeight:900,cursor:"pointer"}}>＋ {L("Новая цель","Nowy cel")}</button><button onClick={()=>setTpl(true)} style={{...ss,cursor:"pointer",fontWeight:700}}>▤ {L("Шаблоны","Szablony")}</button></div>}
+        </div>
+        :view==="table"?renderTable()
+        :sections.map((s,i)=>s.t?(<div key={s.t} style={{display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{display:"flex",alignItems:"baseline",gap:8}}><span style={{fontSize:15,fontWeight:900,color:s.mine?C.accent:C.text}}>{s.t}</span><span style={{fontSize:12,color:C.muted}}>{s.goals.length}</span></div>
+            {s.goals.length?renderCards(s):<div style={{fontSize:12,color:C.dim,background:C.card,border:`1px dashed ${C.border}`,borderRadius:10,padding:14}}>{s.mine?L("Личных целей на этот период нет.","Brak osobistych celów w tym okresie."):L("Пока пусто.","Na razie pusto.")}</div>}
+          </div>):<div key={"one"+i}>{renderCards(s)}</div>)}
+      {editor&&canEdit&&<GoalEditor draft={editor.draft} isNew={editor.isNew} idx={idx} mgrs={mgrs} pl={pl} onChange={d=>setEditor(e=>({...e,draft:d}))} onSave={commitEditor} onClose={()=>setEditor(null)} onDelete={()=>{api.remove(editor.draft.id);setEditor(null);setToast(L("Цель удалена","Cel usunięty"));}}/>}
+      {toast&&<div style={{position:"fixed",left:"50%",transform:"translateX(-50%)",bottom:24,background:C.card,border:`1px solid ${C.accent}`,borderRadius:10,padding:"10px 16px",zIndex:2100,fontWeight:700,color:C.text,fontSize:13}}>{toast}</div>}
+    </div>);
 }
 
 // ─── LEADS PAGE ───────────────────────────────────────────────────────────────
@@ -2834,7 +3376,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
         <select value={fFun} onChange={e=>setFFun(e.target.value)} style={ss}><option value="all">▼ {lang==="pl"?"Lejek":"Воронка"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— {lang==="pl"?"bez lejka":"без воронки"}</option></select>
         <select value={fWhy} onChange={e=>setFWhy(e.target.value)} style={ss}><option value="all">{t.whyNoVisit}</option><option value="thinking">{t.rThinking}</option><option value="price">{t.rPrice}</option><option value="distance">{t.rDistance}</option><option value="term">{t.rTerm}</option><option value="none">—</option></select>
         <select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {lang==="pl"?"Język klienta":"Язык клиента"} ({_langCnt.all})</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()} ({_langCnt[v]||0})</option>)}<option value="none">— {lang==="pl"?"bez języka":"без языка"} ({_langCnt.none||0})</option></select>
-        <BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={ss}/>
+        {currentUser==="Danya"&&<BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={ss}/>}
         {(fSc.length>0||fA!=="all"||fS.length>0||fFun!=="all"||fWhy!=="all"||fLang!=="all"||fBuy!=="all")&&<button onClick={()=>{setFSc([]);setFA("all");setFS([]);setFFun("all");setFWhy("all");setFLang("all");setFBuy("all");}} style={{...ss,color:C.muted}}>✕ {lang==="pl"?"Wyczyść":"Сбросить"}</button>}
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
@@ -3425,7 +3967,7 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
         <select value={fm} onChange={e=>setFm(e.target.value)} style={ss}><option value="all">{ru?"Все менеджеры":"Wszyscy"}</option>{MANAGERS.map(m=><option key={m} value={m}>{m}</option>)}</select>
         <select value={ff} onChange={e=>setFf(e.target.value)} style={ss}><option value="all">{ru?"Все воронки":"Wszystkie lejki"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— {ru?"без воронки":"bez lejka"}</option></select>
         {(()=>{const base=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>fm==="all"||l.manager===fm).filter(l=>{if(ff==="all")return true;const f=leadFunnel(l,srcList,funnels);return ff==="none"?!f:(f&&String(f.id)===ff);}).filter(l=>buyerMatch(l.source,fBuy));const cnt=(v)=>base.filter(l=>v==="none"?!l.clientLang:l.clientLang===v).length;
-          return <><BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={ss}/><select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {ru?"Все языки":"Wszystkie języki"} ({base.length})</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()} ({cnt(v)})</option>)}<option value="none">— {ru?"без языка":"bez języka"} ({cnt("none")})</option></select></>;})()}
+          return <>{currentUser==="Danya"&&<BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={ss}/>}<select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {ru?"Все языки":"Wszystkie języki"} ({base.length})</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()} ({cnt(v)})</option>)}<option value="none">— {ru?"без языка":"bez języka"} ({cnt("none")})</option></select></>;})()}
         <div style={{marginLeft:"auto"}}><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t} lang={lang}/></div>
       </div>
       {prevRange[0]&&<div style={{fontSize:11,color:C.dim,marginTop:-8}}>{ru?"Сравнение с периодом":"Porównanie z okresem"} {isoToDot(prevRange[0])} — {isoToDot(prevRange[1])} ({prev.length} {ru?"лидов":"leadów"})</div>}
@@ -4131,6 +4673,10 @@ function applyTaskTiming(prev,next){
   const out={...next};
   if(!was&&now){out.startedAt=Date.now();}
   if(was&&!now){out.spentMs=(prev.spentMs||0)+(prev.startedAt?Date.now()-prev.startedAt:0);out.startedAt=null;}
+  // момент перевода в DONE — для KPI «Выполнено задач» в Целях
+  const wasD=(prev?.status||'all')==='done',isD=(next.status||'all')==='done';
+  if(isD&&!wasD)out.doneAt=Date.now();
+  if(!isD&&wasD)out.doneAt=null;
   return out;
 }
 function taskSpentMs(t){return (t.spentMs||0)+((t.status||'all')==='process'&&t.startedAt?Date.now()-t.startedAt:0);}
@@ -4963,6 +5509,7 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
   // Computed from prev (p) inside the updater to avoid stale-closure races.
   const deleteTasks=(ids)=>updateDb(p=>({
     ...p,
+    taskDoneLog:[...(p.taskDoneLog||[]),...(p.tasks||[]).filter(t=>ids.includes(t.id)&&(t.status||'all')==='done'&&t.doneAt).map(t=>({id:t.id,mgr:t.assignee||'',leadId:t.leadId||null,due:t.deadline||null,doneAt:t.doneAt}))],
     tasks:(p.tasks||[]).filter(t=>!ids.includes(t.id)),
     deletedTaskIds:[...new Set([...(p.deletedTaskIds||[]),...ids])],
   }),true);
@@ -5551,7 +6098,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead,
         <span style={{fontSize:11,color:C.muted}}>{lang==="pl"?"Menedżer":"Менеджер"}:</span>
         {["all",...MANAGERS].map(m=>{const on=fMgr===m;const c=m==="all"?C.accent:(MGR_COLOR[m]||C.accent);return <button key={m} onClick={()=>setFMgr(m)} style={{background:on?`${c}26`:"transparent",border:`1px solid ${on?c:C.border}`,color:on?c:C.muted,borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:on?800:500,cursor:"pointer"}}>{m==="all"?(lang==="pl"?"Wszyscy":"Все"):m}</button>;})}
         <MultiPick label={lang==="pl"?"Źródło":"Источник"} selected={fSrc} onChange={setFSrc} width={260} options={srcOpts.map(x=>({value:x,label:x}))}/>
-        <BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={{background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 10px",fontSize:12,colorScheme:"dark"}}/>
+        {currentUser==="Danya"&&<BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={{background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 10px",fontSize:12,colorScheme:"dark"}}/>}
         <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{marginLeft:"auto",background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 10px",fontSize:12,colorScheme:"dark"}}>
           <option value="date">{lang==="pl"?"Wg daty ↓":"По дате ↓"}</option><option value="amount">{lang==="pl"?"Wg kwoty ↓":"По сумме ↓"}</option><option value="manager">{lang==="pl"?"Wg menedżera":"По менеджеру"}</option><option value="source">{lang==="pl"?"Wg źródła":"По источнику"}</option>
         </select>
@@ -5920,7 +6467,7 @@ function GarnoCRM(){
         <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} unreadTasks={unreadTasksCount} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
-          {page==="dashboard"  && <Dashboard leads={leads} events={events} t={t} lang={lang}/>}
+          {page==="dashboard"  && <GoalsPage db={db} updateDb={updateDb} currentUser={currentUser} lang={lang}/>}
           {page==="leads"      && <LeadsSection lang={lang} funnels={db.funnels||[]} leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead}/>}
