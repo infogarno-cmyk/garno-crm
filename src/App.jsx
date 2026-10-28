@@ -343,6 +343,16 @@ function erikaEff(l){
   const r=treeEval({...tree,noVisitReason:"-"});
   return {v:r.score,tree,termFromForm:!et.term&&!!ft,next:r.next,hint:r.hint};
 }
+// ─── БАЕРЫ (медиабаинг) по источнику: «D…» — Даня, «I…» — Илля ─────────────────
+const BUYERS=[["Danya","D","#22d3ee"],["Illia","I","#a78bfa"]];
+function buyerOf(source){const c=String(source||"").trim().charAt(0);const b=BUYERS.find(x=>x[1]===c);return b?b[0]:null;}
+function BuyerPick({value,onChange,lang,style}){const pl=lang==="pl";return(
+  <select value={value} onChange={e=>onChange(e.target.value)} style={style}>
+    <option value="all">🎯 {pl?"Wszyscy buyerzy":"Все баеры"}</option>
+    {BUYERS.map(([n,l])=><option key={n} value={n}>{n} ({l}…)</option>)}
+    <option value="none">— {pl?"bez buyera":"без баера"}</option>
+  </select>);}
+const buyerMatch=(source,f)=>f==="all"||(f==="none"?!buyerOf(source):buyerOf(source)===f);
 // ─── ЯЗЫК ОБСЛУЖИВАНИЯ ───────────────────────────────────────────────────────
 // Если язык не выбран вручную: украинский источник (ukr / .ua / ukrain…) или кириллица в имени/описании → 🇺🇦
 function detectLang(l){
@@ -366,10 +376,24 @@ function normLang(v){
   if(!LANG_OPTS.some(o=>o[0]===n))n=LANG_OPTS[0][0];
   return n;
 }
+// Язык по тексту заявки: явно английский текст (Эрика / формы) → EN
+function textLang(l){
+  const t=` ${String((l&&l.notes)||"")} ${((l&&l.messages)||[]).map?((l.messages||[]).map(m=>typeof m==="string"?m:(m&&(m.text||m.content))||"").join(" ")):""} `.toLowerCase();
+  if(t.trim().length<12)return null;
+  if(/[а-яёіїєґ]/.test(t))return "ua";
+  const cnt=(re)=>(t.match(re)||[]).length;
+  const en=cnt(/\b(the|and|i'm|my|we|you|is|are|want|need|would|like|please|hello|hi|kitchen|price|thanks?|thank you|with|for|have|how|much|can|could)\b/g);
+  const pl=cnt(/\b(się|jest|nie|tak|kuchni[aęy]?|chcę|chciał[aby]*|proszę|dzień|dobry|czy|mam|jak|ile|dziękuję|cześć|witam|mieszkanie|blat)\b|[ąęłńśźż]/g);
+  const cz=cnt(/\b(je|se|kuchyň|kuchyně|chci|prosím|dobrý|den|děkuji|ahoj|jak|kolik|byt)\b|[ěřůčšžý]/g);
+  return en>=3&&en>(pl+cz)*2?"en":null;
+}
 function withLang(l){
   if(!l)return l;
+  // язык поставлен автоматически/сайтом (не менеджером вручную), а заявка явно на другом языке → поправляем
+  const manual=l.clientLangAuto===false||((l.history||[]).some(h=>/^(Язык обслуживания|Język obsługi):/.test(String(h&&h.action||""))));
+  if(l.clientLang&&!manual){const tl=textLang(l);const n0=normLang(l.clientLang);if(tl&&tl!==n0&&LANG_OPTS.some(o=>o[0]===tl))return {...l,clientLang:tl,clientLangAuto:true,clientLangRaw:l.clientLangRaw||l.clientLang};}
   if(l.clientLang){const n=normLang(l.clientLang);return n===l.clientLang?l:{...l,clientLang:n,clientLangRaw:l.clientLang};}
-  const g=detectLang(l);return g?{...l,clientLang:g,clientLangAuto:true}:l;
+  const g=detectLang(l)||textLang(l);return g?{...l,clientLang:g,clientLangAuto:true}:l;
 }
 // ─── ФОТО / ФАЙЛЫ ИЗ ЗАЯВКИ ──────────────────────────────────────────────────
 // Ищем вложения в любых привычных полях лида и ссылки на картинки/хранилище в описании.
@@ -2745,7 +2769,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
   };
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
-  const [fSc,setFSc]=useState([]);const [fA,setFA]=useState("all");const [fS,setFS]=useState([]);const [fFun,setFFun]=useState("all");const [fWhy,setFWhy]=useState("all");const [fLang,setFLang]=useState("all");
+  const [fSc,setFSc]=useState([]);const [fA,setFA]=useState("all");const [fS,setFS]=useState([]);const [fFun,setFFun]=useState("all");const [fWhy,setFWhy]=useState("all");const [fLang,setFLang]=useState("all");const [fBuy,setFBuy]=useState("all");
   const [selected,setSelected]=useState(new Set());
   const ss={background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
   const _langCnt={all:0}; // сколько лидов каждого языка при остальных фильтрах
@@ -2755,6 +2779,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
     .filter(l=>fS.length===0||fS.includes(l.source))
     .filter(l=>{if(fFun==="all")return true;const f=leadFunnel(l,srcList,funnels);return fFun==="none"?!f:(f&&String(f.id)===fFun);})
     .filter(l=>fWhy==="all"||(fWhy==="none"?!l.noVisitReason:(l.noVisitReason||"")===fWhy))
+    .filter(l=>buyerMatch(l.source,fBuy))
     .filter(l=>{_langCnt[l.clientLang||"none"]=(_langCnt[l.clientLang||"none"]||0)+1;_langCnt.all++;return fLang==="all"||(fLang==="none"?!l.clientLang:l.clientLang===fLang);})
     // Всегда: чем новее лид — тем выше (сначала день, внутри дня — по времени поступления)
     .map((l,i)=>({l,i,k:leadSortKey(l)})).sort((a,b)=>(b.k-a.k)||(a.i-b.i)).map(x=>x.l);
@@ -2809,7 +2834,8 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
         <select value={fFun} onChange={e=>setFFun(e.target.value)} style={ss}><option value="all">▼ {lang==="pl"?"Lejek":"Воронка"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— {lang==="pl"?"bez lejka":"без воронки"}</option></select>
         <select value={fWhy} onChange={e=>setFWhy(e.target.value)} style={ss}><option value="all">{t.whyNoVisit}</option><option value="thinking">{t.rThinking}</option><option value="price">{t.rPrice}</option><option value="distance">{t.rDistance}</option><option value="term">{t.rTerm}</option><option value="none">—</option></select>
         <select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {lang==="pl"?"Język klienta":"Язык клиента"} ({_langCnt.all})</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()} ({_langCnt[v]||0})</option>)}<option value="none">— {lang==="pl"?"bez języka":"без языка"} ({_langCnt.none||0})</option></select>
-        {(fSc.length>0||fA!=="all"||fS.length>0||fFun!=="all"||fWhy!=="all"||fLang!=="all")&&<button onClick={()=>{setFSc([]);setFA("all");setFS([]);setFFun("all");setFWhy("all");setFLang("all");}} style={{...ss,color:C.muted}}>✕ {lang==="pl"?"Wyczyść":"Сбросить"}</button>}
+        <BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={ss}/>
+        {(fSc.length>0||fA!=="all"||fS.length>0||fFun!=="all"||fWhy!=="all"||fLang!=="all"||fBuy!=="all")&&<button onClick={()=>{setFSc([]);setFA("all");setFS([]);setFFun("all");setFWhy("all");setFLang("all");setFBuy("all");}} style={{...ss,color:C.muted}}>✕ {lang==="pl"?"Wyczyść":"Сбросить"}</button>}
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
@@ -3370,11 +3396,12 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
   const [fm,setFm]=useState(currentUser&&MANAGERS.includes(currentUser)&&currentUser!=="Danya"?currentUser:"all");
   const [ff,setFf]=useState("all");
   const [fLang,setFLang]=useState("all"); // язык клиента
+  const [fBuy,setFBuy]=useState("all"); // баер (по первой букве источника)
   const [pick,setPick]=useState(null); // {x, mode:"at"|"reached"}
   const [showMore,setShowMore]=useState(false);
   // прошлый период такой же длины, сразу перед текущим
   const prevRange=(()=>{if(!dateFrom||!dateTo)return [null,null];const a=new Date(dateFrom+"T00:00:00"),b=new Date(dateTo+"T00:00:00");const len=Math.round((b-a)/86400000)+1;const pe=new Date(a);pe.setDate(pe.getDate()-1);const ps=new Date(pe);ps.setDate(ps.getDate()-len+1);const iso=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;return [iso(ps),iso(pe)];})();
-  const scope=(arr)=>(arr||[]).filter(l=>fm==="all"||l.manager===fm).filter(l=>{if(ff==="all")return true;const f=leadFunnel(l,srcList,funnels);return ff==="none"?!f:(f&&String(f.id)===ff);}).filter(l=>fLang==="all"||(fLang==="none"?!l.clientLang:l.clientLang===fLang));
+  const scope=(arr)=>(arr||[]).filter(l=>fm==="all"||l.manager===fm).filter(l=>{if(ff==="all")return true;const f=leadFunnel(l,srcList,funnels);return ff==="none"?!f:(f&&String(f.id)===ff);}).filter(l=>fLang==="all"||(fLang==="none"?!l.clientLang:l.clientLang===fLang)).filter(l=>buyerMatch(l.source,fBuy));
   const cur=scope(filterByCustomRange(leads,dateFrom,dateTo));
   const prev=prevRange[0]?scope(filterByCustomRange(leads,prevRange[0],prevRange[1])):[];
   const at=(arr,x)=>arr.filter(l=>(parseFloat(l.score)||0)===x);
@@ -3390,15 +3417,15 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
   const K=[["Лид → Квал (4+)",trans(0,4,cur),trans(0,4,prev)],["Квал 4 → Визит 5",trans(4,5,cur),trans(4,5,prev)],["MWP 4.5 → Визит состоялся 5.5",t4555(cur),t4555(prev)],["Визит назн. 5 → состоялся 5.5",trans(5,5.5,cur),trans(5,5.5,prev)],["Визит 5.5 → Продажа 6",trans(5.5,6,cur),trans(5.5,6,prev)]];
   const ss={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,outline:"none",colorScheme:"dark"};
   const pickList=pick?(pick.mode==="at"?at(cur,pick.x):reached(cur,pick.x)):[];
-  const curSales=filterByCustomRange(sales||[],dateFrom,dateTo).filter(x=>fm==="all"||x.manager===fm).filter(x=>{if(fLang==="all")return true;const l=(leads||[]).find(y=>y.leadId===x.leadId||y.id===x.leadId)||(leads||[]).find(y=>y.phone===x.phone);const cl=l&&l.clientLang;return fLang==="none"?!cl:cl===fLang;});
+  const curSales=filterByCustomRange(sales||[],dateFrom,dateTo).filter(x=>fm==="all"||x.manager===fm).filter(x=>{if(fLang==="all")return true;const l=(leads||[]).find(y=>y.leadId===x.leadId||y.id===x.leadId)||(leads||[]).find(y=>y.phone===x.phone);const cl=l&&l.clientLang;return fLang==="none"?!cl:cl===fLang;}).filter(x=>buyerMatch(x.source,fBuy));
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <div style={{fontSize:18,fontWeight:800,color:C.text}}>▼ {ru?"Воронка продаж":"Lejek sprzedaży"} <span style={{fontSize:12,color:C.muted}}>({cur.length})</span></div>
         <select value={fm} onChange={e=>setFm(e.target.value)} style={ss}><option value="all">{ru?"Все менеджеры":"Wszyscy"}</option>{MANAGERS.map(m=><option key={m} value={m}>{m}</option>)}</select>
         <select value={ff} onChange={e=>setFf(e.target.value)} style={ss}><option value="all">{ru?"Все воронки":"Wszystkie lejki"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— {ru?"без воронки":"bez lejka"}</option></select>
-        {(()=>{const base=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>fm==="all"||l.manager===fm).filter(l=>{if(ff==="all")return true;const f=leadFunnel(l,srcList,funnels);return ff==="none"?!f:(f&&String(f.id)===ff);});const cnt=(v)=>base.filter(l=>v==="none"?!l.clientLang:l.clientLang===v).length;
-          return <select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {ru?"Все языки":"Wszystkie języki"} ({base.length})</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()} ({cnt(v)})</option>)}<option value="none">— {ru?"без языка":"bez języka"} ({cnt("none")})</option></select>;})()}
+        {(()=>{const base=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>fm==="all"||l.manager===fm).filter(l=>{if(ff==="all")return true;const f=leadFunnel(l,srcList,funnels);return ff==="none"?!f:(f&&String(f.id)===ff);}).filter(l=>buyerMatch(l.source,fBuy));const cnt=(v)=>base.filter(l=>v==="none"?!l.clientLang:l.clientLang===v).length;
+          return <><BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={ss}/><select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {ru?"Все языки":"Wszystkie języki"} ({base.length})</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()} ({cnt(v)})</option>)}<option value="none">— {ru?"без языка":"bez języka"} ({cnt("none")})</option></select></>;})()}
         <div style={{marginLeft:"auto"}}><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t} lang={lang}/></div>
       </div>
       {prevRange[0]&&<div style={{fontSize:11,color:C.dim,marginTop:-8}}>{ru?"Сравнение с периодом":"Porównanie z okresem"} {isoToDot(prevRange[0])} — {isoToDot(prevRange[1])} ({prev.length} {ru?"лидов":"leadów"})</div>}
@@ -4235,7 +4262,7 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
   const [openId,setOpenId]=useState(null);
   const [showTpl,setShowTpl]=useState(false);
   const [fResp,setFResp]=useState("all");const [fStage,setFStage]=useState("all");const [fOver,setFOver]=useState(false);
-  const [fDl,setFDl]=useState("");const [fClient,setFClient]=useState("");const [fNum,setFNum]=useState("");const [kpi,setKpi]=useState(null);const [showDone,setShowDone]=useState(false);
+  const [fDl,setFDl]=useState("");const [fClient,setFClient]=useState("");const [fNum,setFNum]=useState("");const [fNumTo,setFNumTo]=useState("");const [kpi,setKpi]=useState(null);const [showDone,setShowDone]=useState(false);
   const td=getToday();
   const overdueTasks=(o)=>(tasks||[]).filter(x=>x.orderId===o.id&&(x.status||"all")!=="done"&&x.deadline&&x.deadline<td).length;
   const info=(o)=>{const s=orderStatus(o,tpl);return {...s,st:ORDER_STAGES[s.ci]||null,prog:orderProgress(o,tpl),next:orderNextStep(o,tpl),rem:orderRemaining(o),ot:overdueTasks(o)};};
@@ -4299,7 +4326,11 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
     if(fOver&&!(i.days!==null&&i.days<0)&&!i.ot)return false;
     if(fDl&&!(i.dl&&i.dl<=fDl))return false;
     if(fClient&&!((o.client||"").toLowerCase().includes(fClient.toLowerCase())||String(o.phone||"").includes(fClient)))return false;
-    if(fNum&&!String(o.num).includes(fNum))return false;
+    // № заказа: одно поле — поиск по номеру; оба поля — диапазон «от — до»
+    const on=parseInt(String(o.num).replace(/\D/g,""))||0;
+    if(fNum&&fNumTo){const a=parseInt(fNum)||0,b=parseInt(fNumTo)||0;if(on<Math.min(a,b)||on>Math.max(a,b))return false;}
+    else if(fNumTo){if(on>(parseInt(fNumTo)||0))return false;}
+    else if(fNum&&!String(o.num).includes(fNum))return false;
     if(kpi&&!kpi.fn(o,i))return false;
     return true;
   }).sort((a,b)=>(a.i.days??9999)-(b.i.days??9999));
@@ -4359,8 +4390,11 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
         <label style={{...ss,display:"flex",alignItems:"center",gap:5,cursor:"pointer",color:fOver?C.red:C.text}}><input type="checkbox" checked={fOver} onChange={e=>setFOver(e.target.checked)}/> {oL("🔴 Просроченные")}</label>
         <span style={{fontSize:11,color:C.muted}}>{oL("Дедлайн до")}</span><input type="date" value={fDl} onChange={e=>setFDl(e.target.value)} style={ss}/>
         <input value={fClient} onChange={e=>setFClient(e.target.value)} placeholder={oL("🔍 Клиент / телефон")} style={{...ss,width:160}}/>
-        <input value={fNum} onChange={e=>setFNum(e.target.value)} placeholder={oL("№ заказа")} style={{...ss,width:100}}/>
-        {(fResp!=="all"||fStage!=="all"||fOver||fDl||fClient||fNum||kpi)&&<button onClick={()=>{setFResp("all");setFStage("all");setFOver(false);setFDl("");setFClient("");setFNum("");setKpi(null);}} style={{...ss,cursor:"pointer",color:C.muted}}>{oL("✕ Сброс")}</button>}
+        <input value={fNum} onChange={e=>setFNum(e.target.value)} placeholder={oL("№ заказа")+(ORD_LANG==="pl"?" od":" от")} style={{...ss,width:110}}/>
+        <span style={{fontSize:11,color:C.muted}}>—</span>
+        <input value={fNumTo} onChange={e=>setFNumTo(e.target.value)} placeholder={ORD_LANG==="pl"?"do":"до"} style={{...ss,width:70}}/>
+        {me!=="—"&&<button onClick={()=>setFResp(fResp===me?"all":me)} style={{...ss,cursor:"pointer",fontWeight:800,borderColor:fResp===me?C.accent:C.borderMd,color:fResp===me?C.accent:C.text}}>👤 {ORD_LANG==="pl"?"Moje zamówienia":"Мои заказы"}</button>}
+        {(fResp!=="all"||fStage!=="all"||fOver||fDl||fClient||fNum||fNumTo||kpi)&&<button onClick={()=>{setFResp("all");setFStage("all");setFOver(false);setFDl("");setFClient("");setFNum("");setFNumTo("");setKpi(null);}} style={{...ss,cursor:"pointer",color:C.muted}}>{oL("✕ Сброс")}</button>}
       </div>
 
       {/* Таблица руководителя */}
@@ -4459,7 +4493,15 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
   const force=(i)=>{const r=prompt(`${oL("Открыть этап")} «${oL(ORDER_STAGES[i].name)}» ${oL("вручную, минуя незавершённые этапы.\nУкажи причину (обязательно")}):`);if(!r||!r.trim())return;
     commit(o.id,x=>{const fz={...(x.forced||{})};ORDER_STAGES.slice(0,i).forEach(st=>{if(!stageDone(x,tpl,st))fz[st.key]={by:me,reason:r.trim(),at:Date.now()};});return {...x,forced:fz};},`⚠ ${oL("Ручной переход на этап")} «${oL(ORDER_STAGES[i].name)}» (${oL("админ). Причина")}: ${r.trim()}`);};
   const comp=(id,upd,label)=>commit(o.id,x=>({...x,components:(x.components||[]).map(c=>c.id===id?{...c,...upd}:c)}),label);
-  const addFile=(st)=>{const v=fileIn[st.key]||{};if(!v.url)return;const file={id:Date.now(),stage:st.key,name:v.name||v.url,url:v.url,by:me,at:Date.now()};commit(o.id,x=>({...x,files:[...(x.files||[]),file]}),`📎 ${oL("Файл в")} «${oL(st.name)}»: ${file.name}`);setFileIn(a=>({...a,[st.key]:{}}));};
+  const [ordUp,setOrdUp]=useState({});const ordInp=useRef({});
+  const uploadOrderFiles=async(st,list)=>{const files=[...(list||[])];if(!files.length)return;setOrdUp(a=>({...a,[st.key]:{busy:files.length,err:""}}));const done=[];let err="";
+    for(const f of files){try{const meta=await uploadLeadFile(`order_${o.id}`,f);done.push({...meta,id:Date.now()+Math.random(),stage:st.key,by:me,at:Date.now()});}
+      catch(e){err=e.message==="BUCKET"?(ORD_LANG==="pl"?"Magazyn plików nie jest utworzony w Supabase — uruchom SQL z instrukcji.":"Хранилище файлов не создано в Supabase — выполните SQL из инструкции."):e.message==="POLICY"?(ORD_LANG==="pl"?"Brak uprawnień do magazynu plików — uruchom SQL z instrukcji.":"Нет прав на хранилище — выполните SQL из инструкции."):e.message;}}
+    if(done.length)commit(o.id,x=>({...x,files:[...(x.files||[]),...done]}),`📎 ${oL("Файл в")} «${oL(st.name)}»: ${done.map(d=>d.name).join(", ")}`);
+    setOrdUp(a=>({...a,[st.key]:{busy:0,err}}));};
+  const openOrderFile=async(x)=>{try{const u=await leadFileUrl(x.path);window.open(u,"_blank");}catch(e){setOrdUp(a=>({...a,[x.stage]:{busy:0,err:(ORD_LANG==="pl"?"Nie udało się otworzyć pliku: ":"Не удалось открыть файл: ")+e.message}}));}};
+  const delOrderFile=(x)=>{if(!window.confirm((ORD_LANG==="pl"?"Usunąć plik «":"Удалить файл «")+x.name+"»?"))return;commit(o.id,y=>({...y,files:(y.files||[]).filter(z=>z.id!==x.id)}),`🗑 ${ORD_LANG==="pl"?"Usunięto plik":"Удалён файл"}: ${x.name}`);if(x.path)deleteLeadFile(x.path);};
+  const addFile=(st)=>{const v=fileIn[st.key]||{};if(!v.url){setOrdUp(a=>({...a,[st.key]:{busy:0,err:ORD_LANG==="pl"?"Wklej link albo wybierz plik z komputera (📁).":"Вставьте ссылку или выберите файл с компьютера (📁)."}}));return;}const file={id:Date.now(),stage:st.key,name:v.name||v.url,url:v.url,by:me,at:Date.now()};commit(o.id,x=>({...x,files:[...(x.files||[]),file]}),`📎 ${oL("Файл в")} «${oL(st.name)}»: ${file.name}`);setFileIn(a=>({...a,[st.key]:{}}));};
   const orderTasks=(tasks||[]).filter(x=>x.orderId===o.id);
   const lead=(leads||[]).find(l=>l.id===o.leadId);
   const renderField=([k,label,type])=>{
@@ -4557,8 +4599,11 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
                       </div>}
                   {/* Файлы/ссылки этапа */}
                   <div style={{marginTop:6}}>
-                    {files.map(x=><div key={x.id} style={{fontSize:11,marginBottom:2}}>📎 <a href={x.url} target="_blank" rel="noopener noreferrer" style={{color:"#38bdf8"}}>{x.name}</a> <span style={{color:"rgba(255,255,255,0.35)"}}>· {x.by}</span></div>)}
+                    {files.map(x=><div key={x.id} style={{fontSize:11,marginBottom:2,display:"flex",alignItems:"center",gap:6}}>📎 {x.path?<span onClick={()=>openOrderFile(x)} style={{color:"#38bdf8",cursor:"pointer",textDecoration:"underline"}}>{x.name}</span>:<a href={x.url} target="_blank" rel="noopener noreferrer" style={{color:"#38bdf8"}}>{x.name}</a>} <span style={{color:"rgba(255,255,255,0.35)"}}>· {x.by}</span><button onClick={()=>delOrderFile(x)} title={oL("Удалить")} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer",fontSize:11,padding:0}}>✕</button></div>)}
+                    {(ordUp[st.key]||{}).err&&<div style={{fontSize:11,color:"#f87171",fontWeight:700,margin:"4px 0"}}>⚠ {ordUp[st.key].err}</div>}
                     <div style={{display:"flex",gap:6,marginTop:4}}>
+                      <input type="file" multiple ref={el=>{ordInp.current[st.key]=el;}} style={{display:"none"}} onChange={e=>{uploadOrderFiles(st,e.target.files);e.target.value="";}}/>
+                      <button onClick={()=>ordInp.current[st.key]&&ordInp.current[st.key].click()} disabled={((ordUp[st.key]||{}).busy||0)>0} style={{background:"rgba(56,189,248,0.25)",border:"1px solid rgba(56,189,248,0.7)",color:"#38bdf8",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>{((ordUp[st.key]||{}).busy||0)>0?"⏳ …":(ORD_LANG==="pl"?"📁 Plik z komputera":"📁 Файл с компьютера")}</button>
                       <input value={(fileIn[st.key]||{}).name||""} onChange={e=>setFileIn(a=>({...a,[st.key]:{...(a[st.key]||{}),name:e.target.value}}))} placeholder={oL("Название файла")} style={{...ins,width:150}}/>
                       <input value={(fileIn[st.key]||{}).url||""} onChange={e=>setFileIn(a=>({...a,[st.key]:{...(a[st.key]||{}),url:e.target.value}}))} placeholder={oL("Ссылка (Google Drive, Dropbox…)")} style={{...ins,flex:1}}/>
                       <button onClick={()=>addFile(st)} style={{background:"rgba(56,189,248,0.15)",border:"1px solid rgba(56,189,248,0.5)",color:"#38bdf8",borderRadius:7,padding:"0 10px",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>{oL("📎 Добавить")}</button>
@@ -5457,8 +5502,9 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead,
     if(byId&&onOpenLead)onOpenLead(byId);
   };
   const [confirmId,setConfirmId]=useState(null);
-  const [fMgr,setFMgr]=useState("all");const [sortBy,setSortBy]=useState("date");
-  const fs=filterByCustomRange(sales,dateFrom,dateTo).filter(x=>fMgr==="all"||x.manager===fMgr);const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
+  const [fMgr,setFMgr]=useState("all");const [sortBy,setSortBy]=useState("date");const [fSrc,setFSrc]=useState([]);const [fBuy,setFBuy]=useState("all");
+  const fs=filterByCustomRange(sales,dateFrom,dateTo).filter(x=>fMgr==="all"||x.manager===fMgr).filter(x=>fSrc.length===0||fSrc.includes(x.source||"—")).filter(x=>buyerMatch(x.source,fBuy));
+  const srcOpts=[...new Set(filterByCustomRange(sales,dateFrom,dateTo).map(x=>x.source||"—"))].sort((a,b)=>String(a).localeCompare(String(b)));const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
   const mRev=MANAGERS.map(m=>({name:m,rev:fs.filter(s=>s.manager===m).reduce((a,s)=>a+s.saleAmount,0),count:fs.filter(s=>s.manager===m).length}));
   // ── Допродажа: дописать сумму к существующей продаже с датой ──
   const pl=lang==="pl";
@@ -5504,8 +5550,10 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead,
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
         <span style={{fontSize:11,color:C.muted}}>{lang==="pl"?"Menedżer":"Менеджер"}:</span>
         {["all",...MANAGERS].map(m=>{const on=fMgr===m;const c=m==="all"?C.accent:(MGR_COLOR[m]||C.accent);return <button key={m} onClick={()=>setFMgr(m)} style={{background:on?`${c}26`:"transparent",border:`1px solid ${on?c:C.border}`,color:on?c:C.muted,borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:on?800:500,cursor:"pointer"}}>{m==="all"?(lang==="pl"?"Wszyscy":"Все"):m}</button>;})}
+        <MultiPick label={lang==="pl"?"Źródło":"Источник"} selected={fSrc} onChange={setFSrc} width={260} options={srcOpts.map(x=>({value:x,label:x}))}/>
+        <BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={{background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 10px",fontSize:12,colorScheme:"dark"}}/>
         <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{marginLeft:"auto",background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 10px",fontSize:12,colorScheme:"dark"}}>
-          <option value="date">{lang==="pl"?"Wg daty ↓":"По дате ↓"}</option><option value="amount">{lang==="pl"?"Wg kwoty ↓":"По сумме ↓"}</option><option value="manager">{lang==="pl"?"Wg menedżera":"По менеджеру"}</option>
+          <option value="date">{lang==="pl"?"Wg daty ↓":"По дате ↓"}</option><option value="amount">{lang==="pl"?"Wg kwoty ↓":"По сумме ↓"}</option><option value="manager">{lang==="pl"?"Wg menedżera":"По менеджеру"}</option><option value="source">{lang==="pl"?"Wg źródła":"По источнику"}</option>
         </select>
       </div>
       <div style={{display:"grid",gridTemplateColumns:`1fr repeat(${MANAGERS.length},1fr)`,gap:10}}>
@@ -5514,7 +5562,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead,
       </div>
       {fs.length===0?<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:40,textAlign:"center",color:C.muted}}><div style={{fontSize:32,marginBottom:10}}>★</div><div>{lang==="ru"?"{t.salesAppear}":"Sprzedaże pojawią się przy ocenie 6"}</div></div>:
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
-          {[...fs].sort((a,b)=>sortBy==="amount"?(b.saleAmount-a.saleAmount):sortBy==="manager"?(String(a.manager||"").localeCompare(String(b.manager||""))||(b.saleAmount-a.saleAmount)):((parseCreatedAt(b.createdAt)?.getTime()||0)-(parseCreatedAt(a.createdAt)?.getTime()||0))).map(s=>(<div key={s.id} style={{background:C.card,border:`1px solid ${confirmId===s.id?C.red:C.accentBorder}`,borderRadius:12,padding:16,borderTop:`3px solid ${confirmId===s.id?C.red:C.accent}`,position:"relative"}}>
+          {[...fs].sort((a,b)=>sortBy==="amount"?(b.saleAmount-a.saleAmount):sortBy==="manager"?(String(a.manager||"").localeCompare(String(b.manager||""))||(b.saleAmount-a.saleAmount)):sortBy==="source"?(String(a.source||"").localeCompare(String(b.source||""))||(b.saleAmount-a.saleAmount)):((parseCreatedAt(b.createdAt)?.getTime()||0)-(parseCreatedAt(a.createdAt)?.getTime()||0))).map(s=>(<div key={s.id} style={{background:C.card,border:`1px solid ${confirmId===s.id?C.red:C.accentBorder}`,borderRadius:12,padding:16,borderTop:`3px solid ${confirmId===s.id?C.red:C.accent}`,position:"relative"}}>
             {confirmId===s.id?(
               <div style={{position:"absolute",top:10,right:10,display:"flex",alignItems:"center",gap:6,background:C.surface,border:`1px solid ${C.red}`,borderRadius:8,padding:"4px 8px"}}>
                 <span style={{fontSize:10,color:C.red,fontWeight:600}}>Удалить?</span>
