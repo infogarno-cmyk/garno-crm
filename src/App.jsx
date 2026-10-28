@@ -2464,6 +2464,10 @@ const GOAL_KPIS=[
   {k:"manual",g:["Конструктор","Konstruktor"],l:["Ручная метрика","Metryka ręczna"],u:"custom",kind:"manual",up:true,d:["Для того, чего нет в CRM: факт отмечается вручную","Dla rzeczy spoza CRM: fakt wpisuje się ręcznie"]},
 ];
 const GOAL_KMAP={};GOAL_KPIS.forEach(k=>{GOAL_KMAP[k.k]=k;});
+// Сегменты KPI: в окне создания — фильтр-кнопки, на дашборде — группы целей
+const GOAL_SEGS=[["Продажи","Sprzedaż","💰","#f0c040"],["Лиды и оценки","Leady i oceny","◈","#22d3ee"],["Визиты","Wizyty","🏠","#4ade80"],["Конверсии","Konwersje","▼","#a78bfa"],["Скорость","Szybkość","⏱","#fb923c"],["Заказы","Zamówienia","📦","#60a5fa"],["Задачи","Zadania","☰","#f472b6"],["Конструктор","Konstruktor","✎","#94a3b8"]].map(([ru,pl,ic,c])=>({id:ru,ru,pl,ic,c}));
+const gSegOfK=k=>GOAL_SEGS.find(s=>s.id===k.g[0])||GOAL_SEGS[0];
+const gSeg=g=>gSegOfK(GOAL_KMAP[g.metric]||GOAL_KMAP.revenue);
 const GOAL_FORMULA_OPTS=["revenue","sales","addonRev","addonCnt","leads","quals","noContact","erikaQual","visitsSet","visitsDone","ordersNew","ordersDone","tasksDone","tasksOverdue"];
 const GOAL_MONTHS=[["Январь","Styczeń"],["Февраль","Luty"],["Март","Marzec"],["Апрель","Kwiecień"],["Май","Maj"],["Июнь","Czerwiec"],["Июль","Lipiec"],["Август","Sierpień"],["Сентябрь","Wrzesień"],["Октябрь","Październik"],["Ноябрь","Listopad"],["Декабрь","Grudzień"]];
 const gK=g=>GOAL_KMAP[g.metric]||GOAL_KMAP.revenue;
@@ -2638,6 +2642,7 @@ function GoalCard({g,A,kids,api,canEdit,canMark,mine,drag,pl}){
           <div style={{fontSize:14,fontWeight:800,color:C.text,lineHeight:1.3}}>{gTitle(g,pl)}</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:6}}>
             <span style={tag}><span style={{width:8,height:8,borderRadius:"50%",background:g.scope.type==="team"?C.accent:(MGR_COLOR[g.scope.id]||C.accent)}}/>{gScopeName(g.scope,pl)}</span>
+            <span style={{...tag,color:gSeg(g).c,background:`${gSeg(g).c}1f`}}>{gSeg(g).ic} {pl?gSeg(g).pl:gSeg(g).ru}</span>
             <span style={tag}>{gPeriodLabel(g.period,pl)}</span>
             {g.title&&<span style={tag}>{gKpiTitle(g,pl)}</span>}
             {g.main&&<span style={{...tag,color:C.accent,background:C.accentDim}}>★ {L("главная","główny")}</span>}
@@ -2723,7 +2728,7 @@ function GoalParams({g,set,pl}){
 function GoalEditor({draft,isNew,idx,mgrs,onChange,onSave,onClose,onDelete,pl}){
   const L=(ru,p)=>pl?p:ru;const g=draft;const M=gK(g);
   const A=goalAnalyze(g,idx,pl);
-  const [q,setQ]=useState("");
+  const [q,setQ]=useState("");const [seg,setSeg]=useState(isNew?"all":gSeg(draft).id);
   useEffect(()=>{const h=e=>{if(e.key==="Escape")onClose();};document.addEventListener("keydown",h);return()=>document.removeEventListener("keydown",h);},[]);
   const set=p=>onChange({...g,...p});
   const pick=k=>set({metric:k,params:GOAL_KMAP[k].p?JSON.parse(JSON.stringify(GOAL_KMAP[k].p)):{}});
@@ -2731,8 +2736,10 @@ function GoalEditor({draft,isNew,idx,mgrs,onChange,onSave,onClose,onDelete,pl}){
   const [r0,r1]=gRange(g.period);
   const sug=A.prev!=null&&A.prev>0?A.prev:(A.forecast||0);
   const qq=q.trim().toLowerCase();
-  const list=GOAL_KPIS.filter(k=>!qq||(k.l.join(" ")+" "+k.d.join(" ")+" "+k.g.join(" ")).toLowerCase().includes(qq));
-  const groups=[...new Set(GOAL_KPIS.map(k=>k.g[pl?1:0]))];
+  const found=GOAL_KPIS.filter(k=>!qq||(k.l.join(" ")+" "+k.d.join(" ")+" "+k.g.join(" ")).toLowerCase().includes(qq));
+  const list=found.filter(k=>seg==="all"||k.g[0]===seg);
+  const groups=GOAL_SEGS.filter(x=>seg==="all"||x.id===seg);
+  const curSeg=gSeg(g);
   const valid=(+g.target>0||(!M.up&&g.target!==""&&+g.target>=0))&&!(g.metric==="scoreIs"&&!(g.params?.scores||[]).length)&&!(g.metric==="conv"&&GOAL_STEPS.findIndex(s=>s[0]===g.params?.to)<=GOAL_STEPS.findIndex(s=>s[0]===g.params?.from));
   const chip=on=>({fontSize:12,fontWeight:700,minHeight:32,padding:"0 12px",borderRadius:999,border:`1px solid ${on?C.accent:C.borderMd}`,background:on?C.accent:"transparent",color:on?"#00132f":C.muted,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6});
   const lbl={fontSize:10.5,fontWeight:800,letterSpacing:.6,textTransform:"uppercase",color:C.muted};
@@ -2748,18 +2755,25 @@ function GoalEditor({draft,isNew,idx,mgrs,onChange,onSave,onClose,onDelete,pl}){
         </div>
         <div style={{flex:1,minHeight:0,display:"grid",gridTemplateColumns:"minmax(0,360px) minmax(0,1fr)"}}>
           <div style={{borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",minHeight:0}}>
-            <div style={{padding:"12px 12px 8px"}}><input value={q} onChange={e=>setQ(e.target.value)} placeholder={L(`🔍 Найти KPI (всего ${GOAL_KPIS.length})`,`🔍 Szukaj KPI (${GOAL_KPIS.length})`)} style={inp}/></div>
+            <div style={{padding:"12px 12px 8px",display:"flex",flexDirection:"column",gap:8}}>
+              <div style={lbl}>{L("Сегмент","Segment")}</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:5}}>
+                {[{id:"all",ru:"Все",pl:"Wszystkie",ic:"✦",c:C.accent},...GOAL_SEGS].map(x=>{const on=seg===x.id;const n=x.id==="all"?found.length:found.filter(k=>k.g[0]===x.id).length;return(
+                  <button key={x.id} onClick={()=>setSeg(x.id)} title={pl?x.pl:x.ru} style={{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:1,padding:"6px 8px",borderRadius:9,border:`1px solid ${on?x.c:C.borderMd}`,background:on?`${x.c}22`:"transparent",cursor:"pointer",minWidth:0,opacity:n?1:0.45}}>
+                    <span style={{fontSize:13}}>{x.ic}</span><span style={{fontSize:11,fontWeight:800,color:on?x.c:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>{pl?x.pl:x.ru}</span><span style={{fontSize:10,color:C.muted}}>{n} KPI</span></button>);})}
+              </div>
+              <input value={q} onChange={e=>setQ(e.target.value)} placeholder={L(`🔍 Найти KPI (всего ${GOAL_KPIS.length})`,`🔍 Szukaj KPI (${GOAL_KPIS.length})`)} style={inp}/></div>
             <div style={{flex:1,overflowY:"auto",padding:"0 8px 12px"}}>
-              {groups.map(gr=>{const items=list.filter(k=>k.g[pl?1:0]===gr);if(!items.length)return null;return(<div key={gr}>
-                <div style={{fontSize:10,fontWeight:900,letterSpacing:1,textTransform:"uppercase",color:C.dim,padding:"10px 8px 4px"}}>{gr}</div>
-                {items.map(k=>{const on=g.metric===k.k;return(<button key={k.k} onClick={()=>pick(k.k)} style={{display:"flex",flexDirection:"column",gap:1,width:"100%",textAlign:"left",background:on?C.accentDim:"transparent",border:`1px solid ${on?C.accent:"transparent"}`,borderRadius:9,padding:"7px 9px",cursor:"pointer",color:C.text}}>
+              {groups.map(gs=>{const items=list.filter(k=>k.g[0]===gs.id);if(!items.length)return null;return(<div key={gs.id} style={{marginTop:6}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,padding:"7px 9px",margin:"4px 0",borderRadius:8,background:`${gs.c}18`,borderLeft:`3px solid ${gs.c}`}}><span style={{fontSize:13}}>{gs.ic}</span><span style={{fontSize:11,fontWeight:900,letterSpacing:0.8,textTransform:"uppercase",color:gs.c}}>{pl?gs.pl:gs.ru}</span><span style={{marginLeft:"auto",fontSize:10.5,color:C.muted}}>{items.length}</span></div>
+                {items.map(k=>{const on=g.metric===k.k;return(<button key={k.k} onClick={()=>pick(k.k)} style={{display:"flex",flexDirection:"column",gap:1,width:"100%",textAlign:"left",background:on?`${gs.c}22`:"transparent",border:`1px solid ${on?gs.c:"transparent"}`,borderRadius:9,padding:"7px 9px",cursor:"pointer",color:C.text}}>
                   <b style={{fontSize:12.5}}>{k.l[pl?1:0]}</b><span style={{fontSize:11,color:C.muted,lineHeight:1.35}}>{k.d[pl?1:0]}</span></button>);})}
               </div>);})}
               {!list.length&&<div style={{fontSize:12,color:C.muted,padding:10}}>{L("Ничего не найдено. Попробуйте «Своя формула».","Nic nie znaleziono. Spróbuj „Własna formuła”.")}</div>}
             </div>
           </div>
           <div style={{overflowY:"auto",padding:"14px 18px",display:"flex",flexDirection:"column",gap:14,minHeight:0}}>
-            <div><div style={lbl}>{L("Выбранный KPI","Wybrany KPI")}</div><div style={{fontSize:16,fontWeight:900,color:C.text,marginTop:3}}>{gKpiTitle(g,pl)}</div><div style={{fontSize:11.5,color:C.muted,marginTop:2}}>{M.d[pl?1:0]}</div></div>
+            <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={lbl}>{L("Выбранный KPI","Wybrany KPI")}</span><span style={{fontSize:11,fontWeight:800,borderRadius:999,padding:"2px 9px",background:`${curSeg.c}22`,color:curSeg.c,border:`1px solid ${curSeg.c}66`}}>{curSeg.ic} {pl?curSeg.pl:curSeg.ru}</span></div><div style={{fontSize:16,fontWeight:900,color:C.text,marginTop:3}}>{gKpiTitle(g,pl)}</div><div style={{fontSize:11.5,color:C.muted,marginTop:2}}>{M.d[pl?1:0]}</div></div>
             <GoalParams g={g} set={set} pl={pl}/>
             <div style={{display:"flex",flexDirection:"column",gap:6}}><span style={lbl}>{L("Для кого","Dla kogo")}</span>
               <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
@@ -2820,6 +2834,8 @@ function GoalsPage({db,updateDb,currentUser,lang,withHero}){
   const [scope,setScope]=useState("all");
   const [per,setPer]=useState("now");
   const [sort,setSort]=useState("custom");
+  const [groupSeg,setGroupSeg]=useState(true);
+  const [segF,setSegF]=useState("all");
   const [stF,setStF]=useState("any");
   const [editor,setEditor]=useState(null);
   const [tpl,setTpl]=useState(false);
@@ -2864,7 +2880,7 @@ function GoalsPage({db,updateDb,currentUser,lang,withHero}){
   const td=getToday();
   const hasParent=g=>g.parentId&&goals.some(p=>p.id===g.parentId);
   const overlaps=g=>{const [a,b]=gRange(g.period);if(per==="all")return true;if(per==="now")return a<=td&&b>=td;const p=per.startsWith("Q")?{type:"quarter",key:per.slice(1)}:{type:"month",key:per};const [x,y]=gRange(p);return a<=y&&b>=x;};
-  const pass=g=>overlaps(g)&&(stF==="any"||analyzed[g.id]?.st.k===stF);
+  const pass=g=>overlaps(g)&&(stF==="any"||analyzed[g.id]?.st.k===stF)&&(segF==="all"||gSeg(g).id===segF);
   const rank={bad:0,warn:1,idle:2,ok:3};
   const order=arr=>sort==="risk"?[...arr].sort((x,y)=>rank[analyzed[x.id].st.k]-rank[analyzed[y.id].st.k]||analyzed[x.id].pct-analyzed[y.id].pct):sort==="progress"?[...arr].sort((x,y)=>analyzed[y.id].pct-analyzed[x.id].pct):arr;
   let sections;
@@ -2899,13 +2915,21 @@ function GoalsPage({db,updateDb,currentUser,lang,withHero}){
   perOpts.push(["all",L("Все периоды","Wszystkie okresy")]);
   const ss={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,outline:"none",colorScheme:"dark"};
   const chip=on=>({fontSize:12,fontWeight:700,padding:"6px 11px",borderRadius:999,border:`1px solid ${on?C.accent:C.borderMd}`,background:on?C.accent:"transparent",color:on?"#00132f":C.muted,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6});
-  const renderCards=s=>(<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:12,alignItems:"start"}}>
-    {s.goals.map(g=><GoalCard key={g.id} g={g} A={analyzed[g.id]} kids={kidsOf(g,s.nest)} api={api} canEdit={canEdit} canMark={canEdit||(g.scope.type==="mgr"&&g.scope.id===me)} mine={s.mine||(g.scope.type==="mgr"&&g.scope.id===me)} drag={drag} pl={pl}/>)}</div>);
-  const renderTable=()=>{const rows=[];sections.forEach(s=>{if(!s.goals.length)return;if(sections.length>1)rows.push({sec:s.t});s.goals.forEach(g=>{rows.push({g});kidsOf(g,s.nest).forEach(k=>rows.push({g:k.g,kid:true}));});});
+  const segGroups=arr=>groupSeg?GOAL_SEGS.map(x=>({x,goals:arr.filter(g=>gSeg(g).id===x.id)})).filter(o=>o.goals.length):[{x:null,goals:arr}];
+  const segHead=(x,arr)=>{const c={ok:0,warn:0,bad:0};arr.forEach(g=>{const k=analyzed[g.id]?.st.k;if(c[k]!=null)c[k]++;});return(
+    <div style={{display:"flex",alignItems:"center",gap:9,padding:"8px 12px",borderRadius:10,background:`${x.c}14`,borderLeft:`3px solid ${x.c}`}}>
+      <span style={{fontSize:15}}>{x.ic}</span><span style={{fontSize:13,fontWeight:900,letterSpacing:0.6,textTransform:"uppercase",color:x.c}}>{pl?x.pl:x.ru}</span><span style={{fontSize:12,color:C.muted}}>{arr.length}</span>
+      <span style={{marginLeft:"auto",display:"inline-flex",gap:10,fontSize:11.5,fontWeight:800}}>{c.ok>0&&<span style={{color:C.green}}>● {c.ok}</span>}{c.warn>0&&<span style={{color:C.yellow}}>● {c.warn}</span>}{c.bad>0&&<span style={{color:C.red}}>● {c.bad}</span>}</span>
+    </div>);};
+  const renderCards=s=>(<div style={{display:"flex",flexDirection:"column",gap:12}}>{segGroups(s.goals).map(({x,goals:gg})=>(<div key={x?x.id:"all"} style={{display:"flex",flexDirection:"column",gap:8}}>
+    {x&&segHead(x,gg)}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:12,alignItems:"start"}}>
+    {gg.map(g=><GoalCard key={g.id} g={g} A={analyzed[g.id]} kids={kidsOf(g,s.nest)} api={api} canEdit={canEdit} canMark={canEdit||(g.scope.type==="mgr"&&g.scope.id===me)} mine={s.mine||(g.scope.type==="mgr"&&g.scope.id===me)} drag={drag} pl={pl}/>)}</div></div>))}</div>);
+  const renderTable=()=>{const rows=[];sections.forEach(s=>{if(!s.goals.length)return;if(sections.length>1)rows.push({sec:s.t});segGroups(s.goals).forEach(({x,goals:gg})=>{if(x)rows.push({sec:`${x.ic} ${pl?x.pl:x.ru} · ${gg.length}`,segc:x.c});gg.forEach(g=>{rows.push({g});kidsOf(g,s.nest).forEach(k=>rows.push({g:k.g,kid:true}));});});});
     const th={fontSize:10.5,letterSpacing:.6,textTransform:"uppercase",color:C.muted,textAlign:"left",fontWeight:800,padding:"9px 10px",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"};const tdS={padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:12.5,color:C.text};
     return(<div style={{overflowX:"auto",background:C.card,border:`1px solid ${C.border}`,borderRadius:12}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
       <thead><tr>{[L("Цель","Cel"),L("Для кого","Dla kogo"),L("Период","Okres"),L("Факт","Fakt"),L("Цель","Cel"),"%",L("Прогноз","Prognoza"),L("Статус","Status"),...(canEdit?["",""]:[])].map((h,i)=><th key={i} style={th}>{h}</th>)}</tr></thead>
-      <tbody>{rows.map((r,i)=>{if(r.sec!=null)return <tr key={"s"+i}><td colSpan={canEdit?10:8} style={{...tdS,background:C.surface,color:C.accent,fontWeight:900}}>{r.sec}</td></tr>;
+      <tbody>{rows.map((r,i)=>{if(r.sec!=null)return <tr key={"s"+i}><td colSpan={canEdit?10:8} style={{...tdS,background:r.segc?`${r.segc}14`:C.surface,color:r.segc||C.accent,fontWeight:900,borderLeft:r.segc?`3px solid ${r.segc}`:undefined,fontSize:r.segc?12:13}}>{r.sec}</td></tr>;
         const g=r.g,A=analyzed[g.id],col={ok:C.green,warn:C.yellow,bad:C.red,idle:C.muted}[A.st.k];return(<tr key={g.id}>
         <td style={{...tdS,fontWeight:700,paddingLeft:r.kid?30:10,minWidth:200}}>{gTitle(g,pl)}</td>
         <td style={tdS}><span style={{color:g.scope.type==="team"?C.accent:(MGR_COLOR[g.scope.id]||C.text),fontWeight:700}}>{gScopeName(g.scope,pl)}</span></td>
@@ -2947,6 +2971,12 @@ function GoalsPage({db,updateDb,currentUser,lang,withHero}){
         </div>
         <select value={per} onChange={e=>setPer(e.target.value)} style={ss}>{perOpts.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
         <select value={sort} onChange={e=>setSort(e.target.value)} style={ss}><option value="custom">{L("Мой порядок","Moja kolejność")}</option><option value="risk">{L("Сначала проблемные","Najpierw zagrożone")}</option><option value="progress">{L("По выполнению","Wg wykonania")}</option></select>
+        <button onClick={()=>setGroupSeg(v=>!v)} style={{...chip(groupSeg)}}>▦ {L("Группы по сегментам","Grupuj wg segmentów")}</button>
+        <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center",width:"100%"}}>
+          <span style={{fontSize:10.5,fontWeight:800,letterSpacing:.6,textTransform:"uppercase",color:C.muted,marginRight:2}}>{L("Сегмент","Segment")}</span>
+          {[{id:"all",ru:"Все",pl:"Wszystkie",ic:"✦",c:C.accent},...GOAL_SEGS].map(x=>{const n=x.id==="all"?goals.filter(g=>!hasParent(g)&&overlaps(g)).length:goals.filter(g=>!hasParent(g)&&overlaps(g)&&gSeg(g).id===x.id).length;if(x.id!=="all"&&!n)return null;const on=segF===x.id;return(
+            <button key={x.id} onClick={()=>setSegF(x.id)} style={{fontSize:12,fontWeight:700,padding:"5px 10px",borderRadius:999,border:`1px solid ${on?x.c:C.borderMd}`,background:on?`${x.c}26`:"transparent",color:on?x.c:C.muted,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5}}>{x.ic} {pl?x.pl:x.ru} <span style={{opacity:0.7}}>{n}</span></button>);})}
+        </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8}}>
         {[["any",L("Всего целей","Wszystkich celów"),counted.length,C.text],["ok",L("В графике / выполнено","W planie / wykonane"),counts.ok,C.green],["warn",L("Отстают","Opóźnione"),counts.warn,C.yellow],["bad",L("Не успевают","Zagrożone"),counts.bad,C.red],["idle",L("Ещё не начались","Nie rozpoczęte"),counts.idle,C.muted]].map(([k,l,n,c])=>(
