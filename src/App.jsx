@@ -3741,7 +3741,7 @@ function TabBar({tabs,active,onChange}){
 // Очередь сверху вниз: 🔥 свежие (таймер заявки) → 📐 просчёты (выше оценка, при равной — старее просчёт) →
 // ☎️ 2-й контакт (прошло 6 ч после 1-го, сегодня) → ✅ визиты на завтра (подтвердить) → 🚀 пуши на сегодня (и просроченные) →
 // 🧩 ветка не закрыта (выше оценка — выше) → 💼 центр продаж (рекомендуемые → 4 за прошлый мес → 5 в этом мес → 2.5 от 3 мес назад).
-// Лид в очереди только один раз — в первой подходящей полосе. Карточка редактируется прямо здесь (LeadDetail inline).
+// Лид в очереди только один раз — в первой подходящей полосе. Кнопки: Не взял (на потом) · Открыть карточку · Думает · В задачи.
 const DUTY_LANES=[
   {k:"new",  e:"🔥",ru:"Свежие",           pl:"Nowe",              c:"#ff7d8c",hRu:"таймер заявки",                 hPl:"czas od zgłoszenia"},
   {k:"quote",e:"📐",ru:"Просчёты",         pl:"Wyceny",            c:"#e3b860",hRu:"выше оценка · старее просчёт",  hPl:"wyższa ocena · starsza wycena"},
@@ -3834,7 +3834,20 @@ function DutyBigScore({l,lang}){
   </div>);
 }
 
-function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={}}){
+// Описание лида прямо в режиме: правится в поле (сохраняется при выходе из поля) + «Добавить запись» с датой и именем
+function DutyNotes({l,updateDb,currentUser,lang,t}){
+  const pl=lang==="pl";const [v,setV]=useState(l.notes||"");const ref=useRef(null);
+  const dirty=(v||"")!==(l.notes||"");
+  const save=()=>{if(!dirty)return;const val=v||"";updateDb(p=>({...p,leads:(p.leads||[]).map(x=>x.id===l.id?{...x,notes:val,updatedAt:Date.now(),history:[...(x.history||[]),{date:nowStr(),action:`${t.notes||"Описание"}: ${val.slice(0,80)}`,by:currentUser||"—"}]}:x)}),true);};
+  const addLine=()=>{const d=new Date();const st=`${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}${currentUser&&currentUser!=="all"?" "+currentUser:""}: `;setV(x=>(x?String(x).replace(/\s+$/,"")+"\n":"")+st);setTimeout(()=>{const el=ref.current;if(el){el.focus();el.selectionStart=el.selectionEnd=el.value.length;}},30);};
+  return(<div style={{display:"flex",flexDirection:"column",gap:6,flex:1,minHeight:0}}>
+    <textarea ref={ref} value={v} onChange={e=>setV(e.target.value)} onBlur={save} placeholder={pl?"Opis klienta — wpisz albo dopisz…":"Описание клиента — впиши или допиши…"} style={{flex:1,minHeight:84,background:C===DARK?"rgba(2,10,30,.45)":C.bg,border:`1px solid ${dirty?"rgba(227,184,96,.6)":C.border}`,color:C.text,borderRadius:12,padding:"9px 11px",fontSize:12.5,lineHeight:1.5,resize:"vertical",boxSizing:"border-box",outline:"none",fontFamily:"inherit"}}/>
+    <div style={{display:"flex",gap:8,alignItems:"center"}}><button className="duty-b" onClick={addLine} style={{background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:9,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>＋ {pl?"Dopisz wpis":"Добавить запись"}</button>
+      {dirty?<button className="duty-b" onClick={save} style={{background:"linear-gradient(135deg,#f6e0aa,#e3b860)",border:"none",color:"#08153a",borderRadius:9,padding:"5px 12px",fontSize:11,cursor:"pointer"}}>✓ {pl?"Zapisz":"Сохранить"}</button>:<span style={{fontSize:10.5,color:C.dim}}>{pl?"zapisuje się samo":"сохраняется само"}</span>}</div>
+  </div>);
+}
+
+function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={},onOpen}){
   const pl=lang==="pl";const dk=C===DARK;const champ=dk?"#f6e0aa":C.accent;
   const today=getToday();const tomorrow=isoLocal(new Date(Date.now()+DUTY_DAY));
   const isMgr=MANAGERS.includes(currentUser);
@@ -3844,11 +3857,12 @@ function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={}}){
   const saveDone=n=>{setDone(n);try{localStorage.setItem(KEY,JSON.stringify([...n]));}catch{}};
   const [later,setLater]=useState([]);const [cur,setCur]=useState(null);const [anim,setAnim]=useState("in");const [streak,setStreak]=useState(0);
   const [pushFor,setPushFor]=useState(null);const [taskFor,setTaskFor]=useState(null);const [toast,setToast]=useState(null);
-  const [,tick]=useState(0);useEffect(()=>{const id=setInterval(()=>tick(x=>x+1),60000);return()=>clearInterval(id);},[]);
+  const [minute,tick]=useState(0);useEffect(()=>{const id=setInterval(()=>tick(x=>x+1),60000);return()=>clearInterval(id);},[]);
   const scoped=useMemo(()=>(leads||[]).filter(l=>mgr&&mgr!=="all"?l.manager===mgr:!(scope==="mine"&&currentUser&&l.manager!==currentUser)),[leads,mgr,scope,currentUser]);
-  const all=dutyBuild(scoped,leads,Date.now(),today,tomorrow);
-  const queue=(()=>{const q=all.filter(x=>!done.has(x.l.id));const a=q.filter(x=>!later.includes(x.l.id)),b=later.map(id=>q.find(x=>x.l.id===id)).filter(Boolean);return [...a,...b];})();
-  const counts={};queue.forEach(x=>{counts[x.z.k]=(counts[x.z.k]||0)+1;});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const all=useMemo(()=>dutyBuild(scoped,leads,Date.now(),today,tomorrow),[scoped,leads,today,tomorrow,minute]);
+  const queue=useMemo(()=>{const q=all.filter(x=>!done.has(x.l.id));const a=q.filter(x=>!later.includes(x.l.id)),b=later.map(id=>q.find(x=>x.l.id===id)).filter(Boolean);return [...a,...b];},[all,done,later]);
+  const counts=useMemo(()=>{const c={};queue.forEach(x=>{c[x.z.k]=(c[x.z.k]||0)+1;});return c;},[queue]);
   const curId=cur!=null?cur:(queue[0]?queue[0].l.id:null);
   const curItem=queue.find(x=>x.l.id===curId)||null;
   const curLead=curId!=null?(leads||[]).find(x=>x.id===curId)||null:null;
@@ -3856,22 +3870,17 @@ function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={}}){
   const nextAfter=id=>{const i=idxOf(id);const rest=queue.filter(x=>x.l.id!==id);if(!rest.length)return null;return rest[Math.min(Math.max(i,0),rest.length-1)].l.id;};
   const say=m=>setToast({m,id:Date.now()});
   useEffect(()=>{if(!toast)return;const id=setTimeout(()=>setToast(null),3200);return()=>clearTimeout(id);},[toast]);
-  const ldSave=useRef(null);const flush=()=>{try{ldSave.current&&ldSave.current();}catch(e){console.warn(e);}};
-  const go=fn=>{flush();setAnim("out");setTimeout(()=>{fn&&fn();setAnim("in");},260);};
+  const go=fn=>{setAnim("out");setTimeout(()=>{fn&&fn();setAnim("in");},260);};
   const patch=(l,p,hist)=>updateDb(pr=>({...pr,leads:(pr.leads||[]).map(x=>x.id===l.id?{...x,...p,history:histAdd(x,hist),updatedAt:Date.now()}:x)}),true);
   const finish=(l,msg)=>{const nx=nextAfter(l.id);const n=new Set(done);n.add(l.id);saveDone(n);setStreak(s=>s+1);setCur(nx);if(msg)say(msg);};
   const toLater=(l,msg)=>{const nx=nextAfter(l.id);setLater(p=>[...p.filter(x=>x!==l.id),l.id]);setCur(nx);setStreak(0);if(msg)say(msg);};
   const first=l=>String(l.name||l.phone||"—").split(" ")[0];
   const act=(k,item)=>{const l=item.l;
     switch(k){
-      case"miss":go(()=>{const n=(l.dutyMiss||0)+1;const p={dutyMiss:n};if(!l.action||l.action==="undefined"||l.action==="inWork")p.action="missedCall";patch(l,p,pl?`Nieodebrane (#${n}) · tryb dyżurnego`:`Недозвон (#${n}) · режим дежурного`);toLater(l,pl?`✗ ${first(l)} nie odebrał — na koniec kolejki`:`✗ ${first(l)} не взял — в конец очереди`);});return;
-      case"push":setPushFor(l);return;
+      case"miss":go(()=>{const n=(l.dutyMiss||0)+1;const p={dutyMiss:n};if(!l.action||l.action==="undefined"||l.action==="inWork")p.action="missedCall";patch(l,p,pl?`Nieodebrane (#${n}) · tryb dyżurnego`:`Недозвон (#${n}) · режим дежурного`);toLater(l,pl?`✗ ${first(l)} nie odebrał — na później`:`✗ ${first(l)} не взял — перенесён на потом`);});return;
+      case"open":if(onOpen)onOpen(l);return;
+      case"think":go(()=>{patch(l,{action:"thinking"},pl?`Akcja: ${t[l.action]||l.action||"—"} → ${t.thinking||"Myśli"} · tryb dyżurnego`:`Действие: ${t[l.action]||l.action||"—"} → ${t.thinking||"Думает"} · режим дежурного`);finish(l,pl?`💭 ${first(l)} — status „myśli”`:`💭 ${first(l)} — статус «Думает»`);});return;
       case"task":setTaskFor(l);return;
-      case"kpSent":go(()=>{patch(l,{kpSentAt:Date.now()},pl?"Oferta wysłana · tryb dyżurnego":"КП отправлено · режим дежурного");finish(l,pl?`✉ Oferta dla ${first(l)} — wróci za 2 dni`:`✉ КП ${first(l)} отправлено — вернётся через 2 дня`);});return;
-      case"c2yes":go(()=>{patch(l,{c2:"yes"},pl?"2. kontakt: tak · tryb dyżurnego":"2-й контакт: да · режим дежурного");finish(l,pl?`☎️ ${first(l)} — 2. kontakt zapisany`:`☎️ ${first(l)} — 2-й контакт записан`);});return;
-      case"c2no":go(()=>{patch(l,{c2:"no",dutyMiss:(l.dutyMiss||0)+1},pl?"2. kontakt: nie odebrał · tryb dyżurnego":"2-й контакт: не взял · режим дежурного");finish(l,pl?`✗ ${first(l)} nie odebrał — zapisane`:`✗ ${first(l)} не взял — записано`);});return;
-      case"confirm":go(()=>{patch(l,{visitConfirmed:l.visitDate},pl?`Wizyta potwierdzona (${isoToDot(l.visitDate)} ${l.visitTime||""})`:`Визит подтверждён (${isoToDot(l.visitDate)} ${l.visitTime||""})`);finish(l,pl?`✓ Wizyta ${first(l)} potwierdzona`:`✓ Визит ${first(l)} подтверждён`);});return;
-      case"done":go(()=>finish(l,pl?`✓ ${first(l)} — zrobione`:`✓ ${first(l)} — готово`));return;
       default:return;
     }};
   const skip=()=>{if(!curLead||queue.length<2)return;go(()=>toLater(curLead));};
@@ -3879,21 +3888,11 @@ function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={}}){
   const addTask=(form)=>{const l=taskFor;setTaskFor(null);if(!l)return;const me=currentUser&&currentUser!=="all"?currentUser:null;
     updateDb(p=>({...p,tasks:[...(p.tasks||[]),buildNewTask({...form,leadId:l.id,leadName:l.name||l.phone},me,p.tasks||[])]}),true);say(pl?`📋 Zadanie dla ${first(l)} dodane`:`📋 Задача по ${first(l)} создана`);};
   const addTypeD=(name)=>{const id=Date.now();updateDb(p=>({...p,taskTypes:[...(p.taskTypes||[]),{id,name,color:TASK_TYPE_COLORS[(p.taskTypes||[]).length%TASK_TYPE_COLORS.length]}]}),true);return id;};
-  const acts=(item)=>{const z=item.z;
-    const MISS=["miss","✗",pl?"Nie odebrał":"Не взял"],PUSH=["push","🚀","Push"],DONE=["done","✓",pl?"Zrobione":"Готово"];
-    switch(z.k){
-      case"new":return[MISS,PUSH,DONE];
-      case"quote":return[["kpSent","✉",pl?"Oferta wysłana":"КП отправлено"],["push","💭",pl?"Myśli — push":"Думает — пуш"],DONE];
-      case"c2":return[["c2yes","✓",pl?"2. kontakt jest":"2-й контакт есть"],["c2no","✗",pl?"Nie odebrał":"Не взял"],PUSH];
-      case"visit":return[["confirm","✓",pl?"Potwierdź wizytę":"Подтвердить визит"],MISS,["push","🚀",pl?"Przełóż":"Перенести"]];
-      case"push":return[["done","✓",pl?"Zrobione":"Сделано"],["push","🚀",pl?"Przełóż push":"Перенести пуш"],MISS];
-      case"tree":return[["done","✓",pl?"Ścieżka uzupełniona":"Ветка заполнена"],MISS,PUSH];
-      default:return[PUSH,DONE,MISS];
-    }};
+  const ACTS=[["miss","✗",pl?"Nie odebrał":"Не взял"],["open","↗",pl?"Otwórz kartę":"Открыть карточку"],["think","💭",pl?"Myśli":"Думает"],["task","📋",pl?"Do zadań":"В задачи"]];
   useEffect(()=>{const h=e=>{if(pushFor||taskFor||!curItem)return;const tg=e.target;if(tg&&(tg.tagName==="INPUT"||tg.tagName==="TEXTAREA"||tg.tagName==="SELECT"||tg.isContentEditable))return;if(document.querySelector("[data-lead-detail]"))return;
       if(e.code==="Space"){e.preventDefault();skip();return;}
-      if(e.key==="t"||e.key==="T"||e.key==="е"||e.key==="Е"){e.preventDefault();setTaskFor(curItem.l);return;}
-      const n=parseInt(e.key,10);if(n>=1&&n<=3){const a=acts(curItem)[n-1];if(a){e.preventDefault();act(a[0],curItem);}}};
+      if(e.key==="Enter"){e.preventDefault();act("open",curItem);return;}
+      const n=parseInt(e.key,10);if(n>=1&&n<=4){e.preventDefault();act(ACTS[n-1][0],curItem);}};
     window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);});
   const LN=Object.fromEntries(DUTY_LANES.map(x=>[x.k,x]));
   const left=queue.length,tot=done.size+left,p=tot?done.size/tot:0,R=22,CIRC=2*Math.PI*R;
@@ -3904,9 +3903,12 @@ function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={}}){
   const l=curLead,z=curItem&&curItem.z,zl=z&&LN[z.k];
   const handled=l&&!curItem; // лид уже ушёл из очереди (поработали в карточке / действие выполнено)
   const hc=zl?zl.c:"#47e6a0";
+  const tree=[["c1",pl?"Kontakt 1":"Контакт 1"],["c2",pl?"Kontakt 2":"Контакт 2"],["term",pl?"Termin":"Срок"],["kitchenInfo",pl?"Info o kuchni":"Инфо о кухне"],["distance",pl?"Odległość":"Расстояние"],["apartment",pl?"Mieszkanie":"Жильё"]];
+  const tv=(k,v)=>v==null||v===""?null:({yes:pl?"tak":"да",no:pl?"nie":"нет",lt4:"≤ 4 "+(pl?"mies.":"мес"),gt4:"> 4 "+(pl?"mies.":"мес"),near:pl?"blisko":"близко",far:pl?"daleko":"далеко",new:pl?"nowe":"новое",old:pl?"stare":"старое"}[v]||String(v));
+  const lastSt=l&&l.stickers&&l.stickers.length?l.stickers[l.stickers.length-1]:null;
   return(
     <div className="duty" style={{padding:"14px 18px 18px",display:"flex",flexDirection:"column",gap:12,height:"calc(100vh - 124px)",minHeight:520,boxSizing:"border-box"}}>
-      <style>{`@keyframes dutyIn{from{opacity:0;transform:translateX(50px) scale(.98)}to{opacity:1;transform:none}}@keyframes dutyOut{to{opacity:0;transform:translateX(-70px) scale(.96);filter:blur(4px)}}@keyframes dutyBlink{50%{opacity:.2}}@keyframes dutyToast{from{opacity:0;transform:translate(-50%,12px)}}.duty-blink{animation:dutyBlink 1s infinite}.duty-q:hover{background:rgba(92,184,255,.08)!important}.duty-b:active{transform:scale(.96)}.duty-b:hover{filter:brightness(1.08)}.duty-ld [data-lead-inline]>div{border-radius:22px!important}@media(max-width:1100px){.duty-grid{grid-template-columns:200px minmax(0,1fr)!important}}@media(max-width:760px){.duty{height:auto!important}.duty-grid{display:block!important}.duty-qcol{display:none!important}.duty-main{overflow:visible!important}}@media(prefers-reduced-motion:reduce){.duty *{animation:none!important}}`}</style>
+      <style>{`@keyframes dutyIn{from{opacity:0;transform:translateX(50px) scale(.98)}to{opacity:1;transform:none}}@keyframes dutyOut{to{opacity:0;transform:translateX(-70px) scale(.96);filter:blur(4px)}}@keyframes dutyBlink{50%{opacity:.2}}@keyframes dutyToast{from{opacity:0;transform:translate(-50%,12px)}}.duty-blink{animation:dutyBlink 1s infinite}.duty-q:hover{background:rgba(92,184,255,.08)!important}.duty-b:active{transform:scale(.96)}.duty-b:hover{filter:brightness(1.08)}.duty-ld [data-lead-inline]>div{border-radius:22px!important}@media(max-width:1100px){.duty-grid{grid-template-columns:200px minmax(0,1fr)!important}}@media(max-width:1560px){.duty-lname{display:none}}@media(max-width:1000px){.duty-info{grid-template-columns:1fr!important}}@media(max-width:760px){.duty{height:auto!important}.duty-grid{display:block!important}.duty-qcol{display:none!important}.duty-main{overflow:visible!important}}@media(prefers-reduced-motion:reduce){.duty *{animation:none!important}}`}</style>
       {/* полоса дня */}
       <div style={{...glass,display:"flex",alignItems:"center",gap:14,padding:"10px 16px",flexWrap:"wrap"}}>
         <div style={{position:"relative",width:52,height:52,flexShrink:0}}>
@@ -3916,7 +3918,7 @@ function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={}}){
         <div style={{whiteSpace:"nowrap"}}><div style={{fontSize:14}}>{pl?`Zrobione ${done.size} z ${tot}`:`Разобрано ${done.size} из ${tot}`}</div><div className="hand" style={{fontSize:18,color:champ,lineHeight:1,marginTop:2}}>{streak>=2?`🔥 ${streak} ${pl?"z rzędu!":"подряд!"}`:left?(pl?`zostało ${left}`:`осталось ${left}`):(pl?"wszystko zrobione 🎉":"всё разобрано 🎉")}</div></div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{DUTY_LANES.map(x=>{const n=counts[x.k]||0;return <button key={x.k} className="duty-b" title={`${pl?x.pl:x.ru} — ${pl?x.hPl:x.hRu}`} onClick={()=>{const f=queue.find(q=>q.z.k===x.k);if(f)go(()=>setCur(f.l.id));}} style={{height:30,padding:"0 10px",borderRadius:10,border:`1px solid ${n?x.c+"66":C.border}`,background:dk?"rgba(2,10,30,.4)":C.bg,color:C.text,fontSize:11.5,cursor:n?"pointer":"default",display:"flex",alignItems:"center",gap:6,opacity:n?1:.4}}>{x.e} <span className="duty-lname">{pl?x.pl:x.ru}</span> <b style={{fontWeight:400,color:x.c}}>{n}</b></button>;})}</div>
         <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
-          {(!mgr||mgr==="all")&&<div style={{display:"flex",gap:3,padding:3,borderRadius:12,background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.border}`}}>{[["mine",pl?"Moje":"Мои"],["all",pl?"Wszystkie":"Все"]].map(([k,lb])=><button key={k} onClick={()=>{flush();setScope(k);setCur(null);}} style={{height:28,padding:"0 12px",border:"none",borderRadius:9,cursor:"pointer",fontSize:11.5,background:scope===k?"linear-gradient(135deg,#f6e0aa,#e3b860)":"transparent",color:scope===k?"#08153a":C.muted}}>{lb}</button>)}</div>}
+          {(!mgr||mgr==="all")&&<div style={{display:"flex",gap:3,padding:3,borderRadius:12,background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.border}`}}>{[["mine",pl?"Moje":"Мои"],["all",pl?"Wszystkie":"Все"]].map(([k,lb])=><button key={k} onClick={()=>{setScope(k);setCur(null);}} style={{height:28,padding:"0 12px",border:"none",borderRadius:9,cursor:"pointer",fontSize:11.5,background:scope===k?"linear-gradient(135deg,#f6e0aa,#e3b860)":"transparent",color:scope===k?"#08153a":C.muted}}>{lb}</button>)}</div>}
           <button className="duty-b" onClick={skip} style={{...btn(false),height:36,fontSize:12}}>⏭ {pl?"Później":"Позже"} <span style={kbd}>Space</span></button>
         </div>
       </div>
@@ -3936,7 +3938,7 @@ function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={}}){
         {/* карточка дежурного + редактируемая карточка лида */}
         <div className="duty-main" style={{minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,paddingRight:2}}>
           {!l?(<div style={{...glass,flex:1,borderRadius:26,display:"grid",placeItems:"center",textAlign:"center",padding:30}}><div><div style={{fontSize:54}}>🎉</div><div style={{fontSize:26,margin:"8px 0"}}>{pl?"Dyżur zrobiony":"Дежурство разобрано"}</div><div className="hand" style={{fontSize:24,color:champ}}>{pl?"wszystkie kolejki puste — brawo!":"все очереди пусты — молодец!"}</div></div></div>):(<>
-          <div key={l.id+anim} style={{borderRadius:26,padding:"20px 24px",display:"flex",flexDirection:"column",gap:12,flexShrink:0,background:dk?`radial-gradient(70% 60% at 85% 0%,${hc}33,transparent 70%),linear-gradient(160deg,rgba(30,72,170,.55),rgba(5,18,52,.85))`:`radial-gradient(70% 60% at 85% 0%,${hc}22,transparent 70%),${C.card}`,border:`1px solid ${dk?"rgba(227,184,96,.28)":C.border}`,boxShadow:dk?"inset 0 1px 0 rgba(255,255,255,.08),0 30px 80px rgba(0,0,0,.4)":"0 10px 30px rgba(0,0,0,.08)",animation:anim==="out"?"dutyOut .26s cubic-bezier(.22,.9,.24,1) forwards":"dutyIn .5s cubic-bezier(.22,.9,.24,1) both"}}>
+          <div key={l.id+anim} style={{borderRadius:26,padding:"20px 24px",display:"flex",flexDirection:"column",gap:12,flex:"1 0 auto",background:dk?`radial-gradient(70% 60% at 85% 0%,${hc}33,transparent 70%),linear-gradient(160deg,rgba(30,72,170,.55),rgba(5,18,52,.85))`:`radial-gradient(70% 60% at 85% 0%,${hc}22,transparent 70%),${C.card}`,border:`1px solid ${dk?"rgba(227,184,96,.28)":C.border}`,boxShadow:dk?"inset 0 1px 0 rgba(255,255,255,.08),0 30px 80px rgba(0,0,0,.4)":"0 10px 30px rgba(0,0,0,.08)",animation:anim==="out"?"dutyOut .26s cubic-bezier(.22,.9,.24,1) forwards":"dutyIn .5s cubic-bezier(.22,.9,.24,1) both"}}>
             <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
               {handled?<span style={{height:28,padding:"0 12px",borderRadius:10,display:"flex",alignItems:"center",gap:7,fontSize:12,color:"#071435",background:"#47e6a0"}}>✓ {pl?"Lead obsłużony":"Лид разобран"}</span>
                 :<><span style={{height:28,padding:"0 12px",borderRadius:10,display:"flex",alignItems:"center",gap:7,fontSize:12,color:"#071435",background:zl.c,whiteSpace:"nowrap"}}>{zl.e} {pl?zl.pl:zl.ru}</span><DutyChipEl ch={dutyChip(l,z,pl)}/></>}
@@ -3959,14 +3961,33 @@ function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={}}){
               <div style={{...lbl,marginBottom:4}}>{handled?(pl?"gotowe":"готово"):(pl?"dlaczego ten lead teraz":"почему этот лид сейчас")}</div>
               <div className="hand" style={{fontSize:23,color:champ,lineHeight:1.1}}>{handled?(pl?"lead wyszedł z kolejki — przejdź do następnego":"лид ушёл из очереди — переходи к следующему"):dutyWhy(l,z,pl)}</div>
             </div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {handled?<button className="duty-b" onClick={()=>go(()=>setCur(queue[0]?queue[0].l.id:null))} style={btn(true)}>→ {pl?"Następny lead":"Следующий лид"}</button>
-                :acts(curItem).map(([k,ic,lb],i)=><button key={k+i} className="duty-b" onClick={()=>act(k,curItem)} style={btn(i===0)}>{ic} {lb} <span style={kbd}>{i+1}</span></button>)}
-              <button className="duty-b" onClick={()=>setTaskFor(l)} style={{...btn(false),marginLeft:"auto"}}>📋 {pl?"Do zadań":"В задачи"} <span style={kbd}>T</span></button>
+            <div className="duty-info" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1.15fr)",gap:12,flex:1,minHeight:0}}>
+              <div style={{display:"flex",flexDirection:"column",gap:12,minWidth:0}}>
+                <div style={{borderRadius:16,padding:"12px 14px",border:`1px solid ${C.border}`,background:dk?"rgba(2,10,30,.35)":C.bg}}>
+                  <div style={{...lbl,marginBottom:8}}>{pl?"ścieżka kwalifikacji":"ветка квалификации"}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>{tree.map(([k,lb])=>{const v=tv(k,l[k]);return <div key={k} style={{display:"flex",alignItems:"center",gap:7,minHeight:30,padding:"4px 9px",borderRadius:9,border:`1px solid ${v?"rgba(71,230,160,.35)":C.border}`,fontSize:11,color:v?C.text:C.muted}}><i style={{width:14,height:14,borderRadius:4,flexShrink:0,display:"grid",placeItems:"center",fontStyle:"normal",fontSize:9,background:v?"#47e6a0":"transparent",border:`1.5px solid ${v?"#47e6a0":"rgba(120,170,255,.4)"}`,color:"#06122f"}}>{v?"✓":""}</i><span style={{minWidth:0}}>{lb}{v&&<span style={{color:C.muted}}> · {v}</span>}</span></div>;})}</div>
+                </div>
+                <div style={{borderRadius:16,padding:"12px 14px",border:`1px solid ${C.border}`,background:dk?"rgba(2,10,30,.35)":C.bg,display:"flex",flexDirection:"column",gap:6}}>
+                  <div style={lbl}>{pl?"szczegóły":"детали"}</div>
+                  {[[pl?"Akcja":"Действие",t[l.action]||"—"],[pl?"Termin":"Срок",t[l.budgetTimeline]||"—"],[pl?"Wpłynął":"Поступил",l.createdAt||"—"],l.visitDate?[pl?"Wizyta":"Визит",`${isoToDot(l.visitDate)} ${l.visitTime||""}`]:null,l.pushDate?["Push",`${isoToDot(l.pushDate)} ${l.pushTime||""}`]:null].filter(Boolean).map(([a,b])=><div key={a} style={{display:"flex",justifyContent:"space-between",gap:10,fontSize:11.5,color:C.muted}}><span>{a}</span><span style={{color:C.text,textAlign:"right"}}>{b}</span></div>)}
+                </div>
+                {lastSt&&<div style={{borderRadius:16,padding:"12px 14px",border:"1px solid rgba(227,184,96,.35)",background:"linear-gradient(160deg,rgba(246,224,170,.14),rgba(227,184,96,.05))"}}><div style={{...lbl,marginBottom:4}}>{pl?"naklejka":"стикер"} · {lastSt.by||"—"}</div><div className="hand" style={{fontSize:19,color:champ,lineHeight:1.1}}>{lastSt.text}</div></div>}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:12,minWidth:0,minHeight:0}}>
+                <div style={{borderRadius:16,padding:"12px 14px",border:`1px solid ${C.border}`,background:dk?"rgba(2,10,30,.35)":C.bg,display:"flex",flexDirection:"column",gap:8,flex:1,minHeight:150}}>
+                  <div style={lbl}>{pl?"opis":"описание"}</div>
+                  <DutyNotes key={l.id} l={l} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t}/>
+                </div>
+                <div style={{borderRadius:16,padding:"12px 14px",border:`1px solid ${C.border}`,background:dk?"rgba(2,10,30,.35)":C.bg}}>
+                  <div style={{...lbl,marginBottom:6}}>{pl?"historia":"история"}</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:5,fontSize:11,color:C.muted,borderLeft:"1px solid rgba(227,184,96,.28)",paddingLeft:10}}>{(l.history||[]).slice(-4).reverse().map((h,i)=><div key={i} style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}><span style={{color:C.text}}>{h.action}</span> · {h.date}{h.by?` · ${h.by}`:""}</div>)}{!(l.history||[]).length&&<span>—</span>}</div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="duty-ld" style={{flexShrink:0}}>
-            <LeadDetail key={l.id} inline autoEdit saveRef={ldSave} lead={l} updateDb={updateDb} t={t} lang={lang} currentUser={currentUser} onClose={()=>{}} setLeads={ldp.setLeads||(()=>{})} srcList={ldp.srcList||[]} onAddSale={ldp.onAddSale} taskTypes={ldp.taskTypes||[]} tasks={ldp.tasks||[]} orders={ldp.orders||[]}/>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {handled?<><button className="duty-b" onClick={()=>go(()=>setCur(queue[0]?queue[0].l.id:null))} style={btn(true)}>→ {pl?"Następny lead":"Следующий лид"}</button><button className="duty-b" onClick={()=>act("open",{l})} style={btn(false)}>↗ {pl?"Otwórz kartę":"Открыть карточку"}</button></>
+                :ACTS.map(([k,ic,lb],i)=><button key={k} className="duty-b" onClick={()=>act(k,curItem)} style={btn(k==="open")}>{ic} {lb} <span style={kbd}>{i+1}</span></button>)}
+            </div>
           </div></>)}
         </div>
       </div>
@@ -3999,7 +4020,7 @@ function LeadsSection(props){
         {key:"push",  icon:"🚀",label:t.pushTab,count:pushCount,alert:pushDue,alertTitle:t.pushToday||""},
       ]}/>
       {tab==="leads"?<LeadsPage {...props}/>
-        :tab==="duty"?<DutyMode leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} currentUser={props.currentUser} lang={props.lang} ldp={props.ldp||{}}/>
+        :tab==="duty"?<DutyMode leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} currentUser={props.currentUser} lang={props.lang} ldp={props.ldp||{}} onOpen={props.onOpen}/>
         :tab==="visits"?<VisitsPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>
         :<PushPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>}
     </div>
