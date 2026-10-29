@@ -1391,11 +1391,14 @@ function buildReminders(db){
 // Напоминание устарело — то, о чём оно напоминало, уже сделано (ветка закрыта, действие
 // сменили, визит перенесли, пуш выполнен, оплата/сборка/монтаж отмечены). Такие аллерты
 // больше не всплывают и автоматически помечаются выполненными.
+// индекс лидов (по leadId и по id) — строится один раз на массив лидов, а не перебором на каждое напоминание
+const _leadIdx=new WeakMap();
+function leadIndex(leads){let ix=_leadIdx.get(leads);if(!ix){ix={byLid:new Map(),byId:new Map()};for(const l of leads){if(!l)continue;const k=String(l.leadId||"");if(k&&!ix.byLid.has(k))ix.byLid.set(k,l);const i=String(l.id);if(!ix.byId.has(i))ix.byId.set(i,l);}_leadIdx.set(leads,ix);}return ix;}
 function reminderStale(m,db){
   if(!m||m.kind!=="reminder"||!db||!db.leads)return false;
-  const p=String(m.key||"").split(":");const leads=db.leads||[];
-  const lead=(id)=>leads.find(l=>String(l.leadId||"")===id)||leads.find(l=>String(l.id)===id);
-  if(m.rtype==="tree"){const l=leads.find(x=>x.id===m.data?.leadId)||lead(p[1]);return !l||!treeIncomplete(l);}
+  const p=String(m.key||"").split(":");const leads=db.leads||[];const ix=leadIndex(leads);
+  const lead=(id)=>ix.byLid.get(String(id))||ix.byId.get(String(id));
+  if(m.rtype==="tree"){const l=(m.data?.leadId!=null?ix.byId.get(String(m.data.leadId)):null)||lead(p[1]);return !l||!treeIncomplete(l);}
   if(m.rtype==="quote"){const l=lead(p[1]);return !l||l.action!=="quote";}
   if(m.rtype==="visit"){const l=lead(p[1]);return !l||l.visitDate!==p[2];}
   if(m.rtype==="push"){const d=p[1]||m.data?.date;return !!d&&!leadsToPush(leads).some(l=>l.pushDate===d);}
@@ -1496,7 +1499,7 @@ let _audioCtx=null;
 function _ctx(){ _audioCtx=_audioCtx||new (window.AudioContext||window.webkitAudioContext)(); if(_audioCtx.state==="suspended"){try{_audioCtx.resume();}catch{}} return _audioCtx; }
 // Браузер даёт звук только после жеста пользователя: первый клик/клавиша разблокирует аудио на всю сессию
 if(typeof window!=="undefined"){
-  const _unlock=()=>{try{const c=_ctx(); const go=()=>{ if(_pendingSiren>0){const sec=_pendingSiren;_pendingSiren=0;playSiren(sec,_pendingKind);} }; if(c.state==="running")go(); else c.resume().then(go).catch(()=>{});}catch{}};
+  const _unlock=()=>{if(_audioCtx&&_audioCtx.state==="running"&&!(_pendingSiren>0))return;try{const c=_ctx(); const go=()=>{ if(_pendingSiren>0){const sec=_pendingSiren;_pendingSiren=0;playSiren(sec,_pendingKind);} }; if(c.state==="running")go(); else c.resume().then(go).catch(()=>{});}catch{}};
   // Слушатель постоянный: жест всегда может «выпустить» отложенную сирену (например, после долгого фона)
   window.addEventListener("pointerdown",_unlock,true); window.addEventListener("keydown",_unlock,true);
 }
@@ -2328,6 +2331,15 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0
   );
 }
 
+// Поиск с задержкой: печатаешь — CRM не пересчитывает все лиды на каждую букву, а один раз после паузы 0,2 с
+function SearchBox({value,onChange,placeholder,style}){
+  const [q,setQ]=useState(value||"");const tm=useRef(null);
+  useEffect(()=>{if((value||"")!==q&&!tm.current)setQ(value||"");// eslint-disable-next-line react-hooks/exhaustive-deps
+  },[value]);
+  useEffect(()=>()=>clearTimeout(tm.current),[]);
+  const set=v=>{setQ(v);clearTimeout(tm.current);tm.current=setTimeout(()=>{tm.current=null;onChange(v);},v?200:0);};
+  return <input value={q} onChange={e=>set(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){clearTimeout(tm.current);tm.current=null;onChange(q);}}} placeholder={placeholder} style={style}/>;
+}
 // ─── TOPBAR ───────────────────────────────────────────────────────────────────
 function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,onRefresh,theme,toggleTheme}){
   const [showUsers,setShowUsers]=useState(false);
@@ -2338,7 +2350,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
       <button onClick={()=>setCollapsed(p=>!p)} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4}}>☰</button>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,display:"flex",alignItems:"center",gap:8,padding:"7px 12px",maxWidth:300}}>
         <span style={{color:C.dim,fontSize:12}}>🔍</span>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search} style={{background:"transparent",border:"none",outline:"none",color:"#fff",fontSize:12,width:170}}/>
+        <SearchBox value={search} onChange={setSearch} placeholder={t.search} style={{background:"transparent",border:"none",outline:"none",color:"#fff",fontSize:12,width:170}}/>
       </div>
       <div style={{flex:1}}/>
       {/* Refresh button — saves requests vs auto-polling */}
@@ -4690,7 +4702,8 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
   const [fSc,setFSc]=useState([]);const [fA,setFA]=useState("all");const [fS,setFS]=useState([]);const [fFun,setFFun]=useState("all");const [fWhy,setFWhy]=useState("all");const [fLang,setFLang]=useState("all");const [fBuy,setFBuy]=useState("all");
   const [selected,setSelected]=useState(new Set());
   const ss={background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
-  const _langCnt={all:0}; // сколько лидов каждого языка при остальных фильтрах
+  // фильтр+сортировка пересчитываются только когда меняются лиды или фильтры (а не на каждый ререндер CRM)
+  const [fl,_langCnt]=useMemo(()=>{const _langCnt={all:0}; // сколько лидов каждого языка при остальных фильтрах
   const fl=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||String(l.name||"").toLowerCase().includes(search.toLowerCase())||String(l.phone||"").includes(search)||String(l.leadId||"").includes(search))
     .filter(l=>fSc.length===0||fSc.includes(String(parseFloat(l.score)||0)))
     .filter(l=>fA==="all"||l.action===fA)
@@ -4701,6 +4714,9 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
     .filter(l=>{_langCnt[l.clientLang||"none"]=(_langCnt[l.clientLang||"none"]||0)+1;_langCnt.all++;return fLang==="all"||(fLang==="none"?!l.clientLang:l.clientLang===fLang);})
     // Всегда: чем новее лид — тем выше (сначала день, внутри дня — по времени поступления)
     .map((l,i)=>({l,i,k:leadSortKey(l)})).sort((a,b)=>(b.k-a.k)||(a.i-b.i)).map(x=>x.l);
+  return [fl,_langCnt];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[leads,dateFrom,dateTo,mgr,search,fSc,fA,fS,fFun,fWhy,fBuy,fLang,srcList,funnels]);
 
   // Лиды с действием "не определено" подсвечиваются жёлтым, пока действие не сменят
   const [,freshTick]=useState(0);
@@ -4730,9 +4746,10 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
       leads:(p.leads||[]).map(l=>l.id===id?{...l,history:histAdd(l,l.isFavorite?"Убран из избранного":"Добавлен в избранное"),isFavorite:!l.isFavorite,updatedAt:Date.now()}:l)
     }),true);
   };
-  // таблица рисуется порциями: сначала 60 строк (мгновенно), остальные — следующим тиком
-  const [rowLim,setRowLim]=useState(60);
-  useEffect(()=>{if(fl.length>rowLim){const id=setTimeout(()=>setRowLim(n=>Math.max(n,fl.length)),30);return()=>clearTimeout(id);}},[fl.length,rowLim]);
+  // таблица рисуется порциями по 100 строк: следующая порция подгружается, когда докручиваешь до низа
+  const ROWS_STEP=100;const [rowLim,setRowLim]=useState(ROWS_STEP);const moreRef=useRef(null);
+  useEffect(()=>{setRowLim(ROWS_STEP);},[dateFrom,dateTo,mgr,search,fSc,fA,fS,fFun,fWhy,fBuy,fLang]);
+  useEffect(()=>{const el=moreRef.current;if(!el||rowLim>=fl.length)return;const io=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting))setRowLim(n=>n+ROWS_STEP);},{rootMargin:"600px"});io.observe(el);return()=>io.disconnect();},[rowLim,fl.length]);
   const allChecked=fl.length>0&&selected.size===fl.length;
   const someChecked=selected.size>0&&selected.size<fl.length;
   return(
@@ -4795,6 +4812,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
             );})}</tbody>
           </table>
           {fl.length===0&&<div style={{padding:40,textAlign:"center",color:C.muted}}>Нет лидов</div>}
+          {rowLim<fl.length&&<div ref={moreRef} style={{padding:"14px 10px",textAlign:"center",fontSize:11.5,color:C.muted}}><button onClick={()=>setRowLim(n=>n+ROWS_STEP*3)} style={{background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:9,padding:"6px 14px",cursor:"pointer",fontSize:11.5}}>{lang==="pl"?`Pokazano ${rowLim} z ${fl.length} — pokaż więcej`:`Показано ${rowLim} из ${fl.length} — показать ещё`}</button></div>}
         </div>
       </div>
       {stickerLead&&<StickerModal lead={stickerLead} t={t} currentUser={currentUser} onSave={addSticker} onDelete={deleteSticker} onClose={()=>setStickerLead(null)}/>}
@@ -7690,8 +7708,7 @@ const AURUM_CSS=`
 .aurum{color-scheme:dark}
 .aurum table thead tr{background:rgba(2,10,30,.38)!important}
 .aurum table thead th{letter-spacing:.08em!important}
-.aurum table tbody tr{transition:background .25s,box-shadow .25s}.aurum table tbody tr:nth-child(-n+24){animation:aurRow .5s var(--ease) both}
-${Array.from({length:24},(_,i)=>`.aurum table tbody tr:nth-child(${i+1}){animation-delay:${80+i*28}ms}`).join("")}
+
 @keyframes aurRow{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .aurum table tbody tr[style*="rgba(245, 158, 11, 0.15)"]{background:linear-gradient(90deg,rgba(246,196,83,.14),rgba(246,196,83,.02) 70%)!important}
 .aurum table tbody tr[style*="rgba(251, 191, 36, 0.22)"]{background:linear-gradient(90deg,rgba(227,184,96,.24),rgba(227,184,96,.05) 70%)!important}
