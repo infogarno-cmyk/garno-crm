@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 // Фото для КП. Импорт «целиком»: если в kpPhotos.js какого-то фото нет — сборка не падает, просто без этого фото.
 import * as KP_PHOTOS from "./kpPhotos.js";
 const IMG_KRONOSPAN=KP_PHOTOS.IMG_KRONOSPAN||"",IMG_FRONTY=KP_PHOTOS.IMG_FRONTY||"",IMG_HETTICH=KP_PHOTOS.IMG_HETTICH||"",IMG_HANDSHAKE=KP_PHOTOS.IMG_HANDSHAKE||"",IMG_SHOWROOM1=KP_PHOTOS.IMG_SHOWROOM1||"",IMG_TEAM=KP_PHOTOS.IMG_TEAM||"",IMG_RODA=KP_PHOTOS.IMG_RODA||"",IMG_MAP=KP_PHOTOS.IMG_MAP||"",IMG_OLEH=KP_PHOTOS.IMG_OLEH||"",IMG_DMYTRO=KP_PHOTOS.IMG_DMYTRO||"",IMG_PATRYK=KP_PHOTOS.IMG_PATRYK||"";
@@ -34,13 +34,14 @@ class ErrorBoundary extends React.Component{
 }
 
 // ─── BRAND COLORS ─────────────────────────────────────────────────────────────
+// AURUM — тёмная тема: сапфир + шампань-золото (стекло поверх сияния)
 const DARK = {
-  bg:"#00132f", surface:"#001840", card:"#001f4e",
-  accent:"#bfa47e", accentDim:"rgba(191,164,126,0.15)", accentBorder:"rgba(191,164,126,0.35)",
-  text:"#fff", muted:"rgba(255,255,255,0.55)", dim:"rgba(255,255,255,0.3)",
-  border:"rgba(255,255,255,0.07)", borderMd:"rgba(255,255,255,0.14)",
-  green:"#4ade80", red:"#f87171", blue:"#60a5fa",
-  yellow:"#fbbf24", purple:"#a78bfa", cyan:"#22d3ee",
+  bg:"#020a1e", surface:"#071a46", card:"rgba(14,40,108,0.55)",
+  accent:"#e3b860", accentDim:"rgba(227,184,96,0.14)", accentBorder:"rgba(227,184,96,0.38)",
+  text:"#eef4ff", muted:"rgba(214,232,255,0.62)", dim:"rgba(214,232,255,0.38)",
+  border:"rgba(120,170,255,0.16)", borderMd:"rgba(120,170,255,0.26)",
+  green:"#47e6a0", red:"#ff7d8c", blue:"#5cb8ff",
+  yellow:"#f6c453", purple:"#c79bff", cyan:"#22d3ee",
 };
 const LIGHT = {
   bg:"#eef1f5", surface:"#ffffff", card:"#ffffff",
@@ -1622,13 +1623,13 @@ function Badge({label,color=C.blue,small,action}){
   const isQuote=action==="quote";
   if(isQuote){
     return(
-      <span style={{display:"inline-block",background:"rgba(234,179,8,0.15)",color:"#eab308",border:"2px solid #eab308",borderRadius:4,padding:small?"1px 7px":"2px 10px",fontSize:small?10:11,fontWeight:800,whiteSpace:"nowrap",letterSpacing:0.3}}>
+      <span className="g-badge g-quote" style={{display:"inline-block",background:"rgba(234,179,8,0.15)",color:"#eab308",border:"2px solid #eab308",borderRadius:4,padding:small?"1px 7px":"2px 10px",fontSize:small?10:11,fontWeight:800,whiteSpace:"nowrap",letterSpacing:0.3}}>
         {label}
       </span>
     );
   }
   return(
-    <span style={{display:"inline-block",background:`${color}22`,color,border:`1px solid ${color}44`,borderRadius:20,padding:small?"1px 7px":"2px 10px",fontSize:small?10:11,fontWeight:600,whiteSpace:"nowrap"}}>
+    <span className="g-badge" style={{display:"inline-block",background:`${color}22`,color,border:`1px solid ${color}44`,borderRadius:20,padding:small?"1px 7px":"2px 10px",fontSize:small?10:11,fontWeight:600,whiteSpace:"nowrap"}}>
       {label}
     </span>
   );
@@ -1664,8 +1665,8 @@ function LeadFileThumb({f,onDelete,pl}){
   </div>);
 }
 function Dot({color}){return <span style={{width:7,height:7,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>;}
-function SrcBadge({source,color}){const c=color||SRC_COLOR[source]||C.muted;return <span style={{fontSize:9,color:c,background:`${c}20`,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",display:"inline-block"}}>{srcShort(source)}</span>;}
-function ScoreBar({score}){const s=parseFloat(score)||0;const c=QUAL_COLOR[scoreToQual(s)]||C.accent;return <div style={{display:"flex",gap:2,alignItems:"center"}}>{Array.from({length:7}).map((_,i)=>{const half=(s%1!==0)&&(i===Math.ceil(s));return <div key={i} style={{width:7,height:7,borderRadius:2,background:i<Math.ceil(s)?c:"rgba(255,255,255,0.12)",opacity:half?0.5:1}}/>;})}<span style={{fontSize:10,color:c,marginLeft:2,fontWeight:700}}>{s}</span></div>;}
+function SrcBadge({source,color}){const c=color||SRC_COLOR[source]||C.muted;return <span className="g-src" style={{fontSize:9,color:c,background:`${c}20`,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",display:"inline-block"}}>{srcShort(source)}</span>;}
+function ScoreBar({score}){const s=parseFloat(score)||0;const c=QUAL_COLOR[scoreToQual(s)]||C.accent;return <div className="g-score" style={{display:"flex",gap:2,alignItems:"center","--c":c}}>{Array.from({length:7}).map((_,i)=>{const half=(s%1!==0)&&(i===Math.ceil(s));return <div key={i} style={{width:7,height:7,borderRadius:2,background:i<Math.ceil(s)?c:"rgba(255,255,255,0.12)",opacity:half?0.5:1}}/>;})}<span style={{fontSize:10,color:c,marginLeft:2,fontWeight:700}}>{s}</span></div>;}
 function Btn({children,onClick,variant="primary",small,disabled}){const s={primary:{background:C.accent,color:"#00132f",border:"none"},ghost:{background:"transparent",color:C.muted,border:`1px solid ${C.border}`},danger:{background:"rgba(248,113,113,0.15)",color:C.red,border:`1px solid ${C.red}44`}};return <button onClick={onClick} disabled={disabled} style={{...s[variant],padding:small?"5px 12px":"8px 18px",borderRadius:8,fontSize:small?12:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:6}}>{children}</button>;}
 function DateRangeBar({range,setRange,t}){return <div style={{display:"flex",gap:2,background:C.card,borderRadius:9,padding:3,border:`1px solid ${C.border}`,flexWrap:"wrap"}}>{DATE_RANGES.map(d=>{const lk=`period${d.key.charAt(0).toUpperCase()+d.key.slice(1)}`;const active=range===d.key;return <button key={d.key} onClick={()=>setRange(d.key)} style={{padding:"4px 9px",borderRadius:7,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",fontSize:10,fontWeight:active?700:500,whiteSpace:"nowrap"}}>{t[lk]||d.key}</button>;})}</div>;}
 
@@ -1697,7 +1698,7 @@ function DashboardDatePicker({dateFrom,dateTo,setDateFrom,setDateTo,t,lang}){
     return false;
   });
   return(
-    <div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end"}}>
+    <div className="g-dp" style={{display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end"}}>
       <div style={{display:"flex",gap:6,alignItems:"center"}}>
         <span style={{fontSize:10,color:C.muted}}>📅</span>
         <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={ins}/>
@@ -1705,9 +1706,9 @@ function DashboardDatePicker({dateFrom,dateTo,setDateFrom,setDateTo,t,lang}){
         <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={ins}/>
         {(dateFrom||dateTo)&&<button onClick={()=>{setDateFrom("");setDateTo("");}} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",fontSize:14,padding:"2px 4px"}} title={t.reset}>✕</button>}
       </div>
-      <div style={{display:"flex",gap:2,flexWrap:"wrap",justifyContent:"flex-end"}}>
+      <div className="g-dpp" style={{display:"flex",gap:2,flexWrap:"wrap",justifyContent:"flex-end"}}>
         {PRESETS.map(p=>{const lk=`period${p.key.charAt(0).toUpperCase()+p.key.slice(1)}`;const active=activePreset?.key===p.key;return(
-          <button key={p.key} onClick={()=>applyPreset(p)} style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${active?C.accent:C.border}`,background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",fontSize:10,fontWeight:active?700:400,whiteSpace:"nowrap"}}>
+          <button key={p.key} className={active?"on":""} onClick={()=>applyPreset(p)} style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${active?C.accent:C.border}`,background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",fontSize:10,fontWeight:active?700:400,whiteSpace:"nowrap"}}>
             {t[lk]||p.key}
           </button>
         );})}
@@ -2292,16 +2293,36 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
+// Анимированные иконки меню: части с классом .p играют свою анимацию при открытии раздела / наведении / старте
+const NAV_SVG={
+  dashboard:<><rect className="p p1" x="3" y="3" width="7" height="9" rx="2"/><rect className="p p2" x="14" y="3" width="7" height="5" rx="2"/><rect className="p p3" x="14" y="12" width="7" height="9" rx="2"/><rect className="p p4" x="3" y="16" width="7" height="5" rx="2"/></>,
+  leads:<><g className="p head"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/></g><path className="p plus" d="M17 11h5M19.5 8.5v5"/></>,
+  calendar:<><rect x="3" y="5" width="18" height="16" rx="3"/><path className="p page" d="M3 10h18"/><path className="p ring1" d="M8 3v4"/><path className="p ring2" d="M16 3v4"/><circle className="p dot" cx="15.5" cy="15.5" r="1.6" fill="currentColor" stroke="none"/></>,
+  alerts:<><g className="p bell"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path className="clap" d="M10 20.5a2 2 0 0 0 4 0"/></g><path className="p wave" d="M3 8.5c.4-2 1.3-3.6 2.6-4.8M21 8.5c-.4-2-1.3-3.6-2.6-4.8"/></>,
+  salescenter:<><path className="p gem" d="M6.5 3.5h11L22 9l-10 12L2 9z"/><path className="p gem" d="M2 9h20M9 3.5 7.5 9 12 21l4.5-12-1.5-5.5"/><path className="p spark" d="M20 1.5v3M18.5 3h3"/></>,
+  sales:<><path className="p line" d="M3 17l6-6 4 4 8-8"/><path className="p head" d="M15 7h6v6"/></>,
+  orders:<><path className="p body" d="M3 9v8.5l9 4 9-4V9"/><path className="p body" d="M12 13v8.5"/><path className="p lidl" d="M3 9l9 4 0-4-9-4z"/><path className="p lidr" d="M21 9l-9 4 0-4 9-4z"/><path className="p pop" d="M12 6.5v-4M9.5 4l-1-1.5M14.5 4l1-1.5"/></>,
+  tasks:<><path d="M10 6h10M10 12h10M10 18h10"/><path className="p c1" d="M3.5 6l1.5 1.5 2.5-2.5"/><path className="p c2" d="M3.5 12l1.5 1.5 2.5-2.5"/><path className="p c3" d="M3.5 18l1.5 1.5 2.5-2.5"/></>,
+  settings:<><g className="p gear"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></g><circle cx="12" cy="12" r="2.5"/></>,
+};
+function NavIcon({k}){
+  return <svg className={`ni ni-${k}`} width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,overflow:"visible"}}>{NAV_SVG[k]}</svg>;
+}
+const NAV_H=42,NAV_GAP=2;
 function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0,aiUnread=0,freshLeads=0,t}){
+  const [intro,setIntro]=useState(true);
+  useEffect(()=>{const id=setTimeout(()=>setIntro(false),2600);return()=>clearTimeout(id);},[]);
+  const idx=NAV.findIndex(n=>n.key===page);
   return(
-    <div style={{width:collapsed?56:200,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",overflow:"hidden"}}>
-      <div style={{padding:"14px 10px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
-        <div style={{width:34,height:34,borderRadius:9,background:C.accentDim,border:`1px solid ${C.accentBorder}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:C.accent,flexShrink:0,fontWeight:900}}>G</div>
-        {!collapsed&&<span style={{color:C.accent,fontWeight:900,fontSize:14,letterSpacing:1.5}}>GARNO<span style={{color:"#fff"}}>CRM</span></span>}
+    <div className="g-side" style={{width:collapsed?64:216,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.35s cubic-bezier(.22,.9,.24,1)",overflow:"hidden"}}>
+      <div style={{padding:"14px 13px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
+        <div className="g-mark" style={{width:36,height:36,borderRadius:11,background:C.accentDim,border:`1px solid ${C.accentBorder}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:C.accent,flexShrink:0}}>G</div>
+        {!collapsed&&<div style={{lineHeight:1,whiteSpace:"nowrap"}}><span style={{color:C.accent,fontSize:14,letterSpacing:1.5}}>GARNO<span style={{color:C.text}}>CRM</span></span><div className="hand" style={{fontSize:16,color:C.accent,opacity:.85,marginTop:1}}>custom furniture</div></div>}
       </div>
-      <nav style={{flex:1,padding:"8px 6px",display:"flex",flexDirection:"column",gap:2,overflowY:"auto",overflowX:"hidden"}}>
-        {NAV.map(item=>{const active=page===item.key;return(<button key={item.key} onClick={()=>setPage(item.key)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,fontWeight:active?700:500,borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent"}}><span style={{fontSize:14,flexShrink:0}}>{item.icon}</span>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}{item.key==="leads"&&freshLeads>0?<span style={{background:"#facc15",color:"#00132f",borderRadius:10,fontSize:9,fontWeight:900,padding:"0 6px",lineHeight:"14px",animation:"pulse 0.9s infinite"}}>🚨 {freshLeads}</span>:null}{item.key==="leads"&&pushDue>0?<span title={t.pushToday} style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {pushDue}</span>:null}{item.key==="alerts"&&aiUnread>0?<span title={t.aiUnread} style={{display:"inline-flex",alignItems:"center",gap:2,background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {aiUnread}</span>:null}</span>}</button>);})}
-        {!collapsed&&page==="leads"&&(<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}}>{["all",...MANAGERS].map(m=>(<button key={m} onClick={()=>setMgr(m)} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderRadius:6,border:"none",background:mgr===m?`${MGR_COLOR[m]||C.accent}22`:"transparent",color:mgr===m?(MGR_COLOR[m]||C.accent):C.muted,cursor:"pointer",fontSize:12,fontWeight:mgr===m?600:400,width:"100%",textAlign:"left"}}>{m!=="all"&&<Avatar name={m} color={MGR_COLOR[m]} size={18}/>}{m==="all"?`◉ ${lang==="ru"?"Все":"Wszyscy"}`:m}</button>))}</div>)}
+      <nav className={`g-nav${intro?" intro":""}`} style={{flex:1,padding:"10px 8px",display:"flex",flexDirection:"column",gap:NAV_GAP,overflowY:"auto",overflowX:"hidden",position:"relative"}}>
+        <div className="g-ind" style={{position:"absolute",left:8,right:8,top:10,height:NAV_H,borderRadius:13,transform:`translateY(${Math.max(0,idx)*(NAV_H+NAV_GAP)}px)`,opacity:idx<0?0:1,pointerEvents:"none",background:C.accentDim,border:`1px solid ${C.accentBorder}`,transition:"transform .55s cubic-bezier(.22,.9,.24,1), opacity .3s"}}/>
+        {NAV.map((item,i)=>{const active=page===item.key;return(<button key={item.key} className={active?"on":""} onClick={()=>setPage(item.key)} title={collapsed?(lang==="ru"?item.ru:item.pl):undefined} style={{"--d":intro?`${i*0.09}s`:"0s",position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:12,height:NAV_H,minHeight:NAV_H,padding:"0 12px",borderRadius:13,border:"none",background:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,transition:"color .3s"}}><NavIcon k={item.key}/>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,color:active?C.text:undefined}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}{item.key==="leads"&&freshLeads>0?<span style={{background:"#facc15",color:"#00132f",borderRadius:10,fontSize:9,fontWeight:900,padding:"0 6px",lineHeight:"14px",animation:"pulse 0.9s infinite"}}>🚨 {freshLeads}</span>:null}{item.key==="leads"&&pushDue>0?<span title={t.pushToday} style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {pushDue}</span>:null}{item.key==="alerts"&&aiUnread>0?<span title={t.aiUnread} style={{display:"inline-flex",alignItems:"center",gap:2,background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {aiUnread}</span>:null}</span>}</button>);})}
+        {!collapsed&&page==="leads"&&(<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}}>{["all",...MANAGERS].map(m=>(<button key={m} onClick={()=>setMgr(m)} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderRadius:10,border:"none",background:mgr===m?`${MGR_COLOR[m]||C.accent}22`:"transparent",color:mgr===m?(MGR_COLOR[m]||C.accent):C.muted,cursor:"pointer",fontSize:12,fontWeight:mgr===m?600:400,width:"100%",textAlign:"left"}}>{m!=="all"&&<Avatar name={m} color={MGR_COLOR[m]} size={18}/>}{m==="all"?`◉ ${lang==="ru"?"Все":"Wszyscy"}`:m}</button>))}</div>)}
       </nav>
     </div>
   );
@@ -2313,7 +2334,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
   const syncColor=syncLabel==="✓"?C.green:syncLabel==="!"?C.red:syncLabel==="⟳"?C.yellow:syncLabel==="offline"?C.yellow:C.green;
   const isDark=theme==="dark";
   return(
-    <div style={{height:56,background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10,padding:"0 14px",flexShrink:0}}>
+    <div className="g-top" style={{height:56,background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10,padding:"0 14px",flexShrink:0}}>
       <button onClick={()=>setCollapsed(p=>!p)} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4}}>☰</button>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,display:"flex",alignItems:"center",gap:8,padding:"7px 12px",maxWidth:300}}>
         <span style={{color:C.dim,fontSize:12}}>🔍</span>
@@ -3635,8 +3656,8 @@ function GoalHero({g,A,idx,mgrs,pl,canEdit,onCreate}){
     <div style={{position:"relative",borderRadius:18,overflow:"hidden",border:"1px solid rgba(125,211,252,0.18)",background:"radial-gradient(120% 90% at 30% 20%, #0b2a5c 0%, #00132f 55%, #000a1c 100%)",color:fg}}>
       <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.35) 1px, transparent 1px)",backgroundSize:"46px 46px",opacity:0.12,pointerEvents:"none"}}/>
       <div style={{position:"relative",display:"flex",flexWrap:"wrap",gap:10,padding:"18px 22px 0",alignItems:"baseline",justifyContent:"space-between"}}>
-        <div><div style={{fontSize:10.5,fontWeight:800,letterSpacing:2,color:mut}}>{eyebrow}</div><div style={{fontSize:28,fontWeight:300,color:"#e2cfa9",letterSpacing:-0.3,marginTop:2}}>{L("Цель команды","Cel zespołu")}</div></div>
-        <div style={{fontSize:11.5,color:mut,maxWidth:420}}>{L("Продажи собирают общую кухню: секции → пеналы → столешница → техника → ручки → подсветка. Цвет элемента — менеджер, чья продажа его оплатила. ▶ проигрывает месяц по дням.","Sprzedaże składają wspólną kuchnię: sekcje → penały → blat → technika → uchwyty → oświetlenie. Kolor elementu — manager, którego sprzedaż za niego zapłaciła. ▶ odtwarza miesiąc dzień po dniu.")}</div>
+        <div><div style={{fontSize:10.5,fontWeight:800,letterSpacing:2,color:mut}}>{eyebrow}</div><div className="hand" style={{fontSize:34,fontWeight:300,color:"#f6e0aa",letterSpacing:-0.3,marginTop:2,lineHeight:1}}>{L("Цель команды","Cel zespołu")}</div></div>
+        <div className="hand" style={{fontSize:17,lineHeight:1.15,color:"#f6e0aa",maxWidth:440}}>{L("Продажи собирают общую кухню: секции → пеналы → столешница → техника → ручки → подсветка. Цвет элемента — менеджер, чья продажа его оплатила. ▶ проигрывает месяц по дням.","Sprzedaże składają wspólną kuchnię: sekcje → penały → blat → technika → uchwyty → oświetlenie. Kolor elementu — manager, którego sprzedaż za niego zapłaciła. ▶ odtwarza miesiąc dzień po dniu.")}</div>
       </div>
       <div style={{position:"relative",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:10,padding:"6px 22px 22px",alignItems:"center"}}>
         <HoloStage g={g} A={A} idx={idx} mgrs={mgrs} pl={pl}/>
@@ -3716,6 +3737,252 @@ function TabBar({tabs,active,onChange}){
   );
 }
 
+// ─── РЕЖИМ ДЕЖУРНОГО ──────────────────────────────────────────────────────────
+// Очередь сверху вниз: 🔥 свежие (таймер заявки) → 📐 просчёты (выше оценка, при равной — старее просчёт) →
+// ☎️ 2-й контакт (прошло 6 ч после 1-го, сегодня) → ✅ визиты на завтра (подтвердить) → 🚀 пуши на сегодня (и просроченные) →
+// 🧩 ветка не закрыта (выше оценка — выше) → 💼 центр продаж (рекомендуемые → 4 за прошлый мес → 5 в этом мес → 2.5 от 3 мес назад).
+// Лид в очереди только один раз — в первой подходящей полосе. Карточка редактируется прямо здесь (LeadDetail inline).
+const DUTY_LANES=[
+  {k:"new",  e:"🔥",ru:"Свежие",           pl:"Nowe",              c:"#ff7d8c",hRu:"таймер заявки",                 hPl:"czas od zgłoszenia"},
+  {k:"quote",e:"📐",ru:"Просчёты",         pl:"Wyceny",            c:"#e3b860",hRu:"выше оценка · старее просчёт",  hPl:"wyższa ocena · starsza wycena"},
+  {k:"c2",   e:"☎️",ru:"2-й контакт",      pl:"2. kontakt",        c:"#f6a04d",hRu:"6 ч после 1-го · сегодня",      hPl:"6 h po 1. · dziś"},
+  {k:"visit",e:"✅",ru:"Визиты на завтра", pl:"Wizyty na jutro",   c:"#5cb8ff",hRu:"подтвердить",                   hPl:"potwierdzić"},
+  {k:"push", e:"🚀",ru:"Пуши на сегодня",  pl:"Pushe na dziś",     c:"#fb923c",hRu:"и просроченные",                hPl:"i zaległe"},
+  {k:"tree", e:"🧩",ru:"Ветка не закрыта", pl:"Ścieżka otwarta",   c:"#2dd4bf",hRu:"выше оценка — выше",            hPl:"wyższa ocena — wyżej"},
+  {k:"sc",   e:"💼",ru:"Центр продаж",     pl:"Centrum sprzedaży", c:"#c79bff",hRu:"рекоменд. → 4 → 5 → 2.5",       hPl:"polecane → 4 → 5 → 2.5"},
+];
+const DUTY_DAY=86400000;
+const dutyScore=l=>{const s=parseFloat(l&&l.score);return isNaN(s)?null:s;};
+function dutyBuild(list,allLeads,now,today,tomorrow){
+  const used=new Set();const out=[];
+  const add=(k,arr)=>arr.forEach(x=>{if(!x||!x.l||used.has(x.l.id))return;used.add(x.l.id);out.push({l:x.l,z:{k,...(x.z||{})}});});
+  const live=(list||[]).filter(l=>l&&l.action!=="cancelled"&&l.action!=="sale"&&!l.isDone);
+  const sc=dutyScore;
+  // 1 — свежие: ещё нет 1-го контакта; кто дольше ждёт — выше
+  add("new",live.filter(l=>{const s=sc(l);if(s!=null&&s>=5)return false;if(firstContactMs(l))return false;if(isFresh(l.id))return true;const arr=leadCreatedMsSafe(l);
+      return !!arr&&now-arr<2*DUTY_DAY&&(!l.action||["undefined","inWork","missedCall","callback"].includes(l.action));})
+    .map(l=>({l,z:{since:leadCreatedMsSafe(l)||now}})).sort((a,b)=>a.z.since-b.z.since));
+  // 2 — просчёты: выше оценка; при равной — старее просчёт. После «КП отправлено» лид отдыхает 2 дня
+  add("quote",live.filter(l=>l.action==="quote"&&!(l.kpSentAt&&now-l.kpSentAt<2*DUTY_DAY))
+    .map(l=>({l,z:{since:+l.quoteSince||leadCreatedMsSafe(l)||now}})).sort((a,b)=>((sc(b.l)||0)-(sc(a.l)||0))||(a.z.since-b.z.since)));
+  // 3 — 2-й контакт: 1-й контакт был сегодня, прошло 6 ч, 2-го ещё нет
+  add("c2",live.filter(l=>{const s=sc(l);if(s!=null&&s>=5)return false;if(l.c2!=null&&l.c2!=="")return false;const fc=firstContactMs(l);return !!fc&&isoLocal(new Date(fc))===today&&now-fc>=6*3600000;})
+    .map(l=>({l,z:{since:firstContactMs(l)}})).sort((a,b)=>a.z.since-b.z.since));
+  // 4 — визиты на завтра, ещё не подтверждённые
+  add("visit",(list||[]).filter(l=>l&&l.action!=="cancelled"&&l.visitDate===tomorrow&&l.visitConfirmed!==l.visitDate&&(sc(l)||0)<5.5)
+    .map(l=>({l})).sort((a,b)=>String(a.l.visitTime||"").localeCompare(String(b.l.visitTime||""))));
+  // 5 — пуши на сегодня и просроченные
+  add("push",leadsToPush(live).filter(l=>l.pushDate&&l.pushDate<=today)
+    .map(l=>({l,z:{over:l.pushDate<today}})).sort((a,b)=>String(a.l.pushDate).localeCompare(String(b.l.pushDate))||String(a.l.pushTime||"").localeCompare(String(b.l.pushTime||""))));
+  // 6 — ветка не закрыта: выше оценка — выше
+  add("tree",live.filter(l=>treeIncomplete(l)).map(l=>({l})).sort((a,b)=>((sc(b.l)||0)-(sc(a.l)||0))||(leadSortKey(b.l)-leadSortKey(a.l))));
+  // 7 — центр продаж: те же списки, что во вкладке «Центр продаж»
+  const pat=analyzeSalePatterns(allLeads||[]);
+  const recs=pat.top.length?live.filter(l=>l.score<6&&l.score>=2).map(l=>({l,hits:pat.top.filter(r=>(SALE_ATTR_FN[r.attr]?SALE_ATTR_FN[r.attr](l):l[r.attr])===r.value).length})).filter(x=>x.hits>=Math.min(2,pat.top.length)).sort((a,b)=>b.hits-a.hits).slice(0,12):[];
+  add("sc",recs.map(x=>({l:x.l,z:{kind:"rec",hits:x.hits}})));
+  add("sc",live.filter(l=>(l.score===4||l.score===4.5)&&monthsAgo(l.createdAt)===1).map(l=>({l,z:{kind:"m4"}})));
+  add("sc",live.filter(l=>l.score===5&&monthsAgo(l.createdAt)===0).map(l=>({l,z:{kind:"m5"}})));
+  const da=l=>{const d=parseCreatedAt(l.createdAt);return d?Math.round((new Date(today).getTime()-d.getTime())/DUTY_DAY):null;};
+  add("sc",live.filter(l=>(parseFloat(l.score)||0)===2.5).map(l=>({l,d:da(l)})).filter(x=>x.d!=null&&x.d>=90).sort((a,b)=>a.d-b.d).map(x=>({l:x.l,z:{kind:"m25",d:x.d}})));
+  return out;
+}
+function dutyAgo(ms,pl){const m=Math.max(0,Math.floor((Date.now()-ms)/60000));if(m<60)return `${m} ${pl?"min":"мин"}`;const h=Math.floor(m/60);if(h<48)return `${h} ${pl?"godz.":"ч"}`;return `${Math.floor(h/24)} ${pl?"dn.":"дн."}`;}
+const dutyHM=ms=>{const d=new Date(ms);return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
+function dutyChip(l,z,pl){
+  switch(z.k){
+    case"new":return{c:"bad",t:`${dutyAgo(z.since||Date.now(),pl)} ${pl?"bez kontaktu":"без контакта"}${l.dutyMiss?` · ${pl?"nieodebrane":"недозвон"} ×${l.dutyMiss}`:""}`};
+    case"quote":{const h=Math.floor((Date.now()-(z.since||Date.now()))/3600000);return{c:h>=48?"bad":h>=24?"warn":"ok",t:`${pl?"wycena":"просчёт"} ${dutyAgo(z.since||Date.now(),pl)}`};}
+    case"c2":return{c:"warn",t:`${pl?"1. kontakt":"1-й контакт"} ${dutyHM(z.since)} · ${dutyAgo(z.since,pl)} ${pl?"temu":"назад"}`};
+    case"visit":return{c:"info",t:`${pl?"wizyta jutro":"визит завтра"} ${l.visitTime||""} · ${pl?"niepotwierdzona":"не подтверждён"}`};
+    case"push":return z.over?{c:"bad",t:`push ${pl?"zaległy":"просрочен"} · ${isoToDot(l.pushDate)}`}:{c:"warn",t:`push ${pl?"dziś":"сегодня"} ${l.pushTime||""}`};
+    case"tree":return{c:"info",t:pl?"ścieżka niezamknięta":"ветка не закрыта"};
+    case"sc":return z.kind==="rec"?{c:"ok",t:`${pl?"polecany":"рекомендован"} · ${z.hits} ${pl?"zbieżności":"совпад."}`}:z.kind==="m4"?{c:"ok",t:pl?"4 · zeszły miesiąc":"4 · прошлый месяц"}:z.kind==="m5"?{c:"info",t:pl?"5 · ten miesiąc":"5 · этот месяц"}:{c:"mut",t:`2.5 · ${z.d} ${pl?"dn. temu":"дн. назад"}`};
+    default:return{c:"mut",t:""};
+  }
+}
+function dutyWhy(l,z,pl){
+  const e=erikaEff(l).v;const sc=dutyScore(l);
+  switch(z.k){
+    case"new":return pl?`nowy lead${e!=null?` · Erika dała ${e}`:""} — dzwoń, póki gorący`:`новый лид${e!=null?` · Эрика дала ${e}`:""} — звони, пока горячий`;
+    case"quote":return pl?`ocena ${sc??"—"} · wycena wisi ${dutyAgo(z.since,pl)} — policz i wyślij ofertę`:`оценка ${sc??"—"} · просчёт висит ${dutyAgo(z.since,pl)} — посчитай и отправь КП`;
+    case"c2":return pl?"minęło 6 h od 1. kontaktu — czas na drugi telefon":"прошло 6 ч после первого контакта — время второго звонка";
+    case"visit":return pl?"wizyta jutro — potwierdź i przypomnij adres salonu":"визит завтра — подтверди и напомни адрес салона";
+    case"push":return z.over?(pl?"push był wcześniej — zaległy, zadzwoń dziś":"пуш был раньше — просрочен, позвони сегодня"):(pl?"push na dziś — wróć do klienta":"пуш на сегодня — вернись к клиенту");
+    case"tree":{const nx=treeEval(l).next;return pl?`uzupełnij ścieżkę${nx?` — następny krok: ${nx}`:""}`:`дозаполни ветку${nx?` — следующий шаг: ${({c1:"контакт 1",c2:"контакт 2",term:"срок",kitchenInfo:"инфо о кухне",distance:"расстояние",apartment:"жильё",noVisitReason:"почему не визит"})[nx]||nx}`:""}`;}
+    case"sc":return z.kind==="rec"?(pl?`podobny do tych, którzy kupili — ${z.hits} zbieżności`:`похож на тех, кто купил — ${z.hits} совпадений`):z.kind==="m4"?(pl?"ocena 4 z zeszłego miesiąca — domknij wizytę":"оценка 4 за прошлый месяц — дожми до визита"):z.kind==="m5"?(pl?"wizyta w tym miesiącu — doprowadź do sprzedaży":"визит в этом месяце — доведи до продажи"):(pl?`2.5 sprzed ${z.d} dni — czas wrócić`:`2.5 три месяца назад (${z.d} дн.) — пора вернуться`);
+    default:return"";
+  }
+}
+function DutyClock({since}){
+  const [,tk]=useState(0);useEffect(()=>{const id=setInterval(()=>tk(x=>x+1),1000);return()=>clearInterval(id);},[]);
+  const s=Math.max(0,Math.floor((Date.now()-since)/1000));const m=Math.floor(s/60);
+  return <span>{m>=60?`${Math.floor(m/60)}:${String(m%60).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`:`${m}:${String(s%60).padStart(2,"0")}`}</span>;
+}
+const DUTY_TM={bad:["#ff7d8c","rgba(255,125,140,.45)","rgba(255,125,140,.1)"],warn:["#f6c453","rgba(246,196,83,.45)","rgba(246,196,83,.08)"],ok:["#47e6a0","rgba(71,230,160,.4)","rgba(71,230,160,.07)"],info:["#5cb8ff","rgba(92,184,255,.38)","rgba(92,184,255,.07)"],mut:["rgba(214,232,255,.6)","rgba(120,170,255,.2)","rgba(2,10,30,.25)"]};
+function DutyChipEl({ch}){const [c,b,bg]=DUTY_TM[ch.c]||DUTY_TM.mut;return <span style={{display:"inline-flex",alignItems:"center",gap:5,height:22,padding:"0 8px",borderRadius:8,fontSize:10.5,whiteSpace:"nowrap",color:c,border:`1px solid ${b}`,background:bg}}>{ch.c==="bad"&&<i className="duty-blink" style={{width:6,height:6,borderRadius:"50%",background:c}}/>}{ch.t}</span>;}
+function DutyScore({l}){const s=dutyScore(l);if(s==null)return <span style={{fontSize:10.5,color:C.dim,border:`1px dashed ${C.border}`,borderRadius:7,padding:"1px 7px"}}>—</span>;const c=QUAL_COLOR[scoreToQual(s)]||C.accent;return <span style={{fontSize:10.5,color:"#071435",background:c,borderRadius:7,padding:"1px 7px"}}>{s}</span>;}
+// Крупная оценка в шапке карточки: кольцо по шкале 0–6 + подпись
+function DutyBigScore({l,lang}){
+  const s=dutyScore(l);const c=s==null?C.dim:(QUAL_COLOR[scoreToQual(s)]||C.accent);const R=33,CI=2*Math.PI*R;const p=s==null?0:Math.min(1,s/6);const e=erikaEff(l).v;
+  return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,flexShrink:0}}>
+    <div style={{position:"relative",width:80,height:80}}>
+      <svg width="80" height="80" style={{transform:"rotate(-90deg)"}}><circle cx="40" cy="40" r={R} fill="none" stroke="rgba(120,170,255,.16)" strokeWidth="6"/><circle cx="40" cy="40" r={R} fill="none" stroke={c} strokeWidth="6" strokeLinecap="round" strokeDasharray={CI} strokeDashoffset={CI*(1-p)} style={{transition:"stroke-dashoffset .8s cubic-bezier(.22,.9,.24,1)",filter:`drop-shadow(0 0 6px ${c}99)`}}/></svg>
+      <div style={{position:"absolute",inset:0,display:"grid",placeItems:"center",fontSize:30,lineHeight:1,color:c,textShadow:`0 0 18px ${c}66`}}>{s==null?"—":s}</div>
+    </div>
+    <div style={{fontSize:10,color:C.muted,maxWidth:110,textAlign:"center",lineHeight:1.2}}>{s==null?(lang==="pl"?"bez oceny":"без оценки"):scoreLbl(s,lang)}</div>
+    {e!=null&&<div style={{fontSize:10.5,color:"#f472b6"}}>{lang==="pl"?"Erika":"Эрика"} {e}</div>}
+  </div>);
+}
+
+function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={}}){
+  const pl=lang==="pl";const dk=C===DARK;const champ=dk?"#f6e0aa":C.accent;
+  const today=getToday();const tomorrow=isoLocal(new Date(Date.now()+DUTY_DAY));
+  const isMgr=MANAGERS.includes(currentUser);
+  const [scope,setScope]=useState(()=>isMgr&&(leads||[]).some(x=>x.manager===currentUser)?"mine":"all");
+  const KEY=`garno_duty2_${currentUser||"x"}_${today}`;
+  const [done,setDone]=useState(()=>{try{return new Set(JSON.parse(localStorage.getItem(KEY)||"[]"));}catch{return new Set();}});
+  const saveDone=n=>{setDone(n);try{localStorage.setItem(KEY,JSON.stringify([...n]));}catch{}};
+  const [later,setLater]=useState([]);const [cur,setCur]=useState(null);const [anim,setAnim]=useState("in");const [streak,setStreak]=useState(0);
+  const [pushFor,setPushFor]=useState(null);const [taskFor,setTaskFor]=useState(null);const [toast,setToast]=useState(null);
+  const [,tick]=useState(0);useEffect(()=>{const id=setInterval(()=>tick(x=>x+1),60000);return()=>clearInterval(id);},[]);
+  const scoped=useMemo(()=>(leads||[]).filter(l=>mgr&&mgr!=="all"?l.manager===mgr:!(scope==="mine"&&currentUser&&l.manager!==currentUser)),[leads,mgr,scope,currentUser]);
+  const all=dutyBuild(scoped,leads,Date.now(),today,tomorrow);
+  const queue=(()=>{const q=all.filter(x=>!done.has(x.l.id));const a=q.filter(x=>!later.includes(x.l.id)),b=later.map(id=>q.find(x=>x.l.id===id)).filter(Boolean);return [...a,...b];})();
+  const counts={};queue.forEach(x=>{counts[x.z.k]=(counts[x.z.k]||0)+1;});
+  const curId=cur!=null?cur:(queue[0]?queue[0].l.id:null);
+  const curItem=queue.find(x=>x.l.id===curId)||null;
+  const curLead=curId!=null?(leads||[]).find(x=>x.id===curId)||null:null;
+  const idxOf=id=>queue.findIndex(x=>x.l.id===id);
+  const nextAfter=id=>{const i=idxOf(id);const rest=queue.filter(x=>x.l.id!==id);if(!rest.length)return null;return rest[Math.min(Math.max(i,0),rest.length-1)].l.id;};
+  const say=m=>setToast({m,id:Date.now()});
+  useEffect(()=>{if(!toast)return;const id=setTimeout(()=>setToast(null),3200);return()=>clearTimeout(id);},[toast]);
+  const ldSave=useRef(null);const flush=()=>{try{ldSave.current&&ldSave.current();}catch(e){console.warn(e);}};
+  const go=fn=>{flush();setAnim("out");setTimeout(()=>{fn&&fn();setAnim("in");},260);};
+  const patch=(l,p,hist)=>updateDb(pr=>({...pr,leads:(pr.leads||[]).map(x=>x.id===l.id?{...x,...p,history:histAdd(x,hist),updatedAt:Date.now()}:x)}),true);
+  const finish=(l,msg)=>{const nx=nextAfter(l.id);const n=new Set(done);n.add(l.id);saveDone(n);setStreak(s=>s+1);setCur(nx);if(msg)say(msg);};
+  const toLater=(l,msg)=>{const nx=nextAfter(l.id);setLater(p=>[...p.filter(x=>x!==l.id),l.id]);setCur(nx);setStreak(0);if(msg)say(msg);};
+  const first=l=>String(l.name||l.phone||"—").split(" ")[0];
+  const act=(k,item)=>{const l=item.l;
+    switch(k){
+      case"miss":go(()=>{const n=(l.dutyMiss||0)+1;const p={dutyMiss:n};if(!l.action||l.action==="undefined"||l.action==="inWork")p.action="missedCall";patch(l,p,pl?`Nieodebrane (#${n}) · tryb dyżurnego`:`Недозвон (#${n}) · режим дежурного`);toLater(l,pl?`✗ ${first(l)} nie odebrał — na koniec kolejki`:`✗ ${first(l)} не взял — в конец очереди`);});return;
+      case"push":setPushFor(l);return;
+      case"task":setTaskFor(l);return;
+      case"kpSent":go(()=>{patch(l,{kpSentAt:Date.now()},pl?"Oferta wysłana · tryb dyżurnego":"КП отправлено · режим дежурного");finish(l,pl?`✉ Oferta dla ${first(l)} — wróci za 2 dni`:`✉ КП ${first(l)} отправлено — вернётся через 2 дня`);});return;
+      case"c2yes":go(()=>{patch(l,{c2:"yes"},pl?"2. kontakt: tak · tryb dyżurnego":"2-й контакт: да · режим дежурного");finish(l,pl?`☎️ ${first(l)} — 2. kontakt zapisany`:`☎️ ${first(l)} — 2-й контакт записан`);});return;
+      case"c2no":go(()=>{patch(l,{c2:"no",dutyMiss:(l.dutyMiss||0)+1},pl?"2. kontakt: nie odebrał · tryb dyżurnego":"2-й контакт: не взял · режим дежурного");finish(l,pl?`✗ ${first(l)} nie odebrał — zapisane`:`✗ ${first(l)} не взял — записано`);});return;
+      case"confirm":go(()=>{patch(l,{visitConfirmed:l.visitDate},pl?`Wizyta potwierdzona (${isoToDot(l.visitDate)} ${l.visitTime||""})`:`Визит подтверждён (${isoToDot(l.visitDate)} ${l.visitTime||""})`);finish(l,pl?`✓ Wizyta ${first(l)} potwierdzona`:`✓ Визит ${first(l)} подтверждён`);});return;
+      case"done":go(()=>finish(l,pl?`✓ ${first(l)} — zrobione`:`✓ ${first(l)} — готово`));return;
+      default:return;
+    }};
+  const skip=()=>{if(!curLead||queue.length<2)return;go(()=>toLater(curLead));};
+  const doPush=(l,d)=>{setPushFor(null);go(()=>{const pd=isoLocal(new Date(Date.now()+d*DUTY_DAY));patch(l,{action:"push",pushDate:pd,pushTime:l.pushTime||"12:00"},`Push: ${l.pushDate?isoToDot(l.pushDate):"—"} → ${isoToDot(pd)} ${l.pushTime||"12:00"}`);finish(l,pl?`🚀 Push ${first(l)} na ${isoToDot(pd)}`:`🚀 Пуш ${first(l)} на ${isoToDot(pd)}`);});};
+  const addTask=(form)=>{const l=taskFor;setTaskFor(null);if(!l)return;const me=currentUser&&currentUser!=="all"?currentUser:null;
+    updateDb(p=>({...p,tasks:[...(p.tasks||[]),buildNewTask({...form,leadId:l.id,leadName:l.name||l.phone},me,p.tasks||[])]}),true);say(pl?`📋 Zadanie dla ${first(l)} dodane`:`📋 Задача по ${first(l)} создана`);};
+  const addTypeD=(name)=>{const id=Date.now();updateDb(p=>({...p,taskTypes:[...(p.taskTypes||[]),{id,name,color:TASK_TYPE_COLORS[(p.taskTypes||[]).length%TASK_TYPE_COLORS.length]}]}),true);return id;};
+  const acts=(item)=>{const z=item.z;
+    const MISS=["miss","✗",pl?"Nie odebrał":"Не взял"],PUSH=["push","🚀","Push"],DONE=["done","✓",pl?"Zrobione":"Готово"];
+    switch(z.k){
+      case"new":return[MISS,PUSH,DONE];
+      case"quote":return[["kpSent","✉",pl?"Oferta wysłana":"КП отправлено"],["push","💭",pl?"Myśli — push":"Думает — пуш"],DONE];
+      case"c2":return[["c2yes","✓",pl?"2. kontakt jest":"2-й контакт есть"],["c2no","✗",pl?"Nie odebrał":"Не взял"],PUSH];
+      case"visit":return[["confirm","✓",pl?"Potwierdź wizytę":"Подтвердить визит"],MISS,["push","🚀",pl?"Przełóż":"Перенести"]];
+      case"push":return[["done","✓",pl?"Zrobione":"Сделано"],["push","🚀",pl?"Przełóż push":"Перенести пуш"],MISS];
+      case"tree":return[["done","✓",pl?"Ścieżka uzupełniona":"Ветка заполнена"],MISS,PUSH];
+      default:return[PUSH,DONE,MISS];
+    }};
+  useEffect(()=>{const h=e=>{if(pushFor||taskFor||!curItem)return;const tg=e.target;if(tg&&(tg.tagName==="INPUT"||tg.tagName==="TEXTAREA"||tg.tagName==="SELECT"||tg.isContentEditable))return;if(document.querySelector("[data-lead-detail]"))return;
+      if(e.code==="Space"){e.preventDefault();skip();return;}
+      if(e.key==="t"||e.key==="T"||e.key==="е"||e.key==="Е"){e.preventDefault();setTaskFor(curItem.l);return;}
+      const n=parseInt(e.key,10);if(n>=1&&n<=3){const a=acts(curItem)[n-1];if(a){e.preventDefault();act(a[0],curItem);}}};
+    window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);});
+  const LN=Object.fromEntries(DUTY_LANES.map(x=>[x.k,x]));
+  const left=queue.length,tot=done.size+left,p=tot?done.size/tot:0,R=22,CIRC=2*Math.PI*R;
+  const glass={background:C.card,border:`1px solid ${C.border}`,borderRadius:22};
+  const lbl={fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:C.muted};
+  const btn=(gold)=>({height:44,padding:"0 15px",borderRadius:13,border:gold?"none":`1px solid ${C.borderMd}`,background:gold?"linear-gradient(135deg,#f6e0aa,#e3b860 50%,#c8923a)":"rgba(255,255,255,.04)",color:gold?"#09153a":C.text,cursor:"pointer",fontSize:13,display:"inline-flex",alignItems:"center",gap:8,whiteSpace:"nowrap",boxShadow:gold?"0 10px 26px rgba(227,184,96,.3)":"none",transition:"transform .2s,filter .3s"});
+  const kbd={fontSize:9.5,padding:"1px 5px",borderRadius:5,border:"1px solid currentColor",opacity:.55};
+  const l=curLead,z=curItem&&curItem.z,zl=z&&LN[z.k];
+  const handled=l&&!curItem; // лид уже ушёл из очереди (поработали в карточке / действие выполнено)
+  const hc=zl?zl.c:"#47e6a0";
+  return(
+    <div className="duty" style={{padding:"14px 18px 18px",display:"flex",flexDirection:"column",gap:12,height:"calc(100vh - 124px)",minHeight:520,boxSizing:"border-box"}}>
+      <style>{`@keyframes dutyIn{from{opacity:0;transform:translateX(50px) scale(.98)}to{opacity:1;transform:none}}@keyframes dutyOut{to{opacity:0;transform:translateX(-70px) scale(.96);filter:blur(4px)}}@keyframes dutyBlink{50%{opacity:.2}}@keyframes dutyToast{from{opacity:0;transform:translate(-50%,12px)}}.duty-blink{animation:dutyBlink 1s infinite}.duty-q:hover{background:rgba(92,184,255,.08)!important}.duty-b:active{transform:scale(.96)}.duty-b:hover{filter:brightness(1.08)}.duty-ld [data-lead-inline]>div{border-radius:22px!important}@media(max-width:1100px){.duty-grid{grid-template-columns:200px minmax(0,1fr)!important}}@media(max-width:760px){.duty{height:auto!important}.duty-grid{display:block!important}.duty-qcol{display:none!important}.duty-main{overflow:visible!important}}@media(prefers-reduced-motion:reduce){.duty *{animation:none!important}}`}</style>
+      {/* полоса дня */}
+      <div style={{...glass,display:"flex",alignItems:"center",gap:14,padding:"10px 16px",flexWrap:"wrap"}}>
+        <div style={{position:"relative",width:52,height:52,flexShrink:0}}>
+          <svg width="52" height="52" style={{transform:"rotate(-90deg)"}}><circle cx="26" cy="26" r={R} fill="none" stroke="rgba(120,170,255,.15)" strokeWidth="5"/><circle cx="26" cy="26" r={R} fill="none" stroke="url(#dutyRg)" strokeWidth="5" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC*(1-p)} style={{transition:"stroke-dashoffset 1s cubic-bezier(.22,.9,.24,1)"}}/><defs><linearGradient id="dutyRg"><stop offset="0" stopColor="#5cb8ff"/><stop offset="1" stopColor="#e3b860"/></linearGradient></defs></svg>
+          <b style={{position:"absolute",inset:0,display:"grid",placeItems:"center",fontSize:12,fontWeight:400}}>{Math.round(p*100)}%</b>
+        </div>
+        <div style={{whiteSpace:"nowrap"}}><div style={{fontSize:14}}>{pl?`Zrobione ${done.size} z ${tot}`:`Разобрано ${done.size} из ${tot}`}</div><div className="hand" style={{fontSize:18,color:champ,lineHeight:1,marginTop:2}}>{streak>=2?`🔥 ${streak} ${pl?"z rzędu!":"подряд!"}`:left?(pl?`zostało ${left}`:`осталось ${left}`):(pl?"wszystko zrobione 🎉":"всё разобрано 🎉")}</div></div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{DUTY_LANES.map(x=>{const n=counts[x.k]||0;return <button key={x.k} className="duty-b" title={`${pl?x.pl:x.ru} — ${pl?x.hPl:x.hRu}`} onClick={()=>{const f=queue.find(q=>q.z.k===x.k);if(f)go(()=>setCur(f.l.id));}} style={{height:30,padding:"0 10px",borderRadius:10,border:`1px solid ${n?x.c+"66":C.border}`,background:dk?"rgba(2,10,30,.4)":C.bg,color:C.text,fontSize:11.5,cursor:n?"pointer":"default",display:"flex",alignItems:"center",gap:6,opacity:n?1:.4}}>{x.e} <span className="duty-lname">{pl?x.pl:x.ru}</span> <b style={{fontWeight:400,color:x.c}}>{n}</b></button>;})}</div>
+        <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
+          {(!mgr||mgr==="all")&&<div style={{display:"flex",gap:3,padding:3,borderRadius:12,background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.border}`}}>{[["mine",pl?"Moje":"Мои"],["all",pl?"Wszystkie":"Все"]].map(([k,lb])=><button key={k} onClick={()=>{flush();setScope(k);setCur(null);}} style={{height:28,padding:"0 12px",border:"none",borderRadius:9,cursor:"pointer",fontSize:11.5,background:scope===k?"linear-gradient(135deg,#f6e0aa,#e3b860)":"transparent",color:scope===k?"#08153a":C.muted}}>{lb}</button>)}</div>}
+          <button className="duty-b" onClick={skip} style={{...btn(false),height:36,fontSize:12}}>⏭ {pl?"Później":"Позже"} <span style={kbd}>Space</span></button>
+        </div>
+      </div>
+      <div className="duty-grid" style={{flex:1,minHeight:0,display:"grid",gridTemplateColumns:"260px minmax(0,1fr)",gap:12}}>
+        {/* очередь */}
+        <div className="duty-qcol" style={{...glass,padding:10,overflowY:"auto",display:"flex",flexDirection:"column",gap:2}}>
+          <div style={{...lbl,padding:"4px 6px 6px"}}>{pl?"kolejka":"очередь"} · {left}</div>
+          {(()=>{let prev=null;return queue.slice(0,80).map(x=>{const on=x.l.id===curId;const ch=dutyChip(x.l,x.z,pl);const head=x.z.k!==prev;prev=x.z.k;const zz=LN[x.z.k];return(<React.Fragment key={x.l.id}>
+            {head&&<div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 8px 3px",fontSize:10.5,color:zz.c}}><span>{zz.e}</span>{pl?zz.pl:zz.ru}<span style={{marginLeft:"auto",color:C.dim}}>{counts[x.z.k]}</span></div>}
+            <div className="duty-q" onClick={()=>go(()=>setCur(x.l.id))} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 9px",borderRadius:12,cursor:"pointer",border:`1px solid ${on?"rgba(227,184,96,.45)":"transparent"}`,background:on?"linear-gradient(90deg,rgba(227,184,96,.16),transparent)":"transparent",transition:"background .25s"}}>
+              <div style={{minWidth:0,flex:1}}><div style={{fontSize:11.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{x.l.name||x.l.phone||"—"}</div><div style={{fontSize:10,color:C.muted,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ch.t}</div></div>
+              <DutyScore l={x.l}/>
+            </div></React.Fragment>);});})()}
+          {queue.length>80&&<div style={{fontSize:11,color:C.dim,padding:"6px 9px"}}>+ {queue.length-80}</div>}
+          {!queue.length&&<div style={{fontSize:12,color:C.muted,padding:10}}>{pl?"pusto ✓":"пусто ✓"}</div>}
+        </div>
+        {/* карточка дежурного + редактируемая карточка лида */}
+        <div className="duty-main" style={{minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,paddingRight:2}}>
+          {!l?(<div style={{...glass,flex:1,borderRadius:26,display:"grid",placeItems:"center",textAlign:"center",padding:30}}><div><div style={{fontSize:54}}>🎉</div><div style={{fontSize:26,margin:"8px 0"}}>{pl?"Dyżur zrobiony":"Дежурство разобрано"}</div><div className="hand" style={{fontSize:24,color:champ}}>{pl?"wszystkie kolejki puste — brawo!":"все очереди пусты — молодец!"}</div></div></div>):(<>
+          <div key={l.id+anim} style={{borderRadius:26,padding:"20px 24px",display:"flex",flexDirection:"column",gap:12,flexShrink:0,background:dk?`radial-gradient(70% 60% at 85% 0%,${hc}33,transparent 70%),linear-gradient(160deg,rgba(30,72,170,.55),rgba(5,18,52,.85))`:`radial-gradient(70% 60% at 85% 0%,${hc}22,transparent 70%),${C.card}`,border:`1px solid ${dk?"rgba(227,184,96,.28)":C.border}`,boxShadow:dk?"inset 0 1px 0 rgba(255,255,255,.08),0 30px 80px rgba(0,0,0,.4)":"0 10px 30px rgba(0,0,0,.08)",animation:anim==="out"?"dutyOut .26s cubic-bezier(.22,.9,.24,1) forwards":"dutyIn .5s cubic-bezier(.22,.9,.24,1) both"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              {handled?<span style={{height:28,padding:"0 12px",borderRadius:10,display:"flex",alignItems:"center",gap:7,fontSize:12,color:"#071435",background:"#47e6a0"}}>✓ {pl?"Lead obsłużony":"Лид разобран"}</span>
+                :<><span style={{height:28,padding:"0 12px",borderRadius:10,display:"flex",alignItems:"center",gap:7,fontSize:12,color:"#071435",background:zl.c,whiteSpace:"nowrap"}}>{zl.e} {pl?zl.pl:zl.ru}</span><DutyChipEl ch={dutyChip(l,z,pl)}/></>}
+              <span style={{marginLeft:"auto",fontSize:11,color:C.muted}}>{handled?(pl?`w kolejce ${left}`:`в очереди ${left}`):`${idxOf(l.id)+1} ${pl?"z":"из"} ${left}`}</span>
+            </div>
+            <div style={{display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
+              <DutyBigScore l={l} lang={lang}/>
+              <div style={{flex:1,minWidth:220}}>
+                <div style={{fontSize:30,lineHeight:1.05}}>{l.name||"—"} <span style={{fontSize:22}}>{l.clientLang==="ua"?"🇺🇦":l.clientLang==="en"?"🇬🇧":l.clientLang==="cz"?"🇨🇿":"🇵🇱"}</span></div>
+                <div style={{display:"flex",gap:10,alignItems:"center",marginTop:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:20,color:"#5cb8ff",userSelect:"all"}}>{l.phone||"—"}</span>
+                  <button className="duty-b" onClick={()=>{try{navigator.clipboard.writeText(String(l.phone||"")).then(()=>say(pl?"📋 Numer skopiowany":"📋 Номер скопирован"),()=>{});}catch{}}} style={{height:26,padding:"0 9px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontSize:11}}>📋</button>
+                  <SrcBadge source={l.source}/>
+                  {l.manager&&<span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,color:MGR_COLOR[l.manager]||C.muted}}><Avatar name={l.manager} color={MGR_COLOR[l.manager]} size={18} noMedal/>{l.manager}</span>}
+                </div>
+              </div>
+              {!handled&&(z.k==="new"||z.k==="quote"||z.k==="c2")&&<div style={{textAlign:"right"}}><div style={{fontSize:42,lineHeight:1,color:zl.c,textShadow:`0 0 30px ${zl.c}88`}}><DutyClock since={z.since||Date.now()}/></div><div style={{fontSize:11,color:C.muted,marginTop:6}}>{z.k==="new"?(pl?"od zgłoszenia":"с момента заявки"):z.k==="quote"?(pl?"od wyceny":"с момента просчёта"):(pl?"od 1. kontaktu":"с 1-го контакта")}</div></div>}
+            </div>
+            <div style={{borderRadius:16,padding:"10px 14px",border:"1px solid rgba(227,184,96,.3)",background:"linear-gradient(135deg,rgba(227,184,96,.1),transparent)"}}>
+              <div style={{...lbl,marginBottom:4}}>{handled?(pl?"gotowe":"готово"):(pl?"dlaczego ten lead teraz":"почему этот лид сейчас")}</div>
+              <div className="hand" style={{fontSize:23,color:champ,lineHeight:1.1}}>{handled?(pl?"lead wyszedł z kolejki — przejdź do następnego":"лид ушёл из очереди — переходи к следующему"):dutyWhy(l,z,pl)}</div>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {handled?<button className="duty-b" onClick={()=>go(()=>setCur(queue[0]?queue[0].l.id:null))} style={btn(true)}>→ {pl?"Następny lead":"Следующий лид"}</button>
+                :acts(curItem).map(([k,ic,lb],i)=><button key={k+i} className="duty-b" onClick={()=>act(k,curItem)} style={btn(i===0)}>{ic} {lb} <span style={kbd}>{i+1}</span></button>)}
+              <button className="duty-b" onClick={()=>setTaskFor(l)} style={{...btn(false),marginLeft:"auto"}}>📋 {pl?"Do zadań":"В задачи"} <span style={kbd}>T</span></button>
+            </div>
+          </div>
+          <div className="duty-ld" style={{flexShrink:0}}>
+            <LeadDetail key={l.id} inline autoEdit saveRef={ldSave} lead={l} updateDb={updateDb} t={t} lang={lang} currentUser={currentUser} onClose={()=>{}} setLeads={ldp.setLeads||(()=>{})} srcList={ldp.srcList||[]} onAddSale={ldp.onAddSale} taskTypes={ldp.taskTypes||[]} tasks={ldp.tasks||[]} orders={ldp.orders||[]}/>
+          </div></>)}
+        </div>
+      </div>
+      {pushFor&&<div onClick={()=>setPushFor(null)} style={{position:"fixed",inset:0,zIndex:1200,display:"grid",placeItems:"center",background:"rgba(1,6,20,.55)",backdropFilter:"blur(5px)"}}>
+        <div onClick={e=>e.stopPropagation()} style={{width:420,maxWidth:"92%",borderRadius:22,padding:20,background:dk?"linear-gradient(160deg,rgba(30,72,170,.97),rgba(5,18,52,.98))":C.surface,border:"1px solid rgba(227,184,96,.3)",boxShadow:"0 40px 120px rgba(0,0,0,.45)",display:"flex",flexDirection:"column",gap:12,color:C.text}}>
+          <div style={{fontSize:15}}>🚀 Push · {pushFor.name||pushFor.phone}</div>
+          <div className="hand" style={{fontSize:20,color:champ}}>{pl?"kiedy przypomnieć?":"когда напомнить?"}</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{[[1,pl?"jutro":"завтра"],[3,"+3 "+(pl?"dni":"дня")],[7,pl?"+tydzień":"+неделя"],[14,pl?"+2 tyg.":"+2 недели"],[30,pl?"+miesiąc":"+месяц"]].map(([d,lb])=><button key={d} className="duty-b" onClick={()=>doPush(pushFor,d)} style={{...btn(false),height:52,flexDirection:"column",gap:2,justifyContent:"center",fontSize:12}}>{lb}<span style={{fontSize:10,color:C.muted}}>{isoToDot(isoLocal(new Date(Date.now()+d*DUTY_DAY)))}</span></button>)}</div>
+          <button onClick={()=>setPushFor(null)} style={{...btn(false),height:36,alignSelf:"flex-end",fontSize:12}}>{pl?"Anuluj":"Отмена"}</button>
+        </div></div>}
+      {taskFor&&<TaskModal task={{status:"todo",assignee:(currentUser&&currentUser!=="all")?currentUser:"—"}} onSave={addTask} onClose={()=>setTaskFor(null)} t={t} taskTypes={ldp.taskTypes||[]} leads={[]} onAddType={addTypeD} presetLead={taskFor} lang={lang}/>}
+      {toast&&<div key={toast.id} style={{position:"fixed",left:"50%",transform:"translateX(-50%)",bottom:22,zIndex:1300,padding:"12px 18px",borderRadius:16,background:dk?"linear-gradient(150deg,rgba(30,70,170,.96),rgba(6,22,62,.97))":C.surface,border:"1px solid rgba(227,184,96,.35)",boxShadow:"0 20px 60px rgba(0,0,0,.4)",fontSize:12.5,color:C.text,animation:"dutyToast .4s cubic-bezier(.22,.9,.24,1)"}}>{toast.m}</div>}
+    </div>
+  );
+}
+
 // ─── LEADS SECTION (Лиды | Визиты) ────────────────────────────────────────────
 function LeadsSection(props){
   const [tab,setTab]=useState("leads");
@@ -3727,10 +3994,12 @@ function LeadsSection(props){
     <div style={{height:"100%",overflowY:"auto"}}>
       <TabBar active={tab} onChange={setTab} tabs={[
         {key:"leads", icon:"◈", label:t.leads_tab||t.leads},
+        {key:"duty",  icon:"🎯",label:props.lang==="pl"?"Tryb dyżurnego":"Режим дежурного"},
         {key:"visits",icon:"📅",label:t.visits_tab,count:visitCount},
         {key:"push",  icon:"🚀",label:t.pushTab,count:pushCount,alert:pushDue,alertTitle:t.pushToday||""},
       ]}/>
       {tab==="leads"?<LeadsPage {...props}/>
+        :tab==="duty"?<DutyMode leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} currentUser={props.currentUser} lang={props.lang} ldp={props.ldp||{}}/>
         :tab==="visits"?<VisitsPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>
         :<PushPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>}
     </div>
@@ -4009,8 +4278,8 @@ function MultiPick({label,options,selected,onChange,width=200}){
   const active=selected.length>0;
   return(
     <div ref={ref} style={{position:"relative"}}>
-      <button type="button" onClick={()=>setOpen(o=>!o)} style={{background:active?C.accentDim:C.card,border:`1px solid ${active?C.accentBorder:C.borderMd}`,color:active?C.accent:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer",whiteSpace:"nowrap",fontWeight:active?700:400}}>{label}{active?` (${selected.length})`:""} ▾</button>
-      {open&&<div style={{position:"absolute",top:"110%",left:0,zIndex:600,width,background:C.surface,border:`1px solid ${C.borderMd}`,borderRadius:10,boxShadow:"0 12px 30px rgba(0,0,0,0.45)",padding:8}}>
+      <button type="button" className={`g-fbtn${active?" on":""}`} onClick={()=>setOpen(o=>!o)} style={{background:active?C.accentDim:C.card,border:`1px solid ${active?C.accentBorder:C.borderMd}`,color:active?C.accent:C.text,borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer",whiteSpace:"nowrap",fontWeight:active?700:400}}>{label}{active?` (${selected.length})`:""} ▾</button>
+      {open&&<div className="g-pop" style={{position:"absolute",top:"110%",left:0,zIndex:600,width,background:C.surface,border:`1px solid ${C.borderMd}`,borderRadius:10,boxShadow:"0 12px 30px rgba(0,0,0,0.45)",padding:8}}>
         <input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍 Поиск…" style={{width:"100%",boxSizing:"border-box",background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"6px 9px",fontSize:12,outline:"none",marginBottom:6}}/>
         <div style={{display:"flex",gap:6,marginBottom:6}}>
           <button type="button" onClick={()=>onChange(shown.map(o=>o.value))} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"3px",fontSize:10,cursor:"pointer"}}>Выбрать видимые</button>
@@ -4092,11 +4361,12 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
   const allChecked=fl.length>0&&selected.size===fl.length;
   const someChecked=selected.size>0&&selected.size<fl.length;
   return(
-    <div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}>
+    <div className="g-leads" style={{padding:18,display:"flex",flexDirection:"column",gap:12}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <div style={{fontSize:16,fontWeight:700,color:C.text}}>{mgr==="all"?t.allLeads:`${t.leads} — ${mgr}`} <span style={{fontSize:12,color:C.muted}}>({fl.length})</span></div>
-          {selected.size>0&&(<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(248,113,113,0.12)",border:`1px solid ${C.red}44`,borderRadius:9,padding:"6px 14px"}}>
+          <div className="g-lh"><div style={{fontSize:16,fontWeight:700,color:C.text}}>{mgr==="all"?t.allLeads:`${t.leads} — ${mgr}`} <span className="g-cnt" style={{fontSize:12,color:C.muted}}>({fl.length})</span></div>
+            {(()=>{const td=isoToDot(isoLocal(new Date()));const nNew=fl.filter(l=>String(l.createdAt||"").startsWith(td)).length;const nAct=fl.filter(l=>!l.action||l.action==="undefined").length;const nQ=fl.filter(l=>l.action==="quote").length;const pl=lang==="pl";return <div className="hand g-lsum" style={{display:"none"}}>{pl?`dziś ${nNew} nowych · ${nAct} bez akcji · ${nQ} wycen`:`сегодня ${nNew} новых · ${nAct} без действия · ${nQ} просчётов`}</div>;})()}</div>
+          {selected.size>0&&(<div className="g-selbar" style={{display:"flex",alignItems:"center",gap:8,background:"rgba(248,113,113,0.12)",border:`1px solid ${C.red}44`,borderRadius:9,padding:"6px 14px"}}>
             <span style={{fontSize:12,color:C.red,fontWeight:600}}>✓ {selected.size}</span>
             <button onClick={deleteSelected} style={{background:C.red,border:"none",color:"#fff",borderRadius:7,padding:"5px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🗑 {t.deleteSelected}</button>
             <button onClick={()=>setSelected(new Set())} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:14}}>✕</button>
@@ -4104,7 +4374,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
         </div>
         <DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t}/>
       </div>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+      <div className="g-lf" style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         <MultiPick label={`◈ ${t.score}`} selected={fSc} onChange={setFSc} width={230} options={SCORES.map(x=>({value:String(x),label:`${x} · ${scoreLbl(x,lang)}`,color:QUAL_COLOR[scoreToQual(x)]}))}/>
         <select value={fA} onChange={e=>setFA(e.target.value)} style={ss}><option value="all">{t.action}</option>{ACTIONS.map(a=><option key={a} value={a}>{t[a]}</option>)}</select>
         <MultiPick label={t.source} selected={fS} onChange={setFS} width={260} options={normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=>({value:d.name,label:d.name,color:d.color}))}/>
@@ -4114,7 +4384,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
         {currentUser==="Danya"&&<BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={ss}/>}
         {(fSc.length>0||fA!=="all"||fS.length>0||fFun!=="all"||fWhy!=="all"||fLang!=="all"||fBuy!=="all")&&<button onClick={()=>{setFSc([]);setFA("all");setFS([]);setFFun("all");setFWhy("all");setFLang("all");setFBuy("all");}} style={{...ss,color:C.muted}}>✕ {lang==="pl"?"Wyczyść":"Сбросить"}</button>}
       </div>
-      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
+      <div className="g-lt" style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead><tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
@@ -4123,15 +4393,15 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
             </tr></thead>
             <tbody>{fl.map(l=>{const isSel=selected.has(l.id);return(
               <tr key={l.id} onClick={()=>onOpen(l)}
-                className={FRESH.has(l.id)?"garno-fresh":(treeIncomplete(l)?"garno-tree":"")} style={{borderBottom:`1px solid ${C.border}`,background:rowBg(l,isSel),cursor:"pointer"}}
+                className={FRESH.has(l.id)?"garno-fresh":(treeIncomplete(l)?"garno-tree":"")} style={{borderBottom:`1px solid ${C.border}`,background:rowBg(l,isSel),cursor:"pointer","--sc":QUAL_COLOR[l.qualification]||C.dim}}
                 onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=C.surface)}
                 onMouseLeave={e=>{e.currentTarget.style.background=rowBg(l,isSel);}}>
                 <td style={{padding:"8px 10px"}} onClick={e=>toggleOne(l.id,e)}><input type="checkbox" checked={isSel} onChange={()=>{}} onClick={e=>toggleOne(l.id,e)} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></td>
                 <td style={{padding:"8px 10px",maxWidth:230,minWidth:150}} title={t.dblClickSticker} onClick={e=>e.stopPropagation()} onDoubleClick={e=>{e.stopPropagation();setStickerLead(l);}}>
                   {(l.stickers&&l.stickers.length>0)
                     ? (()=>{const last=l.stickers[l.stickers.length-1];const more=l.stickers.length-1;return(
-                        <div style={{cursor:"pointer",background:"rgba(240,192,64,0.07)",border:"1px solid rgba(240,192,64,0.28)",borderRadius:8,padding:"5px 8px"}}>
-                          <div style={{fontSize:11,color:C.text,lineHeight:1.35,whiteSpace:"normal",wordBreak:"break-word",display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{last.text}</div>
+                        <div className="g-stk" style={{cursor:"pointer",background:"rgba(240,192,64,0.07)",border:"1px solid rgba(240,192,64,0.28)",borderRadius:8,padding:"5px 8px"}}>
+                          <div className="g-stkt hand" style={{fontSize:11,color:C.text,lineHeight:1.35,whiteSpace:"normal",wordBreak:"break-word",display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{last.text}</div>
                           <div style={{fontSize:9,fontWeight:700,color:"#f0c040",marginTop:3}}>— {last.by||"—"}{last.at?` · ${new Date(last.at).toLocaleDateString("ru-RU")}`:""}{more>0?`  ·  +${more}`:""}</div>
                         </div>);})()
                     : <span style={{color:C.dim,fontSize:15,opacity:0.3,cursor:"pointer"}}>＋</span>}
@@ -4145,7 +4415,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.action]} color={ACT_COLOR[l.action]} action={l.action} small/></td>
                 <td style={{padding:"8px 10px"}}>{l.manager?<div style={{display:"flex",alignItems:"center",gap:5}}><Avatar name={l.manager} color={MGR_COLOR[l.manager]} size={18}/><span style={{color:MGR_COLOR[l.manager],fontSize:11}}>{l.manager}</span></div>:<span style={{color:C.dim,fontSize:11}}>—</span>}</td>
                 <td style={{padding:"8px 10px"}}><SrcBadge source={l.source}/></td>
-                <td style={{padding:"8px 10px",display:"flex",gap:4,alignItems:"center"}}><button onClick={e=>{e.stopPropagation();toggleFav(l.id,e);}} style={{background:l.isFavorite?"rgba(251,191,36,0.2)":"transparent",border:`1px solid ${l.isFavorite?"#fbbf24":C.border}`,color:l.isFavorite?"#fbbf24":C.dim,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}} title={t.favorite}>{l.isFavorite?"★":"☆"}</button><button onClick={e=>{e.stopPropagation();onOpen(l);}} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:6,padding:"3px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>→</button></td>
+                <td className="g-ra" style={{padding:"8px 10px",display:"flex",gap:4,alignItems:"center"}}><button className={l.isFavorite?"g-fav on":"g-fav"} onClick={e=>{e.stopPropagation();toggleFav(l.id,e);}} style={{background:l.isFavorite?"rgba(251,191,36,0.2)":"transparent",border:`1px solid ${l.isFavorite?"#fbbf24":C.border}`,color:l.isFavorite?"#fbbf24":C.dim,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}} title={t.favorite}>{l.isFavorite?"★":"☆"}</button><button onClick={e=>{e.stopPropagation();onOpen(l);}} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:6,padding:"3px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>→</button></td>
               </tr>
             );})}</tbody>
           </table>
@@ -4158,7 +4428,8 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
 }
 
 // ─── LEAD DETAIL ──────────────────────────────────────────────────────────────
-function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,currentUser,taskTypes=[],tasks=[],orders=[]}){
+function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,currentUser,taskTypes=[],tasks=[],orders=[],inline=false,autoEdit=false,saveRef=null}){
+  const notesRef=useRef(null);
   useEffect(()=>{
     unmarkFresh(lead.id);
     // «Принято» — общее для всех: пишем в базу, чтобы заявка погасла у остальных менеджеров
@@ -4173,7 +4444,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   };
   const addTypeLD=(name)=>{const id=Date.now();updateDb(p=>({...p,taskTypes:[...(p.taskTypes||[]),{id,name,color:TASK_TYPE_COLORS[(p.taskTypes||[]).length%TASK_TYPE_COLORS.length]}]}),true);return id;};
   const leadTasks=(tasks||[]).filter(x=>x.leadId===lead.id&&(x.status||'all')!=='done');
-  const [editing,setEditing]=useState(false);
+  const [editing,setEditing]=useState(inline&&autoEdit);
   const [form,setForm]=useState({...lead});
   const [showSale,setShowSale]=useState(false);
   const [showVisit,setShowVisit]=useState(false);
@@ -4285,8 +4556,10 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     if(!entries.length)entries.push({date:nowStr(),action:lang==="ru"?"Сохранено без изменений":"Zapisano bez zmian",by});
     const trail=(form.score!==lead.score)?[...(lead.scoreTrail||(lead.score!=null?[lead.score]:[])),form.score]:(form.scoreTrail||lead.scoreTrail);
     const updated={...form,scoreTrail:trail,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),...entries]};
-    setLeads(p=>p.map(l=>l.id===lead.id?keepE(l,updated):l));setEditing(false);setForm(updated);
+    setLeads(p=>p.map(l=>l.id===lead.id?keepE(l,updated):l));setEditing(inline&&autoEdit);setForm(updated);
   };
+  // режим дежурного: при переходе к другому лиду несохранённые правки записываются сами
+  useEffect(()=>{if(!saveRef)return;saveRef.current=()=>{if(editing&&leadHistoryDiff({...lead,erikaScore:form.erikaScore},form,t,"—").length)save();};});
   const confirmVisit=(vDate,vTime)=>{
     const updLead={...form,visitDate:vDate,visitTime:vTime||"12:00",visitBackfilled:false,score:5,qualification:"salon",action:"visit",updatedAt:Date.now()};
     updLead.history=[...(form.history||[]),...leadHistoryDiff(form,updLead,t,currentUser||"—")];if(updLead.score!==form.score)updLead.scoreTrail=[...(form.scoreTrail||(form.score!=null?[form.score]:[])),updLead.score];
@@ -4320,14 +4593,14 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   };
   const inp=(field,label)=>(<div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{label}</div>{editing?<input value={form[field]||""} onChange={e=>set(field,e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",boxSizing:"border-box"}}/>:<div style={{fontSize:13,color:form[field]?C.text:C.dim}}>{form[field]||"—"}</div>}</div>);
   return(<>
-    <div style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.86)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"linear-gradient(165deg,#0a1a3a 0%,#00132f 55%,#000d22 100%)",borderRadius:22,border:"1px solid rgba(191,164,126,0.45)",boxShadow:"0 30px 90px rgba(0,0,0,0.65), 0 0 0 1px rgba(191,164,126,0.12) inset",width:"100%",maxWidth:860,maxHeight:"92vh",overflow:"auto",padding:0}}>
+    <div data-lead-detail={inline?undefined:"1"} data-lead-inline={inline?"1":undefined} style={inline?{position:"relative"}:{position:"fixed",inset:0,background:"rgba(0,8,24,0.86)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={inline?undefined:onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"linear-gradient(165deg,#0a1a3a 0%,#00132f 55%,#000d22 100%)",borderRadius:22,border:"1px solid rgba(191,164,126,0.45)",boxShadow:inline?"0 0 0 1px rgba(191,164,126,0.12) inset":"0 30px 90px rgba(0,0,0,0.65), 0 0 0 1px rgba(191,164,126,0.12) inset",width:"100%",maxWidth:inline?"none":860,maxHeight:inline?"none":"92vh",overflow:inline?"visible":"auto",padding:0}}>
         <style>{`.ld-sec{background:rgba(255,255,255,0.035);border:1px solid rgba(191,164,126,0.22);border-radius:14px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,0.25);transition:border-color .15s}.ld-sec:hover{border-color:rgba(191,164,126,0.45)}.ld-sec>div:first-child{font-size:10px;color:#bfa47e;text-transform:uppercase;letter-spacing:1.6px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:6px}.ld-sec>div:first-child::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(191,164,126,0.4),transparent)}`}</style>
         <div style={{height:4,background:"linear-gradient(90deg,#bfa47e,#e2c996,#bfa47e)"}}/>
         <div style={{padding:22}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:18,paddingBottom:16,borderBottom:"1px solid rgba(191,164,126,0.2)"}}>
           <div style={{display:"flex",alignItems:"center",gap:14}}><div style={{position:"relative"}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={56} noMedal/><div style={{position:"absolute",right:-3,bottom:-3,width:14,height:14,borderRadius:"50%",background:QUAL_COLOR[form.qualification]||C.accent,border:"2px solid #00132f"}}/></div><div><div style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:0.2}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowTask(true)} title={lang==="pl"?"Nowe zadanie":"Новая задача"} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#ef4444",cursor:"pointer"}}>☰ {leadTasks.length>0?leadTasks.length:"+"}</button><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
-          <div style={{display:"flex",gap:8}}>{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(false);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}<Btn onClick={onClose} variant="ghost" small>✕</Btn></div>
+          <div style={{display:"flex",gap:8}}>{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(inline&&autoEdit);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}{!inline&&<Btn onClick={onClose} variant="ghost" small>✕</Btn>}</div>
         </div>
         {(()=>{const pl=lang==="pl";const arr=leadArrivalMs(form);const fc=firstContactMs(form);const d=arr!=null&&fc!=null?fc-arr:null;const waiting=arr!=null&&fc==null?Date.now()-arr:null;
           return <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:"6px 16px",marginTop:-6,marginBottom:14,fontSize:12,color:C.muted}}>
@@ -4440,7 +4713,13 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📝 {t.notes}</div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.period}</div>{editing?<select value={form.budgetTimeline||"unconfirmed"} onChange={e=>set("budgetTimeline",e.target.value)} style={{background:C.surface,border:`1px solid ${BUD_COLOR[form.budgetTimeline]||C.borderMd}`,color:BUD_COLOR[form.budgetTimeline]||C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{BUDGETS.map(b=><option key={b} value={b}>{t[b]||b}</option>)}</select>:<Badge label={t[form.budgetTimeline]||"—"} color={BUD_COLOR[form.budgetTimeline]||C.muted} small/>}</div>
-            {editing?<textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"8px 10px",fontSize:12,width:"100%",minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>:<div style={{fontSize:12,color:form.notes?C.text:C.dim,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{form.notes||"—"}</div>}
+            {(editing&&!inline)?<textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"8px 10px",fontSize:12,width:"100%",minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>
+              :inline?(()=>{const pl=lang==="pl";const dirty=(form.notes||"")!==(lead.notes||"");const saveN=()=>{const v=form.notes||"";if(v===(lead.notes||""))return;updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,notes:v,updatedAt:Date.now(),history:[...(l.history||[]),{date:nowStr(),action:`${t.notes}: ${v.slice(0,80)}`,by:currentUser||"—"}]}:l)}),true);};
+                const addLine=()=>{const d=new Date();const stamp=`${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} ${currentUser&&currentUser!=="all"?currentUser:""}: `;setForm(f=>({...f,notes:(f.notes?String(f.notes).replace(/\s+$/,"")+"\n":"")+stamp}));setTimeout(()=>{const el=notesRef.current;if(el){el.focus();el.selectionStart=el.selectionEnd=el.value.length;}},30);};
+                return <div><textarea ref={notesRef} value={form.notes||""} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} onBlur={saveN} placeholder={pl?"Opis klienta — wpisz albo dopisz…":"Описание клиента — впиши или допиши…"} style={{background:C.surface,border:`1px solid ${dirty?"rgba(227,184,96,.6)":C.borderMd}`,color:C.text,borderRadius:10,padding:"9px 11px",fontSize:12.5,width:"100%",minHeight:96,resize:"vertical",boxSizing:"border-box",lineHeight:1.5}}/>
+                  <div style={{display:"flex",gap:8,alignItems:"center",marginTop:6}}><button onClick={addLine} style={{background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>＋ {pl?"Dopisz wpis":"Добавить запись"}</button>
+                  {dirty?<button onClick={saveN} style={{background:C.accent,border:"none",color:"#00132f",borderRadius:8,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>✓ {t.save}</button>:<span style={{fontSize:10.5,color:C.dim}}>{pl?"zapisuje się samo po wyjściu z pola":"сохраняется само, когда выходишь из поля"}</span>}</div></div>;})()
+              :<div style={{fontSize:12,color:form.notes?C.text:C.dim,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{form.notes||"—"}</div>}
           </div>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>◷ {t.history}</div>
@@ -6942,8 +7221,151 @@ function AuthGate(){
   return <GarnoCRM/>;
 }
 
+
+// ─── AURUM: глобальный стиль тёмной темы (шрифты, стекло, блик, плавность) ─────
+const AURUM_CARD_SEL='div[style*="background: rgba(14, 40, 108, 0.55)"]';
+// Анимации иконок меню (обе темы): играют при открытии раздела, при наведении и волной при старте
+const NAV_KF={
+  Pop:"0%{transform:scale(.35);opacity:.2}55%{transform:scale(1.18);opacity:1}100%{transform:none}",
+  Bob:"0%,100%{transform:none}35%{transform:translateY(-2.5px)}65%{transform:translateY(.8px)}",
+  Spin:"0%{transform:rotate(0) scale(1)}50%{transform:rotate(90deg) scale(1.35)}100%{transform:rotate(180deg) scale(1)}",
+  Ring:"0%,100%{transform:none}30%{transform:translateY(-3px)}60%{transform:translateY(1px)}",
+  Flip:"0%{transform:scaleY(1)}40%{transform:translateY(-3px) scaleY(.2)}100%{transform:none}",
+  Swing:"0%,100%{transform:rotate(0)}15%{transform:rotate(16deg)}35%{transform:rotate(-13deg)}55%{transform:rotate(8deg)}75%{transform:rotate(-4deg)}",
+  Wave:"0%{opacity:0;transform:scale(.6)}40%{opacity:1;transform:scale(1.1)}100%{opacity:0;transform:scale(1.25)}",
+  Turn:"0%{transform:scaleX(1)}35%{transform:scaleX(-1)}70%{transform:scaleX(1) scale(1.08)}100%{transform:none}",
+  Twinkle:"0%{opacity:0;transform:scale(0) rotate(0)}50%{opacity:1;transform:scale(1.5) rotate(90deg)}100%{opacity:1;transform:scale(1) rotate(180deg)}",
+  Draw:"0%{stroke-dashoffset:26}70%,100%{stroke-dashoffset:0}",
+  Head:"0%,45%{opacity:0;transform:translate(-4px,4px)}75%{opacity:1;transform:translate(1.5px,-1.5px)}100%{opacity:1;transform:none}",
+  LidL:"0%,100%{transform:none}35%,65%{transform:rotate(-38deg)}",
+  LidR:"0%,100%{transform:none}35%,65%{transform:rotate(38deg)}",
+  Up:"0%,20%{opacity:0;transform:translateY(5px)}50%{opacity:1;transform:translateY(-1px)}85%,100%{opacity:0;transform:translateY(-3px)}",
+  Check:"0%{stroke-dashoffset:7}100%{stroke-dashoffset:0}",
+  Gear:"0%{transform:rotate(0)}100%{transform:rotate(135deg)}",
+};
+const NAV_ANIM=[ // [иконка, часть, анимация, длительность, задержка]
+  ["dashboard",".p1","Pop",.55,0],["dashboard",".p2","Pop",.55,.08],["dashboard",".p3","Pop",.55,.16],["dashboard",".p4","Pop",.55,.24],
+  ["leads",".head","Bob",.7,0],["leads",".plus","Spin",.7,.1],
+  ["calendar",".ring1","Ring",.6,0],["calendar",".ring2","Ring",.6,.1],["calendar",".page","Flip",.6,.15],["calendar",".dot","Pop",.5,.4],
+  ["alerts",".bell","Swing",1,0],["alerts",".wave","Wave",.9,.1],
+  ["salescenter",".gem","Turn",.9,0],["salescenter",".spark","Twinkle",.7,.35],
+  ["sales",".line","Draw",.9,0],["sales",".head","Head",.9,0],
+  ["orders",".lidl","LidL",1.1,0],["orders",".lidr","LidR",1.1,0],["orders",".pop","Up",1.1,.1],
+  ["tasks",".c1","Check",.35,0],["tasks",".c2","Check",.35,.2],["tasks",".c3","Check",.35,.4],
+  ["settings",".gear","Gear",.9,0],
+];
+const NAV_CSS=`
+.ni .p{transform-box:fill-box;transform-origin:center}
+.ni-alerts .bell{transform-origin:50% 0}.ni-alerts .wave{opacity:0}
+.ni-orders .lidl{transform-origin:0% 100%}.ni-orders .lidr{transform-origin:100% 100%}.ni-orders .pop{opacity:0}
+.ni-sales .line{stroke-dasharray:26}.ni-tasks .p{stroke-dasharray:7}
+.ni-salescenter .spark{stroke:#f6e0aa}
+.g-nav button .ni{transition:filter .4s,transform .4s cubic-bezier(.22,.9,.24,1)}
+.g-nav button.on .ni{filter:drop-shadow(0 0 6px rgba(227,184,96,.55))}
+.g-nav button:hover .ni{transform:scale(1.08)}
+${Object.entries(NAV_KF).map(([k,v])=>`@keyframes ni${k}{${v}}@keyframes niH${k}{${v}}`).join("")}
+${NAV_ANIM.map(([ic,pt,a,d,dl])=>`.g-nav button.on .ni-${ic} ${pt},.g-nav.intro button .ni-${ic} ${pt}{animation:ni${a} ${d}s cubic-bezier(.3,.8,.3,1) calc(var(--d,0s) + ${dl}s) both}.g-nav button:not(.on):hover .ni-${ic} ${pt}{animation:niH${a} ${d}s cubic-bezier(.3,.8,.3,1) ${dl}s both}`).join("")}
+.aurum .g-ind{background:linear-gradient(90deg,rgba(92,184,255,.22),rgba(92,184,255,.04))!important;border:0!important;box-shadow:inset 0 0 0 1px rgba(92,184,255,.3)}
+.aurum .g-ind:before{content:"";position:absolute;left:-8px;top:11px;bottom:11px;width:3px;border-radius:3px;background:#e3b860;box-shadow:0 0 14px #e3b860}
+.aurum .g-nav button.on{color:#e3b860!important}
+@media (prefers-reduced-motion:reduce){.ni .p{animation:none!important}.g-ind{transition:none!important}}
+`;
+
+const AURUM_CSS=`
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Russo+One&display=swap');
+.aurum{--ease:cubic-bezier(.22,.9,.24,1);background:radial-gradient(42% 36% at 18% 10%,rgba(33,82,224,.34),transparent 70%),radial-gradient(34% 30% at 88% 6%,rgba(227,184,96,.16),transparent 70%),radial-gradient(46% 42% at 70% 100%,rgba(92,184,255,.16),transparent 70%),#020a1e!important;position:relative}
+.aurum:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;background-image:radial-gradient(1.2px 1.2px at 12% 18%,rgba(246,224,170,.7),transparent),radial-gradient(1px 1px at 72% 34%,rgba(160,205,255,.6),transparent),radial-gradient(1.4px 1.4px at 38% 82%,rgba(160,205,255,.5),transparent),radial-gradient(1px 1px at 88% 72%,rgba(246,224,170,.6),transparent),radial-gradient(1px 1px at 54% 12%,rgba(160,205,255,.5),transparent);background-size:520px 520px;animation:aurDrift 60s linear infinite}
+@keyframes aurDrift{to{background-position:0 -520px}}
+.aurum>*{position:relative;z-index:1}
+.aurum,.aurum *:not(.hand):not(.hand *){font-family:'Russo One',system-ui,sans-serif!important;letter-spacing:.01em}
+.aurum *{font-synthesis:none}
+.aurum .hand,.aurum .hand *{font-family:'Caveat',cursive!important;letter-spacing:0!important}
+.aurum ::-webkit-scrollbar-thumb{background:linear-gradient(var(--g1,#e3b860),#5cb8ff)!important;border-radius:4px!important}
+/* меню и верх — плавающее стекло */
+.aurum .g-side{margin:12px 0 12px 12px;border-radius:24px!important;border:1px solid rgba(120,170,255,.16)!important;background:linear-gradient(155deg,rgba(40,92,210,.22),rgba(6,22,60,.6) 45%,rgba(4,16,46,.75))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 30px 80px rgba(0,0,0,.45);backdrop-filter:blur(20px)}
+.aurum .g-side>div:first-child{border-bottom-color:transparent!important}
+.aurum .g-side>div:first-child>div:first-child{background:linear-gradient(135deg,#f6e0aa,#e3b860 45%,#a8782a)!important;color:#071435!important;border:0!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(227,184,96,.35),inset 0 1px 0 rgba(255,255,255,.6)}
+.aurum .g-side nav button{border-radius:12px!important;transition:background .35s var(--ease),color .3s,transform .3s var(--ease)!important}
+.aurum .g-side nav button:hover{transform:translateX(3px);color:#eef4ff!important}
+.aurum .g-top{background:transparent!important;border-bottom:0!important;height:64px!important;padding:0 18px!important}
+.aurum .g-top>div{border-radius:14px!important}
+/* карточки — стекло, мягкая тень, золото-голубая кромка при наведении, блик за курсором */
+.aurum ${AURUM_CARD_SEL}{backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 18px 48px rgba(0,0,0,.32);transition:transform .45s var(--ease),box-shadow .45s var(--ease),border-color .4s;animation:aurRise .65s var(--ease) both}
+.aurum ${AURUM_CARD_SEL}:not([style*="position"]){position:relative}
+.aurum ${AURUM_CARD_SEL}:hover{border-color:rgba(227,184,96,.42)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 24px 64px rgba(0,0,0,.45),0 0 0 1px rgba(92,184,255,.14)}
+.aurum ${AURUM_CARD_SEL}:not([style*="position: absolute"]):not([style*="position: fixed"]):after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .4s;background:radial-gradient(380px circle at var(--mx,50%) var(--my,50%),rgba(246,224,170,.12),rgba(92,184,255,.07) 35%,transparent 60%)}
+.aurum ${AURUM_CARD_SEL}:hover:after{opacity:1}
+${[1,2,3,4,5,6,7,8,9,10,11,12].map(i=>`.aurum ${AURUM_CARD_SEL}:nth-child(${i}){animation-delay:${i*45}ms}`).join("")}
+@keyframes aurRise{from{opacity:0;transform:translateY(14px) scale(.99)}to{opacity:1;transform:none}}
+/* таблицы (лиды и др.) — стекло, строки всплывают, подсветка ряда */
+.aurum{color-scheme:dark}
+.aurum table thead tr{background:rgba(2,10,30,.38)!important}
+.aurum table thead th{letter-spacing:.08em!important}
+.aurum table tbody tr{transition:background .25s,box-shadow .25s;animation:aurRow .5s var(--ease) both}
+${Array.from({length:24},(_,i)=>`.aurum table tbody tr:nth-child(${i+1}){animation-delay:${80+i*28}ms}`).join("")}
+@keyframes aurRow{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.aurum table tbody tr[style*="rgba(245, 158, 11, 0.15)"]{background:linear-gradient(90deg,rgba(246,196,83,.14),rgba(246,196,83,.02) 70%)!important}
+.aurum table tbody tr[style*="rgba(251, 191, 36, 0.22)"]{background:linear-gradient(90deg,rgba(227,184,96,.24),rgba(227,184,96,.05) 70%)!important}
+.aurum table tbody tr:hover{background:linear-gradient(90deg,rgba(92,184,255,.16),rgba(227,184,96,.07) 80%)!important;box-shadow:inset 0 0 0 1px rgba(92,184,255,.18)}
+
+/* чекбоксы */
+.aurum input[type=checkbox]{appearance:none;-webkit-appearance:none;width:16px!important;height:16px!important;margin:0;border-radius:5px;border:1.5px solid rgba(120,170,255,.42);background:rgba(2,10,30,.45);display:inline-grid;place-content:center;vertical-align:middle;transition:background .25s,border-color .25s,transform .2s var(--ease)}
+.aurum input[type=checkbox]:hover{border-color:#e3b860}
+.aurum input[type=checkbox]:before{content:"";width:8px;height:5px;border-left:2px solid #071435;border-bottom:2px solid #071435;transform:rotate(-45deg) scale(0);margin-top:-2px;transition:transform .25s var(--ease)}
+.aurum input[type=checkbox]:checked,.aurum input[type=checkbox]:indeterminate{background:linear-gradient(135deg,#f6e0aa,#e3b860);border-color:#e3b860;box-shadow:0 0 10px rgba(227,184,96,.4)}
+.aurum input[type=checkbox]:checked:before{transform:rotate(-45deg) scale(1)}
+.aurum input[type=checkbox]:indeterminate:before{width:8px;height:0;border-left:0;transform:none;margin-top:0}
+/* вкладка «Лиды» */
+.aurum .g-leads{padding:4px 18px 18px!important}
+.aurum .g-lh>div:first-child{font-size:22px!important}
+.aurum .g-cnt{display:inline-grid;place-items:center;min-width:34px;height:22px;padding:0 8px;border-radius:9px;background:rgba(227,184,96,.16);color:#e3b860!important;font-size:12px!important;vertical-align:3px;margin-left:4px}
+.aurum .g-lsum{display:block!important;font-size:19px;color:#f6e0aa;margin-top:2px;line-height:1}
+.aurum .g-dp input[type=date]{height:36px;border-radius:12px!important;background:rgba(2,10,30,.45)!important;border-color:rgba(120,170,255,.22)!important;padding:0 12px!important}
+.aurum .g-dpp{background:rgba(2,10,30,.5);border:1px solid rgba(120,170,255,.16);border-radius:12px;padding:3px}
+.aurum .g-dpp button{border:0!important;border-radius:9px!important;padding:5px 10px!important;transition:background .3s,color .3s,box-shadow .3s}
+.aurum .g-dpp button:hover{color:#eef4ff!important}
+.aurum .g-dpp button.on{background:linear-gradient(135deg,#f6e0aa,#e3b860)!important;color:#08153a!important;box-shadow:0 6px 16px rgba(227,184,96,.3)}
+.aurum .g-lf{padding:8px;border-radius:18px;background:linear-gradient(155deg,rgba(40,92,210,.16),rgba(6,22,60,.45));border:1px solid rgba(120,170,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.aurum .g-lf select,.aurum .g-fbtn{height:34px;border-radius:11px!important;background-color:rgba(2,10,30,.45)!important;border:1px solid rgba(120,170,255,.2)!important;padding:0 12px!important;font-size:11.5px!important;font-weight:400!important;transition:border-color .3s,background-color .3s}
+.aurum .g-lf select{appearance:none;-webkit-appearance:none;padding-right:28px!important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23e3b860' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 11px center!important}
+.aurum .g-lf select:hover,.aurum .g-fbtn:hover{border-color:rgba(227,184,96,.5)!important}
+.aurum .g-fbtn.on{background-color:rgba(227,184,96,.16)!important;border-color:rgba(227,184,96,.55)!important}
+.aurum .g-pop{border-radius:16px!important;background:linear-gradient(160deg,rgba(26,62,150,.97),rgba(5,18,52,.98))!important;border-color:rgba(227,184,96,.28)!important;box-shadow:0 30px 80px rgba(0,0,0,.55)!important;animation:aurPop .25s var(--ease)}
+@keyframes aurPop{from{opacity:0;transform:translateY(-6px) scale(.98)}}
+.aurum select option{background:#071a46;color:#eef4ff}
+.aurum .g-lt{border-radius:20px!important;background:linear-gradient(180deg,rgba(12,36,96,.45),rgba(4,14,40,.35))!important}
+.aurum .g-lt>div{max-height:calc(100vh - 300px);overflow:auto!important}
+.aurum .g-lt thead tr{background:transparent!important}
+.aurum .g-lt thead th{position:sticky;top:0;z-index:2;background:#061637!important;padding-top:12px!important;padding-bottom:12px!important}
+.aurum .g-lt tbody td{padding:10px 7px!important}.aurum .g-lt thead th{padding-left:7px!important;padding-right:7px!important}.aurum .g-lt tbody td:nth-child(2){min-width:120px!important;max-width:200px!important}.aurum .g-lt tbody td:nth-child(5){white-space:nowrap;font-size:10.5px!important}
+.aurum .g-lt tbody tr:not(.garno-fresh):not(.garno-tree) td:first-child{box-shadow:inset 3px 0 0 var(--sc)}
+.aurum .g-score{filter:drop-shadow(0 0 4px color-mix(in srgb,var(--c) 45%,transparent))}
+.aurum .g-score>div{width:8px!important;height:6px!important;border-radius:3px!important}
+.aurum .g-badge{border-radius:8px!important;padding:2px 9px!important;font-weight:400!important;letter-spacing:.02em}
+.aurum .g-quote{border-width:1px!important;background:linear-gradient(135deg,rgba(246,224,170,.22),rgba(227,184,96,.1))!important;color:#f6e0aa!important;box-shadow:0 0 0 1px rgba(227,184,96,.5),0 0 14px rgba(227,184,96,.25);animation:aurQ 2.4s ease-in-out infinite}
+@keyframes aurQ{50%{box-shadow:0 0 0 1px rgba(227,184,96,.85),0 0 20px rgba(227,184,96,.45)}}
+.aurum .g-src{border-radius:6px!important;padding:2px 7px!important;font-weight:400!important;font-size:9.5px!important;max-width:110px!important}
+.aurum .g-stk{background:linear-gradient(160deg,rgba(246,224,170,.16),rgba(227,184,96,.06))!important;border-color:rgba(227,184,96,.35)!important;border-radius:12px!important;transform:rotate(-.6deg);box-shadow:0 6px 16px rgba(0,0,0,.25)}
+.aurum .g-stkt{font-size:16px!important;line-height:1.05!important;color:#f6e0aa!important}
+.aurum .g-ra button{border-radius:9px!important;min-width:28px;height:28px;padding:0 7px!important;transition:background .25s,box-shadow .25s,transform .2s}
+.aurum td.g-ra{display:table-cell!important;white-space:nowrap;vertical-align:middle}.aurum .g-ra button{display:inline-grid;place-items:center;margin-left:4px}.aurum .g-lt tbody tr .g-ra{opacity:.45;transition:opacity .25s}
+.aurum .g-lt tbody tr:hover .g-ra{opacity:1}
+.aurum .g-fav.on{box-shadow:0 0 12px rgba(251,191,36,.4)}
+.aurum .g-selbar{border-radius:14px!important;backdrop-filter:blur(10px)}
+/* золотые кнопки и акценты */
+.aurum button[style*="background: rgb(227, 184, 96)"]{background:linear-gradient(135deg,#f6e0aa,#e3b860 50%,#c8923a)!important;box-shadow:0 10px 26px rgba(227,184,96,.3),inset 0 1px 0 rgba(255,255,255,.55);transition:transform .2s var(--ease),filter .3s}
+.aurum button[style*="background: rgb(227, 184, 96)"]:hover{filter:brightness(1.07)}
+.aurum button:active{transform:scale(.97)}
+.aurum input,.aurum select,.aurum textarea{transition:border-color .3s,box-shadow .3s}
+.aurum input:focus,.aurum select:focus,.aurum textarea:focus{border-color:rgba(92,184,255,.55)!important;box-shadow:0 0 0 4px rgba(92,184,255,.1)}
+`;
+function useAurumSheen(){
+  useEffect(()=>{const h=e=>{const el=e.target&&e.target.closest&&e.target.closest(AURUM_CARD_SEL);if(!el)return;const r=el.getBoundingClientRect();el.style.setProperty("--mx",(e.clientX-r.left)+"px");el.style.setProperty("--my",(e.clientY-r.top)+"px");};
+    document.addEventListener("pointermove",h,{passive:true});return()=>document.removeEventListener("pointermove",h);},[]);
+}
 function GarnoCRM(){
   const {db,status,syncLabel,syncError,refresh,updateDb,setDomains,domainsState}=useDatabase();
+  useAurumSheen();
   const [page,setPage]=useState("dashboard");
   const [taskPreset,setTaskPreset]=useState(null);
   const [selLead,setSelLead]=useState(null);
@@ -7161,7 +7583,8 @@ function GarnoCRM(){
   const addSale=(s)=>setSalesNow(p=>[s,...p]);
 
   return(
-    <div style={{display:"flex",height:"100vh",background:C.bg,color:C.text,fontFamily:"'DM Sans','Segoe UI',sans-serif",overflow:"hidden",fontSize:13,transition:"background 0.2s,color 0.2s"}}>
+    <div className={theme==="light"?"garno-root":"garno-root aurum"} style={{display:"flex",height:"100vh",background:C.bg,color:C.text,fontFamily:"'DM Sans','Segoe UI',sans-serif",overflow:"hidden",fontSize:13,transition:"background 0.2s,color 0.2s"}}>
+      <style>{AURUM_CSS+NAV_CSS}</style>
       <style>{`
         *{box-sizing:border-box;}
         ::-webkit-scrollbar{width:5px;height:5px;}
@@ -7203,7 +7626,7 @@ function GarnoCRM(){
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <DashboardPage db={db} updateDb={updateDb} currentUser={currentUser} lang={DASH_LANG||lang} t={T[DASH_LANG||lang]||t} srcList={srcList} onOpenLead={setSelLead}/>}
-          {page==="leads"      && <LeadsSection lang={lang} funnels={db.funnels||[]} leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
+          {page==="leads"      && <LeadsSection ldp={{setLeads:setLeadsNow,srcList,onAddSale:addSale,taskTypes:db.taskTypes||[],tasks,orders:db.orders||[]}} lang={lang} funnels={db.funnels||[]} leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead}/>}
           
