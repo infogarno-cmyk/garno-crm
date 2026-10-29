@@ -4172,21 +4172,180 @@ function CalcSketchThumb({c,size=40}){
   return <img src={u} alt="" onClick={e=>{e.stopPropagation();window.open(u,"_blank");}} style={{width:size*1.55,height:size,objectFit:"cover",borderRadius:7,border:`1px solid ${C.border}`,background:"#fff",cursor:"zoom-in",flexShrink:0}}/>;
 }
 
+// ─── ПЛАН КУХНИ (вид сверху) ─────────────────────────────────────────────────
+// Форма кухни → длины стен → секции магнитятся к стенам и друг к другу. Слои: низ и пеналы стоят на полу,
+// верхние и антресоли висят на стене (верх не мешает низу, пенал мешает обоим). Каждую стену можно открыть развёрткой.
+const PLAN_SHAPES=[
+  {k:"I", ru:"Прямая",      pl:"Prosta",       walls:1},
+  {k:"L", ru:"Угловая",     pl:"Narożna (L)",  walls:2},
+  {k:"U", ru:"П-образная",  pl:"W kształcie U",walls:3},
+  {k:"II",ru:"Параллельная",pl:"Równoległa",   walls:2},
+];
+const PLAN_DEPTH={low:58,tall:60,top:33,ant:60};
+const PLAN_CORNER={floor:58,wall:33};
+const planLayer=x=>x.zone==="top"?"top":x.zone==="tall"?(x.g==="ant"?"ant":"tall"):"low";
+const planFloor=ly=>ly==="low"||ly==="tall";
+const planClash=(a,b)=>a===b||(a==="tall"&&b!=="ant")||(b==="tall"&&a!=="ant")||(a==="ant"&&b==="top")||(a==="top"&&b==="ant");
+// стены: P — начало (левый край, если стоять лицом к стене), d — вдоль стены, n — внутрь кухни
+function planWalls(plan){
+  if(!plan)return[];const L=(plan.lens||[]).map(v=>Math.max(30,calcNum(v)||0));const S=plan.shape;
+  if(S==="I")return[{P:[0,0],d:[1,0],n:[0,1],len:L[0]||300,c0:false,c1:false}];
+  if(S==="L")return[{P:[0,0],d:[1,0],n:[0,1],len:L[0]||300,c0:false,c1:true},{P:[L[0]||300,0],d:[0,1],n:[-1,0],len:L[1]||250,c0:true,c1:false}];
+  if(S==="U"){const a=L[0]||250,b=L[1]||300,c=L[2]||250;return[{P:[0,a],d:[0,-1],n:[1,0],len:a,c0:false,c1:true},{P:[0,0],d:[1,0],n:[0,1],len:b,c0:true,c1:true},{P:[b,0],d:[0,1],n:[-1,0],len:c,c0:true,c1:false}];}
+  if(S==="II"){const a=L[0]||300,b=L[1]||300,g=Math.max(60,calcNum(plan.gap)||120)+PLAN_DEPTH.low*2;return[{P:[0,0],d:[1,0],n:[0,1],len:a,c0:false,c1:false},{P:[b,g],d:[-1,0],n:[0,-1],len:b,c0:false,c1:false}];}
+  return[];
+}
+const planCornerOff=(ly)=>planFloor(ly)?PLAN_CORNER.floor:PLAN_CORNER.wall;
+// угол: секция в конце стены i и секция в начале стены i+1 занимают один и тот же квадрат
+function planCornerHit(wa,xa,wwa,lya,wb,xb,wwb,lyb,walls){if(!walls||wa==null||wb==null||!planClash(lya,lyb))return false;
+  const hit=(i,x1,w1,l1,x2,l2)=>{const W=walls[i];return W&&W.c1&&walls[i+1]&&walls[i+1].c0&&x1+w1>W.len-PLAN_DEPTH[l2]+0.5&&x2<PLAN_DEPTH[l1]-0.5;};
+  if(wb===wa+1)return hit(wa,xa,wwa,lya,xb,lyb);if(wa===wb+1)return hit(wb,xb,wwb,lyb,xa,lya);return false;}
+function planFits(items,uid,wall,x,w,ly,len,walls){if(x<-0.5||x+w>len+0.5)return false;return !(items||[]).some(o=>o.uid!==uid&&o.wall!=null&&((o.wall===wall&&planClash(planLayer(o),ly)&&x<o.x+o.w-0.5&&o.x<x+w-0.5)||planCornerHit(wall,x,w,ly,o.wall,o.x,o.w,planLayer(o),walls)));}
+function planAutoX(items,walls,wi,item){const W=walls[wi];if(!W)return null;const ly=planLayer(item);const w=item.w||60;
+  const st=W.c0?planCornerOff(ly):0;const cands=[st,0,...(items||[]).filter(o=>o.wall===wi&&planClash(planLayer(o),ly)).map(o=>o.x+o.w)].filter(v=>v>=0).sort((a,b)=>a-b);
+  for(const x of cands)if(planFits(items,item.uid,wi,x,w,ly,W.len,walls))return x;return null;}
+// после броска: если место занято — ближайшее свободное на этой стене, иначе null
+function planResolve(items,walls,it){const W=walls[it.wall];if(!W)return null;const ly=planLayer(it);if(planFits(items,it.uid,it.wall,it.x,it.w,ly,W.len,walls))return it.x;
+  const c=[0,W.len-it.w,PLAN_DEPTH[ly],W.len-PLAN_DEPTH[ly]-it.w];(items||[]).forEach(o=>{if(o.uid!==it.uid&&o.wall===it.wall){c.push(o.x+o.w,o.x-it.w);}});
+  c.sort((a,b)=>Math.abs(a-it.x)-Math.abs(b-it.x));for(const x of c)if(x>=0&&planFits(items,it.uid,it.wall,x,it.w,ly,W.len,walls))return x;return null;}
+function planSnap(items,uid,wi,x,w,ly,W){
+  const off=planCornerOff(ly);const pts=[0,W.len-w];if(W.c0)pts.push(off);if(W.c1)pts.push(W.len-off-w);
+  (items||[]).forEach(o=>{if(o.uid===uid||o.wall!==wi||!planClash(planLayer(o),ly))return;pts.push(o.x+o.w,o.x-w);});
+  if(W.c0)pts.push(PLAN_DEPTH[ly]);if(W.c1)pts.push(W.len-PLAN_DEPTH[ly]-w);
+  let best=x,bd=9;pts.forEach(p=>{const d=Math.abs(p-x);if(d<bd){bd=d;best=p;}});return Math.round(Math.min(Math.max(best,0),Math.max(0,W.len-w))*2)/2;}
+const PLAN_FRONT={c1:[[1,"door"]],c2:[[1,"door2"]],kis:[[.33,"dr"],[.33,"dr"],[.34,"dr"]],eis:[[.5,"dr"],[.5,"dr"]],ewis:[[.5,"dr"],[.5,"dr"]],cu:[[1,"door"]],cmu:[[1,"door"]],cm:[[1,"dr"]],cdi:[[.76,"oven"],[.24,"dr"]],cdf:[[.76,"oven"],[.24,"panel"]],
+  pkx:[[.62,"door"],[.38,"door"]],pkd:[[.32,"door"],[.28,"oven"],[.4,"door"]],pkad:[[.3,"door"],[.2,"oven"],[.28,"oven"],[.22,"dr"]],pked:[[.36,"door"],[.28,"oven"],[.18,"dr"],[.18,"dr"]],pk2:[[.62,"door2"],[.38,"door2"]],witT:[[1,"glass"]],ant:[[1,"door"]],
+  hn:[[1,"door"]],hn2:[[1,"door2"]],hnu:[[1,"door"]],hnu2:[[1,"door2"]],wit:[[1,"glass"]]};
+function planElev(x){const ly=planLayer(x);if(ly==="low")return{y0:10,h:72};if(ly==="top")return{y0:140,h:115};
+  if(ly==="ant"){const c=String(x.code||"");return{y0:213.5,h:/245/.test(c)?30:/359/.test(c)?45:63};}
+  return{y0:10,h:x.g==="witT"?250:203.5};}
+const PLAN_COL={low:["rgba(92,184,255,.16)","#5cb8ff"],tall:["rgba(199,155,255,.18)","#c79bff"],top:["rgba(227,184,96,.10)","#e3b860"],ant:["rgba(227,184,96,.08)","#c8923a"]};
+function planBad(items,walls){const bad=new Set();(items||[]).forEach(a=>{if(a.wall==null)return;const W=walls[a.wall];if(!W){bad.add(a.uid);return;}if(a.x<-0.5||a.x+a.w>W.len+0.5)bad.add(a.uid);
+  (items||[]).forEach(b=>{if(b===a||b.wall==null)return;if(b.wall===a.wall?(planClash(planLayer(a),planLayer(b))&&a.x<b.x+b.w-0.5&&b.x<a.x+a.w-0.5):planCornerHit(a.wall,a.x,a.w,planLayer(a),b.wall,b.x,b.w,planLayer(b),walls))bad.add(a.uid);});});return bad;}
+
+// Вид сверху
+function KitchenPlan({items,walls,sel,setSel,active,setActive,onDragStart,onMove,view,pl,onOpenWall}){
+  const svg=useRef(null);const drag=useRef(null);
+  const bad=planBad(items,walls);
+  const pts=[];walls.forEach(W=>{const e=[W.P[0]+W.d[0]*W.len,W.P[1]+W.d[1]*W.len];pts.push(W.P,e,[W.P[0]+W.n[0]*70,W.P[1]+W.n[1]*70],[e[0]+W.n[0]*70,e[1]+W.n[1]*70]);});
+  const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);const pad=70;const vb=[Math.min(...xs)-pad,Math.min(...ys)-pad,Math.max(...xs)-Math.min(...xs)+pad*2,Math.max(...ys)-Math.min(...ys)+pad*2];
+  const toCm=e=>{const s=svg.current;const pt=s.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=s.getScreenCTM();if(!m)return{x:0,y:0};const r=pt.matrixTransform(m.inverse());return{x:r.x,y:r.y};};
+  const proj=(p,W)=>({u:(p.x-W.P[0])*W.d[0]+(p.y-W.P[1])*W.d[1],v:(p.x-W.P[0])*W.n[0]+(p.y-W.P[1])*W.n[1]});
+  const down=(e,it)=>{e.stopPropagation();e.preventDefault();setSel(it.uid);if(it.wall!=null)setActive(it.wall);const W=walls[it.wall];if(!W)return;const p=toCm(e);const q=proj(p,W);
+    drag.current={uid:it.uid,grab:q.u-it.x,moved:false,from:{wall:it.wall,x:it.x}};try{svg.current.setPointerCapture(e.pointerId);}catch{}};
+  const move=e=>{const D=drag.current;if(!D)return;const it=items.find(x=>x.uid===D.uid);if(!it)return;const p=toCm(e);const ly=planLayer(it);const dep=PLAN_DEPTH[ly];
+    let best=null;walls.forEach((W,wi)=>{const q=proj(p,W);if(q.u<-60||q.u>W.len+60||q.v<-50||q.v>dep+110)return;const sc=Math.abs(q.v-dep/2)+(wi===it.wall?0:8);if(!best||sc<best.sc)best={wi,W,q,sc};});
+    if(!best)return;if(!D.moved){D.moved=true;onDragStart&&onDragStart();}
+    const x=planSnap(items,it.uid,best.wi,best.q.u-D.grab,it.w,ly,best.W);if(x!==it.x||best.wi!==it.wall){onMove(it.uid,{wall:best.wi,x});if(best.wi!==it.wall)setActive(best.wi);}};
+  const up=()=>{const D=drag.current;drag.current=null;if(!D||!D.moved)return;const it=items.find(x=>x.uid===D.uid);if(!it)return;const x=planResolve(items,walls,it);
+    if(x==null){onMove(it.uid,D.from);setActive(D.from.wall);}else if(x!==it.x)onMove(it.uid,{x});};
+  const rect=(W,x,w,dep)=>{const o=[W.P[0]+W.d[0]*x,W.P[1]+W.d[1]*x];const a=[o[0]+W.d[0]*w,o[1]+W.d[1]*w];const b=[a[0]+W.n[0]*dep,a[1]+W.n[1]*dep];const c=[o[0]+W.n[0]*dep,o[1]+W.n[1]*dep];return[o,a,b,c];};
+  const show=it=>{const ly=planLayer(it);return view==="all"||(view==="low"?planFloor(ly):!planFloor(ly)||ly==="tall");};
+  const order=[...items.filter(x=>x.wall!=null&&walls[x.wall])].sort((a,b)=>(planFloor(planLayer(a))?0:1)-(planFloor(planLayer(b))?0:1));
+  const ang=W=>{let a=Math.atan2(W.d[1],W.d[0])*180/Math.PI;if(a>90)a-=180;if(a<-90)a+=180;return a;};
+  return(
+    <svg ref={svg} viewBox={vb.join(" ")} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerDown={()=>setSel(null)} style={{width:"100%",height:"100%",display:"block",touchAction:"none",userSelect:"none"}}>
+      <defs><pattern id="plGrid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0H0V10" fill="none" stroke="rgba(120,170,255,.08)" strokeWidth=".6"/></pattern></defs>
+      <rect x={vb[0]} y={vb[1]} width={vb[2]} height={vb[3]} fill="url(#plGrid)"/>
+      {walls.map((W,wi)=>{const r=rect(W,0,W.len,-12);const on=wi===active;const mid=[W.P[0]+W.d[0]*W.len/2-W.n[0]*34,W.P[1]+W.d[1]*W.len/2-W.n[1]*34];
+        const used=items.filter(x=>x.wall===wi&&planFloor(planLayer(x))).reduce((a,x)=>a+x.w,0);const usedT=items.filter(x=>x.wall===wi&&!planFloor(planLayer(x))).reduce((a,x)=>a+x.w,0);
+        return(<g key={wi} onPointerDown={e=>{e.stopPropagation();setActive(wi);setSel(null);}} onDoubleClick={()=>onOpenWall(wi)} style={{cursor:"pointer"}}>
+          <polygon points={r.map(p=>p.join(",")).join(" ")} fill={on?"#e3b860":"#7d8fb3"} opacity={on?.95:.75}/>
+          <polygon points={rect(W,0,W.len,PLAN_DEPTH.low+40).map(p=>p.join(",")).join(" ")} fill={on?"rgba(227,184,96,.05)":"transparent"}/>
+          <text x={mid[0]} y={mid[1]} transform={`rotate(${ang(W)} ${mid[0]} ${mid[1]})`} textAnchor="middle" dominantBaseline="middle" fontSize="12" fill={on?"#f6e0aa":"rgba(214,232,255,.75)"}>{pl?"Ściana":"Стена"} {wi+1} · {W.len} {pl?"cm":"см"}</text>
+          <text x={mid[0]+W.n[0]*-0} y={mid[1]} dy="15" transform={`rotate(${ang(W)} ${mid[0]} ${mid[1]})`} textAnchor="middle" dominantBaseline="middle" fontSize="8.5" fill="rgba(214,232,255,.5)">{pl?"dół":"низ"} {used}/{W.len} · {pl?"góra":"верх"} {usedT}/{W.len}</text>
+        </g>);})}
+      {order.map(it=>{const W=walls[it.wall];const ly=planLayer(it);const dep=PLAN_DEPTH[ly];const r=rect(W,it.x,it.w,dep);const [fill,st]=PLAN_COL[ly];const isS=sel===it.uid;const isB=bad.has(it.uid);const vis=show(it);
+        const flo=planFloor(ly);const lv=ly==="top"||ly==="ant"?15:ly==="tall"?30:(view==="all"?44:29);const cx=W.P[0]+W.d[0]*(it.x+it.w/2)+W.n[0]*lv,cy=W.P[1]+W.d[1]*(it.x+it.w/2)+W.n[1]*lv;
+        return(<g key={it.uid} onPointerDown={e=>down(e,it)} style={{cursor:"grab",opacity:vis?1:.18}}>
+          <polygon points={r.map(p=>p.join(",")).join(" ")} fill={isB?"rgba(255,90,110,.22)":fill} stroke={isB?"#ff5a6e":isS?"#f6e0aa":st} strokeWidth={isS?2.2:1.1} strokeDasharray={flo?"":"5 3"}/>
+          {vis&&<><text x={cx} y={cy} transform={`rotate(${ang(W)} ${cx} ${cy})`} textAnchor="middle" fontSize={it.w<40?7:9} fill={isS?"#f6e0aa":"#eef4ff"} dy={flo?-1:-2}>{it.code}</text>
+          <text x={cx} y={cy} transform={`rotate(${ang(W)} ${cx} ${cy})`} textAnchor="middle" fontSize="7" fill="rgba(214,232,255,.65)" dy={flo?9:7}>{it.w}{it.ns?"*":""}</text></>}
+        </g>);})}
+    </svg>);
+}
+
+// Развёртка одной стены (вид спереди)
+function WallElevation({items,wi,W,walls,sel,setSel,onDragStart,onMove,pl}){
+  const svg=useRef(null);const drag=useRef(null);const H=280;
+  const its=items.filter(x=>x.wall===wi).sort((a,b)=>(planFloor(planLayer(a))?0:1)-(planFloor(planLayer(b))?0:1));
+  const bad=planBad(its,Object.assign([],{[wi]:W}));
+  const toX=e=>{const s=svg.current;const pt=s.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=s.getScreenCTM();return m?pt.matrixTransform(m.inverse()).x:0;};
+  const down=(e,it)=>{e.stopPropagation();e.preventDefault();setSel(it.uid);drag.current={uid:it.uid,grab:toX(e)-it.x,moved:false,from:{wall:it.wall,x:it.x}};try{svg.current.setPointerCapture(e.pointerId);}catch{}};
+  const move=e=>{const D=drag.current;if(!D)return;const it=items.find(x=>x.uid===D.uid);if(!it)return;if(!D.moved){D.moved=true;onDragStart&&onDragStart();}
+    const x=planSnap(items,it.uid,wi,toX(e)-D.grab,it.w,planLayer(it),W);if(x!==it.x)onMove(it.uid,{wall:wi,x});};
+  const up=()=>{const D=drag.current;drag.current=null;if(!D||!D.moved)return;const it=items.find(x=>x.uid===D.uid);if(!it)return;const all=walls||(()=>{const a=[];a[wi]=W;return a;})();const x=planResolve(walls?items:items.filter(o=>o.wall===wi),all,it);
+    if(x==null)onMove(it.uid,D.from);else if(x!==it.x)onMove(it.uid,{x});};
+  const lowRun=its.filter(x=>planLayer(x)==="low");
+  const fr=(it,x0,y0,w,h)=>{const rows=PLAN_FRONT[it.g]||[[1,"door"]];let y=y0;const out=[];rows.forEach(([f,t],i)=>{const hh=h*f;const k=`${it.uid}-${i}`;const g=1;
+      if(t==="door2")out.push(<g key={k}><rect x={x0+g} y={y+g} width={w/2-g*1.5} height={hh-g*2} fill="none" stroke="rgba(11,31,77,.55)" strokeWidth=".6"/><rect x={x0+w/2+g*.5} y={y+g} width={w/2-g*1.5} height={hh-g*2} fill="none" stroke="rgba(11,31,77,.55)" strokeWidth=".6"/><line x1={x0+w/2-4} y1={y+hh/2-6} x2={x0+w/2-4} y2={y+hh/2+6} stroke="#0b1f4d" strokeWidth="1.2"/><line x1={x0+w/2+4} y1={y+hh/2-6} x2={x0+w/2+4} y2={y+hh/2+6} stroke="#0b1f4d" strokeWidth="1.2"/></g>);
+      else if(t==="dr")out.push(<g key={k}><rect x={x0+g} y={y+g} width={w-g*2} height={hh-g*2} fill="none" stroke="rgba(11,31,77,.55)" strokeWidth=".6"/><line x1={x0+w/2-8} y1={y+5} x2={x0+w/2+8} y2={y+5} stroke="#0b1f4d" strokeWidth="1.2"/></g>);
+      else if(t==="oven")out.push(<g key={k}><rect x={x0+g} y={y+g} width={w-g*2} height={hh-g*2} fill="#1b2a44" stroke="#0b1f4d" strokeWidth=".6"/><rect x={x0+5} y={y+hh*.3} width={w-10} height={hh*.55} fill="#5b6f94" opacity=".55"/><line x1={x0+8} y1={y+hh*.18} x2={x0+w-8} y2={y+hh*.18} stroke="#c9d6ee" strokeWidth=".8"/></g>);
+      else if(t==="glass")out.push(<g key={k}><rect x={x0+g} y={y+g} width={w-g*2} height={hh-g*2} fill="rgba(92,184,255,.25)" stroke="rgba(11,31,77,.55)" strokeWidth=".6"/><line x1={x0+w*.2} y1={y+hh*.1} x2={x0+w*.5} y2={y+hh*.4} stroke="#fff" strokeWidth=".8" opacity=".7"/></g>);
+      else if(t==="panel")out.push(<rect key={k} x={x0+g} y={y+g} width={w-g*2} height={hh-g*2} fill="rgba(11,31,77,.08)" stroke="rgba(11,31,77,.55)" strokeWidth=".6"/>);
+      else out.push(<g key={k}><rect x={x0+g} y={y+g} width={w-g*2} height={hh-g*2} fill="none" stroke="rgba(11,31,77,.55)" strokeWidth=".6"/><line x1={x0+w-6} y1={y+(planLayer(it)==="top"?hh-14:8)} x2={x0+w-6} y2={y+(planLayer(it)==="top"?hh-4:18)} stroke="#0b1f4d" strokeWidth="1.2"/></g>);
+      y+=hh;});return out;};
+  return(
+    <svg ref={svg} viewBox={`-30 -20 ${W.len+60} ${H+55}`} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerDown={()=>setSel(null)} style={{width:"100%",height:"100%",display:"block",touchAction:"none",userSelect:"none",background:"#f7f9fc",borderRadius:14}}>
+      <rect x="0" y="0" width={W.len} height={H} fill="#eef2f8"/>
+      <line x1="-20" y1={H} x2={W.len+20} y2={H} stroke="#0b1f4d" strokeWidth="1.5"/>
+      {lowRun.length>0&&(()=>{const a=Math.min(...lowRun.map(x=>x.x)),b=Math.max(...lowRun.map(x=>x.x+x.w));return <rect x={a} y={H-86} width={b-a} height={4} fill="#8a6d3b"/>;})()}
+      {its.map(it=>{const e=planElev(it);const y0=H-e.y0-e.h;const isS=sel===it.uid;const isB=bad.has(it.uid);return(
+        <g key={it.uid} onPointerDown={ev=>down(ev,it)} style={{cursor:"grab"}}>
+          {planFloor(planLayer(it))&&<><rect x={it.x+4} y={H-e.y0} width="2.5" height={e.y0} fill="#0b1f4d"/><rect x={it.x+it.w-6.5} y={H-e.y0} width="2.5" height={e.y0} fill="#0b1f4d"/></>}
+          <rect x={it.x} y={y0} width={it.w} height={e.h} fill={isB?"rgba(255,90,110,.25)":"#ffffff"} stroke={isB?"#ff5a6e":isS?"#c8923a":"#0b1f4d"} strokeWidth={isS?2:1}/>
+          {fr(it,it.x,y0,it.w,e.h)}
+          <text x={it.x+it.w/2} y={y0+e.h/2} textAnchor="middle" dominantBaseline="middle" fontSize={it.w<40?6.5:8} fill="#0b1f4d" style={{paintOrder:"stroke",stroke:"#fff",strokeWidth:2.5}}>{it.code}</text>
+        </g>);})}
+      {its.filter(x=>planFloor(planLayer(x))).map(it=><g key={"d"+it.uid}><line x1={it.x} y1={H+12} x2={it.x+it.w} y2={H+12} stroke="#5b6b88" strokeWidth=".6"/><line x1={it.x} y1={H+8} x2={it.x} y2={H+16} stroke="#5b6b88" strokeWidth=".6"/><line x1={it.x+it.w} y1={H+8} x2={it.x+it.w} y2={H+16} stroke="#5b6b88" strokeWidth=".6"/><text x={it.x+it.w/2} y={H+22} textAnchor="middle" fontSize="7.5" fill="#0b1f4d">{it.w}</text></g>)}
+      <line x1="0" y1={H+32} x2={W.len} y2={H+32} stroke="#c8923a" strokeWidth=".8"/><text x={W.len/2} y={H+30} textAnchor="middle" fontSize="8.5" fill="#c8923a">{W.len} {pl?"cm":"см"}</text>
+      {its.filter(x=>!planFloor(planLayer(x))).map(it=>{const e=planElev(it);return <text key={"t"+it.uid} x={it.x+it.w/2} y={H-e.y0-e.h-4} textAnchor="middle" fontSize="7" fill="#5b6b88">{it.w}</text>;})}
+    </svg>);
+}
+
 function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
   const pl=lang==="pl";const dk=C===DARK;const champ=dk?"#f6e0aa":C.accent;
-  const blank={id:Date.now(),name:`${pl?"Wariant":"Вариант"} ${((lead.calcs||[]).length)+1}`,items:[],extras:{},custom:[],nonstd:[],discount:"",notes:""};
+  const blank={id:Date.now(),name:`${pl?"Wariant":"Вариант"} ${((lead.calcs||[]).length)+1}`,items:[],extras:{},custom:[],nonstd:[],discount:"",notes:"",plan:null};
   const [c,setC]=useState(()=>calc?JSON.parse(JSON.stringify(calc)):blank);
   const [zone,setZone]=useState("low");const [q,setQ]=useState("");const [flash,setFlash]=useState(null);
+  const [main,setMain]=useState(()=>calc&&!calc.plan&&(calc.items||[]).length?"list":"plan");
+  const [sel,setSel]=useState(null);const [active,setActive]=useState(0);const [layerView,setLayerView]=useState("all");const [elev,setElev]=useState(null);
+  const [wiz,setWiz]=useState(()=>({shape:(calc&&calc.plan&&calc.plan.shape)||"L",lens:(calc&&calc.plan&&calc.plan.lens)||["300","250","250"],gap:(calc&&calc.plan&&calc.plan.gap)||"120"}));
+  const [wizOpen,setWizOpen]=useState(false);const [note,setNote]=useState(null);
   const skApi=useRef(null);const [skOn,setSkOn]=useState(false);const [skDirty,setSkDirty]=useState(false);const [skSrc,setSkSrc]=useState(()=>calc&&calc.sketchData?calc.sketchData:null);const [busy,setBusy]=useState(false);const [copied,setCopied]=useState(false);
   useEffect(()=>{let alive=true;if(calc&&!calc.sketchData&&calc.sketchFile&&calc.sketchFile.path)leadFileUrl(calc.sketchFile.path).then(u=>{if(alive)setSkSrc(u);}).catch(()=>{});return()=>{alive=false;};},[calc]);
   const tot=calcTotals(c);
+  const walls=planWalls(c.plan);
   const upd=f=>setC(p=>({...p,...(typeof f==="function"?f(p):f)}));
-  const add=(g,s)=>{const code=s[0];setFlash(code);setTimeout(()=>setFlash(null),450);
-    upd(p=>{const ex=(p.items||[]).find(x=>x.code===code);if(ex)return{items:p.items.map(x=>x===ex?{...x,qty:(x.qty||1)+1}:x)};
-      return{items:[...(p.items||[]),{uid:Date.now()+Math.random(),code,g:g.g,zone:g.z,w:s[1],price:s[2],qty:1}]};});};
-  const setQty=(uid,d)=>upd(p=>({items:p.items.map(x=>x.uid===uid?{...x,qty:Math.max(0,(x.qty||1)+d)}:x).filter(x=>x.qty>0)}));
-  const del=uid=>upd(p=>({items:p.items.filter(x=>x.uid!==uid)}));
+  const hist=useRef([]);const snap=()=>{hist.current.push({items:c.items,plan:c.plan});if(hist.current.length>60)hist.current.shift();};
+  const undo=()=>{const h=hist.current.pop();if(h){setC(p=>({...p,items:h.items,plan:h.plan}));setSel(null);}};
+  const say=m=>{setNote({m,id:Date.now()});};
+  useEffect(()=>{if(!note)return;const id=setTimeout(()=>setNote(null),2600);return()=>clearTimeout(id);},[note]);
+  // добавить секцию: если есть план — сразу ставим к выбранной стене на первое свободное место
+  const add=(g,s)=>{const code=s[0];setFlash(code);setTimeout(()=>setFlash(null),450);snap();
+    setC(p=>{const items=p.items||[];const it={uid:Date.now()+Math.random(),code,g:g.g,zone:g.z,w:s[1],price:s[2],qty:1};
+      if(p.plan){const W=planWalls(p.plan);const order=[active,...W.map((_,i)=>i).filter(i=>i!==active)];
+        for(const wi of order){const x=planAutoX(items,W,wi,it);if(x!=null){setSel(it.uid);if(wi!==active){setActive(wi);say(pl?`Na ścianie ${active+1} brak miejsca — dodano na ścianę ${wi+1}`:`На стене ${active+1} нет места — поставил на стену ${wi+1}`);}return{...p,items:[...items,{...it,wall:wi,x}]};}}
+        say(pl?"Brak miejsca na ścianach — sekcja tylko w specyfikacji":"На стенах нет места — секция только в спецификации");return{...p,items:[...items,{...it,wall:null,x:0}]};}
+      const ex=items.find(x=>x.code===code&&x.wall==null&&!x.ns);if(ex)return{...p,items:items.map(x=>x===ex?{...x,qty:(x.qty||1)+1}:x)};
+      return{...p,items:[...items,it]};});};
+  const del=uid=>{snap();upd(p=>({items:(p.items||[]).filter(x=>x.uid!==uid)}));if(sel===uid)setSel(null);};
+  const dup=uid=>{const it=(c.items||[]).find(x=>x.uid===uid);if(!it)return;const gg=CALC_BY_CODE[it.code];if(!gg)return;snap();
+    setC(p=>{const items=p.items||[];const n={...it,uid:Date.now()+Math.random()};if(p.plan&&it.wall!=null){const W=planWalls(p.plan);const x=planFits(items,n.uid,it.wall,it.x+it.w,it.w,planLayer(it),W[it.wall].len,W)?it.x+it.w:planAutoX(items,W,it.wall,n);if(x==null)return p;setSel(n.uid);return{...p,items:[...items,{...n,x}]};}return{...p,items:[...items,n]};});};
+  const moveIt=(uid,pos)=>upd(p=>({items:(p.items||[]).map(x=>x.uid===uid?{...x,...pos}:x)}));
+  const nudge=(uid,d)=>{const it=(c.items||[]).find(x=>x.uid===uid);if(!it||it.wall==null||!walls[it.wall])return;snap();const W=walls[it.wall];moveIt(uid,{x:Math.min(Math.max(0,it.x+d),W.len-it.w)});};
+  // ручная ширина: стандартный размер → его код и цена; иначе «нестандарт» по цене ближайшего большего размера
+  const setWidth=(uid,w)=>{const v=Math.round(calcNum(w));if(!v||v<10||v>300)return;snap();upd(p=>({items:(p.items||[]).map(x=>{if(x.uid!==uid)return x;const gg=CALC_BY_CODE[x.code];const g=gg&&gg.g;if(!g)return{...x,w:v};
+      const ex=g.sizes.find(s=>s[1]===v);if(ex)return{...x,w:v,code:ex[0],price:x.pm?x.price:ex[2],ns:false};
+      const big=g.sizes.filter(s=>s[1]>=v).sort((a,b)=>a[1]-b[1])[0]||g.sizes[g.sizes.length-1];return{...x,w:v,code:big[0],price:x.pm?x.price:big[2],ns:true};})}));};
+  const setPrice=(uid,v)=>upd(p=>({items:(p.items||[]).map(x=>x.uid===uid?{...x,price:Math.round(calcNum(v)),pm:true}:x)}));
   const setEx=(k,f,v)=>upd(p=>({extras:{...(p.extras||{}),[k]:{...((p.extras||{})[k]||{}),[f]:v}}}));
+  const makePlan=()=>{snap();const n=(PLAN_SHAPES.find(s=>s.k===wiz.shape)||PLAN_SHAPES[1]).walls;const plan={shape:wiz.shape,lens:wiz.lens.slice(0,n).map(v=>String(Math.round(calcNum(v))||300)),gap:wiz.gap};
+    setC(p=>{const W=planWalls(plan);let items=(p.items||[]).map(x=>x.wall!=null&&x.wall>=W.length?{...x,wall:null}:x);
+      // секции без места на плане расставляем автоматически
+      const out=[];items.forEach(x=>{if(x.wall!=null){out.push(x);return;}const copies=[];for(let k=0;k<(x.qty||1);k++)copies.push({...x,qty:1,uid:x.uid+k*0.001});copies.forEach(cp=>{let placed=null;for(let wi=0;wi<W.length;wi++){const xx=planAutoX(out,W,wi,cp);if(xx!=null){placed={...cp,wall:wi,x:xx};break;}}out.push(placed||{...cp,wall:null});});});
+      return{...p,plan,items:out};});setWizOpen(false);setMain("plan");setActive(0);};
+  const setLen=(i,v)=>upd(p=>({plan:{...p.plan,lens:p.plan.lens.map((x,j)=>j===i?v:x)}}));
   const ql=q.trim().toLowerCase();
   const cat=CALC_CAT.filter(g=>ql?((pl?g.pl:g.ru)+" "+g.sizes.map(s=>s[0]).join(" ")).toLowerCase().includes(ql):g.z===zone);
   const save=async()=>{if(busy)return;setBusy(true);let extra={};
@@ -4195,8 +4354,13 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
       catch{extra={sketchData:api.dataUrl("image/webp",.6),sketchFile:null};}}}
     catch(e){console.warn(e);}
     setBusy(false);onSave({...c,...extra,...calcTotals(c),by:c.by||currentUser||"—",at:c.at||Date.now(),updatedAt:Date.now()});};
+  // спецификация: одинаковые секции сводятся в одну строку
+  const groups=(()=>{const m=new Map();(c.items||[]).forEach(x=>{const k=`${x.zone}|${x.code}|${x.w}|${x.price}|${x.ns?1:0}`;const o=m.get(k)||{k,zone:x.zone,code:x.code,w:x.w,price:x.price,ns:x.ns,qty:0,uids:[],off:0};o.qty+=x.qty||1;o.uids.push(x.uid);if(x.wall==null&&c.plan)o.off+=x.qty||1;m.set(k,o);});return[...m.values()];})();
+  const grpPlus=gr=>{const it=(c.items||[]).find(x=>x.uid===gr.uids[gr.uids.length-1]);if(!it)return;if(c.plan){dup(it.uid);return;}snap();upd(p=>({items:p.items.map(x=>x.uid===it.uid?{...x,qty:(x.qty||1)+1}:x)}));};
+  const grpMinus=gr=>{const it=(c.items||[]).find(x=>x.uid===gr.uids[gr.uids.length-1]);if(!it)return;snap();if((it.qty||1)>1){upd(p=>({items:p.items.map(x=>x.uid===it.uid?{...x,qty:x.qty-1}:x)}));return;}del(it.uid);};
   const specText=()=>{const L=[];L.push(`${pl?"Wycena":"Просчёт"}: ${c.name||""} — ${lead.name||lead.phone||""}`);
-    CALC_ZONES.slice(0,3).forEach(z=>{const it=(c.items||[]).filter(x=>x.zone===z.k);if(!it.length)return;L.push("",`${pl?z.pl:z.ru}:`);it.forEach(x=>L.push(`${x.code} × ${x.qty} — ${fmtM(x.price*x.qty)}`));});
+    if(c.plan)L.push(`${pl?"Kuchnia":"Кухня"}: ${(PLAN_SHAPES.find(s=>s.k===c.plan.shape)||{})[pl?"pl":"ru"]||""} · ${walls.map((W,i)=>`${pl?"ściana":"стена"} ${i+1} — ${W.len} ${pl?"cm":"см"}`).join(", ")}`);
+    CALC_ZONES.slice(0,3).forEach(z=>{const it=groups.filter(x=>x.zone===z.k);if(!it.length)return;L.push("",`${pl?z.pl:z.ru}:`);it.forEach(x=>L.push(`${x.code}${x.ns?` (${pl?"niestandard":"нестандарт"} ${x.w} ${pl?"cm":"см"})`:""} × ${x.qty} — ${fmtM(x.price*x.qty)}`));});
     const ex=CALC_EXTRAS.map(e=>{const v=(c.extras||{})[e.k]||{};const sum=e.sumOnly?calcNum(v.price):calcNum(v.qty)*(e.price!=null?e.price:calcNum(v.price));return sum?`${pl?e.pl:e.ru}${e.sumOnly?"":` ${v.qty} ${pl?e.uPl:e.uRu}`} — ${fmtM(Math.round(sum))}`:null;}).filter(Boolean);
     (c.nonstd||[]).forEach(x=>{const v=calcNonStd(x.mat)*(calcNum(x.qty)||1);if(v)ex.push(`${x.name||(pl?"Sekcja niestandardowa":"Нестандартная секция")} — ${fmtM(v)}`);});
     (c.custom||[]).forEach(x=>{if(calcNum(x.sum))ex.push(`${x.name||"—"} — ${fmtM(calcNum(x.sum))}`);});
@@ -4208,15 +4372,46 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
   const lbl={fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:C.muted};
   const inp={background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:9,padding:"6px 9px",fontSize:12,outline:"none",boxSizing:"border-box",fontFamily:"inherit"};
   const btn=(gold)=>({height:38,padding:"0 14px",borderRadius:12,border:gold?"none":`1px solid ${C.borderMd}`,background:gold?"linear-gradient(135deg,#f6e0aa,#e3b860 50%,#c8923a)":"transparent",color:gold?"#09153a":C.text,cursor:"pointer",fontSize:12.5,display:"inline-flex",alignItems:"center",gap:7,whiteSpace:"nowrap"});
-  const zoneItems=z=>(c.items||[]).filter(x=>x.zone===z);
+  const kb={fontSize:9,padding:"0 4px",borderRadius:4,border:"1px solid currentColor",opacity:.55,marginLeft:5,lineHeight:"13px"};
   const runTxt=(z)=>{const v=tot.run[z]||0;return v?`${(v/100).toLocaleString(pl?"pl-PL":"ru-RU",{maximumFractionDigits:2})} ${pl?"m":"м"}`:"—";};
-  useEffect(()=>{const h=e=>{if(e.key==="Escape")onClose();};window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);},[onClose]);
+  const selIt=(c.items||[]).find(x=>x.uid===sel)||null;
+  const go=v=>{setMain(v);if(v==="sketch")setSkOn(true);if(v!=="plan")setElev(null);};
+  // горячие клавиши: 1 низ · 2 пеналы · 3 верх · 4 доп · 5 рисунок · 6 план · 7 спецификация · Del · ←/→ · D · Ctrl+Z · Ctrl+S
+  const keyRef=useRef(null);keyRef.current=e=>{const tg=e.target;const typing=tg&&(tg.tagName==="INPUT"||tg.tagName==="TEXTAREA"||tg.tagName==="SELECT"||tg.isContentEditable);
+    if((e.ctrlKey||e.metaKey)&&(e.key==="s"||e.key==="ы"||e.code==="KeyS")){e.preventDefault();save();return;}
+    if(e.key==="Escape"){if(typing){tg.blur();return;}if(elev!=null){setElev(null);return;}if(sel){setSel(null);return;}onClose();return;}
+    if(typing)return;
+    if((e.ctrlKey||e.metaKey)&&(e.code==="KeyZ")){e.preventDefault();undo();return;}
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    const k=e.key;
+    if(k==="1"){setZone("low");setQ("");return;}if(k==="2"){setZone("tall");setQ("");return;}if(k==="3"){setZone("top");setQ("");return;}
+    if(k==="4"){go("extra");return;}if(k==="5"){go("sketch");return;}if(k==="6"){go("plan");return;}if(k==="7"){go("list");return;}
+    if(main==="sketch")return;
+    if(sel&&(k==="Delete"||k==="Backspace")){e.preventDefault();del(sel);return;}
+    if(sel&&(k==="ArrowLeft"||k==="ArrowRight")){e.preventDefault();const it=(c.items||[]).find(x=>x.uid===sel);const W=it&&walls[it.wall];const s=(e.shiftKey?10:1)*((k==="ArrowRight")?1:-1);nudge(sel,s);return;}
+    if(sel&&(e.code==="KeyD")){dup(sel);return;}
+  };
+  useEffect(()=>{const h=e=>keyRef.current&&keyRef.current(e);window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);},[]);
+  const VIEWS=[["plan","📐",pl?"Plan":"План","6"],["list","📋",pl?"Specyfikacja":"Спецификация","7"],["extra","＋",pl?"Dodatki":"Доп.","4"],["sketch","✏️",pl?"Rysunek":"Рисунок","5"]];
+  const shapeIcon=(k,on)=>{const s=on?"#e3b860":"rgba(214,232,255,.7)";const W=6;return <svg width="64" height="48" viewBox="0 0 64 48">{k==="I"&&<rect x="6" y="8" width="52" height={W} fill={s}/>}{k==="L"&&<><rect x="6" y="8" width="52" height={W} fill={s}/><rect x="52" y="8" width={W} height="34" fill={s}/></>}{k==="U"&&<><rect x="6" y="8" width={W} height="34" fill={s}/><rect x="6" y="8" width="52" height={W} fill={s}/><rect x="52" y="8" width={W} height="34" fill={s}/></>}{k==="II"&&<><rect x="6" y="8" width="52" height={W} fill={s}/><rect x="6" y="36" width="52" height={W} fill={s}/></>}</svg>;};
+  const wizView=(
+    <div style={{...glass,padding:22,display:"flex",flexDirection:"column",gap:18,maxWidth:760,margin:"10px auto",width:"100%",boxSizing:"border-box"}}>
+      <div><div style={{fontSize:18}}>{pl?"1. Wybierz kształt kuchni":"1. Выберите форму кухни"}</div><div className="hand" style={{fontSize:19,color:champ,marginTop:2}}>{pl?"potem ściany i przeciągaj sekcje — magnesują się same":"потом стены — и просто кликай секции, они сами магнитятся"}</div></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>{PLAN_SHAPES.map(s=><button key={s.k} className="calc-b" onClick={()=>setWiz(w=>({...w,shape:s.k}))} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"12px 6px",borderRadius:14,cursor:"pointer",border:`1px solid ${wiz.shape===s.k?"rgba(227,184,96,.75)":C.borderMd}`,background:wiz.shape===s.k?"rgba(227,184,96,.12)":"transparent",color:C.text,fontSize:12.5}}>{shapeIcon(s.k,wiz.shape===s.k)}{pl?s.pl:s.ru}</button>)}</div>
+      <div style={{fontSize:18}}>{pl?"2. Długości ścian":"2. Длины стен"} <span style={{fontSize:12,color:C.muted}}>({pl?"cm":"см"})</span></div>
+      <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
+        {Array.from({length:(PLAN_SHAPES.find(s=>s.k===wiz.shape)||{walls:2}).walls}).map((_,i)=><label key={i} style={{display:"flex",flexDirection:"column",gap:4,fontSize:11.5,color:C.muted}}>{pl?"Ściana":"Стена"} {i+1}<input autoFocus={i===0} value={wiz.lens[i]||""} onChange={e=>setWiz(w=>{const l=[...w.lens];l[i]=e.target.value.replace(/[^\d]/g,"");return{...w,lens:l};})} onKeyDown={e=>{if(e.key==="Enter")makePlan();}} inputMode="numeric" style={{...inp,width:110,height:42,fontSize:18,textAlign:"center"}}/></label>)}
+        {wiz.shape==="II"&&<label style={{display:"flex",flexDirection:"column",gap:4,fontSize:11.5,color:C.muted}}>{pl?"Przejście":"Проход"}<input value={wiz.gap} onChange={e=>setWiz(w=>({...w,gap:e.target.value.replace(/[^\d]/g,"")}))} inputMode="numeric" style={{...inp,width:110,height:42,fontSize:18,textAlign:"center"}}/></label>}
+        <button className="calc-b" onClick={makePlan} style={{...btn(true),height:42,marginLeft:"auto"}}>{pl?"Utwórz ściany →":"Создать стены →"}</button>
+      </div>
+      <div style={{fontSize:11.5,color:C.muted,lineHeight:1.6}}>{pl?"Ściany liczymy jak stoisz twarzą do nich, od lewej. Bez planu też można — kliknij „Specyfikacja” (7).":"Стены нумеруются слева направо, если стоять к ним лицом. Можно и без плана — открой «Спецификацию» (7)."}{c.plan&&<button onClick={()=>setWizOpen(false)} style={{marginLeft:10,background:"transparent",border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:8,padding:"3px 10px",cursor:"pointer",fontSize:11}}>{pl?"Anuluj":"Отмена"}</button>}</div>
+    </div>);
   return(
     <div data-calc="1" onClick={onClose} style={{position:"fixed",inset:0,zIndex:1150,background:"rgba(0,8,24,.78)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}}>
       <style>{`@keyframes calcPop{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}@keyframes calcIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}.calc-sz:hover{border-color:rgba(227,184,96,.7)!important;background:rgba(227,184,96,.12)!important}.calc-g:hover{border-color:rgba(227,184,96,.42)!important}.calc-b:active{transform:scale(.96)}@media(max-width:980px){.calc-body{grid-template-columns:1fr!important;overflow-y:auto!important}.calc-body>div{overflow:visible!important}}`}</style>
-      <div onClick={e=>e.stopPropagation()} style={{width:"min(1360px,100%)",height:"min(900px,100%)",display:"flex",flexDirection:"column",borderRadius:24,overflow:"hidden",background:dk?"linear-gradient(165deg,#0a1f4d 0%,#041434 55%,#020a1e 100%)":C.surface,border:"1px solid rgba(227,184,96,.35)",boxShadow:"0 40px 120px rgba(0,0,0,.6)",animation:"calcIn .4s cubic-bezier(.22,.9,.24,1)",color:C.text}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"min(1480px,100%)",height:"min(920px,100%)",position:"relative",display:"flex",flexDirection:"column",borderRadius:24,overflow:"hidden",background:dk?"linear-gradient(165deg,#0a1f4d 0%,#041434 55%,#020a1e 100%)":C.surface,border:"1px solid rgba(227,184,96,.35)",boxShadow:"0 40px 120px rgba(0,0,0,.6)",animation:"calcIn .4s cubic-bezier(.22,.9,.24,1)",color:C.text}}>
         {/* шапка */}
-        <div style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderBottom:`1px solid ${C.border}`,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",borderBottom:`1px solid ${C.border}`,flexWrap:"wrap"}}>
           <div style={{fontSize:20}}>📐</div>
           <div style={{minWidth:0}}>
             <div style={{fontSize:16}}>{pl?"Wycena kuchni":"Просчёт кухни"} · <span style={{color:champ}}>{lead.name||lead.phone||"—"}</span></div>
@@ -4232,123 +4427,176 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
           </div>
           <div style={{display:"flex",gap:8}}>
             {onKP&&<button className="calc-b" onClick={()=>onKP({...c,...calcTotals(c)})} disabled={!tot.total} style={{...btn(false),opacity:tot.total?1:.4}}>📄 {pl?"Oferta":"КП"}</button>}
-            <button className="calc-b" onClick={save} disabled={busy} style={{...btn(true),opacity:busy?.6:1}}>{busy?"…":"✓"} {busy?(pl?"Zapisuję":"Сохраняю"):(pl?"Zapisz w leadzie":"Сохранить в лид")}</button>
+            <button className="calc-b" onClick={save} disabled={busy} title="Ctrl+S" style={{...btn(true),opacity:busy?.6:1}}>{busy?"…":"✓"} {busy?(pl?"Zapisuję":"Сохраняю"):(pl?"Zapisz w leadzie":"Сохранить в лид")}</button>
             <button className="calc-b" onClick={onClose} style={{...btn(false),width:38,padding:0,justifyContent:"center"}}>✕</button>
           </div>
         </div>
-        <div className="calc-body" style={{flex:1,minHeight:0,display:"grid",gridTemplateColumns:"minmax(0,1.25fr) minmax(0,1fr)",gap:14,padding:14}}>
-          {/* каталог */}
-          <div style={{display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
+        <div className="calc-body" style={{flex:1,minHeight:0,display:"grid",gridTemplateColumns:"330px minmax(0,1fr)",gap:12,padding:12}}>
+          {/* палитра секций */}
+          <div style={{display:"flex",flexDirection:"column",gap:8,minHeight:0}}>
+            <div style={{display:"flex",gap:3,padding:3,borderRadius:13,background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.border}`}}>
+              {CALC_ZONES.slice(0,3).map((z,i)=><button key={z.k} className="calc-b" onClick={()=>{setZone(z.k);setQ("");}} style={{flex:1,height:32,padding:"0 6px",border:"none",borderRadius:10,cursor:"pointer",fontSize:12,background:zone===z.k&&!ql?"linear-gradient(135deg,#f6e0aa,#e3b860)":"transparent",color:zone===z.k&&!ql?"#08153a":C.muted}}>{pl?z.pl:z.ru}<span style={kb}>{i+1}</span></button>)}
+            </div>
+            <input value={q} onChange={e=>setQ(e.target.value)} placeholder={pl?"Szukaj: kod albo nazwa…":"Поиск: код или название…"} style={{...inp,height:34}}/>
+            {c.plan&&<div style={{fontSize:10.5,color:C.muted}}>{pl?`klik — postaw na ścianę ${active+1}`:`клик — поставить к стене ${active+1}`} · {pl?"ścianę wybierzesz klikiem na planie":"стену выбираешь кликом на плане"}</div>}
+            <div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:8,paddingRight:3}}>
+              {cat.map(g=><div key={g.g} className="calc-g" style={{...glass,borderRadius:14,padding:9,display:"flex",flexDirection:"column",gap:7}}>
+                <div style={{display:"flex",gap:9,alignItems:"center"}}>
+                  <CalcSketch g={g} size={44}/>
+                  <div style={{minWidth:0}}><div style={{fontSize:12.5,color:champ,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{calcFamily(g)}</div><div style={{fontSize:10.5,lineHeight:1.25,marginTop:2,color:C.muted}}>{ttl(g)}</div></div>
+                </div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {g.sizes.map(s=>{const n=(c.items||[]).filter(x=>x.code===s[0]).reduce((a,x)=>a+(x.qty||1),0);return(
+                    <button key={s[0]} className="calc-sz calc-b" title={`${s[0]} · ${fmtM(s[2])}`} onClick={()=>add(g,s)} style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",gap:0,minWidth:64,padding:"4px 8px",borderRadius:9,cursor:"pointer",border:`1px solid ${n?"rgba(227,184,96,.6)":C.borderMd}`,background:n?"rgba(227,184,96,.1)":"transparent",color:C.text,animation:flash===s[0]?"calcPop .45s":"none"}}>
+                      <span style={{fontSize:11.5,whiteSpace:"nowrap"}}>{s[0]}</span><span style={{fontSize:9.5,color:champ}}>{fmtM(s[2])}</span>
+                      {n>0&&<span style={{position:"absolute",top:-6,right:-6,minWidth:16,height:16,borderRadius:8,background:"#e3b860",color:"#08153a",fontSize:9,display:"grid",placeItems:"center",padding:"0 3px"}}>{n}</span>}
+                    </button>);})}
+                </div>
+              </div>)}
+              {!cat.length&&<div style={{color:C.muted,fontSize:12,padding:12}}>{pl?"nic nie znaleziono":"ничего не нашлось"}</div>}
+            </div>
+          </div>
+          {/* основная область */}
+          <div style={{display:"flex",flexDirection:"column",gap:8,minHeight:0,minWidth:0}}>
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
               <div style={{display:"flex",gap:3,padding:3,borderRadius:13,background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.border}`}}>
-                {CALC_ZONES.map(z=><button key={z.k} className="calc-b" onClick={()=>{setZone(z.k);setQ("");if(z.k==="sketch")setSkOn(true);}} style={{height:32,padding:"0 13px",border:"none",borderRadius:10,cursor:"pointer",fontSize:12,background:zone===z.k&&!ql?"linear-gradient(135deg,#f6e0aa,#e3b860)":"transparent",color:zone===z.k&&!ql?"#08153a":C.muted}}>{z.e} {pl?z.pl:z.ru}{z.k==="sketch"&&(skDirty||skSrc)?" •":""}</button>)}
+                {VIEWS.map(([k,ic,t,hk])=><button key={k} className="calc-b" onClick={()=>go(k)} style={{height:32,padding:"0 12px",border:"none",borderRadius:10,cursor:"pointer",fontSize:12,background:main===k?"linear-gradient(135deg,#f6e0aa,#e3b860)":"transparent",color:main===k?"#08153a":C.muted}}>{ic} {t}{k==="sketch"&&(skDirty||skSrc)?" •":""}<span style={kb}>{hk}</span></button>)}
               </div>
-              {zone!=="sketch"&&<input value={q} onChange={e=>setQ(e.target.value)} placeholder={pl?"Szukaj: kod albo nazwa…":"Поиск: код или название…"} style={{...inp,flex:1,minWidth:160,height:38}}/>}
-            </div>
-            {skOn&&<div style={{flex:1,minHeight:0,display:zone==="sketch"?"block":"none"}}><SketchPad apiRef={skApi} initialSrc={skSrc} lang={lang} onDirty={setSkDirty}/></div>}
-            <div style={{flex:1,minHeight:0,overflowY:"auto",paddingRight:4,display:zone==="sketch"?"none":"block"}}>
-              {zone==="extra"&&!ql?(
-                <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  <div style={{...glass,padding:14}}>
-                    <div style={{...lbl,marginBottom:10}}>{pl?"dodatki":"доп. позиции"}</div>
-                    {CALC_EXTRAS.map(e=>{const v=(c.extras||{})[e.k]||{};const sum=e.sumOnly?calcNum(v.price):calcNum(v.qty)*(e.price!=null?e.price:calcNum(v.price));return(
-                      <div key={e.k} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 84px 96px 92px",gap:8,alignItems:"center",padding:"6px 0",borderTop:`1px solid ${C.border}`}}>
-                        <div style={{fontSize:12.5}}>{pl?e.pl:e.ru}{e.price!=null&&<span style={{fontSize:10.5,color:C.muted}}> · {e.price} zł/{pl?e.uPl:e.uRu}</span>}</div>
-                        {e.sumOnly?<span/>:<input value={v.qty||""} onChange={ev=>setEx(e.k,"qty",ev.target.value)} placeholder={pl?e.uPl:e.uRu} inputMode="decimal" style={inp}/>}
-                        {e.price!=null?<span style={{fontSize:11,color:C.muted,textAlign:"center"}}>× {e.price}</span>:<input value={v.price||""} onChange={ev=>setEx(e.k,"price",ev.target.value)} placeholder={e.sumOnly?(pl?"kwota zł":"сумма zł"):(pl?`zł/${e.uPl}`:`zł/${e.uRu}`)} inputMode="decimal" style={inp}/>}
-                        <div style={{textAlign:"right",fontSize:12.5,color:sum?C.text:C.dim}}>{sum?fmtM(Math.round(sum)):"—"}</div>
-                      </div>);})}
-                  </div>
-                  <div style={{...glass,padding:14}}>
-                    <div style={{...lbl,marginBottom:4}}>{pl?"sekcja niestandardowa":"нестандартная секция"}</div>
-                    <div style={{fontSize:10.5,color:C.muted,marginBottom:8}}>{pl?"(materiał + 8 nóżki) × 1,1 technolog + 20 HDF + 90 montaż w hali → × 1,74":"(материал + 8 ножки) × 1,1 технолог + 20 ДВП + 90 сборка цех → × 1,74"}</div>
-                    {(c.nonstd||[]).map((x,i)=><div key={x.uid} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 90px 56px 92px 28px",gap:8,alignItems:"center",marginBottom:6}}>
-                      <input value={x.name||""} onChange={e=>upd(p=>({nonstd:p.nonstd.map(y=>y.uid===x.uid?{...y,name:e.target.value}:y)}))} placeholder={pl?"Nazwa / wymiary":"Название / размеры"} style={inp}/>
-                      <input value={x.mat||""} onChange={e=>upd(p=>({nonstd:p.nonstd.map(y=>y.uid===x.uid?{...y,mat:e.target.value}:y)}))} placeholder={pl?"materiał zł":"материал zł"} inputMode="decimal" style={inp}/>
-                      <input value={x.qty||""} onChange={e=>upd(p=>({nonstd:p.nonstd.map(y=>y.uid===x.uid?{...y,qty:e.target.value}:y)}))} placeholder="1" inputMode="numeric" style={inp}/>
-                      <div style={{textAlign:"right",fontSize:12.5}}>{calcNonStd(x.mat)?fmtM(calcNonStd(x.mat)*(calcNum(x.qty)||1)):"—"}</div>
-                      <button className="calc-b" onClick={()=>upd(p=>({nonstd:p.nonstd.filter(y=>y.uid!==x.uid)}))} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button>
-                    </div>)}
-                    <button className="calc-b" onClick={()=>upd(p=>({nonstd:[...(p.nonstd||[]),{uid:Date.now(),name:"",mat:"",qty:""}]}))} style={{...btn(false),height:32,fontSize:11.5}}>＋ {pl?"Dodaj sekcję":"Добавить секцию"}</button>
-                  </div>
-                  <div style={{...glass,padding:14}}>
-                    <div style={{...lbl,marginBottom:8}}>{pl?"własna pozycja":"своя позиция"}</div>
-                    {(c.custom||[]).map(x=><div key={x.uid} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 110px 28px",gap:8,alignItems:"center",marginBottom:6}}>
-                      <input value={x.name||""} onChange={e=>upd(p=>({custom:p.custom.map(y=>y.uid===x.uid?{...y,name:e.target.value}:y)}))} placeholder={pl?"Np. zlew, okap, transport":"Напр. мойка, вытяжка, доставка"} style={inp}/>
-                      <input value={x.sum||""} onChange={e=>upd(p=>({custom:p.custom.map(y=>y.uid===x.uid?{...y,sum:e.target.value}:y)}))} placeholder={pl?"kwota zł":"сумма zł"} inputMode="decimal" style={inp}/>
-                      <button className="calc-b" onClick={()=>upd(p=>({custom:p.custom.filter(y=>y.uid!==x.uid)}))} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button>
-                    </div>)}
-                    <button className="calc-b" onClick={()=>upd(p=>({custom:[...(p.custom||[]),{uid:Date.now(),name:"",sum:""}]}))} style={{...btn(false),height:32,fontSize:11.5}}>＋ {pl?"Dodaj pozycję":"Добавить позицию"}</button>
-                  </div>
+              {main==="plan"&&c.plan&&!wizOpen&&<>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                  {walls.map((W,i)=><label key={i} onClick={()=>setActive(i)} style={{display:"flex",alignItems:"center",gap:5,height:32,padding:"0 8px",borderRadius:10,border:`1px solid ${active===i?"rgba(227,184,96,.7)":C.borderMd}`,background:active===i?"rgba(227,184,96,.1)":"transparent",fontSize:11.5,cursor:"pointer"}}>{pl?"Ściana":"Стена"} {i+1}
+                    <input value={c.plan.lens[i]||""} onFocus={()=>snap()} onChange={e=>setLen(i,e.target.value.replace(/[^\d]/g,""))} inputMode="numeric" style={{...inp,width:52,height:24,padding:"2px 5px",textAlign:"center"}}/>
+                    <button onClick={e=>{e.preventDefault();setElev(elev===i?null:i);setActive(i);}} title={pl?"Rozwinięcie ściany":"Развёртка стены"} style={{height:22,padding:"0 6px",borderRadius:7,border:`1px solid ${elev===i?"#e3b860":C.border}`,background:elev===i?"rgba(227,184,96,.18)":"transparent",color:C.text,cursor:"pointer",fontSize:10.5}}>▦</button></label>)}
                 </div>
-              ):(
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:10}}>
-                  {cat.map(g=><div key={g.g} className="calc-g" style={{...glass,padding:12,display:"flex",flexDirection:"column",gap:9,transition:"border-color .3s"}}>
-                    <div style={{display:"flex",gap:11,alignItems:"center"}}>
-                      <CalcSketch g={g} size={70}/>
-                      <div style={{minWidth:0}}>
-                        <div style={{fontSize:13.5,lineHeight:1.2,color:champ}}>{calcFamily(g)}</div>
-                        <div style={{fontSize:11.5,lineHeight:1.25,marginTop:3}}>{ttl(g)}</div>
-                        <div style={{fontSize:10.5,color:C.muted,marginTop:3,lineHeight:1.35}}>{pl?g.hPl:g.hRu}</div>
+                {elev==null&&<div style={{display:"flex",gap:3,padding:3,borderRadius:11,border:`1px solid ${C.border}`}}>{[["all",pl?"Wszystko":"Всё"],["low",pl?"Dół":"Низ"],["top",pl?"Góra":"Верх"]].map(([k,t])=><button key={k} onClick={()=>setLayerView(k)} style={{height:26,padding:"0 9px",border:"none",borderRadius:8,cursor:"pointer",fontSize:11,background:layerView===k?"rgba(227,184,96,.2)":"transparent",color:layerView===k?"#f6e0aa":C.muted}}>{t}</button>)}</div>}
+                <button className="calc-b" onClick={()=>setWizOpen(true)} style={{...btn(false),height:32,fontSize:11.5}}>⟲ {pl?"Kształt":"Форма"}</button>
+                <button className="calc-b" onClick={undo} disabled={!hist.current.length} title="Ctrl+Z" style={{...btn(false),height:32,fontSize:11.5,opacity:hist.current.length?1:.4}}>↶</button>
+              </>}
+              {main==="list"&&(c.items||[]).length>0&&<button className="calc-b" onClick={copySpec} style={{marginLeft:"auto",height:30,padding:"0 10px",borderRadius:9,border:`1px solid ${C.borderMd}`,background:copied?"rgba(71,230,160,.15)":"transparent",color:copied?"#47e6a0":C.muted,cursor:"pointer",fontSize:11}}>{copied?(pl?"✓ Skopiowano":"✓ Скопировано"):(pl?"📋 Kopiuj specyfikację":"📋 Копировать спецификацию")}</button>}
+            </div>
+            {/* ПЛАН */}
+            {main==="plan"&&(!c.plan||wizOpen?wizView:(
+              <div style={{flex:1,minHeight:0,display:"flex",gap:10}}>
+              <div style={{...glass,flex:1,minWidth:0,minHeight:0,position:"relative",overflow:"hidden",padding:8}}>
+                {elev==null?<KitchenPlan items={c.items||[]} walls={walls} sel={sel} setSel={setSel} active={active} setActive={setActive} onDragStart={snap} onMove={moveIt} view={layerView} pl={pl} onOpenWall={i=>setElev(i)}/>
+                  :<div style={{position:"absolute",inset:8,display:"flex",flexDirection:"column",gap:6}}><div style={{display:"flex",alignItems:"center",gap:8,fontSize:12}}><b style={{fontWeight:400}}>{pl?"Rozwinięcie":"Развёртка"} · {pl?"ściana":"стена"} {elev+1} · {walls[elev]&&walls[elev].len} {pl?"cm":"см"}</b><span style={{color:C.muted,fontSize:11}}>{pl?"przeciągaj sekcje w bok · Esc — wróć do planu":"тяни секции влево-вправо · Esc — назад к плану"}</span><button onClick={()=>setElev(null)} style={{marginLeft:"auto",...btn(false),height:28,fontSize:11}}>← {pl?"Plan":"План"}</button></div>
+                    <div style={{flex:1,minHeight:0}}>{walls[elev]&&<WallElevation items={c.items||[]} wi={elev} W={walls[elev]} walls={walls} sel={sel} setSel={setSel} onDragStart={snap} onMove={moveIt} pl={pl}/>}</div></div>}
+                {!(c.items||[]).some(x=>x.wall!=null)&&elev==null&&<div className="hand" style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",fontSize:24,color:champ,textAlign:"center",pointerEvents:"none",lineHeight:1.15}}>{pl?"kliknij sekcję po lewej — stanie przy ścianie":"кликни секцию слева — она встанет к стене"}<br/><span style={{fontSize:18,color:C.muted}}>{pl?"przeciągaj, magnesują się same":"перетаскивай — магнитятся сами"}</span></div>}
+                {(()=>{const n=planBad(c.items||[],walls).size;return n?<div style={{position:"absolute",left:14,top:12,padding:"5px 10px",borderRadius:9,background:"rgba(255,90,110,.15)",border:"1px solid rgba(255,90,110,.5)",color:"#ff7d8c",fontSize:11}}>⚠ {pl?`nakładają się / wychodzą poza ścianę: ${n}`:`наложение или выход за стену: ${n}`}</div>:null;})()}
+                {(()=>{const n=(c.items||[]).filter(x=>x.wall==null).reduce((a,x)=>a+(x.qty||1),0);return n?<div style={{position:"absolute",left:14,bottom:12,padding:"5px 10px",borderRadius:9,background:"rgba(2,10,30,.6)",border:`1px solid ${C.border}`,color:C.muted,fontSize:11}}>{pl?`poza planem: ${n} szt. (w specyfikacji)`:`не на плане: ${n} шт. (есть в спецификации)`}</div>:null;})()}
+              </div>
+                {selIt&&(()=>{const gg=CALC_BY_CODE[selIt.code];const g=gg&&gg.g;return(
+                  <div onPointerDown={e=>e.stopPropagation()} style={{width:270,flexShrink:0,alignSelf:"flex-start",borderRadius:16,padding:12,background:dk?"linear-gradient(160deg,rgba(30,72,170,.97),rgba(5,18,52,.98))":C.surface,border:"1px solid rgba(227,184,96,.4)",boxShadow:"0 20px 60px rgba(0,0,0,.45)",display:"flex",flexDirection:"column",gap:8}}>
+                    <div style={{display:"flex",gap:9,alignItems:"center"}}><CalcSketch g={g} size={44}/><div style={{minWidth:0,flex:1}}><div style={{fontSize:14,color:champ}}>{selIt.code}{selIt.ns?" *":""}</div><div style={{fontSize:10.5,color:C.muted}}>{g?ttl(g):""}{selIt.ns?` · ${pl?"szerokość niestandardowa":"нестандартная ширина"}`:""}</div></div><button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button></div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                      <label style={{fontSize:10.5,color:C.muted,display:"flex",flexDirection:"column",gap:3}}>{pl?"Szerokość, cm":"Ширина, см"}<input key={selIt.uid+":"+selIt.w} defaultValue={selIt.w} onBlur={e=>setWidth(selIt.uid,e.target.value)} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} inputMode="numeric" style={{...inp,height:32,fontSize:14,width:"100%",minWidth:0}}/></label>
+                      <label style={{fontSize:10.5,color:C.muted,display:"flex",flexDirection:"column",gap:3}}>{pl?"Cena, zł":"Цена, zł"}<input key={selIt.uid+":p"+selIt.price} defaultValue={selIt.price} onBlur={e=>{if(calcNum(e.target.value)!==selIt.price)setPrice(selIt.uid,e.target.value);}} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} inputMode="numeric" style={{...inp,height:32,fontSize:14,width:"100%",minWidth:0}}/></label>
+                    </div>
+                    {g&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{g.sizes.map(s=><button key={s[0]} onClick={()=>setWidth(selIt.uid,s[1])} style={{height:24,padding:"0 7px",borderRadius:7,border:`1px solid ${selIt.code===s[0]&&!selIt.ns?"#e3b860":C.border}`,background:"transparent",color:C.text,cursor:"pointer",fontSize:10.5}}>{s[3]||s[1]}</button>)}</div>}
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <select value={selIt.wall==null?"":String(selIt.wall)} onChange={e=>{const wi=e.target.value===""?null:+e.target.value;snap();if(wi==null){moveIt(selIt.uid,{wall:null});return;}const x=planAutoX((c.items||[]).filter(o=>o.uid!==selIt.uid),walls,wi,selIt);if(x==null){say(pl?"Brak miejsca na tej ścianie":"На этой стене нет места");return;}moveIt(selIt.uid,{wall:wi,x});setActive(wi);}} style={{...inp,height:30,flex:1}}>
+                        {walls.map((W,i)=><option key={i} value={i}>{pl?"Ściana":"Стена"} {i+1}</option>)}<option value="">{pl?"poza planem":"убрать с плана"}</option></select>
+                      <button title="←" onClick={()=>nudge(selIt.uid,-10)} style={{...btn(false),height:30,width:30,padding:0,justifyContent:"center"}}>←</button>
+                      <button title="→" onClick={()=>nudge(selIt.uid,10)} style={{...btn(false),height:30,width:30,padding:0,justifyContent:"center"}}>→</button>
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button onClick={()=>dup(selIt.uid)} style={{...btn(false),height:30,fontSize:11.5,flex:1,justifyContent:"center"}}>⧉ {pl?"Duplikuj":"Дубль"} <span style={kb}>D</span></button>
+                      <button onClick={()=>del(selIt.uid)} style={{...btn(false),height:30,fontSize:11.5,flex:1,justifyContent:"center",color:"#ff7d8c"}}>✕ {pl?"Usuń":"Удалить"} <span style={kb}>Del</span></button>
+                    </div>
+                    <div style={{fontSize:10,color:C.dim}}>← → 1 {pl?"cm":"см"} · Shift+← → 10 {pl?"cm":"см"} · {pl?"przeciągnij na inną ścianę":"перетащи на другую стену"}</div>
+                  </div>);})()}
+                {!selIt&&<div style={{width:270,flexShrink:0,alignSelf:"flex-start",borderRadius:16,padding:12,border:`1px dashed ${C.borderMd}`,display:"flex",flexDirection:"column",gap:8,fontSize:11.5,color:C.muted}}>
+                  <div style={lbl}>{pl?"ściany":"стены"}</div>
+                  {walls.map((W,i)=>{const fl=(c.items||[]).filter(x=>x.wall===i&&planFloor(planLayer(x))).reduce((a,x)=>a+x.w,0);const tp=(c.items||[]).filter(x=>x.wall===i&&!planFloor(planLayer(x))).reduce((a,x)=>a+x.w,0);return(
+                    <div key={i} onClick={()=>setActive(i)} style={{cursor:"pointer",padding:"7px 9px",borderRadius:10,border:`1px solid ${active===i?"rgba(227,184,96,.6)":C.border}`,background:active===i?"rgba(227,184,96,.08)":"transparent"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",color:C.text}}><span>{pl?"Ściana":"Стена"} {i+1}</span><span>{W.len} {pl?"cm":"см"}</span></div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,marginTop:3}}><span>{pl?"dół":"низ"} {fl} · {pl?"wolne":"свободно"} {Math.max(0,W.len-fl)}</span><span>{pl?"góra":"верх"} {tp}</span></div>
+                    </div>);})}
+                  <div className="hand" style={{fontSize:17,color:champ,lineHeight:1.2,marginTop:4}}>{pl?"kliknij sekcję, aby zmienić szerokość lub cenę":"кликни секцию — поменяешь ширину или цену"}</div>
+                  <div style={{fontSize:10.5,lineHeight:1.6}}>{pl?"Dwuklik na ścianie — rozwinięcie":"Двойной клик по стене — развёртка"}<br/>{pl?"Sekcje przyciągają się do ścian, narożników i sąsiadów":"Секции магнитятся к стенам, углам и соседям"}</div>
+                </div>}
+              </div>))}
+            {/* СПЕЦИФИКАЦИЯ */}
+            {main==="list"&&<div style={{flex:1,minHeight:0,display:"grid",gridTemplateColumns:"minmax(0,1.4fr) minmax(0,1fr)",gap:10}}>
+              <div style={{...glass,minHeight:0,overflowY:"auto",padding:12}}>
+                <div style={{...lbl,marginBottom:6}}>{pl?"specyfikacja":"спецификация"} · {(c.items||[]).reduce((a,x)=>a+(x.qty||1),0)} {pl?"szt.":"шт."}</div>
+                {!(c.items||[]).length&&<div className="hand" style={{fontSize:21,color:champ,padding:"18px 6px",lineHeight:1.15}}>{pl?"klikaj w rozmiary po lewej — sekcje dodadzą się tutaj":"кликай по размерам слева — секции появятся здесь"}</div>}
+                {CALC_ZONES.slice(0,3).map(z=>{const it=groups.filter(x=>x.zone===z.k);if(!it.length)return null;return(<div key={z.k} style={{marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:C.muted,padding:"6px 2px"}}><span>{pl?z.pl:z.ru}</span><span>{runTxt(z.k)}</span></div>
+                  {it.map(x=>{const gg=CALC_BY_CODE[x.code];const g=gg&&gg.g;return(
+                    <div key={x.k} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 4px",borderTop:`1px solid ${C.border}`}}>
+                      <CalcSketch g={g} size={52}/>
+                      <div style={{minWidth:0,flex:1}}><div style={{fontSize:13.5}}>{x.code}{x.ns&&<span style={{fontSize:10.5,color:"#f6c453"}}> · {pl?"niestandard":"нестандарт"} {x.w} {pl?"cm":"см"}</span>}</div><div style={{fontSize:10.5,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{g?ttl(g):""} · {fmtM(x.price)}{x.off?` · ${pl?"poza planem":"не на плане"} ${x.off}`:""}</div></div>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <button className="calc-b" onClick={()=>grpMinus(x)} style={{width:24,height:24,borderRadius:7,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.text,cursor:"pointer"}}>−</button>
+                        <span style={{minWidth:18,textAlign:"center",fontSize:12.5}}>{x.qty}</span>
+                        <button className="calc-b" onClick={()=>grpPlus(x)} style={{width:24,height:24,borderRadius:7,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.text,cursor:"pointer"}}>+</button>
                       </div>
-                    </div>
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                      {g.sizes.map(s=>{const n=(c.items||[]).filter(x=>x.code===s[0]).reduce((a,x)=>a+x.qty,0);return(
-                        <button key={s[0]} className="calc-sz calc-b" title={s[0]} onClick={()=>add(g,s)} style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",gap:1,minWidth:76,padding:"6px 10px",borderRadius:11,cursor:"pointer",border:`1px solid ${n?"rgba(227,184,96,.6)":C.borderMd}`,background:n?"rgba(227,184,96,.1)":"transparent",color:C.text,animation:flash===s[0]?"calcPop .45s":"none",transition:"border-color .25s,background .25s"}}>
-                          <span style={{fontSize:12.5,whiteSpace:"nowrap"}}>{s[0]}</span>
-                          <span style={{fontSize:10.5,color:champ}}>{fmtM(s[2])}</span>
-                          {n>0&&<span style={{position:"absolute",top:-7,right:-7,minWidth:18,height:18,borderRadius:9,background:"#e3b860",color:"#08153a",fontSize:10,display:"grid",placeItems:"center",padding:"0 4px"}}>{n}</span>}
-                        </button>);})}
-                    </div>
-                  </div>)}
-                  {!cat.length&&<div style={{color:C.muted,fontSize:12,padding:20}}>{pl?"nic nie znaleziono":"ничего не нашлось"}</div>}
-                </div>
-              )}
-            </div>
-          </div>
-          {/* кухня */}
-          <div style={{display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
-            <div style={{...glass,flex:1,minHeight:0,overflowY:"auto",padding:12}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><div style={lbl}>{pl?"specyfikacja":"спецификация"} · {(c.items||[]).reduce((a,x)=>a+x.qty,0)} {pl?"szt.":"шт."}</div>
-                {(c.items||[]).length>0&&<button className="calc-b" onClick={copySpec} style={{marginLeft:"auto",height:26,padding:"0 10px",borderRadius:8,border:`1px solid ${C.borderMd}`,background:copied?"rgba(71,230,160,.15)":"transparent",color:copied?"#47e6a0":C.muted,cursor:"pointer",fontSize:11}}>{copied?(pl?"✓ Skopiowano":"✓ Скопировано"):(pl?"📋 Kopiuj specyfikację":"📋 Копировать спецификацию")}</button>}</div>
-              {!(c.items||[]).length&&<div className="hand" style={{fontSize:21,color:champ,padding:"18px 6px",lineHeight:1.15}}>{pl?"klikaj w rozmiary po lewej — sekcje dodadzą się tutaj":"кликай по размерам слева — секции появятся здесь"}</div>}
-              {CALC_ZONES.slice(0,3).map(z=>{const it=zoneItems(z.k);if(!it.length)return null;return(<div key={z.k} style={{marginBottom:8}}>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:C.muted,padding:"6px 2px"}}><span>{z.e} {pl?z.pl:z.ru}</span><span>{runTxt(z.k)}</span></div>
-                {it.map(x=>{const gg=CALC_BY_CODE[x.code];const g=gg&&gg.g;return(
-                  <div key={x.uid} style={{display:"flex",alignItems:"center",gap:9,padding:"6px 4px",borderTop:`1px solid ${C.border}`}}>
-                    <CalcSketch g={g} size={34}/>
-                    <div style={{minWidth:0,flex:1}}><div style={{fontSize:13,whiteSpace:"nowrap"}}>{x.code}</div><div style={{fontSize:10.5,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{g?ttl(g):""} · {fmtM(x.price)}</div></div>
-                    <div style={{display:"flex",alignItems:"center",gap:4}}>
-                      <button className="calc-b" onClick={()=>setQty(x.uid,-1)} style={{width:24,height:24,borderRadius:7,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.text,cursor:"pointer"}}>−</button>
-                      <span style={{minWidth:18,textAlign:"center",fontSize:12.5}}>{x.qty}</span>
-                      <button className="calc-b" onClick={()=>setQty(x.uid,1)} style={{width:24,height:24,borderRadius:7,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.text,cursor:"pointer"}}>+</button>
-                    </div>
-                    <div style={{width:82,textAlign:"right",fontSize:12.5}}>{fmtM(x.price*x.qty)}</div>
-                    <button className="calc-b" onClick={()=>del(x.uid)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12}}>✕</button>
-                  </div>);})}
-              </div>);})}
-              {(tot.ex>0||tot.ns>0||tot.cus>0)&&<div style={{display:"flex",flexDirection:"column",gap:4,borderTop:`1px solid ${C.border}`,paddingTop:8,fontSize:12,color:C.muted}}>
-                {tot.ex>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span>＋ {pl?"dodatki":"доп. позиции"}</span><span style={{color:C.text}}>{fmtM(tot.ex)}</span></div>}
-                {tot.ns>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span>＋ {pl?"niestandard":"нестандарт"}</span><span style={{color:C.text}}>{fmtM(tot.ns)}</span></div>}
-                {tot.cus>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span>＋ {pl?"własne pozycje":"свои позиции"}</span><span style={{color:C.text}}>{fmtM(tot.cus)}</span></div>}
-              </div>}
-            </div>
-            <div style={{...glass,padding:12,display:"flex",flexDirection:"column",gap:8}}>
-              <div style={lbl}>{pl?"pomysły i uwagi do wyceny":"идеи и заметки к просчёту"}</div>
-              <textarea value={c.notes||""} onChange={e=>upd({notes:e.target.value})} placeholder={pl?"Np. wyspa, złote uchwyty, blat kamienny, bez górnych szafek…":"Напр. остров, золотые ручки, каменная столешница, без верхних шкафов…"} style={{...inp,minHeight:64,resize:"vertical",fontSize:12.5,lineHeight:1.45}}/>
-              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                <span style={{fontSize:12,color:C.muted}}>{pl?"Sekcje":"Секции"} <b style={{fontWeight:400,color:C.text}}>{fmtM(tot.sec)}</b></span>
-                <span style={{marginLeft:"auto",fontSize:12,color:C.muted}}>{pl?"Rabat":"Скидка"}</span>
-                <input value={c.discount||""} onChange={e=>upd({discount:e.target.value})} placeholder="0" inputMode="decimal" style={{...inp,width:58,textAlign:"center"}}/>
-                <span style={{fontSize:12,color:C.muted}}>%</span>
+                      <div style={{width:86,textAlign:"right",fontSize:12.5}}>{fmtM(x.price*x.qty)}</div>
+                    </div>);})}
+                </div>);})}
+                {(tot.ex>0||tot.ns>0||tot.cus>0)&&<div style={{display:"flex",flexDirection:"column",gap:4,borderTop:`1px solid ${C.border}`,paddingTop:8,fontSize:12,color:C.muted}}>
+                  {tot.ex>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span>＋ {pl?"dodatki":"доп. позиции"}</span><span style={{color:C.text}}>{fmtM(tot.ex)}</span></div>}
+                  {tot.ns>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span>＋ {pl?"niestandard":"нестандарт"}</span><span style={{color:C.text}}>{fmtM(tot.ns)}</span></div>}
+                  {tot.cus>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span>＋ {pl?"własne pozycje":"свои позиции"}</span><span style={{color:C.text}}>{fmtM(tot.cus)}</span></div>}
+                </div>}
               </div>
-            </div>
+              <div style={{...glass,padding:12,display:"flex",flexDirection:"column",gap:8,minHeight:0}}>
+                <div style={lbl}>{pl?"pomysły i uwagi do wyceny":"идеи и заметки к просчёту"}</div>
+                <textarea value={c.notes||""} onChange={e=>upd({notes:e.target.value})} placeholder={pl?"Np. wyspa, złote uchwyty, blat kamienny, bez górnych szafek…":"Напр. остров, золотые ручки, каменная столешница, без верхних шкафов…"} style={{...inp,flex:1,minHeight:90,resize:"none",fontSize:12.5,lineHeight:1.45}}/>
+                <div style={{display:"flex",flexDirection:"column",gap:5,fontSize:12,color:C.muted}}>
+                  <div style={{display:"flex",justifyContent:"space-between"}}><span>{pl?"Sekcje":"Секции"}</span><span style={{color:C.text}}>{fmtM(tot.sec)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between"}}><span>{pl?"Dodatki":"Доп."}</span><span style={{color:C.text}}>{fmtM(tot.ex+tot.ns+tot.cus)}</span></div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}><span>{pl?"Rabat":"Скидка"}</span><input value={c.discount||""} onChange={e=>upd({discount:e.target.value})} placeholder="0" inputMode="decimal" style={{...inp,width:58,textAlign:"center",marginLeft:"auto"}}/><span>%</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:15,color:champ,borderTop:`1px solid ${C.border}`,paddingTop:6}}><span>{pl?"Razem":"Итого"}</span><span>{fmtM(tot.disc?tot.totalDisc:tot.total)}</span></div>
+                </div>
+              </div>
+            </div>}
+            {/* ДОП */}
+            {main==="extra"&&<div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
+              <div style={{...glass,padding:14}}>
+                <div style={{...lbl,marginBottom:10}}>{pl?"dodatki":"доп. позиции"}</div>
+                {CALC_EXTRAS.map(e=>{const v=(c.extras||{})[e.k]||{};const sum=e.sumOnly?calcNum(v.price):calcNum(v.qty)*(e.price!=null?e.price:calcNum(v.price));return(
+                  <div key={e.k} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 84px 96px 92px",gap:8,alignItems:"center",padding:"6px 0",borderTop:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:12.5}}>{pl?e.pl:e.ru}{e.price!=null&&<span style={{fontSize:10.5,color:C.muted}}> · {e.price} zł/{pl?e.uPl:e.uRu}</span>}{e.k==="blat"&&tot.run.low>0&&!v.qty&&<button onClick={()=>setEx("blat","qty",String(Math.round((tot.run.low||0))/100))} style={{marginLeft:8,background:"transparent",border:`1px solid ${C.border}`,color:C.accent,borderRadius:7,padding:"1px 7px",fontSize:10.5,cursor:"pointer"}}>= {pl?"długość dołu":"длина низа"} {(tot.run.low/100).toFixed(2)}</button>}{e.k==="cokol"&&tot.run.low>0&&!v.qty&&<button onClick={()=>setEx("cokol","qty",String(Math.round(((tot.run.low||0)+(tot.run.tall||0)))/100))} style={{marginLeft:8,background:"transparent",border:`1px solid ${C.border}`,color:C.accent,borderRadius:7,padding:"1px 7px",fontSize:10.5,cursor:"pointer"}}>= {pl?"dół + słupki":"низ + пеналы"}</button>}</div>
+                    {e.sumOnly?<span/>:<input value={v.qty||""} onChange={ev=>setEx(e.k,"qty",ev.target.value)} placeholder={pl?e.uPl:e.uRu} inputMode="decimal" style={inp}/>}
+                    {e.price!=null?<span style={{fontSize:11,color:C.muted,textAlign:"center"}}>× {e.price}</span>:<input value={v.price||""} onChange={ev=>setEx(e.k,"price",ev.target.value)} placeholder={e.sumOnly?(pl?"kwota zł":"сумма zł"):(pl?`zł/${e.uPl}`:`zł/${e.uRu}`)} inputMode="decimal" style={inp}/>}
+                    <div style={{textAlign:"right",fontSize:12.5,color:sum?C.text:C.dim}}>{sum?fmtM(Math.round(sum)):"—"}</div>
+                  </div>);})}
+              </div>
+              <div style={{...glass,padding:14}}>
+                <div style={{...lbl,marginBottom:4}}>{pl?"sekcja niestandardowa":"нестандартная секция"}</div>
+                <div style={{fontSize:10.5,color:C.muted,marginBottom:8}}>{pl?"(materiał + 8 nóżki) × 1,1 technolog + 20 HDF + 90 montaż w hali → × 1,74":"(материал + 8 ножки) × 1,1 технолог + 20 ДВП + 90 сборка цех → × 1,74"}</div>
+                {(c.nonstd||[]).map(x=><div key={x.uid} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 90px 56px 92px 28px",gap:8,alignItems:"center",marginBottom:6}}>
+                  <input value={x.name||""} onChange={e=>upd(p=>({nonstd:p.nonstd.map(y=>y.uid===x.uid?{...y,name:e.target.value}:y)}))} placeholder={pl?"Nazwa / wymiary":"Название / размеры"} style={inp}/>
+                  <input value={x.mat||""} onChange={e=>upd(p=>({nonstd:p.nonstd.map(y=>y.uid===x.uid?{...y,mat:e.target.value}:y)}))} placeholder={pl?"materiał zł":"материал zł"} inputMode="decimal" style={inp}/>
+                  <input value={x.qty||""} onChange={e=>upd(p=>({nonstd:p.nonstd.map(y=>y.uid===x.uid?{...y,qty:e.target.value}:y)}))} placeholder="1" inputMode="numeric" style={inp}/>
+                  <div style={{textAlign:"right",fontSize:12.5}}>{calcNonStd(x.mat)?fmtM(calcNonStd(x.mat)*(calcNum(x.qty)||1)):"—"}</div>
+                  <button className="calc-b" onClick={()=>upd(p=>({nonstd:p.nonstd.filter(y=>y.uid!==x.uid)}))} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button>
+                </div>)}
+                <button className="calc-b" onClick={()=>upd(p=>({nonstd:[...(p.nonstd||[]),{uid:Date.now(),name:"",mat:"",qty:""}]}))} style={{...btn(false),height:32,fontSize:11.5}}>＋ {pl?"Dodaj sekcję":"Добавить секцию"}</button>
+              </div>
+              <div style={{...glass,padding:14}}>
+                <div style={{...lbl,marginBottom:8}}>{pl?"własna pozycja":"своя позиция"}</div>
+                {(c.custom||[]).map(x=><div key={x.uid} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 110px 28px",gap:8,alignItems:"center",marginBottom:6}}>
+                  <input value={x.name||""} onChange={e=>upd(p=>({custom:p.custom.map(y=>y.uid===x.uid?{...y,name:e.target.value}:y)}))} placeholder={pl?"Np. zlew, okap, transport":"Напр. мойка, вытяжка, доставка"} style={inp}/>
+                  <input value={x.sum||""} onChange={e=>upd(p=>({custom:p.custom.map(y=>y.uid===x.uid?{...y,sum:e.target.value}:y)}))} placeholder={pl?"kwota zł":"сумма zł"} inputMode="decimal" style={inp}/>
+                  <button className="calc-b" onClick={()=>upd(p=>({custom:p.custom.filter(y=>y.uid!==x.uid)}))} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button>
+                </div>)}
+                <button className="calc-b" onClick={()=>upd(p=>({custom:[...(p.custom||[]),{uid:Date.now(),name:"",sum:""}]}))} style={{...btn(false),height:32,fontSize:11.5}}>＋ {pl?"Dodaj pozycję":"Добавить позицию"}</button>
+              </div>
+            </div>}
+            {/* РИСУНОК */}
+            {skOn&&<div style={{flex:1,minHeight:0,display:main==="sketch"?"block":"none"}}><SketchPad apiRef={skApi} initialSrc={skSrc} lang={lang} onDirty={setSkDirty}/></div>}
+            <div style={{fontSize:10,color:C.dim,display:"flex",gap:12,flexWrap:"wrap"}}><span>1–3 {pl?"sekcje":"секции"}</span><span>4 {pl?"dodatki":"доп."}</span><span>5 {pl?"rysunek":"рисунок"}</span><span>6 {pl?"plan":"план"}</span><span>7 {pl?"specyfikacja":"спецификация"}</span><span>Del · D · ← → · Ctrl+Z · Ctrl+S · Esc</span></div>
           </div>
         </div>
+        {note&&<div key={note.id} style={{position:"absolute",left:"50%",bottom:30,transform:"translateX(-50%)",zIndex:5,padding:"10px 16px",borderRadius:14,background:dk?"linear-gradient(150deg,rgba(30,70,170,.96),rgba(6,22,62,.97))":C.surface,border:"1px solid rgba(227,184,96,.35)",fontSize:12,color:C.text,boxShadow:"0 20px 60px rgba(0,0,0,.45)"}}>{note.m}</div>}
       </div>
     </div>
   );
 }
+
 // Список просчётов в карточке лида
 function LeadCalcs({lead,lang,onOpen,onKP,onDup,onDel}){
   const pl=lang==="pl";const list=lead.calcs||[];const [arm,setArm]=useState(null);
