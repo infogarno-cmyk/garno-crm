@@ -4041,6 +4041,7 @@ const CALC_ZONES=[
   {k:"tall",e:"▯",ru:"Пеналы",   pl:"Słupki"},
   {k:"top", e:"▔",ru:"Верх",     pl:"Góra"},
   {k:"extra",e:"＋",ru:"Доп.",    pl:"Dodatki"},
+  {k:"sketch",e:"✏️",ru:"Набросок",pl:"Szkic"},
 ];
 // sizes: [код, ширина(см), цена zł, подпись размера (необязательно)]
 const CALC_CAT=[
@@ -4067,6 +4068,8 @@ const CALC_CAT=[
   {g:"hnu2",z:"top", img:"p130_79", ru:"Верхний угловой со скосом",   pl:"Wisząca narożna skośna",       hRu:"2 дверцы · 60/28",                      hPl:"2 drzwi · 60/28",                      sizes:[["НNу2-60/28",60,1290,"60/28"]]},
   {g:"wit", z:"top", img:null,      ru:"Витрина 1150",                pl:"Witryna 1150",                 hRu:"стеклянный фасад · высота 1150",        hPl:"front szklany · wysokość 1150",        sizes:[["Witrynka 1150×350",35,1650,"35"],["Witrynka 1150×600",60,2150,"60"]]},
 ];
+// подпись семейства по спецификации: «С-45KIS … С-90KIS», «HN-30 … HN-60», «Cу-90/45 · Cу-100/60»
+const calcFamily=g=>{const c=g.sizes.map(s=>s[0]);return c.length<=2?c.join(" · "):`${c[0]} … ${c[c.length-1]}`;};
 const CALC_BY_CODE=Object.fromEntries(CALC_CAT.flatMap(g=>g.sizes.map(s=>[s[0],{g,s}])));
 // Доп. позиции: фикс. цена за единицу (из бланка) и ручные (кол-во × цена)
 const CALC_EXTRAS=[
@@ -4100,11 +4103,70 @@ function CalcSketch({g,size=56}){
   </div>;
 }
 
+// Набросок кухни карандашом: карандаш / линия / прямоугольник / ластик, цвета, толщина, отмена, сетка-миллиметровка.
+// Сохраняется вместе с просчётом (PNG в хранилище фото лида; если хранилище недоступно — сжатая картинка прямо в просчёте).
+const SKETCH_W=1200,SKETCH_H=760;
+function sketchGrid(ctx){ctx.fillStyle="#ffffff";ctx.fillRect(0,0,SKETCH_W,SKETCH_H);
+  for(let x=0;x<=SKETCH_W;x+=20){ctx.strokeStyle=x%100===0?"rgba(33,82,224,.20)":"rgba(33,82,224,.08)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+.5,0);ctx.lineTo(x+.5,SKETCH_H);ctx.stroke();}
+  for(let y=0;y<=SKETCH_H;y+=20){ctx.strokeStyle=y%100===0?"rgba(33,82,224,.20)":"rgba(33,82,224,.08)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y+.5);ctx.lineTo(SKETCH_W,y+.5);ctx.stroke();}}
+function SketchPad({initialSrc,apiRef,lang,onDirty}){
+  const pl=lang==="pl";const cv=useRef(null);const [tool,setTool]=useState("pen");const [color,setColor]=useState("#0b1f4d");const [size,setSize]=useState(3);
+  const hist=useRef([]);const drag=useRef(null);const snap=useRef(null);const [,force]=useState(0);const dirty=useRef(false);
+  const ctx=()=>cv.current&&cv.current.getContext("2d");
+  const push=()=>{const c=ctx();if(!c)return;hist.current.push(c.getImageData(0,0,SKETCH_W,SKETCH_H));if(hist.current.length>30)hist.current.shift();force(x=>x+1);};
+  const mark=()=>{if(!dirty.current){dirty.current=true;onDirty&&onDirty(true);}};
+  useEffect(()=>{const c=ctx();if(!c)return;sketchGrid(c);
+    if(initialSrc){const im=new Image();im.onload=()=>{c.drawImage(im,0,0,SKETCH_W,SKETCH_H);};im.src=initialSrc;}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[initialSrc]);
+  useEffect(()=>{if(apiRef)apiRef.current={dirty:()=>dirty.current,blob:(type="image/png",q)=>new Promise(r=>cv.current?cv.current.toBlob(r,type,q):r(null)),dataUrl:(type="image/webp",q=.6)=>{const s=document.createElement("canvas");s.width=900;s.height=Math.round(900*SKETCH_H/SKETCH_W);s.getContext("2d").drawImage(cv.current,0,0,s.width,s.height);return s.toDataURL(type,q);}};});
+  const pos=e=>{const r=cv.current.getBoundingClientRect();return{x:(e.clientX-r.left)*SKETCH_W/r.width,y:(e.clientY-r.top)*SKETCH_H/r.height};};
+  const style=c=>{c.lineCap="round";c.lineJoin="round";c.strokeStyle=tool==="eraser"?"#ffffff":color;c.lineWidth=tool==="eraser"?size*6:size;};
+  const down=e=>{e.preventDefault();const c=ctx();if(!c)return;cv.current.setPointerCapture&&cv.current.setPointerCapture(e.pointerId);push();const p=pos(e);drag.current=p;
+    if(tool==="pen"||tool==="eraser"){style(c);c.beginPath();c.moveTo(p.x,p.y);c.lineTo(p.x+.01,p.y+.01);c.stroke();}else snap.current=c.getImageData(0,0,SKETCH_W,SKETCH_H);mark();};
+  const move=e=>{if(!drag.current)return;const c=ctx();const p=pos(e);
+    if(tool==="pen"||tool==="eraser"){style(c);c.beginPath();c.moveTo(drag.current.x,drag.current.y);c.lineTo(p.x,p.y);c.stroke();drag.current=p;return;}
+    c.putImageData(snap.current,0,0);style(c);const a=drag.current;let bx=p.x,by=p.y;
+    if(tool==="line"&&e.shiftKey){if(Math.abs(p.x-a.x)>Math.abs(p.y-a.y))by=a.y;else bx=a.x;}
+    c.beginPath();if(tool==="line"){c.moveTo(a.x,a.y);c.lineTo(bx,by);}else c.rect(Math.min(a.x,bx),Math.min(a.y,by),Math.abs(bx-a.x),Math.abs(by-a.y));c.stroke();};
+  const up=()=>{drag.current=null;snap.current=null;};
+  const undo=()=>{const c=ctx();const h=hist.current.pop();if(c&&h){c.putImageData(h,0,0);force(x=>x+1);mark();}};
+  const clear=()=>{const c=ctx();if(!c)return;push();sketchGrid(c);mark();};
+  const B=(on)=>({height:32,minWidth:32,padding:"0 10px",borderRadius:9,border:`1px solid ${on?"rgba(227,184,96,.7)":C.borderMd}`,background:on?"rgba(227,184,96,.16)":"transparent",color:C.text,cursor:"pointer",fontSize:12,display:"inline-flex",alignItems:"center",gap:5});
+  const TOOLS=[["pen","✏️",pl?"Ołówek":"Карандаш"],["line","📏",pl?"Linia (Shift — prosta)":"Линия (Shift — ровно)"],["rect","▭",pl?"Prostokąt":"Прямоугольник"],["eraser","🧽",pl?"Gumka":"Ластик"]];
+  return(<div style={{display:"flex",flexDirection:"column",gap:8,height:"100%",minHeight:0}}>
+    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+      {TOOLS.map(([k,ic,t])=><button key={k} title={t} onClick={()=>setTool(k)} style={B(tool===k)}>{ic}<span className="sk-l">{t.split(" (")[0]}</span></button>)}
+      <span style={{width:1,height:22,background:C.border,margin:"0 2px"}}/>
+      {["#0b1f4d","#2152e0","#d33a3a","#c8923a","#2f9e6b"].map(c=><button key={c} onClick={()=>{setColor(c);if(tool==="eraser")setTool("pen");}} title={c} style={{width:24,height:24,borderRadius:"50%",border:color===c&&tool!=="eraser"?"2px solid #e3b860":"2px solid transparent",background:c,cursor:"pointer",padding:0,boxShadow:"0 0 0 1px rgba(255,255,255,.25)"}}/>)}
+      <span style={{width:1,height:22,background:C.border,margin:"0 2px"}}/>
+      {[2,3,6].map(s=><button key={s} onClick={()=>setSize(s)} style={B(size===s)} title={`${s}px`}><i style={{width:s+4,height:s+4,borderRadius:"50%",background:C.text,display:"inline-block"}}/></button>)}
+      <span style={{marginLeft:"auto",display:"flex",gap:6}}>
+        <button onClick={undo} disabled={!hist.current.length} style={{...B(false),opacity:hist.current.length?1:.4}}>↶ {pl?"Cofnij":"Отменить"}</button>
+        <button onClick={clear} style={B(false)}>🗑 {pl?"Wyczyść":"Очистить"}</button>
+      </span>
+    </div>
+    <div style={{flex:1,minHeight:0,display:"grid",placeItems:"center",borderRadius:16,background:"rgba(2,10,30,.25)",border:`1px solid ${C.border}`,padding:8}}>
+      <canvas ref={cv} width={SKETCH_W} height={SKETCH_H} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={e=>{if(drag.current&&!(e.buttons&1))up();}}
+        style={{maxWidth:"100%",maxHeight:"100%",width:"auto",height:"auto",borderRadius:10,background:"#fff",touchAction:"none",cursor:tool==="eraser"?"cell":"crosshair",boxShadow:"0 10px 30px rgba(0,0,0,.3)"}}/>
+    </div>
+    <div className="hand" style={{fontSize:17,color:C===DARK?"#f6e0aa":C.accent,lineHeight:1}}>{pl?"rysuj palcem, rysikiem albo myszką · 1 kratka = 10 cm, jeśli tak umówicie się na pomiarze":"рисуй пальцем, стилусом или мышкой · сетка — для масштаба (напр. 1 клетка = 10 см)"}</div>
+  </div>);
+}
+function CalcSketchThumb({c,size=40}){
+  const [u,setU]=useState(c.sketchData||null);
+  useEffect(()=>{let alive=true;if(!c.sketchData&&c.sketchFile&&c.sketchFile.path)leadFileUrl(c.sketchFile.path).then(x=>{if(alive)setU(x);}).catch(()=>{});return()=>{alive=false;};},[c.sketchData,c.sketchFile]);
+  if(!u)return null;
+  return <img src={u} alt="" onClick={e=>{e.stopPropagation();window.open(u,"_blank");}} style={{width:size*1.55,height:size,objectFit:"cover",borderRadius:7,border:`1px solid ${C.border}`,background:"#fff",cursor:"zoom-in",flexShrink:0}}/>;
+}
+
 function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
   const pl=lang==="pl";const dk=C===DARK;const champ=dk?"#f6e0aa":C.accent;
   const blank={id:Date.now(),name:`${pl?"Wariant":"Вариант"} ${((lead.calcs||[]).length)+1}`,items:[],extras:{},custom:[],nonstd:[],discount:"",notes:""};
   const [c,setC]=useState(()=>calc?JSON.parse(JSON.stringify(calc)):blank);
   const [zone,setZone]=useState("low");const [q,setQ]=useState("");const [flash,setFlash]=useState(null);
+  const skApi=useRef(null);const [skOn,setSkOn]=useState(false);const [skDirty,setSkDirty]=useState(false);const [skSrc,setSkSrc]=useState(()=>calc&&calc.sketchData?calc.sketchData:null);const [busy,setBusy]=useState(false);const [copied,setCopied]=useState(false);
+  useEffect(()=>{let alive=true;if(calc&&!calc.sketchData&&calc.sketchFile&&calc.sketchFile.path)leadFileUrl(calc.sketchFile.path).then(u=>{if(alive)setSkSrc(u);}).catch(()=>{});return()=>{alive=false;};},[calc]);
   const tot=calcTotals(c);
   const upd=f=>setC(p=>({...p,...(typeof f==="function"?f(p):f)}));
   const add=(g,s)=>{const code=s[0];setFlash(code);setTimeout(()=>setFlash(null),450);
@@ -4115,7 +4177,20 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
   const setEx=(k,f,v)=>upd(p=>({extras:{...(p.extras||{}),[k]:{...((p.extras||{})[k]||{}),[f]:v}}}));
   const ql=q.trim().toLowerCase();
   const cat=CALC_CAT.filter(g=>ql?((pl?g.pl:g.ru)+" "+g.sizes.map(s=>s[0]).join(" ")).toLowerCase().includes(ql):g.z===zone);
-  const save=()=>{onSave({...c,...calcTotals(c),by:c.by||currentUser||"—",at:c.at||Date.now(),updatedAt:Date.now()});};
+  const save=async()=>{if(busy)return;setBusy(true);let extra={};
+    try{const api=skApi.current;if(api&&api.dirty()){const blob=await api.blob("image/png");
+      try{const meta=await uploadLeadFile(lead.id,new File([blob],`szkic_${(c.name||"kuchnia").replace(/[^\wа-яА-ЯіІїЇ]+/g,"_")}.png`,{type:"image/png"}));extra={sketchFile:meta,sketchData:null,sketchNew:{...meta,id:Date.now()+Math.random(),by:currentUser||"—",at:Date.now()}};}
+      catch{extra={sketchData:api.dataUrl("image/webp",.6),sketchFile:null};}}}
+    catch(e){console.warn(e);}
+    setBusy(false);onSave({...c,...extra,...calcTotals(c),by:c.by||currentUser||"—",at:c.at||Date.now(),updatedAt:Date.now()});};
+  const specText=()=>{const L=[];L.push(`${pl?"Wycena":"Просчёт"}: ${c.name||""} — ${lead.name||lead.phone||""}`);
+    CALC_ZONES.slice(0,3).forEach(z=>{const it=(c.items||[]).filter(x=>x.zone===z.k);if(!it.length)return;L.push("",`${pl?z.pl:z.ru}:`);it.forEach(x=>L.push(`${x.code} × ${x.qty} — ${fmtM(x.price*x.qty)}`));});
+    const ex=CALC_EXTRAS.map(e=>{const v=(c.extras||{})[e.k]||{};const sum=e.sumOnly?calcNum(v.price):calcNum(v.qty)*(e.price!=null?e.price:calcNum(v.price));return sum?`${pl?e.pl:e.ru}${e.sumOnly?"":` ${v.qty} ${pl?e.uPl:e.uRu}`} — ${fmtM(Math.round(sum))}`:null;}).filter(Boolean);
+    (c.nonstd||[]).forEach(x=>{const v=calcNonStd(x.mat)*(calcNum(x.qty)||1);if(v)ex.push(`${x.name||(pl?"Sekcja niestandardowa":"Нестандартная секция")} — ${fmtM(v)}`);});
+    (c.custom||[]).forEach(x=>{if(calcNum(x.sum))ex.push(`${x.name||"—"} — ${fmtM(calcNum(x.sum))}`);});
+    if(ex.length)L.push("",`${pl?"Dodatki":"Доп."}:`,...ex);
+    L.push("",`${pl?"Razem":"Итого"}: ${fmtM(tot.total)}`);if(tot.disc)L.push(`${pl?"Po rabacie":"Со скидкой"} ${tot.disc}%: ${fmtM(tot.totalDisc)}`);if(c.notes)L.push("",`${pl?"Uwagi":"Идеи"}: ${c.notes}`);return L.join("\n");};
+  const copySpec=()=>{const t=specText();try{navigator.clipboard.writeText(t).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1800);},()=>{window.prompt("",t);});}catch{window.prompt("",t);}};
   const ttl=(g)=>pl?g.pl:g.ru;
   const glass={background:dk?"linear-gradient(160deg,rgba(26,62,150,.35),rgba(5,18,52,.55))":C.card,border:`1px solid ${C.border}`,borderRadius:18};
   const lbl={fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:C.muted};
@@ -4145,7 +4220,7 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
           </div>
           <div style={{display:"flex",gap:8}}>
             {onKP&&<button className="calc-b" onClick={()=>onKP({...c,...calcTotals(c)})} disabled={!tot.total} style={{...btn(false),opacity:tot.total?1:.4}}>📄 {pl?"Oferta":"КП"}</button>}
-            <button className="calc-b" onClick={save} style={btn(true)}>✓ {pl?"Zapisz w leadzie":"Сохранить в лид"}</button>
+            <button className="calc-b" onClick={save} disabled={busy} style={{...btn(true),opacity:busy?.6:1}}>{busy?"…":"✓"} {busy?(pl?"Zapisuję":"Сохраняю"):(pl?"Zapisz w leadzie":"Сохранить в лид")}</button>
             <button className="calc-b" onClick={onClose} style={{...btn(false),width:38,padding:0,justifyContent:"center"}}>✕</button>
           </div>
         </div>
@@ -4154,11 +4229,12 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
           <div style={{display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
               <div style={{display:"flex",gap:3,padding:3,borderRadius:13,background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.border}`}}>
-                {CALC_ZONES.map(z=><button key={z.k} className="calc-b" onClick={()=>{setZone(z.k);setQ("");}} style={{height:32,padding:"0 13px",border:"none",borderRadius:10,cursor:"pointer",fontSize:12,background:zone===z.k&&!ql?"linear-gradient(135deg,#f6e0aa,#e3b860)":"transparent",color:zone===z.k&&!ql?"#08153a":C.muted}}>{z.e} {pl?z.pl:z.ru}</button>)}
+                {CALC_ZONES.map(z=><button key={z.k} className="calc-b" onClick={()=>{setZone(z.k);setQ("");if(z.k==="sketch")setSkOn(true);}} style={{height:32,padding:"0 13px",border:"none",borderRadius:10,cursor:"pointer",fontSize:12,background:zone===z.k&&!ql?"linear-gradient(135deg,#f6e0aa,#e3b860)":"transparent",color:zone===z.k&&!ql?"#08153a":C.muted}}>{z.e} {pl?z.pl:z.ru}{z.k==="sketch"&&(skDirty||skSrc)?" •":""}</button>)}
               </div>
-              <input value={q} onChange={e=>setQ(e.target.value)} placeholder={pl?"Szukaj: kod albo nazwa…":"Поиск: код или название…"} style={{...inp,flex:1,minWidth:160,height:38}}/>
+              {zone!=="sketch"&&<input value={q} onChange={e=>setQ(e.target.value)} placeholder={pl?"Szukaj: kod albo nazwa…":"Поиск: код или название…"} style={{...inp,flex:1,minWidth:160,height:38}}/>}
             </div>
-            <div style={{flex:1,minHeight:0,overflowY:"auto",paddingRight:4}}>
+            {skOn&&<div style={{flex:1,minHeight:0,display:zone==="sketch"?"block":"none"}}><SketchPad apiRef={skApi} initialSrc={skSrc} lang={lang} onDirty={setSkDirty}/></div>}
+            <div style={{flex:1,minHeight:0,overflowY:"auto",paddingRight:4,display:zone==="sketch"?"none":"block"}}>
               {zone==="extra"&&!ql?(
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
                   <div style={{...glass,padding:14}}>
@@ -4199,14 +4275,15 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
                     <div style={{display:"flex",gap:11,alignItems:"center"}}>
                       <CalcSketch g={g} size={70}/>
                       <div style={{minWidth:0}}>
-                        <div style={{fontSize:13,lineHeight:1.2}}>{ttl(g)}</div>
-                        <div style={{fontSize:10.5,color:C.muted,marginTop:4,lineHeight:1.35}}>{pl?g.hPl:g.hRu}</div>
+                        <div style={{fontSize:13.5,lineHeight:1.2,color:champ}}>{calcFamily(g)}</div>
+                        <div style={{fontSize:11.5,lineHeight:1.25,marginTop:3}}>{ttl(g)}</div>
+                        <div style={{fontSize:10.5,color:C.muted,marginTop:3,lineHeight:1.35}}>{pl?g.hPl:g.hRu}</div>
                       </div>
                     </div>
                     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                       {g.sizes.map(s=>{const n=(c.items||[]).filter(x=>x.code===s[0]).reduce((a,x)=>a+x.qty,0);return(
-                        <button key={s[0]} className="calc-sz calc-b" title={s[0]} onClick={()=>add(g,s)} style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",gap:1,minWidth:64,padding:"6px 10px",borderRadius:11,cursor:"pointer",border:`1px solid ${n?"rgba(227,184,96,.6)":C.borderMd}`,background:n?"rgba(227,184,96,.1)":"transparent",color:C.text,animation:flash===s[0]?"calcPop .45s":"none",transition:"border-color .25s,background .25s"}}>
-                          <span style={{fontSize:14}}>{s[3]||s[1]}</span>
+                        <button key={s[0]} className="calc-sz calc-b" title={s[0]} onClick={()=>add(g,s)} style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",gap:1,minWidth:76,padding:"6px 10px",borderRadius:11,cursor:"pointer",border:`1px solid ${n?"rgba(227,184,96,.6)":C.borderMd}`,background:n?"rgba(227,184,96,.1)":"transparent",color:C.text,animation:flash===s[0]?"calcPop .45s":"none",transition:"border-color .25s,background .25s"}}>
+                          <span style={{fontSize:12.5,whiteSpace:"nowrap"}}>{s[0]}</span>
                           <span style={{fontSize:10.5,color:champ}}>{fmtM(s[2])}</span>
                           {n>0&&<span style={{position:"absolute",top:-7,right:-7,minWidth:18,height:18,borderRadius:9,background:"#e3b860",color:"#08153a",fontSize:10,display:"grid",placeItems:"center",padding:"0 4px"}}>{n}</span>}
                         </button>);})}
@@ -4220,14 +4297,15 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
           {/* кухня */}
           <div style={{display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
             <div style={{...glass,flex:1,minHeight:0,overflowY:"auto",padding:12}}>
-              <div style={{...lbl,marginBottom:6}}>{pl?"kuchnia":"кухня"} · {(c.items||[]).reduce((a,x)=>a+x.qty,0)} {pl?"szt.":"шт."}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><div style={lbl}>{pl?"specyfikacja":"спецификация"} · {(c.items||[]).reduce((a,x)=>a+x.qty,0)} {pl?"szt.":"шт."}</div>
+                {(c.items||[]).length>0&&<button className="calc-b" onClick={copySpec} style={{marginLeft:"auto",height:26,padding:"0 10px",borderRadius:8,border:`1px solid ${C.borderMd}`,background:copied?"rgba(71,230,160,.15)":"transparent",color:copied?"#47e6a0":C.muted,cursor:"pointer",fontSize:11}}>{copied?(pl?"✓ Skopiowano":"✓ Скопировано"):(pl?"📋 Kopiuj specyfikację":"📋 Копировать спецификацию")}</button>}</div>
               {!(c.items||[]).length&&<div className="hand" style={{fontSize:21,color:champ,padding:"18px 6px",lineHeight:1.15}}>{pl?"klikaj w rozmiary po lewej — sekcje dodadzą się tutaj":"кликай по размерам слева — секции появятся здесь"}</div>}
               {CALC_ZONES.slice(0,3).map(z=>{const it=zoneItems(z.k);if(!it.length)return null;return(<div key={z.k} style={{marginBottom:8}}>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:C.muted,padding:"6px 2px"}}><span>{z.e} {pl?z.pl:z.ru}</span><span>{runTxt(z.k)}</span></div>
                 {it.map(x=>{const gg=CALC_BY_CODE[x.code];const g=gg&&gg.g;return(
                   <div key={x.uid} style={{display:"flex",alignItems:"center",gap:9,padding:"6px 4px",borderTop:`1px solid ${C.border}`}}>
                     <CalcSketch g={g} size={34}/>
-                    <div style={{minWidth:0,flex:1}}><div style={{fontSize:12,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{g?ttl(g):x.code}</div><div style={{fontSize:10.5,color:C.muted}}>{x.code} · {fmtM(x.price)}</div></div>
+                    <div style={{minWidth:0,flex:1}}><div style={{fontSize:13,whiteSpace:"nowrap"}}>{x.code}</div><div style={{fontSize:10.5,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{g?ttl(g):""} · {fmtM(x.price)}</div></div>
                     <div style={{display:"flex",alignItems:"center",gap:4}}>
                       <button className="calc-b" onClick={()=>setQty(x.uid,-1)} style={{width:24,height:24,borderRadius:7,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.text,cursor:"pointer"}}>−</button>
                       <span style={{minWidth:18,textAlign:"center",fontSize:12.5}}>{x.qty}</span>
@@ -4265,7 +4343,7 @@ function LeadCalcs({lead,lang,onOpen,onKP,onDup,onDel}){
   if(!list.length)return null;
   return(<div style={{display:"flex",flexDirection:"column",gap:6}}>
     {list.slice().reverse().map(c=>(<div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:10,border:`1px solid ${C.border}`,background:"rgba(227,184,96,.05)"}}>
-      <span style={{fontSize:16}}>📐</span>
+      {(c.sketchData||c.sketchFile)?<CalcSketchThumb c={c}/>:<span style={{fontSize:16}}>📐</span>}
       <div style={{minWidth:0,flex:1,cursor:"pointer"}} onClick={()=>onOpen(c)}>
         <div style={{fontSize:12.5,color:C.text}}>{c.name||"—"} · <b style={{color:C.accent}}>{fmtM(c.disc?c.totalDisc:c.total)}</b>{c.disc?<span style={{fontSize:10.5,color:C.muted}}> (−{c.disc}%)</span>:null}</div>
         <div style={{fontSize:10.5,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(c.items||[]).reduce((a,x)=>a+x.qty,0)} {pl?"sekcji":"секций"} · {c.by||"—"} · {new Date(c.updatedAt||c.at||Date.now()).toLocaleDateString(pl?"pl-PL":"ru-RU")}{c.notes?` · ${c.notes}`:""}</div>
@@ -4652,6 +4730,9 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
       leads:(p.leads||[]).map(l=>l.id===id?{...l,history:histAdd(l,l.isFavorite?"Убран из избранного":"Добавлен в избранное"),isFavorite:!l.isFavorite,updatedAt:Date.now()}:l)
     }),true);
   };
+  // таблица рисуется порциями: сначала 60 строк (мгновенно), остальные — следующим тиком
+  const [rowLim,setRowLim]=useState(60);
+  useEffect(()=>{if(fl.length>rowLim){const id=setTimeout(()=>setRowLim(n=>Math.max(n,fl.length)),30);return()=>clearTimeout(id);}},[fl.length,rowLim]);
   const allChecked=fl.length>0&&selected.size===fl.length;
   const someChecked=selected.size>0&&selected.size<fl.length;
   return(
@@ -4685,7 +4766,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
               <th style={{padding:"9px 10px",width:36}}><input type="checkbox" checked={allChecked} ref={el=>{if(el)el.indeterminate=someChecked;}} onChange={toggleAll} style={{cursor:"pointer",width:14,height:14,accentColor:C.accent}}/></th>
               {[t.stickers,t.date,t.name,t.phone,t.score,t.qualification,t.period,t.action,t.manager,t.source,""].map((h,i)=><th key={i} style={{padding:"9px 10px",color:C.muted,fontWeight:600,textAlign:"left",whiteSpace:"nowrap",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>)}
             </tr></thead>
-            <tbody>{fl.map(l=>{const isSel=selected.has(l.id);return(
+            <tbody>{fl.slice(0,rowLim).map(l=>{const isSel=selected.has(l.id);return(
               <tr key={l.id} onClick={()=>onOpen(l)}
                 className={FRESH.has(l.id)?"garno-fresh":(treeIncomplete(l)?"garno-tree":"")} style={{borderBottom:`1px solid ${C.border}`,background:rowBg(l,isSel),cursor:"pointer","--sc":QUAL_COLOR[l.qualification]||C.dim}}
                 onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=C.surface)}
@@ -4747,7 +4828,9 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const [calcOpen,setCalcOpen]=useState(null);const [calcKP,setCalcKP]=useState(null);
   const saveCalcs=(fn,histTxt)=>{const now=Date.now();const h={date:nowStr(),action:histTxt,by:currentUser||"—"};setForm(f=>({...f,calcs:fn(f.calcs||[]),history:[...(f.history||[]),h]}));
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,calcs:fn(l.calcs||[]),updatedAt:now,history:[...(l.history||[]),h]}:l)}),true);};
-  const onCalcSave=(c)=>{const pl=lang==="pl";saveCalcs(list=>list.some(x=>x.id===c.id)?list.map(x=>x.id===c.id?c:x):[...list,c],`📐 ${pl?"Wycena":"Просчёт"} «${c.name}»: ${fmtM(c.disc?c.totalDisc:c.total)}`);setCalcOpen(null);};
+  const onCalcSave=(c0)=>{const pl=lang==="pl";const {sketchNew,...c}=c0;
+    if(sketchNew){const now=Date.now();setForm(fm=>({...fm,files:[...(fm.files||[]),sketchNew]}));updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,files:[...(l.files||[]),sketchNew],updatedAt:now}:l)}),true);}
+    saveCalcs(list=>list.some(x=>x.id===c.id)?list.map(x=>x.id===c.id?c:x):[...list,c],`📐 ${pl?"Wycena":"Просчёт"} «${c.name}»: ${fmtM(c.disc?c.totalDisc:c.total)}${(c.sketchData||c.sketchFile)?(pl?" + szkic":" + набросок"):""}`);setCalcOpen(null);};
   const kpLangOf=()=>{const cl=form.clientLang||"pl";return cl==="ua"?"ua":cl==="en"?"en":"pl";};
   const addStickerLD=(text)=>{
     const st={id:Date.now()+Math.floor(Math.random()*1000),text,by:currentUser||"—",at:Date.now()};
@@ -7582,11 +7665,10 @@ ${NAV_ANIM.map(([ic,pt,a,d,dl])=>`.g-nav button.on .ni-${ic} ${pt},.g-nav.intro 
 const AURUM_CSS=`
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Russo+One&display=swap');
 .aurum{--ease:cubic-bezier(.22,.9,.24,1);background:radial-gradient(42% 36% at 18% 10%,rgba(33,82,224,.34),transparent 70%),radial-gradient(34% 30% at 88% 6%,rgba(227,184,96,.16),transparent 70%),radial-gradient(46% 42% at 70% 100%,rgba(92,184,255,.16),transparent 70%),#020a1e!important;position:relative}
-.aurum:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;background-image:radial-gradient(1.2px 1.2px at 12% 18%,rgba(246,224,170,.7),transparent),radial-gradient(1px 1px at 72% 34%,rgba(160,205,255,.6),transparent),radial-gradient(1.4px 1.4px at 38% 82%,rgba(160,205,255,.5),transparent),radial-gradient(1px 1px at 88% 72%,rgba(246,224,170,.6),transparent),radial-gradient(1px 1px at 54% 12%,rgba(160,205,255,.5),transparent);background-size:520px 520px;animation:aurDrift 60s linear infinite}
-@keyframes aurDrift{to{background-position:0 -520px}}
+.aurum:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;background-image:radial-gradient(1.2px 1.2px at 12% 18%,rgba(246,224,170,.7),transparent),radial-gradient(1px 1px at 72% 34%,rgba(160,205,255,.6),transparent),radial-gradient(1.4px 1.4px at 38% 82%,rgba(160,205,255,.5),transparent),radial-gradient(1px 1px at 88% 72%,rgba(246,224,170,.6),transparent),radial-gradient(1px 1px at 54% 12%,rgba(160,205,255,.5),transparent);background-size:520px 520px}
 .aurum>*{position:relative;z-index:1}
-.aurum,.aurum *:not(.hand):not(.hand *){font-family:'Russo One',system-ui,sans-serif!important;letter-spacing:.01em}
-.aurum *{font-synthesis:none}
+.aurum{font-family:'Russo One',system-ui,sans-serif!important;letter-spacing:.01em}
+.aurum *{font-family:inherit!important;font-synthesis:none}
 .aurum .hand,.aurum .hand *{font-family:'Caveat',cursive!important;letter-spacing:0!important}
 .aurum ::-webkit-scrollbar-thumb{background:linear-gradient(var(--g1,#e3b860),#5cb8ff)!important;border-radius:4px!important}
 /* меню и верх — плавающее стекло */
@@ -7598,18 +7680,17 @@ const AURUM_CSS=`
 .aurum .g-top{background:transparent!important;border-bottom:0!important;height:64px!important;padding:0 18px!important}
 .aurum .g-top>div{border-radius:14px!important}
 /* карточки — стекло, мягкая тень, золото-голубая кромка при наведении, блик за курсором */
-.aurum ${AURUM_CARD_SEL}{backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 18px 48px rgba(0,0,0,.32);transition:transform .45s var(--ease),box-shadow .45s var(--ease),border-color .4s;animation:aurRise .65s var(--ease) both}
+.aurum ${AURUM_CARD_SEL}{box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 18px 48px rgba(0,0,0,.32);transition:transform .45s var(--ease),box-shadow .45s var(--ease),border-color .4s;animation:aurRise .65s var(--ease) both}
 .aurum ${AURUM_CARD_SEL}:not([style*="position"]){position:relative}
 .aurum ${AURUM_CARD_SEL}:hover{border-color:rgba(227,184,96,.42)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 24px 64px rgba(0,0,0,.45),0 0 0 1px rgba(92,184,255,.14)}
 .aurum ${AURUM_CARD_SEL}:not([style*="position: absolute"]):not([style*="position: fixed"]):after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .4s;background:radial-gradient(380px circle at var(--mx,50%) var(--my,50%),rgba(246,224,170,.12),rgba(92,184,255,.07) 35%,transparent 60%)}
 .aurum ${AURUM_CARD_SEL}:hover:after{opacity:1}
-${[1,2,3,4,5,6,7,8,9,10,11,12].map(i=>`.aurum ${AURUM_CARD_SEL}:nth-child(${i}){animation-delay:${i*45}ms}`).join("")}
 @keyframes aurRise{from{opacity:0;transform:translateY(14px) scale(.99)}to{opacity:1;transform:none}}
 /* таблицы (лиды и др.) — стекло, строки всплывают, подсветка ряда */
 .aurum{color-scheme:dark}
 .aurum table thead tr{background:rgba(2,10,30,.38)!important}
 .aurum table thead th{letter-spacing:.08em!important}
-.aurum table tbody tr{transition:background .25s,box-shadow .25s;animation:aurRow .5s var(--ease) both}
+.aurum table tbody tr{transition:background .25s,box-shadow .25s}.aurum table tbody tr:nth-child(-n+24){animation:aurRow .5s var(--ease) both}
 ${Array.from({length:24},(_,i)=>`.aurum table tbody tr:nth-child(${i+1}){animation-delay:${80+i*28}ms}`).join("")}
 @keyframes aurRow{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .aurum table tbody tr[style*="rgba(245, 158, 11, 0.15)"]{background:linear-gradient(90deg,rgba(246,196,83,.14),rgba(246,196,83,.02) 70%)!important}
@@ -7647,11 +7728,9 @@ ${Array.from({length:24},(_,i)=>`.aurum table tbody tr:nth-child(${i+1}){animati
 .aurum .g-lt thead th{position:sticky;top:0;z-index:2;background:#061637!important;padding-top:12px!important;padding-bottom:12px!important}
 .aurum .g-lt tbody td{padding:10px 7px!important}.aurum .g-lt thead th{padding-left:7px!important;padding-right:7px!important}.aurum .g-lt tbody td:nth-child(2){min-width:120px!important;max-width:200px!important}.aurum .g-lt tbody td:nth-child(5){white-space:nowrap;font-size:10.5px!important}
 .aurum .g-lt tbody tr:not(.garno-fresh):not(.garno-tree) td:first-child{box-shadow:inset 3px 0 0 var(--sc)}
-.aurum .g-score{filter:drop-shadow(0 0 4px color-mix(in srgb,var(--c) 45%,transparent))}
 .aurum .g-score>div{width:8px!important;height:6px!important;border-radius:3px!important}
 .aurum .g-badge{border-radius:8px!important;padding:2px 9px!important;font-weight:400!important;letter-spacing:.02em}
-.aurum .g-quote{border-width:1px!important;background:linear-gradient(135deg,rgba(246,224,170,.22),rgba(227,184,96,.1))!important;color:#f6e0aa!important;box-shadow:0 0 0 1px rgba(227,184,96,.5),0 0 14px rgba(227,184,96,.25);animation:aurQ 2.4s ease-in-out infinite}
-@keyframes aurQ{50%{box-shadow:0 0 0 1px rgba(227,184,96,.85),0 0 20px rgba(227,184,96,.45)}}
+.aurum .g-quote{border-width:1px!important;background:linear-gradient(135deg,rgba(246,224,170,.22),rgba(227,184,96,.1))!important;color:#f6e0aa!important;box-shadow:0 0 0 1px rgba(227,184,96,.5),0 0 14px rgba(227,184,96,.25)}
 .aurum .g-src{border-radius:6px!important;padding:2px 7px!important;font-weight:400!important;font-size:9.5px!important;max-width:110px!important}
 .aurum .g-stk{background:linear-gradient(160deg,rgba(246,224,170,.16),rgba(227,184,96,.06))!important;border-color:rgba(227,184,96,.35)!important;border-radius:12px!important;transform:rotate(-.6deg);box-shadow:0 6px 16px rgba(0,0,0,.25)}
 .aurum .g-stkt{font-size:16px!important;line-height:1.05!important;color:#f6e0aa!important}
@@ -7668,8 +7747,10 @@ ${Array.from({length:24},(_,i)=>`.aurum table tbody tr:nth-child(${i+1}){animati
 .aurum input:focus,.aurum select:focus,.aurum textarea:focus{border-color:rgba(92,184,255,.55)!important;box-shadow:0 0 0 4px rgba(92,184,255,.1)}
 `;
 function useAurumSheen(){
-  useEffect(()=>{const h=e=>{const el=e.target&&e.target.closest&&e.target.closest(AURUM_CARD_SEL);if(!el)return;const r=el.getBoundingClientRect();el.style.setProperty("--mx",(e.clientX-r.left)+"px");el.style.setProperty("--my",(e.clientY-r.top)+"px");};
-    document.addEventListener("pointermove",h,{passive:true});return()=>document.removeEventListener("pointermove",h);},[]);
+  // блик за курсором: не чаще одного раза за кадр и только над карточкой
+  useEffect(()=>{let ev=null,raf=0;const run=()=>{raf=0;const e=ev;if(!e||!document.body.querySelector(".aurum"))return;const t=e.target;const el=t&&t.closest&&t.closest(AURUM_CARD_SEL);if(!el)return;const r=el.getBoundingClientRect();el.style.setProperty("--mx",(e.clientX-r.left)+"px");el.style.setProperty("--my",(e.clientY-r.top)+"px");};
+    const h=e=>{ev=e;if(!raf)raf=requestAnimationFrame(run);};
+    document.addEventListener("pointermove",h,{passive:true});return()=>{document.removeEventListener("pointermove",h);if(raf)cancelAnimationFrame(raf);};},[]);
 }
 function GarnoCRM(){
   const {db,status,syncLabel,syncError,refresh,updateDb,setDomains,domainsState}=useDatabase();
@@ -7913,9 +7994,10 @@ function GarnoCRM(){
           td, th { font-weight: 600 !important; }
           .crm-muted { font-weight: 600; }
         ` : ""}
-        @keyframes garnoTree{0%,100%{box-shadow:inset 3px 0 0 rgba(250,204,21,0.25)}50%{box-shadow:inset 3px 0 0 #facc15;background:rgba(250,204,21,0.10)}}
-        tr.garno-tree td{animation:garnoTree 1.6s ease-in-out infinite;}
-        tr.garno-tree td:first-child{box-shadow:inset 3px 0 0 #facc15;}
+        @keyframes garnoTreeO{0%,100%{opacity:.25}50%{opacity:1}}
+        tr.garno-tree td{background:rgba(250,204,21,0.06);}
+        tr.garno-tree td:first-child{position:relative;}
+        tr.garno-tree td:first-child:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:#facc15;box-shadow:0 0 10px rgba(250,204,21,.7);animation:garnoTreeO 1.6s ease-in-out infinite;will-change:opacity;pointer-events:none}
         @keyframes garnoFresh{0%,100%{background:rgba(250,204,21,0.12)}50%{background:rgba(250,204,21,0.60)}}
         tr.garno-fresh, tr.garno-fresh td{animation:garnoFresh 0.8s ease-in-out infinite !important;}
         tr.garno-fresh td:first-child{box-shadow:inset 4px 0 0 #facc15;}
