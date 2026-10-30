@@ -4089,6 +4089,8 @@ const CALC_RODA={"С-30":[532,600,635,832],"С-45":[658,759,805,1065],"С-60":[7
 const calcHasCat=(code,cat)=>!+cat||!!CALC_RODA[code];
 const calcPriceOf=(code,cat)=>{const b=CALC_BY_CODE[code];const base=b?b.s[2]:0;if(!+cat)return base;const r=CALC_RODA[code];const i=CALC_CATS.indexOf(+cat)-1;return r&&i>=0&&r[i]!=null?r[i]:base;};
 const calcCatLbl=x=>`K${calcHasCat(x.code,x.cat||0)?(x.cat||0):0}`;
+// размер по цене: ближайший стандарт ≥ ширины (46–60 → 60, 31–45 → 45); шире максимума — максимум
+const calcSizeFor=(code,w)=>{const b=CALC_BY_CODE[code];if(!b)return null;const ss=[...b.g.sizes].sort((a,c)=>a[1]-c[1]);return ss.find(s=>s[1]>=w-0.05)||ss[ss.length-1];};
 const calcStdW=x=>{const b=CALC_BY_CODE[x.code];return b?[...new Set(b.g.sizes.map(s=>s[1]))].sort((a,b)=>a-b):[x.w];};
 // Доп. позиции: фикс. цена за единицу (из бланка) и ручные (кол-во × цена)
 const CALC_EXTRAS=[
@@ -4217,6 +4219,12 @@ function planAutoX(items,walls,wi,item){const W=walls[wi];if(!W)return null;cons
 function planResolve(items,walls,it){const W=walls[it.wall];if(!W)return null;const ly=planLayer(it);if(planFits(items,it.uid,it.wall,it.x,it.w,ly,W.len,walls))return it.x;
   const c=[0,W.len-it.w,PLAN_DEPTH[ly],W.len-PLAN_DEPTH[ly]-it.w];(items||[]).forEach(o=>{if(o.uid!==it.uid&&o.wall===it.wall){c.push(o.x+o.w,o.x-it.w);}});
   c.sort((a,b)=>Math.abs(a-it.x)-Math.abs(b-it.x));for(const x of c)if(x>=0&&planFits(items,it.uid,it.wall,x,it.w,ly,W.len,walls))return x;return null;}
+// растягивание мышкой: свободно (шаг 5 мм), магнит к соседям, краю стены, углу и стандартным ширинам
+function planResizeSnap(items,it,W,mode,u,x0,w0){const ly=planLayer(it);const pts=[];const std=calcStdW(it);
+  (items||[]).forEach(o=>{if(o.uid===it.uid||o.wall!==it.wall||o.g==="ant"||!planClash(planLayer(o),ly))return;if(mode==="r"&&o.x>=x0+1)pts.push(o.x);if(mode==="l"&&o.x+o.w<=x0+w0-1)pts.push(o.x+o.w);});
+  if(mode==="r"){pts.push(W.len);if(W.c1)pts.push(W.len-PLAN_DEPTH[ly]);std.forEach(v=>pts.push(x0+v));}else{pts.push(0);if(W.c0)pts.push(PLAN_DEPTH[ly]);std.forEach(v=>pts.push(x0+w0-v));}
+  let e=Math.round(u*2)/2,bd=3;pts.forEach(p=>{const d=Math.abs(p-u);if(d<bd){bd=d;e=p;}});
+  let w=mode==="r"?e-x0:x0+w0-e;w=Math.max(10,Math.min(w,W.len));w=Math.round(w*10)/10;return{w,x:mode==="r"?x0:Math.round((x0+w0-w)*10)/10};}
 function planSnap(items,uid,wi,x,w,ly,W){
   const off=planCornerOff(ly);const pts=[0,W.len-w];if(W.c0)pts.push(off);if(W.c1)pts.push(W.len-off-w);
   (items||[]).forEach(o=>{if(o.uid===uid||o.wall!==wi||!planClash(planLayer(o),ly))return;pts.push(o.x+o.w,o.x-w);});
@@ -4241,12 +4249,12 @@ function KitchenPlan({items,walls,sel,setSel,msel=[],onToggle,active,setActive,o
   const toCm=e=>{const s=svg.current;const pt=s.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=s.getScreenCTM();if(!m)return{x:0,y:0};const r=pt.matrixTransform(m.inverse());return{x:r.x,y:r.y};};
   const proj=(p,W)=>({u:(p.x-W.P[0])*W.d[0]+(p.y-W.P[1])*W.d[1],v:(p.x-W.P[0])*W.n[0]+(p.y-W.P[1])*W.n[1]});
   const down=(e,it)=>{e.stopPropagation();if(e.button===2)return;e.preventDefault();if(e.shiftKey){onToggle&&onToggle(it.uid);return;}setSel(it.uid);if(it.wall!=null)setActive(it.wall);const W=walls[it.wall];if(!W)return;const p=toCm(e);const q=proj(p,W);
-    const edge=Math.min(7,it.w*.22);if(calcStdW(it).length>1&&(q.u-it.x<edge||it.x+it.w-q.u<edge)){drag.current={uid:it.uid,mode:q.u-it.x<edge?"l":"r",x0:it.x,w0:it.w,moved:false};try{svg.current.setPointerCapture(e.pointerId);}catch{}return;}
+    const edge=Math.min(7,it.w*.22);if((q.u-it.x<edge||it.x+it.w-q.u<edge)){drag.current={uid:it.uid,mode:q.u-it.x<edge?"l":"r",x0:it.x,w0:it.w,moved:false};try{svg.current.setPointerCapture(e.pointerId);}catch{}return;}
     drag.current={uid:it.uid,grab:q.u-it.x,moved:false,from:{wall:it.wall,x:it.x}};try{svg.current.setPointerCapture(e.pointerId);}catch{}};
   const downH=(e,it,mode)=>{e.stopPropagation();e.preventDefault();drag.current={uid:it.uid,mode,x0:it.x,w0:it.w,moved:false};try{svg.current.setPointerCapture(e.pointerId);}catch{}};
   const move=e=>{const D=drag.current;if(!D)return;const it=items.find(x=>x.uid===D.uid);if(!it)return;const p=toCm(e);const ly=planLayer(it);const dep=PLAN_DEPTH[ly];
-    if(D.mode){const W=walls[it.wall];if(!W)return;const u=proj(p,W).u;const raw=D.mode==="r"?u-D.x0:D.x0+D.w0-u;const ws=calcStdW(it);let w=ws[0];ws.forEach(v=>{if(Math.abs(v-raw)<Math.abs(w-raw))w=v;});
-      const x=D.mode==="r"?D.x0:D.x0+D.w0-w;if(w!==it.w||x!==it.x){if(!D.moved){D.moved=true;onDragStart&&onDragStart();}onResize&&onResize(it.uid,w,x);}return;}
+    if(D.mode){const W=walls[it.wall];if(!W)return;const u=proj(p,W).u;const {w,x}=planResizeSnap(items,it,W,D.mode,u,D.x0,D.w0);
+      if(w!==it.w||x!==it.x){if(!D.moved){D.moved=true;onDragStart&&onDragStart();}onResize&&onResize(it.uid,w,x);}return;}
     let best=null;walls.forEach((W,wi)=>{const q=proj(p,W);if(q.u<-60||q.u>W.len+60||q.v<-50||q.v>dep+110)return;const sc=Math.abs(q.v-dep/2)+(wi===it.wall?0:8);if(!best||sc<best.sc)best={wi,W,q,sc};});
     if(!best)return;if(!D.moved){D.moved=true;onDragStart&&onDragStart();}
     const x=planSnap(items,it.uid,best.wi,best.q.u-D.grab,it.w,ly,best.W);if(x!==it.x||best.wi!==it.wall){onMove(it.uid,{wall:best.wi,x});if(best.wi!==it.wall)setActive(best.wi);}};
@@ -4273,11 +4281,11 @@ function KitchenPlan({items,walls,sel,setSel,msel=[],onToggle,active,setActive,o
         const isM=msel.includes(it.uid);
         return(<g key={it.uid} onPointerDown={e=>down(e,it)} onContextMenu={e=>{e.preventDefault();e.stopPropagation();if(e.shiftKey&&onToggle)onToggle(it.uid);}} style={{cursor:"grab",opacity:vis?1:.18}}>
           <polygon points={r.map(p=>p.join(",")).join(" ")} fill={isB?"rgba(255,90,110,.22)":isM?"rgba(246,224,170,.26)":fill} stroke={isB?"#ff5a6e":isS||isM?"#f6e0aa":st} strokeWidth={isS||isM?2.2:1.1} strokeDasharray={isM?"":flo?"":"5 3"}/>
-          {calcStdW(it).length>1&&(()=>{const ed=Math.min(7,it.w*.22);const hor=Math.abs(W.d[0])>.5;return[[it.x,ed],[it.x+it.w-ed,ed]].map(([x0,w0],i)=><polygon key={"e"+i} points={rect(W,x0,w0,dep).map(p=>p.join(",")).join(" ")} fill="transparent" style={{cursor:hor?"ew-resize":"ns-resize"}}/>);})()}
+          {(()=>{const ed=Math.min(7,it.w*.22);const hor=Math.abs(W.d[0])>.5;return[[it.x,ed],[it.x+it.w-ed,ed]].map(([x0,w0],i)=><polygon key={"e"+i} points={rect(W,x0,w0,dep).map(p=>p.join(",")).join(" ")} fill="transparent" style={{cursor:hor?"ew-resize":"ns-resize"}}/>);})()}
           {vis&&!(ly==="ant"&&view!=="top")&&<><text x={cx} y={cy} transform={`rotate(${ang(W)} ${cx} ${cy})`} textAnchor="middle" fontSize={it.w<40?7:9} fill={isS?"#f6e0aa":"#eef4ff"} dy={flo?-1:-2}>{it.code}</text>
           <text x={cx} y={cy} transform={`rotate(${ang(W)} ${cx} ${cy})`} textAnchor="middle" fontSize="7" fill="rgba(214,232,255,.65)" dy={flo?9:7}>{mmT(it.w)}{it.ns?"*":""} · <tspan fill={(it.cat||0)?"#f6c453":"rgba(214,232,255,.65)"}>{calcCatLbl(it)}</tspan>{ly==="tall"&&items.some(o=>o.g==="ant"&&o.wall===it.wall&&o.x<it.x+it.w-0.5&&it.x<o.x+o.w-0.5)?<tspan fill="#e3b860"> +A</tspan>:null}</text></>}
         </g>);})}
-      {(()=>{const it=items.find(x=>x.uid===sel);if(!it||it.wall==null||!walls[it.wall]||!show(it)||calcStdW(it).length<2)return null;const W=walls[it.wall];const dep=PLAN_DEPTH[planLayer(it)];const hor=Math.abs(W.d[0])>.5;
+      {(()=>{const it=items.find(x=>x.uid===sel);if(!it||it.wall==null||!walls[it.wall]||!show(it))return null;const W=walls[it.wall];const dep=PLAN_DEPTH[planLayer(it)];const hor=Math.abs(W.d[0])>.5;
         const H=(u,mode)=>{const px=W.P[0]+W.d[0]*u+W.n[0]*dep/2,py=W.P[1]+W.d[1]*u+W.n[1]*dep/2;return <g key={mode} onPointerDown={e=>downH(e,it,mode)} style={{cursor:hor?"ew-resize":"ns-resize"}}><polygon points={rect(W,u-8,16,dep).map(p=>p.join(",")).join(" ")} fill="transparent"/><rect x={px-(hor?3:7)} y={py-(hor?7:3)} width={hor?6:14} height={hor?14:6} rx="2.5" fill="#f6e0aa" stroke="#08153a" strokeWidth="1"/></g>;};
         return <g>{H(it.x,"l")}{H(it.x+it.w,"r")}</g>;})()}
     </svg>);
@@ -4290,11 +4298,11 @@ function WallElevation({items,wi,W,walls,sel,setSel,msel=[],onToggle,onDragStart
   const bad=planBad(its,Object.assign([],{[wi]:W}));
   const toX=e=>{const s=svg.current;const pt=s.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=s.getScreenCTM();return m?pt.matrixTransform(m.inverse()).x:0;};
   const down=(e,it)=>{e.stopPropagation();if(e.button===2)return;e.preventDefault();if(e.shiftKey){onToggle&&onToggle(it.uid);return;}setSel(it.uid);const u=toX(e);const edge=Math.min(7,it.w*.22);
-    if(calcStdW(it).length>1&&(u-it.x<edge||it.x+it.w-u<edge)){drag.current={uid:it.uid,mode:u-it.x<edge?"l":"r",x0:it.x,w0:it.w,moved:false};try{svg.current.setPointerCapture(e.pointerId);}catch{}return;}
+    if((u-it.x<edge||it.x+it.w-u<edge)){drag.current={uid:it.uid,mode:u-it.x<edge?"l":"r",x0:it.x,w0:it.w,moved:false};try{svg.current.setPointerCapture(e.pointerId);}catch{}return;}
     drag.current={uid:it.uid,grab:u-it.x,moved:false,from:{wall:it.wall,x:it.x}};try{svg.current.setPointerCapture(e.pointerId);}catch{}};
   const downH=(e,it,mode)=>{e.stopPropagation();e.preventDefault();drag.current={uid:it.uid,mode,x0:it.x,w0:it.w,moved:false};try{svg.current.setPointerCapture(e.pointerId);}catch{}};
   const move=e=>{const D=drag.current;if(!D)return;const it=items.find(x=>x.uid===D.uid);if(!it)return;
-    if(D.mode){const u=toX(e);const raw=D.mode==="r"?u-D.x0:D.x0+D.w0-u;const ws=calcStdW(it);let w=ws[0];ws.forEach(v=>{if(Math.abs(v-raw)<Math.abs(w-raw))w=v;});const x=D.mode==="r"?D.x0:D.x0+D.w0-w;
+    if(D.mode){const u=toX(e);const {w,x}=planResizeSnap(items,it,W,D.mode,u,D.x0,D.w0);
       if(w!==it.w||x!==it.x){if(!D.moved){D.moved=true;onDragStart&&onDragStart();}onResize&&onResize(it.uid,w,x);}return;}
     if(!D.moved){D.moved=true;onDragStart&&onDragStart();}
     const x=planSnap(items,it.uid,wi,toX(e)-D.grab,it.w,planLayer(it),W);if(x!==it.x)onMove(it.uid,{wall:wi,x});};
@@ -4318,11 +4326,11 @@ function WallElevation({items,wi,W,walls,sel,setSel,msel=[],onToggle,onDragStart
         <g key={it.uid} onPointerDown={ev=>down(ev,it)} onContextMenu={ev=>{ev.preventDefault();ev.stopPropagation();if(ev.shiftKey&&onToggle)onToggle(it.uid);}} style={{cursor:"grab"}}>
           {planFloor(planLayer(it))&&<><rect x={it.x+4} y={H-e.y0} width="2.5" height={e.y0} fill="#0b1f4d"/><rect x={it.x+it.w-6.5} y={H-e.y0} width="2.5" height={e.y0} fill="#0b1f4d"/></>}
           <rect x={it.x} y={y0} width={it.w} height={e.h} fill={isB?"rgba(255,90,110,.25)":"#ffffff"} stroke={isB?"#ff5a6e":isS?"#c8923a":"#0b1f4d"} strokeWidth={isS?2:1}/>
-          {calcStdW(it).length>1&&[it.x,it.x+it.w-Math.min(7,it.w*.22)].map((x0,i)=><rect key={"e"+i} x={x0} y={y0} width={Math.min(7,it.w*.22)} height={e.h} fill="transparent" style={{cursor:"ew-resize"}}/>)}
+          {[it.x,it.x+it.w-Math.min(7,it.w*.22)].map((x0,i)=><rect key={"e"+i} x={x0} y={y0} width={Math.min(7,it.w*.22)} height={e.h} fill="transparent" style={{cursor:"ew-resize"}}/>)}
           {fr(it,it.x,y0,it.w,e.h)}
           <text x={it.x+it.w/2} y={y0+e.h/2} textAnchor="middle" dominantBaseline="middle" fontSize={it.w<40?6.5:8} fill="#0b1f4d" style={{paintOrder:"stroke",stroke:"#fff",strokeWidth:2.5}}>{it.g==="ant"?it.code.replace("Antresola ","A "):it.code}</text>
           <text x={it.x+it.w/2} y={y0+e.h/2+10} textAnchor="middle" fontSize="6.5" fill={(it.cat||0)?"#b07a1c":"#5b6b88"} style={{paintOrder:"stroke",stroke:"#fff",strokeWidth:2.5}}>{calcCatLbl(it)}</text>
-          {sel===it.uid&&calcStdW(it).length>1&&[["l",it.x],["r",it.x+it.w]].map(([m,u])=><g key={m} onPointerDown={ev=>downH(ev,it,m)} style={{cursor:"ew-resize"}}><rect x={u-8} y={y0} width="16" height={e.h} fill="transparent"/><rect x={u-2.5} y={y0+e.h/2-9} width="5" height="18" rx="2" fill="#e3b860" stroke="#0b1f4d" strokeWidth=".8"/></g>)}
+          {sel===it.uid&&[["l",it.x],["r",it.x+it.w]].map(([m,u])=><g key={m} onPointerDown={ev=>downH(ev,it,m)} style={{cursor:"ew-resize"}}><rect x={u-8} y={y0} width="16" height={e.h} fill="transparent"/><rect x={u-2.5} y={y0+e.h/2-9} width="5" height="18" rx="2" fill="#e3b860" stroke="#0b1f4d" strokeWidth=".8"/></g>)}
         </g>);})}
       {its.filter(x=>planFloor(planLayer(x))).map(it=><g key={"d"+it.uid}><line x1={it.x} y1={H+12} x2={it.x+it.w} y2={H+12} stroke="#5b6b88" strokeWidth=".6"/><line x1={it.x} y1={H+8} x2={it.x} y2={H+16} stroke="#5b6b88" strokeWidth=".6"/><line x1={it.x+it.w} y1={H+8} x2={it.x+it.w} y2={H+16} stroke="#5b6b88" strokeWidth=".6"/><text x={it.x+it.w/2} y={H+22} textAnchor="middle" fontSize="7.5" fill="#0b1f4d">{mmT(it.w)}</text></g>)}
       <line x1="0" y1={H+32} x2={W.len} y2={H+32} stroke="#c8923a" strokeWidth=".8"/><text x={W.len/2} y={H+30} textAnchor="middle" fontSize="8.5" fill="#c8923a">{mmT(W.len)} {pl?"mm":"мм"}</text>
@@ -4379,7 +4387,7 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
   const setCatMany=(uids,k)=>{const S=new Set(uids);snap();upd(p=>({items:(p.items||[]).map(x=>!S.has(x.uid)?x:x.pm?{...x,cat:k}:{...x,cat:k,price:calcPriceOf(x.code,k)})}));};
   const setItemCat=(uid,k)=>setCatMany([uid],k);
   // растягивание: соседей на той же стене раздвигаем, если на стене хватает места
-  const resizeIt=(uid,w,x)=>upd(p=>{let items=(p.items||[]).map(it=>{if(it.uid!==uid)return it;const b=CALC_BY_CODE[it.code];const s=b&&b.g.sizes.find(s=>s[1]===w);if(!s)return{...it,w,x};return{...it,w,x,code:s[0],ns:false,price:it.pm?it.price:calcPriceOf(s[0],it.cat||0)};});
+  const resizeIt=(uid,w,x)=>upd(p=>{let items=(p.items||[]).map(it=>{if(it.uid!==uid)return it;const s=calcSizeFor(it.code,w);if(!s)return{...it,w,x};return{...it,w,x,code:s[0],ns:Math.abs(s[1]-w)>0.05,price:it.pm?it.price:calcPriceOf(s[0],it.cat||0)};});
     const t=items.find(o=>o.uid===uid);const W=planWalls(p.plan)[t&&t.wall];if(!t||!W)return{items};const ly=planLayer(t);
     const same=o=>o.uid!==uid&&o.wall===t.wall&&o.g!=="ant"&&planClash(planLayer(o),ly);const shift=new Map();
     const R=items.filter(o=>same(o)&&o.x+o.w/2>t.x+t.w/2).sort((a,b)=>a.x-b.x);let cur=t.x+t.w;R.forEach(o=>{const nx=Math.max(o.x,cur);if(nx!==o.x)shift.set(o.uid,nx);cur=nx+o.w;});if(cur>W.len+0.5)R.forEach(o=>shift.delete(o.uid));
@@ -4407,8 +4415,7 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
   const nudge=(uid,d)=>{const it=(c.items||[]).find(x=>x.uid===uid);if(!it||it.wall==null||!walls[it.wall])return;snap();const W=walls[it.wall];moveIt(uid,{x:Math.min(Math.max(0,it.x+d),W.len-it.w)});};
   // ручная ширина: стандартный размер → его код и цена; иначе «нестандарт» по цене ближайшего большего размера
   const setWidth=(uid,w)=>{const v=Math.round(calcNum(w)*10)/10;if(!v||v<10||v>300)return;snap();upd(p=>({items:(p.items||[]).map(x=>{if(x.uid!==uid)return x;const gg=CALC_BY_CODE[x.code];const g=gg&&gg.g;if(!g)return{...x,w:v};
-      const ex=g.sizes.find(s=>s[1]===v);if(ex)return{...x,w:v,code:ex[0],price:x.pm?x.price:calcPriceOf(ex[0],x.cat||0),ns:false};
-      const big=g.sizes.filter(s=>s[1]>=v).sort((a,b)=>a[1]-b[1])[0]||g.sizes[g.sizes.length-1];return{...x,w:v,code:big[0],price:x.pm?x.price:calcPriceOf(big[0],x.cat||0),ns:true};})}));};
+      const s=calcSizeFor(x.code,v);return{...x,w:v,code:s[0],price:x.pm?x.price:calcPriceOf(s[0],x.cat||0),ns:Math.abs(s[1]-v)>0.05};})}));};
   const setPrice=(uid,v)=>upd(p=>({items:(p.items||[]).map(x=>x.uid===uid?{...x,price:Math.round(calcNum(v)),pm:true}:x)}));
   const setEx=(k,f,v)=>upd(p=>({extras:{...(p.extras||{}),[k]:{...((p.extras||{})[k]||{}),[f]:v}}}));
   const makePlan=()=>{snap();const n=(PLAN_SHAPES.find(s=>s.k===wiz.shape)||PLAN_SHAPES[1]).walls;const plan={shape:wiz.shape,lens:wiz.lens.slice(0,n).map(v=>String(Math.round(calcNum(v)/10*2)/2||300)),gap:String(Math.round(calcNum(wiz.gap)/10)||120)};
@@ -4584,7 +4591,7 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
                   </div>);})()}
                 {selIt&&(()=>{const gg=CALC_BY_CODE[selIt.code];const g=gg&&gg.g;return(
                   <div onPointerDown={e=>e.stopPropagation()} style={{width:270,flexShrink:0,alignSelf:"flex-start",borderRadius:16,padding:12,background:dk?"linear-gradient(160deg,rgba(30,72,170,.97),rgba(5,18,52,.98))":C.surface,border:"1px solid rgba(227,184,96,.4)",boxShadow:"0 20px 60px rgba(0,0,0,.45)",display:"flex",flexDirection:"column",gap:8}}>
-                    <div style={{display:"flex",gap:9,alignItems:"center"}}><CalcSketch g={g} size={44}/><div style={{minWidth:0,flex:1}}><div style={{fontSize:14,color:champ}}>{selIt.code}{selIt.ns?" *":""}</div><div style={{fontSize:10.5,color:C.muted}}>{g?ttl(g):""}{selIt.ns?` · ${pl?"szerokość niestandardowa":"нестандартная ширина"}`:""}</div></div><button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button></div>
+                    <div style={{display:"flex",gap:9,alignItems:"center"}}><CalcSketch g={g} size={44}/><div style={{minWidth:0,flex:1}}><div style={{fontSize:14,color:champ}}>{selIt.code}{selIt.ns?" *":""}</div><div style={{fontSize:10.5,color:C.muted}}>{g?ttl(g):""}{selIt.ns?` · ${pl?"niestandard, cena jak":"нестандарт, цена как"} ${mmT((CALC_BY_CODE[selIt.code]||{s:[0,selIt.w]}).s[1])} ${pl?"mm":"мм"}`:""}</div></div><button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button></div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                       <label style={{fontSize:10.5,color:C.muted,display:"flex",flexDirection:"column",gap:3}}>{pl?"Szerokość, mm":"Ширина, мм"}<input key={selIt.uid+":"+selIt.w} defaultValue={mmT(selIt.w)} onBlur={e=>{const v=calcNum(e.target.value)/10;if(v&&v!==selIt.w)setWidth(selIt.uid,v);}} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} inputMode="numeric" style={{...inp,height:32,fontSize:14,width:"100%",minWidth:0}}/></label>
                       <label style={{fontSize:10.5,color:C.muted,display:"flex",flexDirection:"column",gap:3}}>{pl?"Cena, zł":"Цена, zł"}<input key={selIt.uid+":p"+selIt.price} defaultValue={selIt.price} onBlur={e=>{if(calcNum(e.target.value)!==selIt.price)setPrice(selIt.uid,e.target.value);}} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} inputMode="numeric" style={{...inp,height:32,fontSize:14,width:"100%",minWidth:0}}/></label>
@@ -4612,7 +4619,7 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
                       <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,marginTop:3}}><span>{pl?"dół":"низ"} {mmT(fl)} · {pl?"wolne":"свободно"} {mmT(Math.max(0,W.len-fl))}</span><span>{pl?"góra":"верх"} {mmT(tp)}</span></div>
                     </div>);})}
                   <div className="hand" style={{fontSize:17,color:champ,lineHeight:1.2,marginTop:4}}>{pl?"kliknij sekcję, aby zmienić szerokość lub cenę":"кликни секцию — поменяешь ширину или цену"}</div>
-                  <div style={{fontSize:10.5,lineHeight:1.6}}>{pl?"Dwuklik na ścianie — rozwinięcie":"Двойной клик по стене — развёртка"}<br/>{pl?"Sekcje przyciągają się do ścian, narożników i sąsiadów":"Секции магнитятся к стенам, углам и соседям"}<br/>{pl?"Zaznaczoną sekcję rozciągniesz za uchwyty — 30/45/60…":"Выбранную секцию тяни за ручки по краям — 30/45/60…"}<br/>{pl?"Shift + PPM — zaznacz kilka i zmień im kategorię":"Shift + ПКМ — выдели несколько и поменяй им категорию"}</div>
+                  <div style={{fontSize:10.5,lineHeight:1.6}}>{pl?"Dwuklik na ścianie — rozwinięcie":"Двойной клик по стене — развёртка"}<br/>{pl?"Sekcje przyciągają się do ścian, narożników i sąsiadów":"Секции магнитятся к стенам, углам и соседям"}<br/>{pl?"Ciągnij za krawędź sekcji — dowolny wymiar, cena wg najbliższego większego standardu":"Тяни секцию за край — любой размер, цена по ближайшему большему стандарту (460–600 → как 600)"}<br/>{pl?"Shift + PPM — zaznacz kilka i zmień im kategorię":"Shift + ПКМ — выдели несколько и поменяй им категорию"}</div>
                 </div>}
               </div>))}
             {/* СПЕЦИФИКАЦИЯ */}
@@ -4625,7 +4632,7 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
                   {it.map(x=>{const gg=CALC_BY_CODE[x.code];const g=gg&&gg.g;return(
                     <div key={x.k} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 4px",borderTop:`1px solid ${C.border}`}}>
                       <CalcSketch g={g} size={52}/>
-                      <div style={{minWidth:0,flex:1}}><div style={{fontSize:13.5}}>{x.code}{x.ns&&<span style={{fontSize:10.5,color:"#f6c453"}}> · {pl?"niestandard":"нестандарт"} {mmT(x.w)} {pl?"mm":"мм"}</span>}</div><div style={{fontSize:10.5,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{g?ttl(g):""} · <span style={{color:x.cat?"#f6c453":C.muted}}>{pl?"kat.":"кат."} {calcCatLbl(x).slice(1)}</span> · {fmtM(x.price)}{x.off?` · ${pl?"poza planem":"не на плане"} ${x.off}`:""}</div></div>
+                      <div style={{minWidth:0,flex:1}}><div style={{fontSize:13.5}}>{x.code}{x.ns&&<span style={{fontSize:10.5,color:"#f6c453"}}> · {pl?"niestandard":"нестандарт"} {mmT(x.w)} {pl?"mm":"мм"} → {pl?"cena jak":"цена как"} {mmT((CALC_BY_CODE[x.code]||{s:[0,x.w]}).s[1])}</span>}</div><div style={{fontSize:10.5,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{g?ttl(g):""} · <span style={{color:x.cat?"#f6c453":C.muted}}>{pl?"kat.":"кат."} {calcCatLbl(x).slice(1)}</span> · {fmtM(x.price)}{x.off?` · ${pl?"poza planem":"не на плане"} ${x.off}`:""}</div></div>
                       <div style={{display:"flex",alignItems:"center",gap:4}}>
                         <button className="calc-b" onClick={()=>grpMinus(x)} style={{width:24,height:24,borderRadius:7,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.text,cursor:"pointer"}}>−</button>
                         <span style={{minWidth:18,textAlign:"center",fontSize:12.5}}>{x.qty}</span>
