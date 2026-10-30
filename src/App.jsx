@@ -355,12 +355,12 @@ function BuyerPick({value,onChange,lang,style}){const pl=lang==="pl";return(
   </select>);}
 const buyerMatch=(source,f)=>f==="all"||(f==="none"?!buyerOf(source):buyerOf(source)===f);
 // ─── ЯЗЫК ОБСЛУЖИВАНИЯ ───────────────────────────────────────────────────────
-// Если язык не выбран вручную: украинский источник (ukr / .ua / ukrain…) или кириллица в имени/описании → 🇺🇦
+// Если язык не выбран вручную: украинский источник (ukr / .ua / ukrain…) или кириллица в ИМЕНИ клиента → 🇺🇦.
+// Описание/заметки не смотрим: их пишут менеджеры и Эрика по-русски — из-за этого раньше почти всем ставился UA.
 function detectLang(l){
   const src=String((l&&l.source)||"").toLowerCase();
   if(/(ukr|ukrain|украї|україн|\.ua(\b|\/|$)|(^|[./-])ua([./-]|$))/.test(src))return "ua";
-  const txt=`${(l&&l.name)||""} ${(l&&l.notes)||""}`;
-  if(/[а-яА-ЯёЁіїєґІЇЄҐ]/.test(txt))return "ua";
+  if(/[а-яА-ЯёЁіїєґІЇЄҐ]/.test(String((l&&l.name)||"")))return "ua";
   return null;
 }
 const LANG_OPTS=[["pl","🇵🇱"],["ua","🇺🇦"],["en","🇬🇧"]];
@@ -377,11 +377,11 @@ function normLang(v){
   if(!LANG_OPTS.some(o=>o[0]===n))n=LANG_OPTS[0][0];
   return n;
 }
-// Язык по тексту заявки: явно английский текст (Эрика / формы) → EN
+// Язык по тексту заявки: только явно английский текст → EN (кириллица в заметках ничего не значит)
 function textLang(l){
   const t=` ${String((l&&l.notes)||"")} ${((l&&l.messages)||[]).map?((l.messages||[]).map(m=>typeof m==="string"?m:(m&&(m.text||m.content))||"").join(" ")):""} `.toLowerCase();
   if(t.trim().length<12)return null;
-  if(/[а-яёіїєґ]/.test(t))return "ua";
+  const cyr=(t.match(/[а-яёіїєґ]/g)||[]).length;if(cyr>20)return null;
   const cnt=(re)=>(t.match(re)||[]).length;
   const en=cnt(/\b(the|and|i'm|my|we|you|is|are|want|need|would|like|please|hello|hi|kitchen|price|thanks?|thank you|with|for|have|how|much|can|could)\b/g);
   const pl=cnt(/\b(się|jest|nie|tak|kuchni[aęy]?|chcę|chciał[aby]*|proszę|dzień|dobry|czy|mam|jak|ile|dziękuję|cześć|witam|mieszkanie|blat)\b|[ąęłńśźż]/g);
@@ -390,11 +390,23 @@ function textLang(l){
 }
 function withLang(l){
   if(!l)return l;
-  // язык поставлен автоматически/сайтом (не менеджером вручную), а заявка явно на другом языке → поправляем
   const manual=l.clientLangAuto===false||((l.history||[]).some(h=>/^(Язык обслуживания|Język obsługi):/.test(String(h&&h.action||""))));
-  if(l.clientLang&&!manual){const tl=textLang(l);const n0=normLang(l.clientLang);if(tl&&tl!==n0&&LANG_OPTS.some(o=>o[0]===tl))return {...l,clientLang:tl,clientLangAuto:true,clientLangRaw:l.clientLangRaw||l.clientLang};}
-  if(l.clientLang){const n=normLang(l.clientLang);return n===l.clientLang?l:{...l,clientLang:n,clientLangRaw:l.clientLang};}
-  const g=detectLang(l)||textLang(l);return g?{...l,clientLang:g,clientLangAuto:true}:l;
+  // выбран менеджером вручную — только нормализуем код
+  if(manual){if(!l.clientLang)return l;const n=normLang(l.clientLang);return n===l.clientLang?l:{...l,clientLang:n};}
+  // авто: каждый раз считаем заново из исходного языка (сайт/форма/лид-форма) → английский текст → источник/имя.
+  // Так же чинятся лиды, которым раньше ошибочно поставили UA по русским заметкам (исходный язык лежит в clientLangRaw).
+  // исходный язык: что прислал сайт/форма. Если язык поменяли снаружи после нашего пересчёта — берём новый.
+  let raw;
+  if(!l.clientLangAuto){raw=l.clientLang||null;if(l.clientLangRaw&&l.clientLang&&normLang(l.clientLangRaw)===l.clientLang)raw=l.clientLangRaw;}
+  else{raw=l.clientLangRaw||null;if(l.clientLangCalc&&l.clientLang&&l.clientLang!==l.clientLangCalc)raw=l.clientLang;}
+  const base=raw?normLang(raw):null;
+  const tl=textLang(l);const en=tl&&LANG_OPTS.some(o=>o[0]===tl)?tl:null;
+  const g=en||base||detectLang(l)||LANG_OPTS[0][0];// нет сигнала → язык страны (так он и показывался флагом)
+  const auto=g!==base;
+  const want={clientLang:g,clientLangAuto:auto||undefined,clientLangCalc:auto?g:undefined,clientLangRaw:raw&&raw!==g?raw:undefined};
+  if(Object.keys(want).every(k=>(l[k]===undefined?undefined:l[k])===want[k]))return l;
+  const o={...l};Object.keys(want).forEach(k=>{if(want[k]===undefined)delete o[k];else o[k]=want[k];});
+  return o;
 }
 // ─── ФОТО / ФАЙЛЫ ИЗ ЗАЯВКИ ──────────────────────────────────────────────────
 // Ищем вложения в любых привычных полях лида и ссылки на картинки/хранилище в описании.
