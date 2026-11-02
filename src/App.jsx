@@ -201,8 +201,9 @@ const T = {
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const MANAGERS = ["Oleh","Dmytro","Mateusz","Danya","Taras"];
-const USERS = [...MANAGERS,"Erika"]; // Эрика — предоценка, не менеджер (нет в KPI/пьедестале)
+const USERS = [...MANAGERS,"Erika","Robert"]; // Эрика — предоценка, не менеджер (нет в KPI/пьедестале); Robert — дожимщик
 const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Mateusz:C.purple,Danya:C.cyan,Taras:C.yellow,Erika:"#f472b6"};
+MGR_COLOR.Robert="#fb923c"; // дожимщик
 // Лидер продаж — обновляется в GarnoCRM на каждом рендере (как тема C).
 // Аватар этого менеджера получает медаль везде, где он отрисован.
 let SALES_LEADER = null;
@@ -935,6 +936,11 @@ function useDatabase(){
       if(win.files||lose.files){const dead=new Set([...(win.deletedFiles||[]),...(lose.deletedFiles||[])]);const fm=new Map();
         [...(lose.files||[]),...(win.files||[])].forEach(f=>{const k=typeof f==="string"?f:(f&&(f.path||f.url));if(k)fm.set(k,f);});
         out={...out,files:[...fm.values()].filter(f=>!dead.has(typeof f==="string"?f:(f.path||f.url))),deletedFiles:[...dead]};}
+      // 🧪 отметки A/B теста: объединяем с обеих сторон (два менеджера могли отметить почти одновременно)
+      if((win.abLog||[]).length||(lose.abLog||[]).length){const m=new Map();[...(lose.abLog||[]),...(win.abLog||[])].forEach(x=>x&&m.set(x.id,x));
+        out={...out,abLog:[...m.values()].sort((a,b)=>a.at-b.at),ab:{...(lose.ab||{}),...(win.ab||{})}};}
+      // 🦅 заметки дожима: объединяем с обеих сторон
+      if(win.dz&&lose.dz&&((lose.dz.notes||[]).length)){const m=new Map();[...(lose.dz.notes||[]),...(win.dz.notes||[])].forEach(x=>x&&m.set(`${x.at}|${x.by}|${x.txt}`,x));out={...out,dz:{...out.dz,notes:[...m.values()].sort((a,b)=>a.at-b.at)}};}
       // Оценка Эрики живёт своим полем: побеждает та, что поставлена позже, независимо от правок лида
       if((lose.erikaScoreAt||0)>(win.erikaScoreAt||0)||(win.erikaScore==null&&lose.erikaScore!=null&&!win.erikaScoreAt))
         out={...out,erikaScore:lose.erikaScore,erikaScoreAt:lose.erikaScoreAt,erikaBy:lose.erikaBy,erikaTree:lose.erikaTree};
@@ -990,6 +996,7 @@ function useDatabase(){
       deletedOrderIds:[...new Set([...(local.deletedOrderIds||[]),...(remote?.deletedOrderIds||[])])],
       // 🎯 Цели: по id, побеждает более свежая правка; удалённые не возвращаются
       goals:(()=>{const dead=new Set([...(local.deletedGoalIds||[]),...(remote?.deletedGoalIds||[])]);const m=new Map();(remote?.goals||[]).forEach(x=>m.set(x.id,x));(local.goals||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()].filter(x=>!dead.has(x.id));})(),
+      abTests:(()=>{const m=new Map();(remote?.abTests||[]).forEach(x=>m.set(x.id,x));(local.abTests||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()];})(),
       deletedGoalIds:[...new Set([...(local.deletedGoalIds||[]),...(remote?.deletedGoalIds||[])])],
       // Журнал выполненных задач (чтобы KPI «выполнено задач» не обнулялся после «Очистить DONE»)
       taskDoneLog:(()=>{const m=new Map();[...(remote?.taskDoneLog||[]),...(local.taskDoneLog||[])].forEach(x=>x&&m.set(x.id,x));const cut=Date.now()-400*86400000;return [...m.values()].filter(x=>(x.doneAt||0)>cut);})(),
@@ -2307,7 +2314,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
+const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"tests",icon:"🧪",ru:"Тесты",pl:"Testy"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
 // Анимированные иконки меню: части с классом .p играют свою анимацию при открытии раздела / наведении / старте
 const NAV_SVG={
   dashboard:<><rect className="p p1" x="3" y="3" width="7" height="9" rx="2"/><rect className="p p2" x="14" y="3" width="7" height="5" rx="2"/><rect className="p p3" x="14" y="12" width="7" height="9" rx="2"/><rect className="p p4" x="3" y="16" width="7" height="5" rx="2"/></>,
@@ -2318,6 +2325,7 @@ const NAV_SVG={
   sales:<><path className="p line" d="M3 17l6-6 4 4 8-8"/><path className="p head" d="M15 7h6v6"/></>,
   orders:<><path className="p body" d="M3 9v8.5l9 4 9-4V9"/><path className="p body" d="M12 13v8.5"/><path className="p lidl" d="M3 9l9 4 0-4-9-4z"/><path className="p lidr" d="M21 9l-9 4 0-4 9-4z"/><path className="p pop" d="M12 6.5v-4M9.5 4l-1-1.5M14.5 4l1-1.5"/></>,
   tasks:<><path d="M10 6h10M10 12h10M10 18h10"/><path className="p c1" d="M3.5 6l1.5 1.5 2.5-2.5"/><path className="p c2" d="M3.5 12l1.5 1.5 2.5-2.5"/><path className="p c3" d="M3.5 18l1.5 1.5 2.5-2.5"/></>,
+  tests:<><path d="M9 3h6M10 3v6l-5.5 9.5A2 2 0 0 0 6.2 21.5h11.6a2 2 0 0 0 1.7-3L14 9V3"/><path d="M7 15h10"/><circle className="p b1" cx="10.5" cy="18" r=".9" fill="currentColor" stroke="none"/><circle className="p b2" cx="13.5" cy="17" r=".7" fill="currentColor" stroke="none"/></>,
   settings:<><g className="p gear"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></g><circle cx="12" cy="12" r="2.5"/></>,
 };
 function NavIcon({k}){
@@ -3761,6 +3769,554 @@ function TabBar({tabs,active,onChange}){
   );
 }
 
+
+// ─── A/B ТЕСТЫ ───────────────────────────────────────────────────────────────
+// Тест: условие (язык / источник / менеджер / даты) → каждый подходящий новый лид сам попадает в группу.
+// Группа считается детерминированно от id теста и id лида (у всех менеджеров одинаково, писать в базу не нужно),
+// при первой отметке в карточке фиксируется в lead.ab[testId]. Отметки — lead.abLog. Метрики считаются из лидов.
+const AB_COLS=["#5cb8ff","#c79bff","#47e6a0","#ffb454"];
+const AB_ACT={write:{ic:"✉️",ru:"Написал",pl:"Napisałem"},call:{ic:"📞",ru:"Позвонил",pl:"Zadzwoniłem"},reply:{ic:"✓",ru:"Ответил · на связи",pl:"Odpowiedział · kontakt"},noreply:{ic:"✕",ru:"Нет ответа",pl:"Brak odpowiedzi"}};
+const AB_FIRST={write:{ic:"✉️",ru:"Сначала писать",pl:"Najpierw pisać",big:"СНАЧАЛА ПИСАТЬ — НЕ ЗВОНИТЬ",bigPl:"NAJPIERW PISZ — NIE DZWOŃ"},call:{ic:"📞",ru:"Сначала звонить",pl:"Najpierw dzwonić",big:"СНАЧАЛА ЗВОНИТЬ",bigPl:"NAJPIERW DZWOŃ"},any:{ic:"•",ru:"Как обычно",pl:"Jak zwykle",big:"РАБОТАЙ КАК ОБЫЧНО",bigPl:"PRACUJ JAK ZWYKLE"}};
+const AB_DAY=86400000;
+const AB_CH={wa:{ic:"🟢",n:"WhatsApp"},sms:{ic:"💬",n:"SMS"},msg:{ic:"🔵",n:"Messenger"},tg:{ic:"✈️",n:"Telegram"},mail:{ic:"📧",n:"E-mail"},call:{ic:"📞",n:"Звонок"}};
+// Что тестируем: у каждой переменной свои поля групп, своя инструкция в карточке и своё правило «нарушения»
+const AB_VARS={
+  first:{q:"Писать или звонить первым?",qPl:"Pisać czy dzwonić najpierw?",ex:"A — сначала пишем в WhatsApp/SMS · B — сразу звоним",exPl:"A — najpierw piszemy · B — od razu dzwonimy",ic:"✉️",ru:"Первое действие",pl:"Pierwsza akcja",dRu:"писать или звонить первым",dPl:"pisać czy dzwonić najpierw",
+    preset:()=>[{name:"Писать",ic:"✉️",first:"write",waitH:3,hint:"Напиши в WhatsApp / SMS. Звонить можно через 3 часа, если не ответит."},{name:"Звонить",ic:"📞",first:"call",waitH:0,hint:"Сразу звони. Писать — только если не взял трубку."}]},
+  speed:{q:"Как быстро выходить на связь?",qPl:"Jak szybko się kontaktować?",ex:"A — в первые 5 минут · B — через 30 минут",exPl:"A — w ciągu 5 minut · B — po 30 minutach",ic:"⏱",ru:"Скорость контакта",pl:"Szybkość kontaktu",dRu:"сразу или с паузой после заявки",dPl:"od razu czy z przerwą",
+    preset:()=>[{name:"Сразу",ic:"⚡",mins:0,hint:"Свяжись в первые 5 минут после заявки."},{name:"Через 30 минут",ic:"⏱",mins:30,hint:"Не связывайся раньше, чем через 30 минут после заявки."}]},
+  time:{q:"В какое время суток связываться?",qPl:"O jakiej porze dnia się kontaktować?",ex:"A — сразу, когда пришла заявка · B — только вечером 17–20",exPl:"A — od razu · B — tylko wieczorem 17–20",ic:"🕔",ru:"Время контакта",pl:"Pora kontaktu",dRu:"когда выходить на связь",dPl:"kiedy się kontaktować",
+    preset:()=>[{name:"Сразу",ic:"⚡",tf:"",tt:"",hint:"Свяжись сразу, в любое время."},{name:"Вечером",ic:"🌙",tf:"17:00",tt:"20:00",hint:"Первый контакт только с 17:00 до 20:00."}]},
+  channel:{q:"Куда писать первое сообщение?",qPl:"Gdzie wysłać pierwszą wiadomość?",ex:"A — WhatsApp · B — SMS",exPl:"A — WhatsApp · B — SMS",ic:"💬",ru:"Канал",pl:"Kanał",dRu:"куда писать первым",dPl:"gdzie pisać najpierw",
+    preset:()=>[{name:"WhatsApp",ic:"🟢",ch:"wa",hint:"Первое сообщение — только в WhatsApp."},{name:"SMS",ic:"💬",ch:"sms",hint:"Первое сообщение — только SMS."}]},
+  script:{q:"Какой текст первого сообщения лучше?",qPl:"Który tekst pierwszej wiadomości jest lepszy?",ex:"A — короткое приветствие · B — сразу просим размеры кухни",exPl:"A — krótkie powitanie · B — od razu prosimy o wymiary",ic:"📝",ru:"Текст / скрипт",pl:"Tekst / skrypt",dRu:"какой текст отправлять",dPl:"jaki tekst wysyłać",
+    preset:()=>[{name:"Короткий",ic:"📝",tpl:"Dzień dobry, {imię}! Tu {menedżer} z GARNO. Dziękujemy za zapytanie o kuchnię. Kiedy możemy krótko porozmawiać?",hint:"Отправь шаблон как есть, можно поправить имя."},
+      {name:"С вопросом о проекте",ic:"🖼",tpl:"Dzień dobry, {imię}! Tu {menedżer} z GARNO. Żeby przygotować wycenę, proszę o wymiary kuchni lub zdjęcie/rzut. Kiedy wygodnie porozmawiać?",hint:"Отправь шаблон как есть, можно поправить имя."}]},
+  custom:{q:"Своя идея",qPl:"Własny pomysł",ex:"A — предлагаем визит в шоурум · B — сначала отправляем просчёт",exPl:"A — zapraszamy do salonu · B — najpierw wysyłamy wycenę",ic:"🧩",ru:"Своя переменная",pl:"Własna zmienna",dRu:"любой вариант — опиши в инструкции",dPl:"dowolny wariant — opisz w instrukcji",
+    preset:()=>[{name:"Вариант 1",ic:"🎯",hint:""},{name:"Вариант 2",ic:"💡",hint:""}]},
+};
+const abVary=t=>AB_VARS[t&&t.vary]?t.vary:"first";
+const abHM=s=>{const [h,m]=String(s||"0:0").split(":").map(Number);return (h||0)*60+(m||0);};
+const abTpl=(tpl,l)=>String(tpl||"").replace(new RegExp("\\{(imi\u0119|imie|\u0438\u043c\u044f)\\}","gi"),String((l&&l.name)||"").split(" ")[0]||"").replace(new RegExp("\\{(mened\u017cer|menedzer|\u043c\u0435\u043d\u0435\u0434\u0436\u0435\u0440)\\}","gi"),(l&&l.manager)||"");
+const AB_PRESET=()=>({name:"Писать или звонить",vary:"first",langs:[LANG_OPTS[0][0]],srcs:"",mgrs:[],days:14,win:48,variants:AB_VARS.first.preset().map((v,i)=>({...v,k:"ABCD"[i]}))});
+function abHash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function abArr(l){return leadArrivalMs(l)||l.createdMs||0;}
+function abInWindow(t,ms){if(!ms||ms<t.startAt)return false;const end=t.endAt||(t.startAt+(t.days||14)*AB_DAY);if(ms>end)return false;
+  return !(t.pauses||[]).some(([a,b])=>ms>=a&&ms<=(b||Infinity));}
+function abMatch(t,l){if(!t||t.deleted||!l)return false;if(!abInWindow(t,abArr(l)))return false;
+  if((t.langs||[]).length&&!t.langs.includes(normLang(l.clientLang)||LANG_OPTS[0][0]))return false;
+  const ss=String(t.srcs||"").split(/[,;\n]/).map(x=>x.trim().toLowerCase()).filter(Boolean);
+  if(ss.length&&!ss.some(x=>String(l.source||"").toLowerCase().includes(x)))return false;
+  if((t.mgrs||[]).length&&!t.mgrs.includes(l.manager))return false;return true;}
+// группа лида в тесте (или null): зафиксированная при отметке, иначе по хэшу
+function abOf(t,l){const vs=t&&t.variants||[];if(!vs.length||!l)return null;const fx=l.ab&&l.ab[t.id];
+  if(fx){const v=vs.find(x=>x.k===fx);if(v)return v;}
+  if(!abMatch(t,l))return null;return vs[abHash(String(t.id)+":"+String(l.id))%vs.length];}
+function abLeadTests(tests,l){return (tests||[]).filter(t=>!t.deleted).map(t=>({t,v:abOf(t,l)})).filter(x=>x.v);}
+function abInfo(t,v,l){const arr=abArr(l);const logs=(l.abLog||[]).filter(x=>x.t===t.id).sort((a,b)=>a.at-b.at);
+  const acts=logs.filter(x=>x.a==="write"||x.a==="call");const rep=logs.find(x=>x.a==="reply");
+  const sc=parseFloat(l.score);const scR=!isNaN(sc)&&sc>=1;
+  const reached=!!rep||scR;const reachedAt=rep?rep.at:(scR&&!logs.length?(firstContactMs(l)||null):null);
+  const attempts=acts.filter(x=>!reachedAt||x.at<=reachedAt).length;
+  let viol=null;const vt=abVary(t);const f0=acts[0];
+  if(vt==="first"){if(v.first!=="any"&&f0&&f0.a!==v.first)viol={by:f0.by||"?",why:"first"};
+    if(!viol&&v.first==="write"&&(v.waitH||0)>0){const w=acts.find(x=>x.a==="write");const c=acts.find(x=>x.a==="call");
+      if(c&&!(rep&&rep.at<=c.at)&&(!w||c.at<w.at+v.waitH*3600000))viol={by:c.by||"?",why:"early"};}}
+  else if(vt==="speed"&&f0){if(f0.at<arr+(+v.mins||0)*60000-120000)viol={by:f0.by||"?",why:"early"};}
+  else if(vt==="time"&&f0&&v.tf){const d=new Date(f0.at);const m=d.getHours()*60+d.getMinutes();if(m<abHM(v.tf)||m>abHM(v.tt||"23:59"))viol={by:f0.by||"?",why:"time"};}
+  else if(vt==="channel"&&f0){const want=v.ch==="call"?"call":"write";if(f0.a!==want||(want==="write"&&f0.ch&&f0.ch!==v.ch))viol={by:f0.by||"?",why:"channel"};}
+  return {arr,logs,acts,rep,reached,reachedAt,attempts,viol,sc:isNaN(sc)?null:sc};}
+const abMed=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y);const m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
+function abPhi(z){const t=1/(1+0.2316419*Math.abs(z));const d=0.3989423*Math.exp(-z*z/2);const p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));return z>0?1-p:p;}
+function abStats(t,leads,now){const W=(t.win||48)*3600000;
+  const vs=(t.variants||[]).map((v,i)=>({v,col:AB_COLS[i%AB_COLS.length],n:0,el:0,ok:0,okAny:0,times:[],att:[],q:0,vis:0,sale:0,viol:0,violBy:{},mgr:{},list:[]}));
+  (leads||[]).forEach(l=>{const v=abOf(t,l);if(!v)return;const s=vs.find(x=>x.v.k===v.k);if(!s)return;const i=abInfo(t,v,l);
+    s.n++;s.list.push({l,i});const age=now-i.arr;const inW=i.reached&&(i.reachedAt==null||i.reachedAt-i.arr<=W);
+    if(age>=W||inW){s.el++;if(inW)s.ok++;}if(i.reached)s.okAny++;
+    if(i.reachedAt&&i.reachedAt>=i.arr)s.times.push(i.reachedAt-i.arr);if(i.reached&&i.acts.length)s.att.push(i.attempts);
+    if(i.sc!=null){if(i.sc>=4)s.q++;if(i.sc>=5)s.vis++;if(i.sc>=6)s.sale++;}
+    if(i.viol){s.viol++;s.violBy[i.viol.by]=(s.violBy[i.viol.by]||0)+1;}
+    const m=l.manager||"—";const mm=s.mgr[m]||(s.mgr[m]={n:0,ok:0,el:0,viol:0});mm.n++;if(age>=W||inW){mm.el++;if(inW)mm.ok++;}if(i.viol)mm.viol++;});
+  vs.forEach(s=>{s.rate=s.el?s.ok/s.el:null;s.med=abMed(s.times);s.attAvg=s.att.length?s.att.reduce((a,b)=>a+b,0)/s.att.length:null;
+    s.qr=s.n?s.q/s.n:null;s.vr=s.n?s.vis/s.n:null;s.sr=s.n?s.sale/s.n:null;s.list.sort((a,b)=>b.i.arr-a.i.arr);});
+  let conf=null,need=null,best=null;const [a,b]=vs;
+  if(a&&b&&a.el>0&&b.el>0){const p1=a.ok/a.el,p2=b.ok/b.el,p=(a.ok+b.ok)/(a.el+b.el);const se=Math.sqrt(p*(1-p)*(1/a.el+1/b.el));
+    const z=se?Math.abs(p1-p2)/se:0;conf=2*abPhi(z)-1;const d=Math.abs(p1-p2);
+    need=d>0.005?Math.ceil(7.85*(p1*(1-p1)+p2*(1-p2))/(d*d)):null;best=p1===p2?null:(p1>p2?a:b);}
+  return {vs,conf,need,best};}
+const abPct=x=>x==null?"—":Math.round(x*100)+"%";
+const abDur=(ms,pl)=>{if(ms==null)return "—";const m=Math.round(ms/60000);if(m<60)return `${m} ${pl?"min":"мин"}`;const h=Math.floor(m/60);return `${h} ${pl?"h":"ч"} ${m%60?`${m%60} ${pl?"min":"мин"}`:""}`.trim();};
+function abDayOf(t,now){const d=Math.floor((Math.min(now,t.endAt||now)-t.startAt)/AB_DAY)+1;return Math.max(1,Math.min(d,t.days||14));}
+function abState(t,now){if(t.endAt&&t.endAt<=now)return "done";if(now>t.startAt+(t.days||14)*AB_DAY)return "done";if((t.pauses||[]).some(([a,b])=>!b))return "paused";return now<t.startAt?"plan":"active";}
+function abVerdict(st,pl){if(st.conf==null)return {ok:false,txt:pl?"czekamy na dane":"ждём данных"};
+  if(st.conf>=0.95&&st.best)return {ok:true,txt:`${pl?"Wygrywa":"Лучше"}: ${st.best.v.ic} ${st.best.v.name}`};
+  const minEl=Math.min(...st.vs.slice(0,2).map(s=>s.el));const more=st.need?Math.max(0,st.need-minEl):null;
+  return {ok:false,txt:pl?"za wcześnie na wnioski":"пока рано делать вывод",sub:more?(pl?`potrzeba jeszcze ~${more} leadów w grupie`:`нужно ещё ~${more} лидов в каждой группе`):(pl?"różnicy prawie nie ma":"разницы почти нет")};}
+
+// Чип группы в таблице лидов
+function AbChip({tests,l}){const xs=abLeadTests(tests,l);if(!xs.length)return null;
+  return <>{xs.map(({t,v})=>{const i=(t.variants||[]).indexOf(v);const col=AB_COLS[i%AB_COLS.length];const inf=abInfo(t,v,l);return(
+    <span key={t.id} title={`🧪 ${t.name}: ${v.name}`} style={{marginLeft:6,display:"inline-flex",alignItems:"center",gap:3,fontSize:10,padding:"1px 7px",borderRadius:999,border:`1px solid ${col}88`,background:`${col}1f`,color:col,whiteSpace:"nowrap",verticalAlign:"middle"}}>
+      {v.ic} {v.k}{inf.reached?<b style={{color:"#47e6a0",fontWeight:400}}> ✓</b>:null}{inf.viol?<b style={{color:"#ff7d8c",fontWeight:400}}> ⚠</b>:null}</span>);})}</>;}
+
+// Плашка над таблицей лидов
+function AbBanner({tests,leads,lang,onOpen}){const pl=lang==="pl";const now=Date.now();
+  const act=(tests||[]).filter(t=>!t.deleted&&["active","paused"].includes(abState(t,now)));if(!act.length)return null;
+  return <div style={{display:"flex",flexDirection:"column",gap:8,margin:"0 0 12px"}}>{act.map(t=>{const st=abStats(t,leads,now);const vd=abVerdict(st,pl);const ps=abState(t,now)==="paused";return(
+    <div key={t.id} onClick={onOpen} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:20,flexWrap:"wrap",padding:"11px 16px",borderRadius:16,border:"1px solid rgba(227,184,96,.45)",background:"linear-gradient(100deg,rgba(227,184,96,.13),rgba(14,40,108,.6) 40%)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}><div style={{fontSize:26}}>🧪</div><div style={{minWidth:0}}>
+        <div style={{fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:"#e3b860",whiteSpace:"nowrap"}}>{ps?(pl?"test wstrzymany":"тест на паузе"):(pl?"trwa test A/B":"идёт A/B тест")} · {pl?"dzień":"день"} {abDayOf(t,now)} {pl?"z":"из"} {t.days||14}</div>
+        <div style={{fontSize:15,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.name}</div></div></div>
+      <div style={{display:"flex",gap:22,flexWrap:"wrap"}}>{st.vs.map(s=><div key={s.v.k}>
+        <div style={{fontSize:9.5,letterSpacing:".14em",textTransform:"uppercase",color:C.muted,whiteSpace:"nowrap"}}>{s.v.ic} {s.v.k} · {s.v.name}</div>
+        <div style={{marginTop:3,whiteSpace:"nowrap"}}><span style={{fontSize:24,color:s.col,lineHeight:1}}>{abPct(s.rate)}</span> <span style={{fontSize:10.5,color:C.muted}}>{pl?"kontakt":"на связи"} · {s.ok}/{s.el}{s.n>s.el?` (+${s.n-s.el})`:""}</span></div></div>)}
+        <div><div style={{fontSize:9.5,letterSpacing:".14em",textTransform:"uppercase",color:C.muted}}>{pl?"kwal 4+":"квал 4+"}</div><div style={{marginTop:6,fontSize:14,whiteSpace:"nowrap"}}>{st.vs.map((s,i)=><span key={s.v.k}>{i?" · ":""}<span style={{color:s.col}}>{abPct(s.qr)}</span></span>)}</div></div></div>
+      <div style={{marginLeft:"auto",textAlign:"right"}}><div className="hand" style={{fontSize:20,color:vd.ok?"#47e6a0":"#f6e0aa",lineHeight:1.1}}>{vd.txt}</div>{vd.sub&&<div style={{fontSize:10.5,color:C.muted}}>{vd.sub}</div>}</div>
+    </div>);})}</div>;}
+
+// Блок в карточке лида: инструкция по переменной теста + отметки
+function AbLeadBox({tests,form,lang,onLog}){const pl=lang==="pl";const xs=abLeadTests(tests,form);const [,tick]=useState(0);const [cp,setCp]=useState(null);
+  useEffect(()=>{if(!xs.length)return;const id=setInterval(()=>tick(x=>x+1),30000);return()=>clearInterval(id);},[xs.length]);
+  if(!xs.length)return null;const now=Date.now();
+  return <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:-4,marginBottom:14}}>{xs.map(({t,v})=>{const i=(t.variants||[]).indexOf(v);const col=AB_COLS[i%AB_COLS.length];const inf=abInfo(t,v,form);const vt=abVary(t);
+    const none=!inf.acts.length&&!inf.rep;let big="",wait=null,dimW=false,dimC=false,gold=null,note=null,wLbl=null,ch=null;
+    if(vt==="first"){const F=AB_FIRST[v.first]||AB_FIRST.any;big=pl?F.bigPl:F.big;gold=v.first==="any"?null:v.first;
+      if(v.first==="write"&&(v.waitH||0)>0&&!inf.rep){const w=inf.acts.find(x=>x.a==="write");const callAt=w?w.at+v.waitH*3600000:null;dimC=!w||now<callAt;
+        if(!w)note=pl?"najpierw napisz":"сначала напиши";else if(now<callAt)wait=[callAt-now,pl?"dzwonić można za":"звонить можно через"];}}
+    else if(vt==="speed"){const m=+v.mins||0;big=m?(pl?`KONTAKT NIE WCZEŚNIEJ NIŻ PO ${m} MIN`:`СВЯЖИСЬ НЕ РАНЬШЕ ЧЕМ ЧЕРЕЗ ${m} МИН`):(pl?"KONTAKT OD RAZU":"СВЯЖИСЬ СРАЗУ");
+      const due=inf.arr+m*60000;if(none&&now<due){wait=[due-now,pl?"kontakt można za":"связаться можно через"];dimW=dimC=true;}}
+    else if(vt==="time"){big=v.tf?(pl?`PIERWSZY KONTAKT ${v.tf}–${v.tt||"23:59"}`:`ПЕРВЫЙ КОНТАКТ С ${v.tf} ДО ${v.tt||"23:59"}`):(pl?"KONTAKT OD RAZU":"СВЯЖИСЬ СРАЗУ");
+      if(v.tf&&none){const d=new Date();const m=d.getHours()*60+d.getMinutes();if(m<abHM(v.tf)||m>abHM(v.tt||"23:59")){dimW=dimC=true;note=pl?`teraz nie pora — czekaj do ${v.tf}`:`сейчас не время — жди до ${v.tf}`;}}}
+    else if(vt==="channel"){const C0=AB_CH[v.ch]||AB_CH.wa;ch=v.ch;if(v.ch==="call"){big=pl?"NAJPIERW DZWOŃ":"СНАЧАЛА ЗВОНИ";gold="call";dimW=none;}
+      else{big=pl?`PISZ NA ${C0.n.toUpperCase()}`:`ПИШИ В ${C0.n.toUpperCase()}`;gold="write";wLbl=`${C0.ic} ${pl?"Napisałem na":"Написал в"} ${C0.n}`;dimC=none;}}
+    else if(vt==="script"){big=pl?`PISZ SZABLONEM GRUPY ${v.k}`:`ПИШИ ПО ШАБЛОНУ ГРУППЫ ${v.k}`;gold="write";}
+    else {big=String(v.name||"").toUpperCase();}
+    const B=(a,extra={},lab)=>{const A=AB_ACT[a];const dim=(a==="write"&&dimW)||(a==="call"&&dimC);const done=a==="reply"&&!!inf.rep;
+      return <button key={a} onClick={()=>onLog(t,v,a,dim,a==="write"?ch&&ch!=="call"?ch:undefined:undefined)} style={{height:40,borderRadius:11,cursor:"pointer",fontFamily:"inherit",fontSize:13,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.text,...extra,...((dim||done)?{opacity:.5}:{})}}>{lab||`${A.ic} ${pl?A.pl:A.ru}`}</button>;};
+    const G={background:"linear-gradient(135deg,#f6e0aa,#e3b860 50%,#c8923a)",color:"#09153a",border:"none"};
+    const tpl=vt==="script"?abTpl(v.tpl,form):"";
+    return <div key={t.id} style={{borderRadius:16,border:`1.5px solid ${col}99`,background:`linear-gradient(100deg,${col}26,${col}08 60%)`,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{display:"flex",gap:14,alignItems:"center"}}>
+        <div style={{fontSize:34,lineHeight:1}}>{v.ic||"🧪"}</div>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:col}}>🧪 {pl?"test":"тест"} «{t.name}» · {pl?AB_VARS[vt].pl:AB_VARS[vt].ru} · {pl?"grupa":"группа"} {v.k} · {v.name}</div>
+          <div style={{fontSize:19,marginTop:2,color:C.text}}>{big}</div>
+          {v.hint&&<div className="hand" style={{fontSize:17,color:C.muted,marginTop:1,lineHeight:1.15}}>{v.hint}</div>}</div>
+        <div style={{textAlign:"right",fontSize:10.5,color:C.muted,flexShrink:0}}>{pl?"grupę wybrał CRM":"группу выбрала CRM"}<br/>{pl?"automatycznie":"автоматически"}</div></div>
+      {tpl&&<div style={{display:"flex",gap:10,alignItems:"flex-start",padding:"9px 11px",borderRadius:11,border:`1px dashed ${col}88`,background:"rgba(2,10,30,.35)"}}>
+        <div style={{flex:1,fontSize:12.5,lineHeight:1.45,whiteSpace:"pre-wrap",userSelect:"text"}}>{tpl}</div>
+        <button onClick={e=>{const done=()=>{setCp(t.id);setTimeout(()=>setCp(null),1600);};try{navigator.clipboard.writeText(tpl).then(done,()=>window.prompt("",tpl));}catch{window.prompt("",tpl);}}} style={{flexShrink:0,height:30,padding:"0 10px",borderRadius:9,border:`1px solid ${C.borderMd}`,background:cp===t.id?"rgba(71,230,160,.15)":"transparent",color:cp===t.id?"#47e6a0":C.text,cursor:"pointer",fontFamily:"inherit",fontSize:11.5}}>{cp===t.id?(pl?"✓ Skopiowano":"✓ Скопировано"):(pl?"📋 Kopiuj":"📋 Копировать")}</button></div>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8}}>
+        {B("write",gold==="write"?G:{},wLbl)}{B("call",gold==="call"?G:{})}
+        {B("reply",{borderColor:"rgba(71,230,160,.55)",color:"#47e6a0"})}{B("noreply",{borderColor:"rgba(255,125,140,.5)",color:"#ff7d8c"})}
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:"4px 14px",fontSize:11.5,color:C.muted}}>
+        {inf.logs.length===0&&<span>{pl?"Jeszcze nic nie zaznaczono":"Ещё ничего не отмечено"} · {pl?"lead w teście od":"в тесте с"} {fmtDT(inf.arr)}</span>}
+        {inf.logs.map((x,k)=><span key={k}>{fmtDT(x.at).slice(-5)} {x.ch&&AB_CH[x.ch]?AB_CH[x.ch].ic:AB_ACT[x.a]?.ic} {pl?AB_ACT[x.a]?.pl:AB_ACT[x.a]?.ru}{x.ch&&AB_CH[x.ch]?` · ${AB_CH[x.ch].n}`:""} · <span style={{color:MGR_COLOR[x.by]||C.muted}}>{x.by}</span></span>)}
+        {wait&&<span style={{color:"#f6c453"}}>⏳ {wait[1]} {abDur(wait[0],pl)}</span>}
+        {note&&<span style={{color:"#f6c453"}}>{note}</span>}
+        {inf.reached&&<span style={{color:"#47e6a0"}}>✓ {pl?"kontakt":"на связи"}{inf.reachedAt?` · ${abDur(inf.reachedAt-inf.arr,pl)} ${pl?"od zgłoszenia":"от заявки"}`:""}</span>}
+        {inf.viol&&<span style={{color:"#ff7d8c"}}>⚠ {({early:pl?"za wcześnie":"раньше времени",time:pl?"poza oknem czasowym":"не в своё время",channel:pl?"inny kanał":"не тот канал",first:pl?"złamał instrukcję":"нарушил инструкцию"})[inf.viol.why]} · {inf.viol.by}</span>}
+      </div></div>;})}</div>;}
+
+// Конструктор теста
+function AbTestModal({init,onSave,onClose,lang,leads}){const pl=lang==="pl";
+  const [f,setF]=useState(()=>init?JSON.parse(JSON.stringify(init)):{...AB_PRESET(),startMode:"now",startDate:new Date().toISOString().slice(0,10)});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));const setV=(i,k,v)=>setF(p=>({...p,variants:p.variants.map((x,j)=>j===i?{...x,[k]:v}:x)}));
+  const inp={background:C===DARK?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:9,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box",fontFamily:"inherit",width:"100%"};
+  const lbl={fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:C.muted,marginBottom:6};
+  const chip=(on)=>({whiteSpace:"nowrap",height:30,padding:"0 11px",borderRadius:9,cursor:"pointer",fontFamily:"inherit",fontSize:12,border:`1px solid ${on?"#e3b860":C.borderMd}`,background:on?"rgba(227,184,96,.18)":"transparent",color:on?"#f6e0aa":C.text});
+  // сколько лидов в день подходит под условия (за последние 30 дней)
+  const probe={...f,id:"probe",startAt:Date.now()-30*AB_DAY,days:31,endAt:null,pauses:[]};
+  const perDay=Math.round(((leads||[]).filter(l=>abMatch(probe,l)).length/30)*10)/10;
+  const ok=f.name.trim()&&(f.variants||[]).length>=2&&f.variants.every(v=>v.name.trim());
+  const save=()=>{if(!ok)return;const startAt=init?init.startAt:(f.startMode==="date"?new Date(f.startDate+"T00:00:00").getTime():Date.now());
+    const {startMode,startDate,...rest}=f;onSave({...rest,startAt,days:Math.max(1,Math.round(+f.days||14)),win:+f.win||48,vary:f.vary||"first",variants:f.variants.map((v,i)=>({...v,k:"ABCD"[i],waitH:+v.waitH||0,...(v.mins!=null?{mins:+v.mins||0}:{})}))});};
+  return <div onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,6,20,0.82)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{width:"min(980px,100%)",maxHeight:"calc(100vh - 32px)",overflowY:"auto",borderRadius:20,border:"1px solid rgba(227,184,96,.4)",background:C===DARK?"linear-gradient(165deg,#0b2156 0%,#06173f 55%,#030d26 100%)":"#ffffff",boxShadow:"0 30px 80px rgba(0,0,0,.55)",padding:"18px 22px",display:"flex",flexDirection:"column",gap:18,color:C.text}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{fontSize:20}}>🧪 {init?(pl?"Edycja testu":"Изменить тест"):(pl?"Nowy test A/B":"Новый A/B тест")}</div>
+        {!init&&<button onClick={()=>setF(p=>({...p,...AB_PRESET()}))} style={{...chip(false),marginLeft:12}}>✉️/📞 {pl?"Szablon: pisać czy dzwonić":"Шаблон: писать или звонить"}</button>}
+        <button onClick={onClose} style={{marginLeft:"auto",background:"none",border:"none",color:C.muted,fontSize:18,cursor:"pointer"}}>✕</button></div>
+      <div><div style={lbl}>{pl?"nazwa":"название"}</div><input value={f.name} onChange={e=>set("name",e.target.value)} style={{...inp,fontSize:15}} placeholder={pl?"Np. Pisać czy dzwonić":"Например: Писать или звонить"}/></div>
+      <div><div style={lbl}>{pl?"co testujemy":"что тестируем"}</div>
+        <div style={{fontSize:12,color:C.muted,margin:"-2px 0 8px"}}>{pl?"Wybierz pytanie, na które test ma odpowiedzieć. Leady podzielą się na grupy A i B, a CRM pokaże, która grupa częściej odbiera, ma więcej kwalifikacji, wizyt i sprzedaży.":"Выбери вопрос, на который тест должен ответить. Лиды поделятся на группы A и B, а CRM покажет, в какой группе чаще выходим на связь, больше квалов, визитов и продаж."}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(270px,1fr))",gap:8}}>{Object.entries(AB_VARS).map(([k,x])=>{const on=(f.vary||"first")===k;return(
+          <button key={k} disabled={!!init&&!on} onClick={()=>{if(on)return;setF(p=>({...p,vary:k,name:p.name&&!Object.values(AB_VARS).some(y=>y.q===p.name||y.qPl===p.name)&&p.name!=="Писать или звонить"?p.name:(pl?x.qPl:x.q),variants:x.preset().map((v,i)=>({...v,k:"ABCD"[i]}))}));}} style={{textAlign:"left",padding:"11px 13px",borderRadius:12,cursor:init?"default":"pointer",fontFamily:"inherit",border:`1.5px solid ${on?"#e3b860":C.borderMd}`,background:on?"rgba(227,184,96,.14)":"transparent",color:C.text,opacity:init&&!on?.35:1,display:"flex",gap:10,alignItems:"flex-start"}}>
+            <span style={{width:18,height:18,borderRadius:"50%",flexShrink:0,marginTop:1,border:`2px solid ${on?"#e3b860":C.borderMd}`,background:on?"radial-gradient(circle,#e3b860 0 45%,transparent 50%)":"transparent"}}/>
+            <span style={{minWidth:0}}><span style={{display:"block",fontSize:14,color:on?"#f6e0aa":C.text}}>{pl?x.qPl:x.q}</span>
+              <span style={{display:"block",fontSize:11,color:C.muted,marginTop:4,lineHeight:1.4}}>{pl?"Przykład":"Пример"}: {pl?x.exPl:x.ex}</span></span></button>);})}</div>
+        {init&&<div style={{fontSize:10.5,color:C.dim,marginTop:5}}>{pl?"Zmiennej nie zmienia się w trakcie testu — utwórz nowy test.":"Переменную нельзя менять в идущем тесте — создай новый тест."}</div>}</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:16}}>
+        <div><div style={lbl}>{pl?"język klienta":"язык клиента"}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{LANG_OPTS.map(([k,fl])=>{const on=(f.langs||[]).includes(k);return <button key={k} onClick={()=>set("langs",on?f.langs.filter(x=>x!==k):[...(f.langs||[]),k])} style={chip(on)}>{fl} {k.toUpperCase()}</button>;})}</div>
+          <div style={{fontSize:10.5,color:C.dim,marginTop:5}}>{pl?"nic nie wybrano — wszystkie języki":"ничего не выбрано — все языки"}</div></div>
+        <div><div style={lbl}>{pl?"menedżerowie":"менеджеры"}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{MANAGERS.map(m=>{const on=(f.mgrs||[]).includes(m);return <button key={m} onClick={()=>set("mgrs",on?f.mgrs.filter(x=>x!==m):[...(f.mgrs||[]),m])} style={{...chip(on),color:on?"#f6e0aa":(MGR_COLOR[m]||C.text)}}>{m}</button>;})}</div>
+          <div style={{fontSize:10.5,color:C.dim,marginTop:5}}>{pl?"nic nie wybrano — wszyscy":"ничего не выбрано — все"}</div></div>
+        <div><div style={lbl}>{pl?"źródło zawiera":"источник содержит"}</div><input value={f.srcs||""} onChange={e=>set("srcs",e.target.value)} style={inp} placeholder={pl?"np. Kuchnie, Strona (przez przecinek)":"например: Kuchnie, Strona (через запятую)"}/></div>
+        <div><div style={lbl}>{pl?"start i czas trwania":"старт и длительность"}</div>
+          {!init?<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}><button onClick={()=>set("startMode","now")} style={chip(f.startMode!=="date")}>{pl?"od teraz":"с этой минуты"}</button><button onClick={()=>set("startMode","date")} style={chip(f.startMode==="date")}>{pl?"od daty":"с даты"}</button>
+            {f.startMode==="date"&&<input type="date" value={f.startDate} onChange={e=>set("startDate",e.target.value)} style={{...inp,width:150,colorScheme:"dark"}}/>}</div>
+            :<div style={{fontSize:12.5,color:C.muted}}>{pl?"start":"старт"}: {fmtDT(init.startAt)}</div>}
+          <div style={{display:"flex",gap:8,alignItems:"center",marginTop:8,fontSize:12.5,color:C.muted}}><input value={f.days} onChange={e=>set("days",e.target.value.replace(/[^\d]/g,""))} inputMode="numeric" style={{...inp,width:70,textAlign:"center"}}/>{pl?"dni":"дней"}
+            <span style={{marginLeft:10,whiteSpace:"nowrap"}}>{pl?"kontakt liczymy w":"связь считаем за"}</span>{[24,48,72].map(h=><button key={h} onClick={()=>set("win",h)} style={chip(+f.win===h)}>{h} {pl?"h":"ч"}</button>)}</div></div>
+      </div>
+      <div style={{padding:"10px 14px",borderRadius:12,border:`1px dashed ${C.borderMd}`,fontSize:12.5,color:C.muted}}>📈 {pl?"Pod warunki pasuje":"Под условия подходит"} ≈ <b style={{color:"#f6e0aa",fontWeight:400}}>{perDay}</b> {pl?"leadów dziennie":"лидов в день"} · {pl?"po":"за"} {f.days||14} {pl?"dni":"дней"} ≈ <b style={{color:"#f6e0aa",fontWeight:400}}>{Math.round(perDay*(+f.days||14))}</b> {pl?"leadów, ~":"лидов, ~"}{Math.round(perDay*(+f.days||14)/Math.max(2,(f.variants||[]).length))} {pl?"w grupie":"в группе"}</div>
+      <div><div style={{...lbl,display:"flex",alignItems:"center"}}>{pl?"grupy (CRM dzieli leady po równo)":"группы (CRM делит лиды поровну)"}
+        {(f.variants||[]).length<4&&<button onClick={()=>setF(p=>{const pr=AB_VARS[p.vary||"first"].preset();const base={...pr[pr.length-1],name:"",hint:""};return {...p,variants:[...p.variants,{...base,k:"ABCD"[p.variants.length]}]};})} style={{...chip(false),marginLeft:"auto",height:26,letterSpacing:0,textTransform:"none"}}>＋ {pl?"grupa":"группа"}</button>}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>{(f.variants||[]).map((v,i)=>{const col=AB_COLS[i%AB_COLS.length];return(
+          <div key={i} style={{borderRadius:14,border:`1.5px solid ${col}88`,background:`${col}12`,padding:12,display:"flex",flexDirection:"column",gap:8}}>
+            <div style={{fontSize:11,color:col}}>{pl?"Grupa":"Группа"} {"ABCD"[i]} — {pl?"co robi menedżer":"что делает менеджер"}</div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{width:30,height:30,borderRadius:9,flexShrink:0,display:"grid",placeItems:"center",background:`${col}33`,color:col,fontSize:15}}>{"ABCD"[i]}</span>
+              <input value={v.name} onChange={e=>setV(i,"name",e.target.value)} placeholder={pl?"Krótka nazwa grupy, np. „Pisać”":"Коротко, например «Писать»"} style={inp}/>
+              {(f.variants||[]).length>2&&<button onClick={()=>setF(p=>({...p,variants:p.variants.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button>}</div>
+            {(f.vary||"first")==="first"&&<><div style={{fontSize:10.5,color:C.muted}}>{pl?"Pierwsza akcja z leadem:":"Первое действие с лидом:"}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{Object.entries(AB_FIRST).map(([k,x])=><button key={k} onClick={()=>setV(i,"first",k)} style={chip(v.first===k)}>{x.ic} {pl?x.pl:x.ru}</button>)}</div>
+              {v.first==="write"&&<div style={{display:"flex",gap:8,alignItems:"center",fontSize:12,color:C.muted}}>{pl?"dzwonić można po":"звонить можно через"}<input value={v.waitH} onChange={e=>setV(i,"waitH",e.target.value.replace(/[^\d.]/g,""))} inputMode="decimal" style={{...inp,width:56,textAlign:"center"}}/>{pl?"h, jeśli nie odpisze":"ч, если не ответит"}</div>}</>}
+            {f.vary==="speed"&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",fontSize:12,color:C.muted}}>{pl?"kontakt po":"связаться через"}{[0,5,15,30,60].map(m=><button key={m} onClick={()=>setV(i,"mins",m)} style={chip(+v.mins===m)}>{m?`${m} ${pl?"min":"мин"}`:(pl?"od razu":"сразу")}</button>)}
+              <input value={v.mins} onChange={e=>setV(i,"mins",e.target.value.replace(/[^\d]/g,""))} inputMode="numeric" style={{...inp,width:60,textAlign:"center"}}/>{pl?"min":"мин"}</div>}
+            {f.vary==="time"&&<div style={{fontSize:10.5,color:C.muted}}>{pl?"Kiedy pierwszy kontakt:":"Когда делать первый контакт:"}</div>}{f.vary==="time"&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",fontSize:12,color:C.muted}}>
+              <button onClick={()=>setF(p=>({...p,variants:p.variants.map((x,j)=>j===i?{...x,tf:"",tt:""}:x)}))} style={chip(!v.tf)}>{pl?"od razu":"сразу"}</button>
+              {[["09:00","12:00"],["12:00","16:00"],["17:00","20:00"]].map(([a,b])=><button key={a} onClick={()=>setF(p=>({...p,variants:p.variants.map((x,j)=>j===i?{...x,tf:a,tt:b}:x)}))} style={chip(v.tf===a&&v.tt===b)}>{a}–{b}</button>)}
+              {v.tf&&<><input type="time" value={v.tf} onChange={e=>setV(i,"tf",e.target.value)} style={{...inp,width:100,colorScheme:"dark"}}/>–<input type="time" value={v.tt} onChange={e=>setV(i,"tt",e.target.value)} style={{...inp,width:100,colorScheme:"dark"}}/></>}</div>}
+            {f.vary==="channel"&&<div style={{fontSize:10.5,color:C.muted}}>{pl?"Gdzie wysłać pierwszą wiadomość:":"Куда отправить первое сообщение:"}</div>}{f.vary==="channel"&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{Object.entries(AB_CH).map(([k,x])=><button key={k} onClick={()=>setF(p=>({...p,variants:p.variants.map((y,j)=>j===i?{...y,ch:k,ic:x.ic,name:y.name&&!Object.values(AB_CH).some(c=>c.n===y.name)?y.name:x.n}:y)}))} style={chip(v.ch===k)}>{x.ic} {x.n}</button>)}</div>}
+            {f.vary==="script"&&<><div style={{fontSize:10.5,color:C.muted}}>{pl?"Tekst pierwszej wiadomości:":"Текст первого сообщения клиенту:"}</div><textarea value={v.tpl||""} onChange={e=>setV(i,"tpl",e.target.value)} rows={4} placeholder={pl?"Tekst wiadomości":"Текст сообщения"} style={{...inp,resize:"vertical"}}/>
+              <div style={{fontSize:10.5,color:C.dim}}>{"{imię}"} — {pl?"imię klienta":"имя клиента"} · {"{menedżer}"} — {pl?"menedżer":"менеджер"}</div></>}
+            <div style={{fontSize:10.5,color:C.muted}}>{pl?"Instrukcja dla menedżera — widoczna w karcie leada:":"Инструкция менеджеру — видна в карточке лида:"}</div><textarea value={v.hint} onChange={e=>setV(i,"hint",e.target.value)} rows={2} placeholder={pl?"Instrukcja dla menedżera w karcie":"Инструкция менеджеру в карточке"} style={{...inp,resize:"vertical"}}/>
+          </div>);})}</div></div>
+      <div style={{fontSize:11.5,color:C.dim,lineHeight:1.6}}>{pl?"Grupę wybiera CRM — menedżer jej nie zmienia. W teście są tylko nowe leady od startu. Kontakt = „Odpowiedział” w karcie albo ocena 1+.":"Группу выбирает CRM — менеджер её не меняет. В тест попадают только новые лиды с момента старта. «На связи» = отметка «Ответил» в карточке или оценка 1+."}</div>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><button onClick={onClose} style={{height:40,padding:"0 16px",borderRadius:12,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.text,cursor:"pointer",fontFamily:"inherit"}}>{pl?"Anuluj":"Отмена"}</button>
+        <button onClick={save} disabled={!ok} style={{height:40,padding:"0 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#f6e0aa,#e3b860 50%,#c8923a)",color:"#09153a",cursor:ok?"pointer":"not-allowed",opacity:ok?1:.5,fontFamily:"inherit",fontSize:13.5}}>{init?(pl?"Zapisz":"Сохранить"):(pl?"🚀 Uruchom test":"🚀 Запустить тест")}</button></div>
+    </div></div>;}
+
+// Раздел «Тесты»
+function TestsPage({db,updateDb,currentUser,lang,onOpenLead}){const pl=lang==="pl";const now=Date.now();
+  const tests=(db.abTests||[]).filter(t=>!t.deleted).sort((a,b)=>{const o={active:0,paused:1,plan:2,done:3};return (o[abState(a,now)]-o[abState(b,now)])||(b.startAt-a.startAt);});
+  const canEdit=GOAL_EDITORS.includes(currentUser)||currentUser==="all";const [edit,setEdit]=useState(null);const [open,setOpen]=useState(null);const [arm,setArm]=useState(null);
+  const leads=db.leads||[];
+  const saveT=t=>{const ts=Date.now();updateDb(p=>{const ex=(p.abTests||[]).find(x=>x.id===t.id);return {...p,abTests:ex?(p.abTests||[]).map(x=>x.id===t.id?{...x,...t,updatedAt:ts}:x):[...(p.abTests||[]),{...t,id:"ab"+ts.toString(36),by:currentUser||"—",createdAt:ts,updatedAt:ts}]};},true);setEdit(null);};
+  const patch=(id,fn)=>updateDb(p=>({...p,abTests:(p.abTests||[]).map(x=>x.id===id?{...fn(x),updatedAt:Date.now()}:x)}),true);
+  const card={background:C.card,border:`1px solid ${C.border}`,borderRadius:18};
+  const lbl={fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:C.muted};
+  const btn={height:34,padding:"0 13px",borderRadius:11,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.text,cursor:"pointer",fontFamily:"inherit",fontSize:12};
+  const SL={active:[pl?"trwa":"идёт","#47e6a0"],paused:[pl?"pauza":"пауза","#f6c453"],plan:[pl?"zaplanowany":"запланирован","#5cb8ff"],done:[pl?"zakończony":"завершён",C.muted]};
+  return <div style={{padding:"18px 22px",display:"flex",flexDirection:"column",gap:14}}>
+    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><div style={{fontSize:22}}>🧪 {pl?"Testy A/B":"Тесты"}</div>
+      <span style={{fontSize:11,padding:"3px 10px",borderRadius:999,border:"1px solid rgba(71,230,160,.45)",color:"#47e6a0"}}>● {pl?"trwa":"идёт"}: {tests.filter(t=>abState(t,now)==="active").length}</span>
+      <span style={{fontSize:11,padding:"3px 10px",borderRadius:999,border:`1px solid ${C.borderMd}`,color:C.muted}}>{pl?"zakończone":"завершено"}: {tests.filter(t=>abState(t,now)==="done").length}</span>
+      {canEdit&&<button onClick={()=>setEdit({})} style={{...btn,marginLeft:"auto",height:38,border:"none",background:"linear-gradient(135deg,#f6e0aa,#e3b860 50%,#c8923a)",color:"#09153a",fontSize:13}}>＋ {pl?"Nowy test":"Новый тест"}</button>}</div>
+    {!canEdit&&<div style={{fontSize:12,color:C.muted}}>🔒 {pl?"Testy tworzą":"Тесты создают"} {GOAL_EDITORS.join(", ")}. {pl?"Ty widzisz wyniki i zaznaczasz kontakt w kartach leadów.":"Ты видишь результаты и отмечаешь контакт в карточках лидов."}</div>}
+    {!tests.length&&<div style={{...card,padding:28,textAlign:"center",display:"flex",flexDirection:"column",gap:10,alignItems:"center"}}><div style={{fontSize:40}}>🧪</div><div style={{fontSize:16}}>{pl?"Brak testów":"Тестов пока нет"}</div>
+      <div className="hand" style={{fontSize:20,color:"#f6e0aa"}}>{pl?"np. pisać czy dzwonić do polskich klientów":"например: писать или звонить польским клиентам"}</div>{canEdit&&<button onClick={()=>setEdit({})} style={{...btn,height:38}}>＋ {pl?"Utwórz test":"Создать тест"}</button>}</div>}
+    {tests.map(t=>{const st=abStats(t,leads,now);const s0=abState(t,now);const vd=abVerdict(st,pl);const [sl,sc]=SL[s0];const total=st.vs.reduce((a,s)=>a+s.n,0);const isOpen=open===t.id;
+      const langsTxt=(t.langs||[]).length?t.langs.map(k=>(LANG_OPTS.find(o=>o[0]===k)||[k,k])[1]+" "+k.toUpperCase()).join(" "):(pl?"wszystkie języki":"все языки");
+      const rows=[[pl?`Kontakt w ${t.win||48} h`:`На связи за ${t.win||48} ч`,s=>abPct(s.rate),s=>s.rate],[pl?"Kontakt ogółem":"На связи всего",s=>s.n?abPct(s.okAny/s.n):"—",s=>s.n?s.okAny/s.n:null],
+        [pl?"Czas do kontaktu (mediana)":"Время до контакта (медиана)",s=>abDur(s.med,pl),s=>s.med==null?null:-s.med],[pl?"Prób do kontaktu":"Попыток до контакта",s=>s.attAvg==null?"—":s.attAvg.toFixed(1).replace(".",","),s=>s.attAvg==null?null:-s.attAvg],
+        [pl?"Kwal 4+":"Квал 4+",s=>abPct(s.qr),s=>s.qr],[pl?"Wizyty 5+":"Визиты 5+",s=>abPct(s.vr),s=>s.vr],[pl?"Sprzedaż":"Продажи",s=>`${s.sale}`,s=>s.sr],
+        [pl?"Naruszenia instrukcji":"Нарушения инструкции",s=>`${s.viol}${Object.keys(s.violBy).length?` · ${Object.entries(s.violBy).sort((a,b)=>b[1]-a[1]).map(([m,n])=>`${m}×${n}`).join(", ")}`:""}`,()=>null]];
+      return <div key={t.id} style={{...card,padding:"16px 18px",display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><div style={{minWidth:0}}>
+          <div style={{fontSize:18,display:"flex",alignItems:"center",gap:10}}>{t.name}<span style={{fontSize:10.5,padding:"2px 9px",borderRadius:999,border:`1px solid ${sc}77`,color:sc}}>{sl}</span></div>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:3}}><span style={{color:"#f6e0aa"}}>{AB_VARS[abVary(t)].ic} {pl?AB_VARS[abVary(t)].pl:AB_VARS[abVary(t)].ru}</span> · {langsTxt}{(t.mgrs||[]).length?` · ${t.mgrs.join(", ")}`:""}{t.srcs?` · ${pl?"źródło":"источник"}: ${t.srcs}`:""} · {pl?"od":"с"} {fmtDT(t.startAt).slice(0,10)} · {total} {pl?"leadów":"лидов"} · {pl?"dzień":"день"} {abDayOf(t,now)} {pl?"z":"из"} {t.days||14}</div></div>
+          {canEdit&&<div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap"}}>
+            {s0==="active"&&<button style={btn} onClick={()=>patch(t.id,x=>({...x,pauses:[...(x.pauses||[]),[Date.now(),null]]}))}>⏸ {pl?"Pauza":"Пауза"}</button>}
+            {s0==="paused"&&<button style={btn} onClick={()=>patch(t.id,x=>({...x,pauses:(x.pauses||[]).map(p=>p[1]?p:[p[0],Date.now()])}))}>▶ {pl?"Wznów":"Продолжить"}</button>}
+            {s0!=="done"&&<button style={btn} onClick={()=>setEdit(t)}>✎ {pl?"Zmień":"Изменить"}</button>}
+            {s0!=="done"&&<button style={btn} onClick={()=>patch(t.id,x=>({...x,endAt:Date.now(),pauses:(x.pauses||[]).map(p=>p[1]?p:[p[0],Date.now()])}))}>■ {pl?"Zakończ":"Завершить"}</button>}
+            <button style={{...btn,color:arm===t.id?"#ff7d8c":C.muted,borderColor:arm===t.id?"rgba(255,125,140,.6)":C.borderMd}} onClick={()=>{if(arm===t.id){patch(t.id,x=>({...x,deleted:true}));setArm(null);}else{setArm(t.id);setTimeout(()=>setArm(a=>a===t.id?null:a),3000);}}}>{arm===t.id?(pl?"Na pewno usunąć?":"Точно удалить?"):"🗑"}</button></div>}</div>
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(st.vs.length,4)},minmax(0,1fr))`,gap:12}}>{st.vs.map(s=>
+          <div key={s.v.k} style={{borderRadius:14,padding:14,border:`1px solid ${s.col}77`,background:`linear-gradient(160deg,${s.col}1f,rgba(14,40,108,.35))`,minWidth:0}}>
+            <div style={{...lbl,color:s.col,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.v.ic} {pl?"grupa":"группа"} {s.v.k} · {s.v.name} · {s.n} {pl?"leadów":"лидов"}</div>
+            <div style={{display:"flex",alignItems:"baseline",gap:10,marginTop:6,flexWrap:"wrap"}}><span style={{fontSize:38,color:s.col,lineHeight:1}}>{abPct(s.rate)}</span><span style={{fontSize:11.5,color:C.muted}}>{pl?`kontakt w ${t.win||48} h`:`на связи за ${t.win||48} ч`} · {s.ok}/{s.el}</span></div>
+            <div style={{height:7,borderRadius:5,background:"rgba(120,170,255,.12)",overflow:"hidden",marginTop:8}}><i style={{display:"block",height:"100%",width:`${Math.round((s.rate||0)*100)}%`,background:s.col,borderRadius:5}}/></div>
+            {s.n>s.el&&<div style={{fontSize:10.5,color:C.dim,marginTop:6}}>+{s.n-s.el} {pl?`świeżych — jeszcze nie minęło ${t.win||48} h`:`свежих — ещё не прошло ${t.win||48} ч`}</div>}
+          </div>)}</div>
+        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
+          <thead><tr>{[pl?"Metryka":"Метрика",...st.vs.map(s=>`${s.v.ic} ${s.v.k} · ${s.v.name}`)].map((h,i)=><th key={i} style={{textAlign:"left",padding:"8px 10px",borderBottom:`1px solid ${C.border}`,...lbl,color:i?st.vs[i-1].col:C.muted,fontWeight:400}}>{h}</th>)}</tr></thead>
+          <tbody>{rows.map(([n,fmt,val])=>{const vals=st.vs.map(val);const mx=vals.some(x=>x!=null)?Math.max(...vals.filter(x=>x!=null)):null;const many=vals.filter(x=>x!=null&&x===mx).length===1;return <tr key={n}>
+            <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{n}</td>
+            {st.vs.map((s,i)=><td key={s.v.k} style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap",color:many&&vals[i]===mx&&st.vs.length>1?"#47e6a0":C.text}}>{fmt(s)}</td>)}</tr>;})}</tbody></table></div>
+        <div style={{display:"flex",alignItems:"center",gap:14,padding:"11px 15px",borderRadius:14,border:`1px dashed ${vd.ok?"rgba(71,230,160,.6)":"rgba(227,184,96,.5)"}`,background:vd.ok?"rgba(71,230,160,.06)":"rgba(227,184,96,.06)",flexWrap:"wrap"}}>
+          <div style={{fontSize:24}}>{vd.ok?"🏁":"⏳"}</div><div style={{minWidth:0}}><div style={{fontSize:14}}>{st.conf==null?(pl?"Za mało danych":"Пока мало данных"):vd.ok?(pl?`Różnica wiarygodna (pewność ${Math.round(st.conf*100)}%)`:`Разница достоверная (уверенность ${Math.round(st.conf*100)}%)`):(pl?`Różnica jeszcze niepewna (pewność ${Math.round(st.conf*100)}%)`:`Разница пока не достоверная (уверенность ${Math.round(st.conf*100)}%)`)}</div>
+            <div style={{fontSize:11.5,color:C.muted,marginTop:2}}>{pl?"Porównujemy kontakt w oknie czasowym grup A i B · do wniosku potrzeba 95%":"Сравниваем «на связи» групп A и B · для вывода нужно 95%"}{vd.sub?` · ${vd.sub}`:""}</div></div>
+          {st.best&&<div className="hand" style={{marginLeft:"auto",fontSize:20,color:vd.ok?"#47e6a0":"#f6e0aa"}}>{vd.ok?vd.txt:`${pl?"na razie prowadzi":"пока впереди"} ${st.best.v.ic} ${st.best.v.name}`}</div>}</div>
+        <div style={{display:"flex",gap:8}}><button style={btn} onClick={()=>setOpen(isOpen?null:t.id)}>{isOpen?"▴":"▾"} {pl?"Menedżerowie i leady":"Менеджеры и лиды"}</button></div>
+        {isOpen&&<div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1.4fr)",gap:14}}>
+          <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}><thead><tr>{[pl?"Menedżer":"Менеджер",...st.vs.map(s=>`${s.v.ic} ${s.v.k}`)].map((h,i)=><th key={i} style={{textAlign:"left",padding:"7px 9px",borderBottom:`1px solid ${C.border}`,...lbl,fontWeight:400}}>{h}</th>)}</tr></thead>
+            <tbody>{[...new Set(st.vs.flatMap(s=>Object.keys(s.mgr)))].map(m=><tr key={m}><td style={{padding:"7px 9px",borderBottom:`1px solid ${C.border}`,color:MGR_COLOR[m]||C.text}}>{m}</td>
+              {st.vs.map(s=>{const x=s.mgr[m];return <td key={s.v.k} style={{padding:"7px 9px",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{x?<>{abPct(x.el?x.ok/x.el:null)} <span style={{color:C.dim}}>· {x.n}</span>{x.viol?<span style={{color:"#ff7d8c"}}> · ⚠{x.viol}</span>:null}</>:<span style={{color:C.dim}}>—</span>}</td>;})}</tr>)}</tbody></table></div>
+          <div style={{maxHeight:320,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>{st.vs.flatMap(s=>s.list.map(x=>({s,...x}))).sort((a,b)=>b.i.arr-a.i.arr).slice(0,60).map(({s,l,i})=>
+            <div key={s.v.k+l.id} onClick={()=>onOpenLead&&onOpenLead(l)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 9px",borderRadius:9,cursor:"pointer",border:`1px solid ${C.border}`,fontSize:12}}>
+              <span style={{color:s.col,width:40,flexShrink:0}}>{s.v.ic} {s.v.k}</span><span style={{flex:1,minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.name||l.phone||"—"}</span>
+              <span style={{color:C.dim,whiteSpace:"nowrap"}}>{fmtDT(i.arr).slice(0,16)}</span><span style={{color:MGR_COLOR[l.manager]||C.muted,width:64,whiteSpace:"nowrap"}}>{l.manager||"—"}</span>
+              <span style={{width:70,textAlign:"right",whiteSpace:"nowrap",color:i.reached?"#47e6a0":C.dim}}>{i.reached?(pl?"✓ kontakt":"✓ на связи"):(i.acts.length?`${i.acts.length} ${pl?"prób":"попыт."}`:"—")}</span>{i.viol&&<span style={{color:"#ff7d8c"}}>⚠</span>}</div>)}</div></div>}
+      </div>;})}
+    {edit&&<AbTestModal init={edit.id?edit:null} onSave={saveT} onClose={()=>setEdit(null)} lang={lang} leads={leads}/>}
+  </div>;}
+
+
+// ─── DOŻYM (дожим) ───────────────────────────────────────────────────────────
+// Режим как дежурный, но для «доедания» лидов: пуши (вкладка «Пуш» убрана) + переданные менеджером + остывшие.
+// Свой слой lead.dz {st,notes,tries,next,sentBy,sentAt,sentNote,who,actAt,backAt,doneAt,why} — основные поля лида не трогает.
+// «Сделано» / «Отказ» навсегда убирают лид из дожима и из ретаргета (Центр продаж, дежурный «Центр продаж»). RU / PL.
+const DZ_EXTRA=["Robert"]; // дожимщики, которых нет в списке менеджеров
+const DZ_RULE={age:14,idle:7,maxScore:3};
+const DZ_LANES=[
+  {k:"due", e:"⏰",ru:"На сегодня", pl:"Na dziś",    c:"#ff7d8c",hRu:"перезвоны и пуши на сегодня и просроченные",hPl:"oddzwonienia i pushe na dziś i zaległe"},
+  {k:"sent",e:"📨",ru:"Переданные", pl:"Przekazane", c:"#e3b860",hRu:"менеджер отдал лид в дожим",hPl:"menedżer oddał lead do dożymu"},
+  {k:"cold",e:"🧊",ru:"Остывшие",   pl:"Ostygłe",    c:"#5cb8ff",hRu:`${DZ_RULE.age}+ дней, оценка 0–${DZ_RULE.maxScore}, тишина ${DZ_RULE.idle}+ дней`,hPl:`${DZ_RULE.age}+ dni, ocena 0–${DZ_RULE.maxScore}, cisza ${DZ_RULE.idle}+ dni`},
+];
+const DZ_LOST=[{k:"nocall",ru:"Не дозвонились",pl:"Nie dodzwoniono się"},{k:"price",ru:"Дорого",pl:"Za drogo"},{k:"elsewhere",ru:"Купил в другом месте",pl:"Kupił gdzie indziej"},
+  {k:"changed",ru:"Передумал",pl:"Rozmyślił się"},{k:"stale",ru:"Неактуально",pl:"Nie aktualne"},{k:"other",ru:"Другое",pl:"Inne"}];
+const dzWhyLbl=(w,pl)=>{const x=DZ_LOST.find(o=>o.k===w||o.pl===w||o.ru===w);return x?(pl?x.pl:x.ru):(w||"");};
+const dzClosed=l=>!!(l&&l.dz&&(l.dz.st==="done"||l.dz.st==="lost"));
+function dzPeople(){return [...new Set([...DZ_EXTRA,...MANAGERS])];}
+// последнее действие основного менеджера (всё в истории, кроме строк дожима 🦅)
+function dzLastMain(l){const hs=(l.history||[]).filter(h=>h&&!/^🦅/.test(String(h.action||"")));
+  for(let i=hs.length-1;i>=0;i--){const ms=parseHistMs(hs[i].date);if(ms!=null)return {ms,h:hs[i]};}return null;}
+function dzIdleDays(l,now){const x=dzLastMain(l);const last=x?x.ms:(leadArrivalMs(l)||null);return last==null?null:Math.floor((now-last)/DUTY_DAY);}
+function dzAgeDays(l,now){const a=leadArrivalMs(l)||leadCreatedMsSafe(l);return a?Math.floor((now-a)/DUTY_DAY):null;}
+function dzBuild(leads,now,today){const used=new Set();const out=[];
+  const add=(k,arr)=>arr.forEach(x=>{if(used.has(x.l.id))return;used.add(x.l.id);out.push({l:x.l,z:{k,...(x.z||{})}});});
+  const live=(leads||[]).filter(l=>l&&l.action!=="cancelled"&&l.action!=="sale"&&!l.isDone&&!dzClosed(l)&&(dutyScore(l)||0)<6);
+  const nextOf=l=>l.dz&&l.dz.st==="open"&&l.dz.next?l.dz.next:null;
+  // 1 — на сегодня: договорённости дожима + пуши (бывшая вкладка «Пуш»)
+  add("due",live.map(l=>{const n=nextOf(l);if(n)return n<=today?{l,z:{date:n,src:"dz"}}:null;
+      if(l.action==="push"&&l.pushDate&&l.pushDate<=today&&!(l.dz&&l.dz.st==="back"))return {l,z:{date:l.pushDate,time:l.pushTime||"",src:"push"}};return null;}).filter(Boolean)
+    .sort((a,b)=>String(a.z.date).localeCompare(String(b.z.date))||String(a.z.time||"").localeCompare(String(b.z.time||""))));
+  // 2 — переданные менеджером вручную
+  add("sent",live.filter(l=>l.dz&&l.dz.st==="open"&&l.dz.sentAt&&!nextOf(l)).map(l=>({l,z:{since:l.dz.sentAt}})).sort((a,b)=>a.z.since-b.z.since));
+  // 3 — остывшие: старый лид, низкая оценка / «думает», менеджер ничего не делает
+  add("cold",live.map(l=>{if(nextOf(l))return null;if(l.action==="push"&&l.pushDate&&l.pushDate>today)return null;
+      if(l.visitDate&&l.visitDate>=today)return null;if(l.dz&&l.dz.st==="open")return null;
+      if(l.dz&&l.dz.st==="back"&&now-(l.dz.backAt||0)<DZ_RULE.age*DUTY_DAY)return null;
+      const s=dutyScore(l);const okS=s==null||s<=DZ_RULE.maxScore||l.action==="thinking";if(!okS)return null;
+      if(["visit","quote","salon"].includes(l.action)&&!(s!=null&&s<=DZ_RULE.maxScore))return null;
+      const age=dzAgeDays(l,now),idle=dzIdleDays(l,now);if(age==null||age<DZ_RULE.age||idle==null||idle<DZ_RULE.idle)return null;
+      return {l,z:{age,idle}};}).filter(Boolean).sort((a,b)=>((dutyScore(b.l)||0)-(dutyScore(a.l)||0))||(a.z.idle-b.z.idle)));
+  return out;}
+const dzLate=(date,today)=>date<today?Math.round((new Date(today)-new Date(date))/DUTY_DAY):0;
+function dzChip(l,z,pl){const today=getToday();
+  if(z.k==="due"){const late=dzLate(z.date,today);const w=z.src==="push"?"push":(pl?"powrót":"возврат");
+    return late?{c:"bad",t:pl?`${w} zaległy ${late} dn.`:`${w} просрочен ${late} дн.`}:{c:"warn",t:`${w} ${pl?"dziś":"сегодня"}${z.time?" "+z.time:""}`};}
+  if(z.k==="sent")return{c:"info",t:`${pl?"od":"от"} ${l.dz.sentBy||"—"} · ${dutyAgo(z.since,pl)} ${pl?"temu":"назад"}`};
+  return{c:"mut",t:pl?`${z.age} dn. · cisza ${z.idle} dn.`:`${z.age} дн. · тишина ${z.idle} дн.`};}
+function dzWhy(l,z,pl){const today=getToday();const s=dutyScore(l);const d=l.dz||{};const late=z.date?dzLate(z.date,today):0;
+  if(z.k==="due"){
+    if(z.src==="push")return pl?`Push zaplanowany na ${isoToDot(z.date)}${z.time?" "+z.time:""}${late?` — zaległy ${late} dn.`:" — na dziś."} Wróć do klienta.`
+      :`Пуш был запланирован на ${isoToDot(z.date)}${z.time?" "+z.time:""}${late?` — просрочен ${late} дн.`:" — на сегодня."} Вернись к клиенту.`;
+    return pl?`Umówiony powrót na ${isoToDot(z.date)}${late?` — zaległy ${late} dn.`:""} · próba ${(d.tries||0)+1}.`:`Договорились вернуться ${isoToDot(z.date)}${late?` — просрочено ${late} дн.`:""} · попытка ${(d.tries||0)+1}.`;}
+  if(z.k==="sent")return pl?`${d.sentBy||"Menedżer"} przekazał lead do dożymu ${d.sentAt?fmtDT(d.sentAt).slice(0,10):""}${d.sentNote?`: „${d.sentNote}”`:""}.`
+    :`${d.sentBy||"Менеджер"} отдал лид в дожим ${d.sentAt?fmtDT(d.sentAt).slice(0,10):""}${d.sentNote?`: «${d.sentNote}»`:""}.`;
+  return pl?`Ostygł: ocena ${s==null?"brak":s}${l.action==="thinking"?" · «myśli»":""}, lead ma ${z.age} dni, ${l.manager||"menedżer"} nic nie robi od ${z.idle} dni${d.st==="back"?" · wrócił już z dożymu, ale znów ostygł":""}.`
+    :`Остыл: оценка ${s==null?"нет":s}${l.action==="thinking"?" · «думает»":""}, лиду ${z.age} дн., ${l.manager||"менеджер"} ничего не делает ${z.idle} дн.${d.st==="back"?" · уже возвращали из дожима, но снова остыл":""}`;}
+const DZ_ST={open:{ic:"🦅",ru:"в работе",pl:"w toku",c:"#f6c453"},back:{ic:"🔥",ru:"вернул в работу",pl:"wrócił do gry",c:"#47e6a0"},done:{ic:"✓",ru:"сделано",pl:"zrobione",c:"rgba(214,232,255,.6)"},lost:{ic:"✕",ru:"отказ",pl:"odmowa",c:"#ff7d8c"}};
+function DzChip({l,lang}){const pl=lang==="pl";const d=l&&l.dz;const S=d&&DZ_ST[d.st];if(!S)return null;
+  return <span title={`${pl?"Dożym":"Дожим"} · ${pl?S.pl:S.ru}${d.who?` · ${d.who}`:""}${d.why?` · ${dzWhyLbl(d.why,pl)}`:""}`} style={{marginLeft:6,display:"inline-flex",alignItems:"center",fontSize:10,padding:"1px 7px",borderRadius:999,border:`1px solid ${S.c}88`,color:S.c,whiteSpace:"nowrap",verticalAlign:"middle"}}>{d.st==="open"?"🦅":S.ic}{d.st==="lost"&&d.why?` ${dzWhyLbl(d.why,pl)}`:""}</span>;}
+
+// Блок в основной карточке лида: статус дожима, заметки дожимщика (только чтение), «Отдать в дожим»
+function DzLeadBox({form,lang,currentUser,onSend}){const pl=lang==="pl";const d=form.dz;const [open,setOpen]=useState(false);const [note,setNote]=useState("");
+  if(!d)return <div style={{marginTop:-6,marginBottom:14,display:"flex",justifyContent:"flex-end"}}>
+    {!open?<button onClick={()=>setOpen(true)} style={{background:"transparent",border:`1px solid ${C.borderMd}`,color:C.muted,borderRadius:9,padding:"5px 12px",fontSize:11.5,cursor:"pointer"}}>🦅 {pl?"Oddaj do dożymu":"Отдать в дожим"}</button>
+      :<div style={{display:"flex",gap:8,alignItems:"center",width:"100%"}}><input autoFocus value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onSend(note);setOpen(false);}}} placeholder={pl?"Komentarz dla dożymu (opcjonalnie)":"Комментарий для дожима (необязательно)"} style={{flex:1,background:C===DARK?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:9,padding:"7px 10px",fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+        <button onClick={()=>{onSend(note);setOpen(false);}} style={{background:"linear-gradient(135deg,#f6e0aa,#e3b860)",border:"none",color:"#08153a",borderRadius:9,padding:"7px 12px",fontSize:12,cursor:"pointer"}}>🦅 {pl?"Oddaj":"Отдать"}</button>
+        <button onClick={()=>setOpen(false)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button></div>}</div>;
+  const S=DZ_ST[d.st]||{ic:"🦅",ru:"",pl:"",c:C.muted};
+  return <div style={{marginTop:-4,marginBottom:14,borderRadius:14,padding:"10px 13px",border:`1px solid ${S.c}66`,background:`${S.c}12`,display:"flex",flexDirection:"column",gap:6}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",fontSize:12}}><b style={{fontWeight:400,color:S.c}}>🦅 {pl?"Dożym":"Дожим"} · {S.ic} {pl?S.pl:S.ru}</b>
+      {d.who&&<span style={{color:C.muted}}>{pl?"robi":"делает"}: <span style={{color:MGR_COLOR[d.who]||C.text}}>{d.who}</span></span>}
+      {d.tries?<span style={{color:C.muted}}>{pl?"prób":"попыток"}: {d.tries}</span>:null}
+      {d.next&&d.st==="open"&&<span style={{color:C.muted}}>{pl?"powrót":"вернуться"}: {isoToDot(d.next)}</span>}
+      {d.why&&<span style={{color:"#ff7d8c"}}>{dzWhyLbl(d.why,pl)}</span>}
+      {d.sentBy&&<span style={{color:C.dim}}>{pl?"przekazał":"отдал"} {d.sentBy}{d.sentNote?`: «${d.sentNote}»`:""}</span>}</div>
+    {(d.notes||[]).slice(-4).map((n,i)=><div key={i} style={{fontSize:11.5,color:C.text}}><span style={{color:C.muted}}>{fmtDT(n.at).slice(0,16)} · {n.by}:</span> {n.txt}</div>)}
+  </div>;}
+
+// Статистика дожима за месяц
+function dzStats(leads,ym,who){const inM=ms=>{if(!ms)return false;const d=new Date(ms);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`===ym;};
+  const L=(leads||[]).filter(l=>l.dz&&(!who||who==="all"||l.dz.who===who));
+  const done=L.filter(l=>inM(l.dz.actAt));const back=L.filter(l=>l.dz.st==="back"&&inM(l.dz.backAt));
+  const visits=back.filter(l=>(dutyScore(l)||0)>=5||!!l.visitDate);const sales=back.filter(l=>(dutyScore(l)||0)>=6||l.action==="sale");
+  const lost=L.filter(l=>l.dz.st==="lost"&&inM(l.dz.doneAt));const why={};lost.forEach(l=>{const k=l.dz.why||"other";why[k]=(why[k]||0)+1;});
+  return {done:done.length,back:back.length,visits:visits.length,sales:sales.length,sum:sales.reduce((a,l)=>a+(parseFloat(l.saleAmount)||0),0),lost:lost.length,why:Object.entries(why).sort((a,b)=>b[1]-a[1]),closed:L.filter(l=>l.dz.st==="done"&&inM(l.dz.doneAt)).length};}
+function DzStats({leads,lang,who}){const pl=lang==="pl";const dk=C===DARK;
+  const now=new Date();const months=[0,1,2,3,4,5].map(i=>{const d=new Date(now.getFullYear(),now.getMonth()-i,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;});
+  const [ym,setYm]=useState(months[0]);const [w,setW]=useState(who||"all");const st=dzStats(leads,ym,w);
+  const mName=k=>{const [y,m]=k.split("-").map(Number);return new Date(y,m-1,1).toLocaleDateString(pl?"pl-PL":"ru-RU",{month:"long",year:"numeric"});};
+  const lbl={fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:C.muted};
+  const T=(t,v,col,sub)=><div><div style={lbl}>{t}</div><div style={{fontSize:30,lineHeight:1.1,marginTop:4,color:col}}>{v}{sub&&<span style={{fontSize:13,color:C.muted,marginLeft:6}}>{sub}</span>}</div></div>;
+  const mx=Math.max(1,...st.why.map(x=>x[1]));
+  return <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:22,padding:"16px 20px",display:"flex",flexDirection:"column",gap:16}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}><div style={lbl}>{pl?"wynik dożymu":"результат дожима"} · {mName(ym)}</div>
+      <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+        <select value={w} onChange={e=>setW(e.target.value)} style={{height:30,borderRadius:9,background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.borderMd}`,color:C.text,padding:"0 8px",fontSize:12,fontFamily:"inherit",colorScheme:dk?"dark":"light"}}><option value="all">{pl?"Wszyscy":"Все"}</option>{dzPeople().map(m=><option key={m} value={m}>{m}</option>)}</select>
+        <select value={ym} onChange={e=>setYm(e.target.value)} style={{height:30,borderRadius:9,background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.borderMd}`,color:C.text,padding:"0 8px",fontSize:12,fontFamily:"inherit",colorScheme:dk?"dark":"light"}}>{months.map(k=><option key={k} value={k}>{mName(k)}</option>)}</select></div></div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:16}}>
+      {T(pl?"obsłużono":"обработано",st.done,"#f6e0aa")}
+      {T(pl?"wrócił do gry":"вернул в работу",st.back,"#47e6a0",st.done?`${Math.round(st.back/st.done*100)}%`:null)}
+      {T(pl?"wizyty z dożymu":"визиты из дожима",st.visits,"#5cb8ff")}
+      {T(pl?"sprzedaże":"продажи",st.sales,"#c79bff")}
+      <div><div style={lbl}>{pl?"suma sprzedaży":"сумма продаж"}</div><div style={{fontSize:24,marginTop:8}}>{fmtM(Math.round(st.sum))}</div></div>
+      {T(pl?"odmowy":"отказы",st.lost,"#ff7d8c")}</div>
+    <div><div style={{...lbl,marginBottom:10}}>{pl?"powody odmowy":"причины отказа"}</div>
+      {!st.why.length&&<div style={{fontSize:12,color:C.dim}}>{pl?"brak odmów w tym miesiącu":"отказов в этом месяце нет"}</div>}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>{st.why.map(([k,n])=><div key={k} style={{display:"grid",gridTemplateColumns:"170px 1fr 34px",gap:10,alignItems:"center",fontSize:12}}>
+        <span>{dzWhyLbl(k,pl)}</span><div style={{height:8,borderRadius:5,background:"rgba(120,170,255,.12)",overflow:"hidden"}}><i style={{display:"block",height:"100%",width:`${n/mx*100}%`,background:"rgba(214,232,255,.6)",borderRadius:5}}/></div><span style={{textAlign:"right"}}>{n}</span></div>)}</div></div>
+  </div>;}
+
+function DozhimMode({leads,updateDb,currentUser,onOpen,lang="ru"}){const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;const dk=C===DARK;const champ=dk?"#f6e0aa":C.accent;
+  const today=getToday();const people=dzPeople();
+  const [who,setWhoS]=useState(()=>{let v=null;try{v=localStorage.getItem("garno_dz_who");}catch{}return people.includes(v)?v:(DZ_EXTRA[0]||(people.includes(currentUser)?currentUser:people[0]));});
+  const setWho=v=>{setWhoS(v);try{localStorage.setItem("garno_dz_who",v);}catch{}};
+  const [view,setView]=useState("queue");
+  const [later,setLater]=useState([]);const [cur,setCur]=useState(null);const [anim,setAnim]=useState("in");const [toast,setToast]=useState(null);
+  const [modal,setModal]=useState(null);const [note,setNote]=useState("");
+  const [minute,tick]=useState(0);useEffect(()=>{const id=setInterval(()=>tick(x=>x+1),60000);return()=>clearInterval(id);},[]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const all=useMemo(()=>dzBuild(leads,Date.now(),today),[leads,today,minute]);
+  const queue=useMemo(()=>{const a=all.filter(x=>!later.includes(x.l.id)),b=later.map(id=>all.find(x=>x.l.id===id)).filter(Boolean);return [...a,...b];},[all,later]);
+  const counts=useMemo(()=>{const c={};queue.forEach(x=>{c[x.z.k]=(c[x.z.k]||0)+1;});return c;},[queue]);
+  const isToday=ms=>ms&&isoLocal(new Date(ms))===today;
+  const todayDone=useMemo(()=>(leads||[]).filter(l=>l.dz&&isToday(l.dz.actAt)&&l.dz.who===who).length,[leads,today,who]);
+  const todayBack=useMemo(()=>(leads||[]).filter(l=>l.dz&&l.dz.st==="back"&&isToday(l.dz.backAt)&&l.dz.who===who).length,[leads,today,who]);
+  const curId=cur!=null?cur:(queue[0]?queue[0].l.id:null);
+  const curItem=queue.find(x=>x.l.id===curId)||null;const l=curId!=null?(leads||[]).find(x=>x.id===curId)||null:null;
+  const idxOf=id=>queue.findIndex(x=>x.l.id===id);
+  const nextAfter=id=>{const i=idxOf(id);const rest=queue.filter(x=>x.l.id!==id);if(!rest.length)return null;return rest[Math.min(Math.max(i,0),rest.length-1)].l.id;};
+  const say=m=>setToast({m,id:Date.now()});
+  useEffect(()=>{if(!toast)return;const id=setTimeout(()=>setToast(null),3200);return()=>clearTimeout(id);},[toast]);
+  const go=fn=>{setAnim("out");setTimeout(()=>{fn&&fn();setAnim("in");},260);};
+  const first=x=>String(x.name||x.phone||"—").split(" ")[0];
+  // запись только в слой дожима + строка в историю
+  const patchDz=(x,fn,hist,isAct=true)=>{const now=Date.now();updateDb(p=>({...p,leads:(p.leads||[]).map(y=>{if(y.id!==x.id)return y;const d0=y.dz||{st:"open",notes:[],tries:0,startAt:now};
+      const d={...d0,...fn(d0,now),who,lastAt:now,...(isAct?{actAt:now}:{})};return {...y,dz:d,updatedAt:now,history:[...(y.history||[]),{date:nowStr(),action:`🦅 ${L("Дожим","Dożym")}: ${hist}`,by:who}]};})}),true);};
+  const finish=(x,msg)=>{const nx=nextAfter(x.id);setLater(p=>p.filter(i=>i!==x.id));setCur(nx);if(msg)say(msg);};
+  const toLater=(x,msg)=>{const nx=nextAfter(x.id);setLater(p=>[...p.filter(i=>i!==x.id),x.id]);setCur(nx);if(msg)say(msg);};
+  const addNote=()=>{const v=note.trim();if(!v||!l)return;patchDz(l,d=>({notes:[...(d.notes||[]),{at:Date.now(),by:who,txt:v}]}),`${L("заметка","notatka")} — ${v.slice(0,60)}`,false);setNote("");};
+  const A={
+    miss:()=>go(()=>{const n=((l.dz&&l.dz.tries)||0)+1;patchDz(l,d=>({tries:(d.tries||0)+1,notes:[...(d.notes||[]),{at:Date.now(),by:who,txt:L("Не взял","Nie odebrał")}]}),`${L("не взял","nie odebrał")} (${L("попытка","próba")} ${n})`);toLater(l,L(`✗ ${first(l)} не взял — в конец очереди`,`✗ ${first(l)} nie odebrał — na koniec kolejki`));}),
+    open:()=>onOpen&&onOpen(l),
+    later:()=>setModal({k:"later"}),back:()=>setModal({k:"back",txt:""}),lost:()=>setModal({k:"lost"}),
+    done:()=>go(()=>{patchDz(l,()=>({st:"done",doneAt:Date.now(),next:null}),L("сделано — убран из дожима и ретаргета","zrobione — poza dożymem i retargetem"));finish(l,`✓ ${first(l)} — ${L("сделано","zrobione")}`);}),
+  };
+  const setLaterDate=iso=>{const x=l;setModal(null);go(()=>{patchDz(x,d=>({st:"open",next:iso,tries:(d.tries||0)+1}),`${L("перезвонить","oddzwonić")} ${isoToDot(iso)}`);finish(x,`↻ ${first(x)} — ${L("вернуться","powrót")} ${isoToDot(iso)}`);});};
+  const doBack=txt=>{const x=l;setModal(null);go(()=>{patchDz(x,()=>({st:"back",backAt:Date.now(),next:null,backNote:txt||""}),`${L("вернул в работу","wrócił do gry")}${txt?` — ${txt}`:""}`);
+      if(x.manager)updateDb(p=>({...p,tasks:[...(p.tasks||[]),buildNewTask({title:`🔥 ${x.name||x.phone} ${L("вернулся из дожима","wrócił z dożymu")}`,comment:txt||"",assignee:x.manager,leadId:x.id,leadName:x.name||x.phone,deadline:getToday()},who,p.tasks||[])]}),true);
+      finish(x,L(`🔥 ${first(x)} вернулся — задача для ${x.manager||"менеджера"}`,`🔥 ${first(x)} wrócił — zadanie dla ${x.manager||"menedżera"}`));});};
+  const doLost=k=>{const x=l;setModal(null);go(()=>{patchDz(x,()=>({st:"lost",why:k,doneAt:Date.now(),next:null}),`${L("отказ","odmowa")} — ${dzWhyLbl(k,pl)}`);finish(x,`✕ ${first(x)} — ${dzWhyLbl(k,pl)}`);});};
+  const ACTS=[["miss","✗",L("Не взял","Nie odebrał")],["open","↗",L("Открыть карточку","Otwórz kartę")],["later","↻",L("Перезвонить…","Oddzwoń…")],["back","🔥",L("Вернул в работу","Wrócił do gry")],["lost","✕",L("Отказ…","Odmowa…")],["done","✓",L("Сделано","Zrobione")]];
+  useEffect(()=>{const h=e=>{if(view!=="queue"||modal||!curItem)return;const tg=e.target;if(tg&&(tg.tagName==="INPUT"||tg.tagName==="TEXTAREA"||tg.tagName==="SELECT"||tg.isContentEditable))return;if(document.querySelector("[data-lead-detail]"))return;
+      if(e.code==="Space"){e.preventDefault();if(queue.length>1)go(()=>toLater(l));return;}
+      if(e.key==="Enter"){e.preventDefault();A.open();return;}
+      const n=parseInt(e.key,10);if(n>=1&&n<=ACTS.length){e.preventDefault();A[ACTS[n-1][0]]();}};
+    window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);});
+  const LN=Object.fromEntries(DZ_LANES.map(x=>[x.k,x]));const z=curItem&&curItem.z,zl=z&&LN[z.k];const hc=zl?zl.c:"#47e6a0";const handled=l&&!curItem;
+  const left=queue.length;
+  const glass={background:C.card,border:`1px solid ${C.border}`,borderRadius:22};
+  const lbl={fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:C.muted};
+  const btn=(gold,col)=>({height:44,padding:"0 15px",borderRadius:13,border:gold?"none":`1px solid ${col?col+"88":C.borderMd}`,background:gold?"linear-gradient(135deg,#f6e0aa,#e3b860 50%,#c8923a)":"rgba(255,255,255,.04)",color:gold?"#09153a":(col||C.text),cursor:"pointer",fontSize:13,display:"inline-flex",alignItems:"center",gap:8,whiteSpace:"nowrap",boxShadow:gold?"0 10px 26px rgba(227,184,96,.3)":"none"});
+  const kbd={fontSize:9.5,padding:"1px 5px",borderRadius:5,border:"1px solid currentColor",opacity:.55};
+  const pillS={height:24,padding:"0 10px",borderRadius:999,display:"inline-flex",alignItems:"center",fontSize:11.5,border:`1px solid ${C.borderMd}`,whiteSpace:"nowrap"};
+  const tree=[["c1",L("Контакт 1","Kontakt 1")],["c2",L("Контакт 2","Kontakt 2")],["term",L("Срок","Termin")],["kitchenInfo",L("Инфо о кухне","Info o kuchni")],["distance",L("Расстояние","Odległość")],["apartment",L("Жильё","Mieszkanie")]];
+  const tv=(k,v)=>v==null||v===""?null:({yes:L("да","tak"),no:L("нет","nie"),lt4:L("≤ 4 мес","≤ 4 mies."),gt4:L("> 4 мес","> 4 mies."),near:L("близко","blisko"),far:L("далеко","daleko"),new:L("новое","nowe"),old:L("старое","stare")}[v]||String(v));
+  const ACT_PL={undefined:"Nieokreślone",inWork:"W pracy",missedCall:"Nieodebrane",callback:"Oddzwonić",thinking:"Myśli",quote:"Wycena",visit:"Wizyta",push:"Push",sale:"Sprzedaż",cancelled:"Anulowane"};
+  const ACT_RU={undefined:"Не определено",inWork:"В работе",missedCall:"Не взял",callback:"Перезвонить",thinking:"Думает",quote:"Просчёт",visit:"Визит",push:"Пуш",sale:"Продажа",cancelled:"Отменён"};
+  const actName=a=>(pl?ACT_PL:ACT_RU)[a||"undefined"]||a||"—";
+  const plus=(n)=>isoLocal(new Date(Date.now()+n*DUTY_DAY));
+  const lastMain=l?dzLastMain(l):null;const age=l?dzAgeDays(l,Date.now()):null;
+  const tabB=on=>({height:30,padding:"0 12px",border:"none",borderRadius:9,cursor:"pointer",fontSize:12,background:on?"linear-gradient(135deg,#f6e0aa,#e3b860)":"transparent",color:on?"#08153a":C.muted,whiteSpace:"nowrap"});
+  return(
+    <div className="duty" style={{padding:"14px 18px 18px",display:"flex",flexDirection:"column",gap:12,height:view==="queue"?"calc(100vh - 124px)":"auto",minHeight:520,boxSizing:"border-box"}}>
+      <style>{`@keyframes dutyIn{from{opacity:0;transform:translateX(50px) scale(.98)}to{opacity:1;transform:none}}@keyframes dutyOut{to{opacity:0;transform:translateX(-70px) scale(.96);filter:blur(4px)}}@keyframes dutyBlink{50%{opacity:.2}}@keyframes dutyToast{from{opacity:0;transform:translate(-50%,12px)}}.duty-blink{animation:dutyBlink 1s infinite}.duty-q:hover{background:rgba(92,184,255,.08)!important}.duty-b:active{transform:scale(.96)}.duty-b:hover{filter:brightness(1.08)}@media(max-width:1100px){.duty-grid{grid-template-columns:200px minmax(0,1fr)!important}}@media(max-width:1000px){.duty-info{grid-template-columns:1fr!important}}@media(max-width:760px){.duty{height:auto!important}.duty-grid{display:block!important}.duty-qcol{display:none!important}.duty-main{overflow:visible!important}}@media(prefers-reduced-motion:reduce){.duty *{animation:none!important}}`}</style>
+      <div style={{...glass,display:"flex",alignItems:"center",gap:16,padding:"10px 16px",flexWrap:"wrap"}}>
+        <div style={{fontSize:26}}>🦅</div>
+        <div style={{display:"flex",gap:3,padding:3,borderRadius:12,background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.border}`}}>
+          <button onClick={()=>setView("queue")} style={tabB(view==="queue")}>{L("Очередь","Kolejka")} · {left}</button><button onClick={()=>setView("stats")} style={tabB(view==="stats")}>📊 {L("Статистика","Statystyka")}</button></div>
+        {view==="queue"&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{DZ_LANES.map(x=>{const n=counts[x.k]||0;return <button key={x.k} className="duty-b" title={`${pl?x.pl:x.ru} — ${pl?x.hPl:x.hRu}`} onClick={()=>{const f=queue.find(q=>q.z.k===x.k);if(f)go(()=>setCur(f.l.id));}} style={{height:30,padding:"0 10px",borderRadius:10,border:`1px solid ${n?x.c+"66":C.border}`,background:dk?"rgba(2,10,30,.4)":C.bg,color:C.text,fontSize:11.5,cursor:n?"pointer":"default",display:"flex",alignItems:"center",gap:6,opacity:n?1:.4}}>{x.e} {pl?x.pl:x.ru} <b style={{fontWeight:400,color:x.c}}>{n}</b></button>;})}</div>}
+        <div style={{marginLeft:"auto",display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
+          <div><div style={lbl}>{L("сегодня доедено","dziś dożęte")}</div><div style={{fontSize:20,color:champ,marginTop:2}}>{todayDone} <span style={{fontSize:12,color:C.muted}}>/ {todayDone+left}</span></div></div>
+          <div><div style={lbl}>{L("вернул в работу","wrócił do gry")}</div><div style={{fontSize:20,color:"#47e6a0",marginTop:2}}>{todayBack}</div></div>
+          <div><div style={lbl}>{L("дожимщик","dożymacz")}</div>
+            <select value={who} onChange={e=>setWho(e.target.value)} style={{marginTop:2,height:28,borderRadius:9,background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.borderMd}`,color:MGR_COLOR[who]||C.text,padding:"0 8px",fontSize:13,fontFamily:"inherit",outline:"none",colorScheme:dk?"dark":"light"}}>{people.map(m=><option key={m} value={m}>{m}</option>)}</select></div>
+          {view==="queue"&&<button className="duty-b" onClick={()=>{if(l&&queue.length>1)go(()=>toLater(l));}} style={{...btn(false),height:36,fontSize:12}}>⏭ {L("Позже","Później")} <span style={kbd}>Space</span></button>}</div>
+      </div>
+      {view==="stats"?<DzStats leads={leads} lang={lang} who={who}/>:
+      <div className="duty-grid" style={{flex:1,minHeight:0,display:"grid",gridTemplateColumns:"260px minmax(0,1fr)",gap:12}}>
+        <div className="duty-qcol" style={{...glass,padding:10,overflowY:"auto",display:"flex",flexDirection:"column",gap:2}}>
+          <div style={{...lbl,padding:"4px 6px 6px"}}>{L("очередь дожима","kolejka dożymu")} · {left}</div>
+          {(()=>{let prev=null;return queue.slice(0,120).map(x=>{const on=x.l.id===curId;const ch=dzChip(x.l,x.z,pl);const head=x.z.k!==prev;prev=x.z.k;const zz=LN[x.z.k];return(<React.Fragment key={x.l.id}>
+            {head&&<div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 8px 3px",fontSize:10.5,color:zz.c}}><span>{zz.e}</span>{pl?zz.pl:zz.ru}<span style={{marginLeft:"auto",color:C.dim}}>{counts[x.z.k]}</span></div>}
+            <div className="duty-q" onClick={()=>go(()=>setCur(x.l.id))} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 9px",borderRadius:12,cursor:"pointer",border:`1px solid ${on?"rgba(227,184,96,.45)":"transparent"}`,background:on?"linear-gradient(90deg,rgba(227,184,96,.16),transparent)":"transparent"}}>
+              <div style={{minWidth:0,flex:1}}><div style={{fontSize:11.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{x.l.name||x.l.phone||"—"}</div><div style={{fontSize:10,color:C.muted,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ch.t}</div></div>
+              <DutyScore l={x.l}/></div></React.Fragment>);});})()}
+          {queue.length>120&&<div style={{fontSize:11,color:C.dim,padding:"6px 9px"}}>+ {queue.length-120}</div>}
+          {!queue.length&&<div style={{fontSize:12,color:C.muted,padding:10}}>{L("пусто ✓","pusto ✓")}</div>}
+        </div>
+        <div className="duty-main" style={{minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,paddingRight:2}}>
+          {!l?(<div style={{...glass,flex:1,borderRadius:26,display:"grid",placeItems:"center",textAlign:"center",padding:30}}><div><div style={{fontSize:54}}>🦅</div><div style={{fontSize:26,margin:"8px 0"}}>{L("Дожим разобран","Dożym zrobiony")}</div><div className="hand" style={{fontSize:24,color:champ}}>{L("очередь пуста — молодец!","kolejka pusta — brawo!")}</div></div></div>):(
+          <div key={l.id+anim} style={{borderRadius:26,padding:"20px 24px",display:"flex",flexDirection:"column",gap:12,flex:"1 0 auto",background:dk?`radial-gradient(70% 60% at 85% 0%,${hc}33,transparent 70%),linear-gradient(160deg,rgba(30,72,170,.55),rgba(5,18,52,.85))`:`radial-gradient(70% 60% at 85% 0%,${hc}22,transparent 70%),${C.card}`,border:`1px solid ${dk?"rgba(227,184,96,.28)":C.border}`,boxShadow:dk?"inset 0 1px 0 rgba(255,255,255,.08),0 30px 80px rgba(0,0,0,.4)":"0 10px 30px rgba(0,0,0,.08)",animation:anim==="out"?"dutyOut .26s cubic-bezier(.22,.9,.24,1) forwards":"dutyIn .5s cubic-bezier(.22,.9,.24,1) both"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              {handled?<span style={{height:28,padding:"0 12px",borderRadius:10,display:"flex",alignItems:"center",gap:7,fontSize:12,color:"#071435",background:"#47e6a0"}}>✓ {L("Лид разобран","Lead obsłużony")}</span>
+                :<><span style={{height:28,padding:"0 12px",borderRadius:10,display:"flex",alignItems:"center",gap:7,fontSize:12,color:"#071435",background:zl.c,whiteSpace:"nowrap"}}>{zl.e} {pl?zl.pl:zl.ru}</span><DutyChipEl ch={dzChip(l,z,pl)}/></>}
+              {l.dz&&l.dz.tries?<span style={{fontSize:11,color:C.muted}}>{L("попытка","próba")} {l.dz.tries+1}</span>:null}
+              <span style={{marginLeft:"auto",fontSize:11,color:C.muted}}>🔒 {L("основная карточка — только просмотр","karta główna — tylko podgląd")} · {handled?L(`в очереди ${left}`,`w kolejce ${left}`):`${idxOf(l.id)+1} ${L("из","z")} ${left}`}</span></div>
+            <div style={{display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
+              <DutyBigScore l={l} lang={lang}/>
+              <div style={{flex:1,minWidth:220}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}><span style={{fontSize:30,lineHeight:1.05}}>{l.name||"—"} <span style={{fontSize:22}}>{l.clientLang==="ua"?"🇺🇦":l.clientLang==="en"?"🇬🇧":l.clientLang==="cz"?"🇨🇿":"🇵🇱"}</span></span>
+                  <span style={pillS}>{L("оценка","ocena")} {dutyScore(l)??"—"}</span><span style={pillS}>{actName(l.action)}</span>
+                  {l.manager&&<span style={{...pillS,color:MGR_COLOR[l.manager]||C.text,borderColor:(MGR_COLOR[l.manager]||C.borderMd)+"88"}}>{l.manager}</span>}</div>
+                <div style={{display:"flex",gap:10,alignItems:"center",marginTop:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:20,color:"#5cb8ff",userSelect:"all"}}>{l.phone||"—"}</span>
+                  <button className="duty-b" onClick={()=>{try{navigator.clipboard.writeText(String(l.phone||"")).then(()=>say(L("📋 Номер скопирован","📋 Numer skopiowany")),()=>{});}catch{}}} style={{height:26,padding:"0 9px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontSize:11}}>📋</button>
+                </div></div></div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:12,padding:"10px 14px",borderRadius:14,border:`1px solid ${C.border}`,background:dk?"rgba(2,10,30,.3)":C.bg}}>
+              {[[L("поступил","wpłynął"),`${l.createdAt||"—"}${age!=null?` · ${age} ${L("дн.","dn.")}`:""}`],[L("источник","źródło"),l.source||"—"],
+                [L("последнее действие","ostatnia akcja"),lastMain?`${String(lastMain.h.date||"").slice(0,5)} · «${String(lastMain.h.action||"").slice(0,40)}»${lastMain.h.by?` · ${lastMain.h.by}`:""}`:"—"],[L("телефон","telefon"),l.phone||"—"]].map(([a,b])=>
+                <div key={a} style={{minWidth:0}}><div style={lbl}>{a}</div><div style={{fontSize:12.5,marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{b}</div></div>)}
+              {l.notes&&<div style={{gridColumn:"1/-1",fontSize:12,color:C.muted,padding:"7px 10px",borderRadius:10,background:dk?"rgba(2,10,30,.4)":C.surface}}>📝 {L("Заметка","Notatka")} {l.manager||L("менеджера","menedżera")}: «{String(l.notes).slice(0,240)}»</div>}
+            </div>
+            <div style={{borderRadius:16,padding:"10px 14px",border:"1px solid rgba(227,184,96,.3)",background:"linear-gradient(135deg,rgba(227,184,96,.1),transparent)"}}>
+              <div style={{...lbl,marginBottom:4}}>{handled?L("готово","gotowe"):L("почему лид в дожиме","dlaczego ten lead jest w dożymie")}</div>
+              <div className="hand" style={{fontSize:23,color:champ,lineHeight:1.1}}>{handled?L("лид ушёл из очереди — переходи к следующему","lead wyszedł z kolejki — przejdź do następnego"):dzWhy(l,z,pl)}</div></div>
+            <div className="duty-info" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1.15fr)",gap:12,flex:1,minHeight:0}}>
+              <div style={{display:"flex",flexDirection:"column",gap:12,minWidth:0}}>
+                <div style={{borderRadius:16,padding:"12px 14px",border:`1px solid ${C.border}`,background:dk?"rgba(2,10,30,.35)":C.bg}}>
+                  <div style={{...lbl,marginBottom:8}}>{L("ветка квалификации","ścieżka kwalifikacji")}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>{tree.map(([k,lb])=>{const v=tv(k,l[k]);return <div key={k} style={{display:"flex",alignItems:"center",gap:7,minHeight:30,padding:"4px 9px",borderRadius:9,border:`1px solid ${v?"rgba(71,230,160,.35)":C.border}`,fontSize:11,color:v?C.text:C.muted}}><i style={{width:14,height:14,borderRadius:4,flexShrink:0,display:"grid",placeItems:"center",fontStyle:"normal",fontSize:9,background:v?"#47e6a0":"transparent",border:`1.5px solid ${v?"#47e6a0":"rgba(120,170,255,.4)"}`,color:"#06122f"}}>{v?"✓":""}</i><span style={{minWidth:0}}>{lb}{v&&<span style={{color:C.muted}}> · {v}</span>}</span></div>;})}</div></div>
+                <div style={{borderRadius:16,padding:"12px 14px",border:`1px solid ${C.border}`,background:dk?"rgba(2,10,30,.35)":C.bg,display:"flex",flexDirection:"column",gap:6}}>
+                  <div style={lbl}>{L("детали","szczegóły")}</div>
+                  {[[L("Действие","Akcja"),actName(l.action)],l.pushDate?[L("Пуш","Push"),`${isoToDot(l.pushDate)} ${l.pushTime||""}`]:null,l.visitDate?[L("Визит","Wizyta"),`${isoToDot(l.visitDate)} ${l.visitTime||""}`]:null,l.quoteAmt?[L("КП","Oferta"),fmtM(l.quoteAmt)]:null].filter(Boolean).map(([a,b])=><div key={a} style={{display:"flex",justifyContent:"space-between",gap:10,fontSize:11.5,color:C.muted}}><span>{a}</span><span style={{color:C.text,textAlign:"right"}}>{b}</span></div>)}</div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:12,minWidth:0,minHeight:0}}>
+                <div style={{borderRadius:16,padding:"12px 14px",border:"1px solid rgba(227,184,96,.4)",background:dk?"linear-gradient(160deg,rgba(227,184,96,.1),rgba(2,10,30,.35))":C.bg,display:"flex",flexDirection:"column",gap:8,flex:1,minHeight:170}}>
+                  <div style={{...lbl,color:"#e3b860"}}>🦅 {L("заметки дожима","notatki dożymu")}{l.dz&&l.dz.who?` · ${l.dz.who}`:""}</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:5,flex:1,overflowY:"auto",minHeight:40}}>
+                    {((l.dz&&l.dz.notes)||[]).slice().reverse().map((n,i)=><div key={i} style={{fontSize:12,padding:"6px 9px",borderRadius:9,background:dk?"rgba(2,10,30,.4)":C.surface}}><span style={{color:C.muted}}>{fmtDT(n.at).slice(0,16)} · <span style={{color:MGR_COLOR[n.by]||C.muted}}>{n.by}</span>:</span> {n.txt}</div>)}
+                    {!((l.dz&&l.dz.notes)||[]).length&&<div style={{fontSize:11.5,color:C.dim}}>{L("Заметок нет — запиши, о чём договорился с клиентом.","Brak notatek — dopisz, co ustaliłeś z klientem.")}</div>}</div>
+                  <div style={{display:"flex",gap:8}}><textarea value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();addNote();}}} rows={2} placeholder={L("Заметка… (Ctrl+Enter)","Notatka… (Ctrl+Enter)")} style={{flex:1,background:dk?"rgba(2,10,30,.45)":C.bg,border:`1px solid ${C.border}`,color:C.text,borderRadius:10,padding:"7px 10px",fontSize:12.5,resize:"vertical",outline:"none",fontFamily:"inherit"}}/>
+                    <button className="duty-b" onClick={addNote} disabled={!note.trim()} style={{alignSelf:"stretch",padding:"0 12px",borderRadius:10,border:"none",background:note.trim()?"linear-gradient(135deg,#f6e0aa,#e3b860)":"rgba(255,255,255,.06)",color:note.trim()?"#08153a":C.dim,cursor:note.trim()?"pointer":"default",fontSize:12}}>＋ {L("Добавить","Dodaj")}</button></div></div>
+                <div style={{borderRadius:16,padding:"12px 14px",border:`1px solid ${C.border}`,background:dk?"rgba(2,10,30,.35)":C.bg}}>
+                  <div style={{...lbl,marginBottom:6}}>{L("история","historia")}</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:5,fontSize:11,color:C.muted,borderLeft:"1px solid rgba(227,184,96,.28)",paddingLeft:10}}>{(l.history||[]).slice(-4).reverse().map((h,i)=><div key={i} style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}><span style={{color:C.text}}>{h.action}</span> · {h.date}{h.by?` · ${h.by}`:""}</div>)}{!(l.history||[]).length&&<span>—</span>}</div></div>
+              </div></div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {handled?<><button className="duty-b" onClick={()=>go(()=>setCur(queue[0]?queue[0].l.id:null))} style={btn(true)}>→ {L("Следующий лид","Następny lead")}</button><button className="duty-b" onClick={A.open} style={btn(false)}>↗ {L("Открыть карточку","Otwórz kartę")}</button></>
+                :ACTS.map(([k,ic,lb],i)=><button key={k} className="duty-b" onClick={A[k]} style={btn(k==="done",k==="back"?"#47e6a0":k==="lost"?"#ff7d8c":null)}>{ic} {lb} <span style={kbd}>{i+1}</span></button>)}</div>
+          </div>)}
+        </div>
+      </div>}
+      {modal&&<div onMouseDown={e=>{if(e.target===e.currentTarget)setModal(null);}} style={{position:"fixed",inset:0,zIndex:1500,background:"rgba(0,6,20,.78)",backdropFilter:"blur(5px)",display:"grid",placeItems:"center",padding:16}}>
+        <div style={{width:"min(460px,100%)",borderRadius:20,padding:20,background:dk?"linear-gradient(165deg,#0b2156,#06173f 55%,#030d26)":"#fff",border:"1px solid rgba(227,184,96,.4)",display:"flex",flexDirection:"column",gap:12,color:C.text}}>
+          {modal.k==="later"&&<><div style={{fontSize:17}}>↻ {L(`Когда перезвонить: ${first(l)}?`,`Kiedy oddzwonić do ${first(l)}?`)}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>{[[L("Завтра","Jutro"),1],[L("Через 2 дня","Za 2 dni"),2],[L("Через 3 дня","Za 3 dni"),3],[L("Через неделю","Za tydzień"),7],[L("Через 2 недели","Za 2 tygodnie"),14],[L("Через месяц","Za miesiąc"),30]].map(([t,n])=><button key={n} className="duty-b" onClick={()=>setLaterDate(plus(n))} style={btn(false)}>{t} · {isoToDot(plus(n))}</button>)}</div>
+            <div style={{display:"flex",gap:8,alignItems:"center",fontSize:12,color:C.muted}}>{L("или дата:","albo data:")}<input type="date" min={plus(1)} onChange={e=>e.target.value&&setLaterDate(e.target.value)} style={{background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:9,padding:"6px 9px",colorScheme:dk?"dark":"light",fontFamily:"inherit"}}/></div></>}
+          {modal.k==="back"&&<><div style={{fontSize:17}}>🔥 {L(`${first(l)} вернулся в работу`,`${first(l)} wrócił do gry`)}</div><div style={{fontSize:12,color:C.muted}}>{l.manager?L(`${l.manager} получит задачу с твоим комментарием.`,`${l.manager} dostanie zadanie z Twoim komentarzem.`):L("У лида нет менеджера — он будет помечен «вернул».","Lead nie ma menedżera — zostanie oznaczony jako „wrócił”.")}</div>
+            <textarea autoFocus value={modal.txt} onChange={e=>setModal(m=>({...m,txt:e.target.value}))} rows={3} placeholder={L("О чём договорились? Например: хочет просчёт кухни 3 м, звонить после 17:00","Co ustaliłeś? Np. chce wycenę na kuchnię 3 m, dzwonić po 17:00")} style={{background:dk?"rgba(2,10,30,.5)":C.bg,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:10,padding:"8px 10px",fontSize:12.5,resize:"vertical",outline:"none",fontFamily:"inherit"}}/>
+            <button className="duty-b" onClick={()=>doBack(modal.txt)} style={{...btn(true),justifyContent:"center"}}>🔥 {L(`Отдать ${l.manager||"в работу"}`,`Oddaj do ${l.manager||"pracy"}`)}</button></>}
+          {modal.k==="lost"&&<><div style={{fontSize:17}}>✕ {L("Причина отказа","Powód odmowy")} — {first(l)}</div><div style={{fontSize:12,color:C.muted}}>{L("Лид уйдёт из дожима и из ретаргета.","Lead zniknie z dożymu i z retargetu.")}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>{DZ_LOST.map(w=><button key={w.k} className="duty-b" onClick={()=>doLost(w.k)} style={btn(false,"#ff7d8c")}>{pl?w.pl:w.ru}</button>)}</div></>}
+          <button onClick={()=>setModal(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12}}>{L("Отмена","Anuluj")}</button>
+        </div></div>}
+      {toast&&<div key={toast.id} style={{position:"fixed",left:"50%",bottom:26,transform:"translateX(-50%)",zIndex:1600,padding:"11px 18px",borderRadius:14,background:dk?"linear-gradient(150deg,rgba(30,70,170,.96),rgba(6,22,62,.97))":C.surface,border:"1px solid rgba(227,184,96,.35)",fontSize:12.5,color:C.text,boxShadow:"0 20px 60px rgba(0,0,0,.45)",animation:"dutyToast .35s"}}>{toast.m}</div>}
+    </div>);}
+
 // ─── РЕЖИМ ДЕЖУРНОГО ──────────────────────────────────────────────────────────
 // Очередь сверху вниз: 🔥 свежие (таймер заявки) → 📐 просчёты (выше оценка, при равной — старее просчёт) →
 // ☎️ 2-й контакт (прошло 6 ч после 1-го, сегодня) → ✅ визиты на завтра (подтвердить) → 🚀 пуши на сегодня (и просроченные) →
@@ -3771,7 +4327,6 @@ const DUTY_LANES=[
   {k:"quote",e:"📐",ru:"Просчёты",         pl:"Wyceny",            c:"#e3b860",hRu:"выше оценка · старее просчёт",  hPl:"wyższa ocena · starsza wycena"},
   {k:"c2",   e:"☎️",ru:"2-й контакт",      pl:"2. kontakt",        c:"#f6a04d",hRu:"6 ч после 1-го · сегодня",      hPl:"6 h po 1. · dziś"},
   {k:"visit",e:"✅",ru:"Визиты на завтра", pl:"Wizyty na jutro",   c:"#5cb8ff",hRu:"подтвердить",                   hPl:"potwierdzić"},
-  {k:"push", e:"🚀",ru:"Пуши на сегодня",  pl:"Pushe na dziś",     c:"#fb923c",hRu:"и просроченные",                hPl:"i zaległe"},
   {k:"tree", e:"🧩",ru:"Ветка не закрыта", pl:"Ścieżka otwarta",   c:"#2dd4bf",hRu:"выше оценка — выше",            hPl:"wyższa ocena — wyżej"},
   {k:"sc",   e:"💼",ru:"Центр продаж",     pl:"Centrum sprzedaży", c:"#c79bff",hRu:"рекоменд. → 4 → 5 → 2.5",       hPl:"polecane → 4 → 5 → 2.5"},
 ];
@@ -3780,7 +4335,7 @@ const dutyScore=l=>{const s=parseFloat(l&&l.score);return isNaN(s)?null:s;};
 function dutyBuild(list,allLeads,now,today,tomorrow){
   const used=new Set();const out=[];
   const add=(k,arr)=>arr.forEach(x=>{if(!x||!x.l||used.has(x.l.id))return;used.add(x.l.id);out.push({l:x.l,z:{k,...(x.z||{})}});});
-  const live=(list||[]).filter(l=>l&&l.action!=="cancelled"&&l.action!=="sale"&&!l.isDone);
+  let live=(list||[]).filter(l=>l&&l.action!=="cancelled"&&l.action!=="sale"&&!l.isDone);
   const sc=dutyScore;
   // 1 — свежие: ещё нет 1-го контакта; кто дольше ждёт — выше
   add("new",live.filter(l=>{const s=sc(l);if(s!=null&&s>=5)return false;if(firstContactMs(l))return false;if(isFresh(l.id))return true;const arr=leadCreatedMsSafe(l);
@@ -3795,13 +4350,13 @@ function dutyBuild(list,allLeads,now,today,tomorrow){
   // 4 — визиты на завтра, ещё не подтверждённые
   add("visit",(list||[]).filter(l=>l&&l.action!=="cancelled"&&l.visitDate===tomorrow&&l.visitConfirmed!==l.visitDate&&(sc(l)||0)<5.5)
     .map(l=>({l})).sort((a,b)=>String(a.l.visitTime||"").localeCompare(String(b.l.visitTime||""))));
-  // 5 — пуши на сегодня и просроченные
-  add("push",leadsToPush(live).filter(l=>l.pushDate&&l.pushDate<=today)
-    .map(l=>({l,z:{over:l.pushDate<today}})).sort((a,b)=>String(a.l.pushDate).localeCompare(String(b.l.pushDate))||String(a.l.pushTime||"").localeCompare(String(b.l.pushTime||""))));
+  // пуши теперь живут в режиме «Dożym»
   // 6 — ветка не закрыта: выше оценка — выше
   add("tree",live.filter(l=>treeIncomplete(l)).map(l=>({l})).sort((a,b)=>((sc(b.l)||0)-(sc(a.l)||0))||(leadSortKey(b.l)-leadSortKey(a.l))));
   // 7 — центр продаж: те же списки, что во вкладке «Центр продаж»
   const pat=analyzeSalePatterns(allLeads||[]);
+  // ретаргет: лиды, закрытые в дожиме («Zrobione» / «Odmowa»), сюда больше не попадают
+  live=live.filter(l=>!dzClosed(l));
   const recs=pat.top.length?live.filter(l=>l.score<6&&l.score>=2).map(l=>({l,hits:pat.top.filter(r=>(SALE_ATTR_FN[r.attr]?SALE_ATTR_FN[r.attr](l):l[r.attr])===r.value).length})).filter(x=>x.hits>=Math.min(2,pat.top.length)).sort((a,b)=>b.hits-a.hits).slice(0,12):[];
   add("sc",recs.map(x=>({l:x.l,z:{kind:"rec",hits:x.hits}})));
   add("sc",live.filter(l=>(l.score===4||l.score===4.5)&&monthsAgo(l.createdAt)===1).map(l=>({l,z:{kind:"m4"}})));
@@ -3871,7 +4426,7 @@ function DutyNotes({l,updateDb,currentUser,lang,t}){
   </div>);
 }
 
-function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={},onOpen}){
+function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={},onOpen,abTests=[]}){
   const pl=lang==="pl";const dk=C===DARK;const champ=dk?"#f6e0aa":C.accent;
   const today=getToday();const tomorrow=isoLocal(new Date(Date.now()+DUTY_DAY));
   const isMgr=MANAGERS.includes(currentUser);
@@ -3972,6 +4527,7 @@ function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={},onOpen}){
               <DutyBigScore l={l} lang={lang}/>
               <div style={{flex:1,minWidth:220}}>
                 <div style={{fontSize:30,lineHeight:1.05}}>{l.name||"—"} <span style={{fontSize:22}}>{l.clientLang==="ua"?"🇺🇦":l.clientLang==="en"?"🇬🇧":l.clientLang==="cz"?"🇨🇿":"🇵🇱"}</span></div>
+                {abLeadTests(abTests,l).map(({t:tst,v})=>{const col=AB_COLS[(tst.variants||[]).indexOf(v)%AB_COLS.length];const F=AB_FIRST[v.first]||AB_FIRST.any;return <div key={tst.id} style={{marginTop:6,display:"inline-flex",alignItems:"center",gap:8,padding:"4px 12px",borderRadius:999,border:`1px solid ${col}99`,background:`${col}22`,color:col,fontSize:13}}>🧪 {v.ic} {v.k} · {abVary(tst)==="first"?(lang==="pl"?F.bigPl:F.big):`${lang==="pl"?AB_VARS[abVary(tst)].pl:AB_VARS[abVary(tst)].ru}: ${v.name}`}</div>;})}
                 <div style={{display:"flex",gap:10,alignItems:"center",marginTop:8,flexWrap:"wrap"}}>
                   <span style={{fontSize:20,color:"#5cb8ff",userSelect:"all"}}>{l.phone||"—"}</span>
                   <button className="duty-b" onClick={()=>{try{navigator.clipboard.writeText(String(l.phone||"")).then(()=>say(pl?"📋 Numer skopiowany":"📋 Номер скопирован"),()=>{});}catch{}}} style={{height:26,padding:"0 9px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontSize:11}}>📋</button>
@@ -4740,18 +5296,19 @@ function LeadsSection(props){
   const visitCount=leadsWithVisits(leads).filter(l=>mgr==="all"||l.manager===mgr).length;
   const pushCount=leadsToPush(leads).filter(l=>mgr==="all"||l.manager===mgr).length;
   const pushDue=pushDueCount(leads,mgr); // сегодня + просроченные
+  const dzCount=useMemo(()=>dzBuild(leads,Date.now(),getToday()).length,[leads]);
   return(
     <div style={{height:"100%",overflowY:"auto"}}>
       <TabBar active={tab} onChange={setTab} tabs={[
         {key:"leads", icon:"◈", label:t.leads_tab||t.leads},
         {key:"duty",  icon:"🎯",label:props.lang==="pl"?"Tryb dyżurnego":"Режим дежурного"},
         {key:"visits",icon:"📅",label:t.visits_tab,count:visitCount},
-        {key:"push",  icon:"🚀",label:t.pushTab,count:pushCount,alert:pushDue,alertTitle:t.pushToday||""},
+        {key:"dozhim",icon:"🦅",label:props.lang==="pl"?"Dożym":"Дожим",count:dzCount},
       ]}/>
       {tab==="leads"?<LeadsPage {...props}/>
-        :tab==="duty"?<DutyMode leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} currentUser={props.currentUser} lang={props.lang} ldp={props.ldp||{}} onOpen={props.onOpen}/>
+        :tab==="duty"?<DutyMode abTests={props.abTests||[]} leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} currentUser={props.currentUser} lang={props.lang} ldp={props.ldp||{}} onOpen={props.onOpen}/>
         :tab==="visits"?<VisitsPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>
-        :<PushPanel leads={props.leads} updateDb={props.updateDb} t={t} mgr={props.mgr} search={props.search} onOpen={props.onOpen}/>}
+        :<DozhimMode leads={props.leads} updateDb={props.updateDb} currentUser={props.currentUser} onOpen={props.onOpen} lang={props.lang}/>}
     </div>
   );
 }
@@ -5048,7 +5605,7 @@ function MultiPick({label,options,selected,onChange,width=200}){
     </div>);
 }
 
-function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onOpen,currentUser,funnels=[],lang="ru"}){
+function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onOpen,currentUser,funnels=[],lang="ru",abTests=[],onOpenTests}){
   const [stickerLead,setStickerLead]=useState(null);
   const addSticker=(text)=>{
     if(!stickerLead)return;
@@ -5142,6 +5699,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
         {currentUser==="Danya"&&<BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={ss}/>}
         {(fSc.length>0||fA!=="all"||fS.length>0||fFun!=="all"||fWhy!=="all"||fLang!=="all"||fBuy!=="all")&&<button onClick={()=>{setFSc([]);setFA("all");setFS([]);setFFun("all");setFWhy("all");setFLang("all");setFBuy("all");}} style={{...ss,color:C.muted}}>✕ {lang==="pl"?"Wyczyść":"Сбросить"}</button>}
       </div>
+      <AbBanner tests={abTests} leads={leads} lang={lang} onOpen={onOpenTests}/>
       <div className="g-lt" style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
@@ -5165,7 +5723,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                     : <span style={{color:C.dim,fontSize:15,opacity:0.3,cursor:"pointer"}}>＋</span>}
                 </td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
-                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{(()=>{const n=leadAttachments(l).length+(l.files||[]).filter(f=>f&&typeof f==="object"&&f.path).length;return n>0?<span title="Фото / файлы" style={{marginLeft:6,fontSize:11,color:"#38bdf8",fontWeight:800}}>📎{n}</span>:null;})()}{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<span style={{marginLeft:7,fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",verticalAlign:"middle"}}>▼ {f.name}</span>:null;})()}{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
+                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{abTests.length>0&&<AbChip tests={abTests} l={l}/>}<DzChip l={l} lang={lang}/>{(()=>{const n=leadAttachments(l).length+(l.files||[]).filter(f=>f&&typeof f==="object"&&f.path).length;return n>0?<span title="Фото / файлы" style={{marginLeft:6,fontSize:11,color:"#38bdf8",fontWeight:800}}>📎{n}</span>:null;})()}{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<span style={{marginLeft:7,fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",verticalAlign:"middle"}}>▼ {f.name}</span>:null;})()}{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
                 <td style={{padding:"8px 10px"}}>{(()=>{const e=erikaEff(l);return e.v!=null?<div title={t.erikaScore} style={{fontSize:9,fontWeight:800,color:"#f472b6",lineHeight:"11px",marginBottom:1,whiteSpace:"nowrap",opacity:1}}>Э {e.v}</div>:null;})()}<ScoreBar score={l.score}/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.qualification]} color={QUAL_COLOR[l.qualification]} small/></td>
@@ -5187,7 +5745,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
 }
 
 // ─── LEAD DETAIL ──────────────────────────────────────────────────────────────
-function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,currentUser,taskTypes=[],tasks=[],orders=[],inline=false,autoEdit=false,saveRef=null}){
+function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,currentUser,taskTypes=[],tasks=[],orders=[],abTests=[],inline=false,autoEdit=false,saveRef=null}){
   const notesRef=useRef(null);
   useEffect(()=>{
     unmarkFresh(lead.id);
@@ -5210,6 +5768,12 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
   const [showPush,setShowPush]=useState(false);
   const [showStickers,setShowStickers]=useState(false);
   const [calcOpen,setCalcOpen]=useState(null);const [calcKP,setCalcKP]=useState(null);
+  // 🧪 отметка в A/B тесте: пишем в abLog, фиксируем группу, первое действие = первый контакт
+  const abLog=(tst,v,a,early,ch)=>{const pl=lang==="pl";const now=Date.now();const me=currentUser&&currentUser!=="all"?currentUser:"?";
+    const e={id:now.toString(36)+Math.random().toString(36).slice(2,6),t:tst.id,a,at:now,by:me,...(ch?{ch}:{})};const A=AB_ACT[a]||{};
+    const h={date:nowStr(),action:`🧪 ${tst.name} · ${v.k}: ${pl?A.pl:A.ru}${ch&&AB_CH[ch]?` (${AB_CH[ch].n})`:""}${early?(pl?" (za wcześnie ⚠)":" (раньше времени ⚠)"):""}`,by:me};
+    const apply=l=>{const o={...l,ab:{...(l.ab||{}),[tst.id]:v.k},abLog:[...(l.abLog||[]),e],history:[...(l.history||[]),h]};if((a==="write"||a==="call")&&!l.c1At){o.c1At=now;o.c1By=me;}return o;};
+    setForm(f=>apply(f));updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...apply(l),updatedAt:now}:l)}),true);};
   const saveCalcs=(fn,histTxt)=>{const now=Date.now();const h={date:nowStr(),action:histTxt,by:currentUser||"—"};setForm(f=>({...f,calcs:fn(f.calcs||[]),history:[...(f.history||[]),h]}));
     updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,calcs:fn(l.calcs||[]),updatedAt:now,history:[...(l.history||[]),h]}:l)}),true);};
   const onCalcSave=(c0)=>{const pl=lang==="pl";const {sketchNew,...c}=c0;
@@ -5375,6 +5939,9 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
             {fc!=null?<span>📞 {pl?"1. kontakt":"1-й контакт"}: <b style={{color:C.text}}>{fmtDT(fc)}</b>{form.c1By?<span style={{color:MGR_COLOR[form.c1By]||C.muted}}> · {form.c1By}</span>:null}{d!=null&&<> · <b style={{color:durColor(d)}}>{pl?"po":"через"} {fmtWait(d,pl)}</b></>}</span>
               :<span>📞 {pl?"1. kontakt":"1-й контакт"}: <b style={{color:waiting!=null?durColor(waiting):C.muted}}>{pl?"jeszcze nie":"ещё не было"}{waiting!=null?` · ${pl?"minęło":"прошло"} ${fmtWait(waiting,pl)}`:""}</b></span>}
           </div>;})()}
+        {abTests.length>0&&<AbLeadBox tests={abTests} form={form} lang={lang} onLog={abLog}/>}
+        <DzLeadBox form={form} lang={lang} currentUser={currentUser} onSend={note=>{const now=Date.now();const me=currentUser&&currentUser!=="all"?currentUser:"—";const dz={st:"open",notes:[],tries:0,sentBy:me,sentAt:now,sentNote:note||"",startAt:now};const h={date:nowStr(),action:`🦅 Dożym: przekazany${note?` — ${note}`:""}`,by:me};
+          setForm(f=>({...f,dz,history:[...(f.history||[]),h]}));updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,dz,updatedAt:now,history:[...(l.history||[]),h]}:l)}),true);}}/>
         {(()=>{const at=leadAttachments(form);const up=(form.files||[]).filter(f=>f&&typeof f==="object"&&f.path);const pl=lang==="pl";return(
           <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer&&e.dataTransfer.files);}}
             style={{marginTop:-6,marginBottom:14,background:drag?"rgba(56,189,248,0.16)":"rgba(56,189,248,0.06)",border:`1px ${drag?"dashed":"solid"} rgba(56,189,248,${drag?0.9:0.4})`,borderRadius:12,padding:"10px 12px"}}>
@@ -6276,7 +6843,7 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
   const mStart=(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`;})();
   const monthSales=filterByCustomRange(my(sales),mStart,today);
   const monthRev=monthSales.reduce((a,x)=>a+(x.saleAmount||0),0);
-  const L=my(leads).filter(l=>l.action!=="cancelled");
+  const L=my(leads).filter(l=>l.action!=="cancelled"&&!dzClosed(l));
   const pat=analyzeSalePatterns(leads||[]);
   const attrLabel={budget:t.period||"Срок",hadVisit:ru?"Визит в шоурум":"Wizyta w salonie",hadQuote:ru?"Просчёт":"Wycena",kitchenInfo:t.kitchenInfo,distance:t.distance,apartment:t.apartment};
   const valLabel=(a,v)=>({kitchenInfo:{yes:t.kiYes,no:t.kiNo},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld},hadVisit:{yes:ru?"был":"była",no:ru?"не было":"nie było"},hadQuote:{yes:ru?"был":"była",no:ru?"не было":"nie było"}}[a]?.[v]||t[v]||v);
@@ -8027,6 +8594,7 @@ const NAV_ANIM=[ // [иконка, часть, анимация, длитель�
   ["sales",".line","Draw",.9,0],["sales",".head","Head",.9,0],
   ["orders",".lidl","LidL",1.1,0],["orders",".lidr","LidR",1.1,0],["orders",".pop","Up",1.1,.1],
   ["tasks",".c1","Check",.35,0],["tasks",".c2","Check",.35,.2],["tasks",".c3","Check",.35,.4],
+  ["tests",".b1","Up",1,0],["tests",".b2","Up",1,.25],
   ["settings",".gear","Gear",.9,0],
 ];
 const NAV_CSS=`
@@ -8399,13 +8967,14 @@ function GarnoCRM(){
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <DashboardPage db={db} updateDb={updateDb} currentUser={currentUser} lang={DASH_LANG||lang} t={T[DASH_LANG||lang]||t} srcList={srcList} onOpenLead={setSelLead}/>}
-          {page==="leads"      && <LeadsSection ldp={{setLeads:setLeadsNow,srcList,onAddSale:addSale,taskTypes:db.taskTypes||[],tasks,orders:db.orders||[]}} lang={lang} funnels={db.funnels||[]} leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
+          {page==="leads"      && <LeadsSection abTests={db.abTests||[]} onOpenTests={()=>setPage("tests")} ldp={{setLeads:setLeadsNow,srcList,onAddSale:addSale,taskTypes:db.taskTypes||[],tasks,orders:db.orders||[]}} lang={lang} funnels={db.funnels||[]} leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead}/>}
           
           {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
           {(page==="salescenter"||page==="funnel"||page==="analytics")&& <SalesCenterTabs initialTab={page==="salescenter"?"center":"funnel"} srcList={srcList} funnels={db.funnels||[]} leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
           {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={setSelLead} currentUser={currentUser}/>}
+          {page==="tests"      && <TestsPage db={db} updateDb={updateDb} currentUser={currentUser} lang={lang} onOpenLead={setSelLead}/>}
           {page==="settings"   && <SettingsPage db={db} updateDb={updateDb} lang={lang} t={t} srcList={srcList} setDomains={setDomains}/>}
           {page==="tasks"      && <TasksPage orders={db.orders||[]} orderTaskTypes={db.orderTaskTypes||[]} tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t} leads={leads} taskTypes={db.taskTypes||[]} onOpenLead={setSelLead} initialModal={taskPreset} />}
         </div>
@@ -8413,7 +8982,7 @@ function GarnoCRM(){
       {activeAlert && <AlertPopup alert={activeAlert} onAccept={alertAccept} onSnooze={alertSnooze} onOpen={alertOpen} onDismiss={alertDismiss} onForward={alertForward} currentUser={currentUser} lang={lang}/>}
       {showToday && currentUser && currentUser!=="all" && <GarnoTodayPopup leads={leads} sales={sales} tasks={db.tasks||[]} currentUser={currentUser} lang={lang} setPage={setPage} onOpenLead={setSelLead} onClose={closeToday}/>}
       {!showToday && currentUser && currentUser!=="all" && <button onClick={()=>setShowToday(true)} title="GARNO TODAY" style={{position:"fixed",right:18,bottom:18,zIndex:900,width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#bfa47e,#d4b896)",border:"none",color:"#00132f",fontSize:20,cursor:"pointer",boxShadow:"0 6px 18px rgba(191,164,126,0.4)"}}>☀</button>}
-      {selLead  && <LeadDetail lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser} taskTypes={db.taskTypes||[]} tasks={tasks} orders={db.orders||[]}/>}
+      {selLead  && <LeadDetail abTests={db.abTests||[]} lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser} taskTypes={db.taskTypes||[]} tasks={tasks} orders={db.orders||[]}/>}
       {showAdd  && <AddLeadModal onClose={()=>setShowAdd(false)} onAdd={addLead} srcList={srcList} t={t} lang={lang} nextNum={nextNum} currentUser={currentUser}/>}
     </div>
   );
