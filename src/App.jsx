@@ -5325,8 +5325,8 @@ function SalesSection(props){
       ]}/>
       <div style={{flex:1,minHeight:0,overflowY:"auto"}}>
         {tab==="sales"
-          ?<SalesPage sales={props.sales} setSales={props.setSales} setSalesNow={props.setSalesNow} updateDb={props.updateDb} t={t} lang={props.lang} leads={props.leads} onOpenLead={props.onOpenLead} currentUser={props.currentUser}/>
-          :<DynamicsPage leads={props.leads} sales={props.sales} t={t} lang={props.lang}/>}
+          ?<SalesPage range={props.range} sales={props.sales} setSales={props.setSales} setSalesNow={props.setSalesNow} updateDb={props.updateDb} t={t} lang={props.lang} leads={props.leads} onOpenLead={props.onOpenLead} currentUser={props.currentUser}/>
+          :<DynamicsPage range={props.range} leads={props.leads} sales={props.sales} t={t} lang={props.lang}/>}
       </div>
     </div>
   );
@@ -6833,6 +6833,71 @@ function monthsAgo(dateDot){
   const now=new Date();return (now.getFullYear()-d.getFullYear())*12+(now.getMonth()-d.getMonth());
 }
 
+// ─── ПЕРИОД ДЛЯ ВСЕГО «ЦЕНТРА ПРОДАЖ» + «SALES & CLIENT» ───────────────────────
+const scIso=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;
+const scParse=s=>{const [y,m,d]=String(s).split("-").map(Number);return new Date(y,(m||1)-1,d||1);};
+// период сравнения: полный месяц → прошлый полный; текущий месяц до сегодня → те же дни прошлого; иначе — столько же дней перед
+function scCompare(from,to){if(!from||!to)return null;const a=scParse(from),b=scParse(to);const today=getToday();
+  const mEnd=new Date(a.getFullYear(),a.getMonth()+1,0);
+  if(a.getDate()===1&&a.getMonth()===b.getMonth()&&a.getFullYear()===b.getFullYear()){
+    const pS=new Date(a.getFullYear(),a.getMonth()-1,1),pE=new Date(a.getFullYear(),a.getMonth(),0);
+    if(b.getDate()===mEnd.getDate())return {from:scIso(pS),to:scIso(pE),full:null,kind:"month"};
+    if(to===today){const pE2=new Date(pS.getFullYear(),pS.getMonth(),Math.min(b.getDate(),pE.getDate()));return {from:scIso(pS),to:scIso(pE2),full:{from:scIso(pS),to:scIso(pE)},kind:"mtd",day:b.getDate()};}}
+  const n=Math.round((b-a)/86400000)+1;const pE=new Date(a.getTime()-86400000),pS=new Date(pE.getTime()-(n-1)*86400000);return {from:scIso(pS),to:scIso(pE),full:null,kind:"len",n};}
+function scLabel(from,to,ru){if(!from&&!to)return ru?"всё время":"cały czas";const a=scParse(from),b=scParse(to);const mEnd=new Date(a.getFullYear(),a.getMonth()+1,0);
+  if(a.getDate()===1&&a.getMonth()===b.getMonth()&&a.getFullYear()===b.getFullYear()&&(b.getDate()===mEnd.getDate()||to===getToday()))
+    return a.toLocaleDateString(ru?"ru-RU":"pl-PL",{month:"long",year:"numeric"})+(b.getDate()===mEnd.getDate()?"":` (1–${b.getDate()})`);
+  return `${isoToDot(from)} — ${isoToDot(to)}`;}
+function ScPeriodBar({from,to,setFrom,setTo,ru,t}){const now=new Date();const today=getToday();
+  const months=[0,1,2,3,4,5,6,7,8,9,10,11].map(i=>{const d=new Date(now.getFullYear(),now.getMonth()-i,1);const e=i===0?today:scIso(new Date(d.getFullYear(),d.getMonth()+1,0));return {k:scIso(d),from:scIso(d),to:e,lab:d.toLocaleDateString(ru?"ru-RU":"pl-PL",{month:"long",year:"numeric"})+(i===0?(ru?" (текущий)":" (bieżący)"):"")};});
+  const cur=months.find(m=>m.from===from&&m.to===to);
+  const chip=on=>({height:30,padding:"0 12px",borderRadius:9,cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap",border:`1px solid ${on?C.accent:C.borderMd}`,background:on?C.accentDim:"transparent",color:on?C.accent:C.text});
+  return <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"8px 12px"}}>
+    <span style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1}}>📅 {ru?"Период для всего раздела":"Okres dla całej sekcji"}</span>
+    <button onClick={()=>{setFrom(months[0].from);setTo(months[0].to);}} style={chip(cur===months[0])}>{ru?"Этот месяц":"Ten miesiąc"}</button>
+    <button onClick={()=>{setFrom(months[1].from);setTo(months[1].to);}} style={chip(cur===months[1])}>{ru?"Прошлый месяц":"Poprzedni miesiąc"}</button>
+    <select value={cur?cur.k:""} onChange={e=>{const m=months.find(x=>x.k===e.target.value);if(m){setFrom(m.from);setTo(m.to);}}} style={{height:30,borderRadius:9,background:C.card,border:`1px solid ${cur&&cur!==months[0]&&cur!==months[1]?C.accent:C.borderMd}`,color:C.text,padding:"0 8px",fontSize:12,colorScheme:"dark"}}>
+      <option value="">{ru?"Выбрать месяц…":"Wybierz miesiąc…"}</option>{months.map(m=><option key={m.k} value={m.k}>{m.lab}</option>)}</select>
+    <div style={{marginLeft:"auto"}}><DashboardDatePicker dateFrom={from} dateTo={to} setDateFrom={setFrom} setDateTo={setTo} t={t}/></div>
+  </div>;}
+
+function scCalc(leads,sales,from,to,mgr){const my=a=>(a||[]).filter(x=>!mgr||mgr==="all"||x.manager===mgr);
+  const ld=filterByCustomRange(my(leads),from,to);const sl=filterByCustomRange(my(sales),from,to);const sc=l=>parseFloat(l.score)||0;
+  const rev=sl.reduce((a,x)=>a+(parseFloat(x.saleAmount)||0),0);const q=ld.filter(l=>sc(l)>=4).length,v=ld.filter(l=>sc(l)>=5).length;
+  return {leads:ld.length,q,v,vd:ld.filter(l=>sc(l)>=5.5).length,s:sl.length,rev,aov:sl.length?rev/sl.length:null,ar:ld.length?q/ld.length:null,c45:q?v/q:null,c56:v?sl.length/v:null};}
+// «Sales & Client»: вся статистика на одном экране — команда и каждый менеджер, с прошлым периодом
+function SalesClientCard({leads,sales,from,to,cmp,mgr,lang}){const ru=lang!=="pl";const dk=C===DARK;
+  const people=(mgr==="all"?MANAGERS:[mgr]).filter(m=>{const a=scCalc(leads,sales,from,to,m);return mgr!=="all"||a.leads||a.s;});
+  const cur=scCalc(leads,sales,from,to,mgr),prev=cmp?scCalc(leads,sales,cmp.from,cmp.to,mgr):null;
+  const gold="#e3b860",champ=dk?"#f6e0aa":C.accent;
+  const pct=v=>v==null?"—":`${Math.round(v*100)}%`;const num=v=>v==null?"—":Math.round(v).toLocaleString(ru?"ru-RU":"pl-PL").replace(/,/g," ");
+  // изменение: для количеств — %, для конверсий — п.п.; good — стрелка зелёная, если рост хорош
+  const D=(a,b,rate)=>{if(a==null||b==null)return null;if(rate){const d=Math.round((a-b)*100);return {up:d>0,eq:d===0,t:`${d>0?"+":""}${d} ${ru?"п.п.":"p.p."}`};}if(!b)return a?{up:true,eq:false,t:"new"}:null;const d=Math.round((a-b)/b*100);return {up:d>0,eq:d===0,t:`${d>0?"+":""}${d}%`};};
+  const Arrow=({d})=>d?<span style={{color:d.eq?C.muted:d.up?"#47e6a0":"#ff7d8c",fontSize:12,marginLeft:6,whiteSpace:"nowrap"}}>{d.eq?"=":d.up?"▲":"▼"} {d.t}</span>:null;
+  const K=[[ru?"Выручка":"Przychód","rev",v=>fmtM(Math.round(v||0)),0],[ru?"Продажи":"Sprzedaże","s",num,0],["AOV","aov",v=>v==null?"—":fmtM(Math.round(v)),0],[ru?"Лиды":"Leady","leads",num,0],
+    [ru?"4 · квал":"4 · kwal","q",num,0],["AR (4 / leads)","ar",pct,1],[ru?"5 · визиты":"5 · wizyty","v",num,0],["4 → 5","c45",pct,1],["5 → 6","c56",pct,1]];
+  const lbl={fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:C.muted};
+  const cols=[[ru?"Лиды":"Leady","leads",num,0],["4","q",num,0],["AR","ar",pct,1],["5","v",num,0],["4→5","c45",pct,1],[ru?"Продажи":"Sprzed.","s",num,0],["5→6","c56",pct,1],[ru?"Выручка":"Przychód","rev",v=>fmtM(Math.round(v||0)),0],["AOV","aov",v=>v==null?"—":fmtM(Math.round(v)),0]];
+  const rowsData=people.map(m=>({m,a:scCalc(leads,sales,from,to,m),b:cmp?scCalc(leads,sales,cmp.from,cmp.to,m):null}));
+  return <div style={{borderRadius:18,overflow:"hidden",border:`1px solid ${dk?"rgba(227,184,96,.35)":C.accentBorder}`,background:dk?"radial-gradient(90% 70% at 100% 0%,rgba(30,72,170,.45),transparent 60%),linear-gradient(160deg,#071a46,#020a1e)":C.card,padding:"18px 20px",display:"flex",flexDirection:"column",gap:16,fontFamily:"'Russo One',sans-serif"}}>
+    <div style={{display:"flex",alignItems:"baseline",gap:12,flexWrap:"wrap"}}>
+      <div style={{fontSize:30,color:C.text,letterSpacing:.5,lineHeight:1}}>SALES</div><div className="hand" style={{fontSize:30,color:gold,lineHeight:1,marginLeft:-4}}>and client</div>
+      <div style={{fontSize:13,color:champ,marginLeft:8}}>{mgr==="all"?(ru?"вся команда":"cały zespół"):mgr} · {scLabel(from,to,ru)}</div>
+      {cmp&&<div style={{marginLeft:"auto",fontSize:11,color:C.muted}}>{ru?"сравнение с":"porównanie z"}: {scLabel(cmp.from,cmp.to,ru)}{cmp.kind==="mtd"?(ru?" (те же дни)":" (te same dni)"):""}</div>}</div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(116px,1fr))",gap:10}}>
+      {K.map(([n,k,f,rate])=>{const d=prev?D(cur[k],prev[k],rate):null;const big=k==="rev"||k==="aov";return <div key={k} style={{padding:"10px 12px",borderRadius:14,border:`1px solid ${C.border}`,background:dk?"rgba(2,10,30,.35)":C.bg}}>
+        <div style={lbl}>{n}</div><div style={{fontSize:big?24:28,color:k==="aov"?"#ff9d9d":k==="rev"?champ:C.text,marginTop:4,lineHeight:1.1,whiteSpace:"nowrap"}}>{f(cur[k])}</div>
+        {prev&&<div style={{fontSize:11,color:C.muted,marginTop:4,whiteSpace:"nowrap"}}>{f(prev[k])}<Arrow d={d}/></div>}</div>;})}</div>
+    <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+      <thead><tr>{[ru?"Менеджер":"Menedżer",...cols.map(c=>c[0])].map((h,i)=><th key={i} style={{textAlign:i?"right":"left",padding:"8px 10px",...lbl,fontWeight:400,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}</tr></thead>
+      <tbody>{rowsData.map(({m,a,b})=><tr key={m}><td style={{padding:"9px 10px",borderBottom:`1px solid ${C.border}`,color:MGR_COLOR[m]||C.text,whiteSpace:"nowrap"}}><span style={{display:"inline-flex",alignItems:"center",gap:7}}><Avatar name={m} color={MGR_COLOR[m]} size={22} noMedal/>{m}</span></td>
+        {cols.map(([n,k,f,rate])=>{const d=b?D(a[k],b[k],rate):null;return <td key={k} style={{padding:"9px 10px",borderBottom:`1px solid ${C.border}`,textAlign:"right",whiteSpace:"nowrap"}}>
+          <div style={{color:C.text}}>{f(a[k])}</div>{b&&<div style={{fontSize:10.5,color:C.dim}}>{f(b[k])}{d&&!d.eq?<span style={{color:d.up?"#47e6a0":"#ff7d8c",marginLeft:4}}>{d.up?"▲":"▼"}</span>:null}</div>}</td>;})}</tr>)}
+        {mgr==="all"&&<tr style={{background:"rgba(227,184,96,.08)"}}><td style={{padding:"10px",color:champ}}>{ru?"Вся команда":"Cały zespół"}</td>{cols.map(([n,k,f])=><td key={k} style={{padding:"10px",textAlign:"right",color:champ,whiteSpace:"nowrap"}}>{f(cur[k])}{prev&&<div style={{fontSize:10.5,color:C.dim}}>{f(prev[k])}</div>}</td>)}</tr>}
+      </tbody></table></div>
+    <div style={{fontSize:10.5,color:C.dim,lineHeight:1.5,fontFamily:"inherit"}}>{ru?"Лиды, 4 и 5 — по дате поступления лида в периоде · продажи и выручка — по дате продажи · 4→5 = визиты / квалы, 5→6 = продажи / визиты (больше 100% — в продажах есть визиты прошлых периодов) · AR = квалы / лиды · маленькие цифры — прошлый период":"Leady, 4 i 5 — wg daty wpływu · sprzedaż — wg daty sprzedaży · 4→5 = wizyty / kwal, 5→6 = sprzedaże / wizyty (ponad 100% — sprzedaże z wizyt wcześniejszych) · AR = kwal / leady · małe liczby — poprzedni okres"}</div>
+  </div>;}
+
 function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpenLead,updateDb,setPage,setSales,setSalesNow}){
   const ru=lang!=="pl";
   // Свой кабинет открывается автоматически; Даня (руководитель) и Эрика — общий
@@ -6841,7 +6906,10 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
   const my=(arr)=>(arr||[]).filter(x=>mgr==="all"||x.manager===mgr);
   const today=getToday();
   const mStart=(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`;})();
-  const monthSales=filterByCustomRange(my(sales),mStart,today);
+  // 📅 один период на весь раздел (по умолчанию — текущий месяц)
+  const [pFrom,setPFrom]=useState(mStart);const [pTo,setPTo]=useState(today);
+  const cmp=scCompare(pFrom,pTo);
+  const monthSales=filterByCustomRange(my(sales),pFrom,pTo);
   const monthRev=monthSales.reduce((a,x)=>a+(x.saleAmount||0),0);
   const L=my(leads).filter(l=>l.action!=="cancelled"&&!dzClosed(l));
   const pat=analyzeSalePatterns(leads||[]);
@@ -6876,12 +6944,14 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
     </div>);
   const empty=<div style={{padding:16,fontSize:12,color:C.dim,textAlign:"center"}}>{ru?"Пусто":"Pusto"}</div>;
   return(
-    <div style={{padding:18,height:"100%",overflowY:"auto",display:"flex",flexDirection:"column",gap:14}}>
+    <div className="sc-page" style={{padding:18,height:"100%",overflowY:"auto",display:"flex",flexDirection:"column",gap:14}}>
+      <style>{`.sc-page>*{flex-shrink:0}`}</style>
       <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <div style={{fontSize:18,fontWeight:900,color:C.text}}>◆ {ru?"Центр продаж":"Centrum sprzedaży"}</div>
         <select value={mgr} onChange={e=>setMgr(e.target.value)} style={{background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,padding:"5px 10px",fontSize:12,cursor:"pointer"}}><option value="all">👥 {t.allManagers}</option>{MANAGERS.map(m=><option key={m} value={m}>🧑 {m}</option>)}</select>
         <button onClick={()=>setKpOpen(true)} style={{marginLeft:"auto",background:`linear-gradient(135deg,${C.accent},#d4b896)`,border:"none",color:"#00132f",borderRadius:12,padding:"14px 28px",fontSize:16,fontWeight:900,cursor:"pointer",boxShadow:"0 6px 20px rgba(191,164,126,0.35)",letterSpacing:0.5}}>📄 {ru?"СДЕЛАТЬ КП":"ZRÓB KP"}</button>
       </div>
+      <ScPeriodBar from={pFrom} to={pTo} setFrom={setPFrom} setTo={setPTo} ru={ru} t={t}/>
 
       {/* ★ ПРИОРИТЕТ — 2.5 трёхмесячной давности */}
       <div style={{background:"linear-gradient(135deg,rgba(250,204,21,0.12),rgba(191,164,126,0.06))",border:"2px solid rgba(250,204,21,0.6)",borderRadius:14,overflow:"hidden"}}>
@@ -6898,29 +6968,28 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
 
       {/* Продажи месяца */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
-        <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5}}>★ {ru?"Продажи за месяц":"Sprzedaże w miesiącu"}</div><div style={{fontSize:24,fontWeight:900,color:C.accent}}>{fmtM(monthRev)}</div><div style={{fontSize:11,color:C.muted}}>{monthSales.length} {t.many}</div></div>
+        <div style={{background:C.card,border:`2px solid ${C.accentBorder}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5}}>★ {ru?"Продажи":"Sprzedaże"} · {scLabel(pFrom,pTo,ru)}</div><div style={{fontSize:24,fontWeight:900,color:C.accent}}>{fmtM(monthRev)}</div><div style={{fontSize:11,color:C.muted}}>{monthSales.length} {t.many}</div></div>
         {(mgr==="all"?MANAGERS:[mgr]).map(m=>{const ms=monthSales.filter(x=>x.manager===m);const rv=ms.reduce((a,x)=>a+(x.saleAmount||0),0);return(<div key={m} style={{background:C.card,border:`1px solid ${MGR_COLOR[m]}44`,borderRadius:12,padding:"12px 14px"}}><div style={{display:"flex",alignItems:"center",gap:6}}><Avatar name={m} color={MGR_COLOR[m]} size={20}/><span style={{fontSize:11,fontWeight:700,color:MGR_COLOR[m]}}>{m}</span></div><div style={{fontSize:18,fontWeight:800,color:MGR_COLOR[m]}}>{fmtM(rv)}</div><div style={{fontSize:10,color:C.muted}}>{ms.length} {t.many}</div></div>);})}
       </div>
 
-      {/* Этот месяц vs прошлый — по выбранному кабинету (у Дани — вся команда) */}
-      {(()=>{
-        const d0=new Date();const pmS=new Date(d0.getFullYear(),d0.getMonth()-1,1),pmE=new Date(d0.getFullYear(),d0.getMonth(),0);
-        const iso=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;
-        const pS=iso(pmS),pE=iso(pmE);
-        // прошлый месяц — тот же отрезок дней, чтобы сравнение было честным (1..сегодня)
-        const dayN=d0.getDate();const pE2=iso(new Date(pmS.getFullYear(),pmS.getMonth(),Math.min(dayN,pmE.getDate())));
+      {/* 📊 Sales & Client — вся статистика на одном экране */}
+      <SalesClientCard leads={leads} sales={sales} from={pFrom} to={pTo} cmp={cmp} mgr={mgr} lang={lang}/>
+
+      {/* Выбранный период vs прошлый — по выбранному кабинету (у Дани — вся команда) */}
+      {cmp&&(()=>{
+        const dayN=scParse(pTo).getDate();
         const calc=(a,b)=>{const ld=filterByCustomRange(my(leads),a,b);const sl=filterByCustomRange(my(sales),a,b);const rv=sl.reduce((x,y)=>x+(y.saleAmount||0),0);
           return {leads:ld.length,q:ld.filter(l=>(parseFloat(l.score)||0)>=4).length,mwp:ld.filter(l=>(parseFloat(l.score)||0)>=4.5).length,v:ld.filter(l=>(parseFloat(l.score)||0)>=5).length,vd:ld.filter(l=>(parseFloat(l.score)||0)>=5.5).length,s:sl.length,rev:rv,conv:ld.length?Math.round(sl.length/ld.length*1000)/10:0};};
-        const cur=calc(mStart,today),prev=calc(pS,pE2),prevFull=calc(pS,pE);
+        const cur=calc(pFrom,pTo),prev=calc(cmp.from,cmp.to),prevFull=cmp.full?calc(cmp.full.from,cmp.full.to):null;
         const rows=[["Лиды","leads"],["Квал (4+)","q"],["MWP (4.5+)","mwp"],["Визит назначен (5+)","v"],["Визит состоялся (5.5+)","vd"],["Продажи","s"],["Выручка","rev"],["Конверсия лид→продажа, %","conv"]];
         const dl=(a,b)=>{if(!b)return a?"new":"—";const p=Math.round((a-b)/b*100);return (p>0?"+":"")+p+"%";};
         return(
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px"}}>
-          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📊 {mgr==="all"?(ru?"Вся команда":"Cały zespół"):mgr} · {ru?"этот месяц vs прошлый":"ten miesiąc vs poprzedni"} <span style={{color:C.dim,textTransform:"none"}}>({ru?`1–${dayN} число vs те же дни`:`1–${dayN} vs te same dni`})</span></div>
+          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>📊 {mgr==="all"?(ru?"Вся команда":"Cały zespół"):mgr} · {scLabel(pFrom,pTo,ru)} vs {scLabel(cmp.from,cmp.to,ru)} {cmp.kind==="mtd"&&<span style={{color:C.dim,textTransform:"none"}}>({ru?`1–${dayN} число vs те же дни`:`1–${dayN} vs te same dni`})</span>}</div>
           <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead><tr style={{color:C.muted,fontSize:10,textTransform:"uppercase"}}><th style={{textAlign:"left",padding:"6px 8px"}}>{ru?"Показатель":"Wskaźnik"}</th><th style={{textAlign:"right",padding:"6px 8px"}}>{ru?"Этот":"Ten"}</th><th style={{textAlign:"right",padding:"6px 8px"}}>{ru?"Прошлый (те же дни)":"Poprz. (te dni)"}</th><th style={{textAlign:"right",padding:"6px 8px"}}>Δ</th><th style={{textAlign:"right",padding:"6px 8px"}}>{ru?"Прошлый целиком":"Poprz. cały"}</th></tr></thead>
+            <thead><tr style={{color:C.muted,fontSize:10,textTransform:"uppercase"}}><th style={{textAlign:"left",padding:"6px 8px"}}>{ru?"Показатель":"Wskaźnik"}</th><th style={{textAlign:"right",padding:"6px 8px"}}>{ru?"Период":"Okres"}</th><th style={{textAlign:"right",padding:"6px 8px"}}>{cmp.kind==="mtd"?(ru?"Прошлый (те же дни)":"Poprz. (te dni)"):(ru?"Прошлый":"Poprzedni")}</th><th style={{textAlign:"right",padding:"6px 8px"}}>Δ</th>{prevFull&&<th style={{textAlign:"right",padding:"6px 8px"}}>{ru?"Прошлый целиком":"Poprz. cały"}</th>}</tr></thead>
             <tbody>{rows.map(([lab,k])=>{const a=cur[k],b=prev[k];const up=a>b,eq=a===b;const f=v=>k==="rev"?fmtM(v):v;return(
-              <tr key={k} style={{borderTop:`1px solid ${C.border}`}}><td style={{padding:"6px 8px",color:C.text}}>{lab}</td><td style={{padding:"6px 8px",textAlign:"right",fontWeight:800,color:C.text}}>{f(a)}</td><td style={{padding:"6px 8px",textAlign:"right",color:C.muted}}>{f(b)}</td><td style={{padding:"6px 8px",textAlign:"right",fontWeight:800,color:eq?C.muted:up?C.green:C.red}}>{dl(a,b)}</td><td style={{padding:"6px 8px",textAlign:"right",color:C.dim}}>{f(prevFull[k])}</td></tr>);})}</tbody>
+              <tr key={k} style={{borderTop:`1px solid ${C.border}`}}><td style={{padding:"6px 8px",color:C.text}}>{lab}</td><td style={{padding:"6px 8px",textAlign:"right",fontWeight:800,color:C.text}}>{f(a)}</td><td style={{padding:"6px 8px",textAlign:"right",color:C.muted}}>{f(b)}</td><td style={{padding:"6px 8px",textAlign:"right",fontWeight:800,color:eq?C.muted:up?C.green:C.red}}>{dl(a,b)}</td>{prevFull&&<td style={{padding:"6px 8px",textAlign:"right",color:C.dim}}>{f(prevFull[k])}</td>}</tr>);})}</tbody>
           </table></div>
         </div>);
       })()}
@@ -6928,7 +6997,7 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
       {/* Пьедестал месяца — MOLODEC */}
       {(()=>{
         // Пьедестал ОБЩИЙ во всех кабинетах: считаем по продажам всей команды, не только выбранного менеджера
-        const allMonth=filterByCustomRange(sales||[],mStart,today);const teamRev=allMonth.reduce((a,x)=>a+(x.saleAmount||0),0);
+        const allMonth=filterByCustomRange(sales||[],pFrom,pTo);const teamRev=allMonth.reduce((a,x)=>a+(x.saleAmount||0),0);
         const rev={};allMonth.forEach(x=>{if(x.manager)rev[x.manager]=(rev[x.manager]||0)+(x.saleAmount||0);});
         const podium=MANAGERS.filter(m=>m!=="Danya").map(m=>({name:m,rev:rev[m]||0,cnt:allMonth.filter(x=>x.manager===m).length,pct:teamRev?Math.round((rev[m]||0)/teamRev*100):0})).sort((a,b)=>b.rev-a.rev).slice(0,3);
         if(!podium.some(p=>p.rev>0))return null;
@@ -6936,7 +7005,7 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
         const hgt={0:110,1:80,2:60};const medal=["🥇","🥈","🥉"];
         return(
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px"}}>
-          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>🏆 {t.podium} · {ru?"этот месяц":"ten miesiąc"}</div>
+          <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>🏆 {t.podium} · {scLabel(pFrom,pTo,ru)}</div>
           <div style={{display:"flex",gap:16,alignItems:"flex-end",justifyContent:"center"}}>
             {order.map(m=>{const rank=podium.indexOf(m);const c=MGR_COLOR[m.name]||C.accent;const lead=rank===0;return(
               <div key={m.name} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,flex:"0 0 140px"}}>
@@ -6954,7 +7023,7 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
 
       {/* ПРОДАЖИ за любой период — перенесено из раздела «Продажи», клик по карточке → лид */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
-        <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={onOpenLead} currentUser={currentUser}/>
+        <SalesSection range={{from:pFrom,to:pTo}} leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={onOpenLead} currentUser={currentUser}/>
       </div>
 
       {/* Рекомендации по паттерну */}
@@ -8186,9 +8255,10 @@ function TasksPage({tasks,updateDb,currentUser,lang,t,leads=[],taskTypes=[],onOp
 }
 
 // ─── SALES DYNAMICS PAGE ──────────────────────────────────────────────────────
-function DynamicsPage({leads,sales,t,lang}){
-  const [dateFrom,setDateFrom]=useState(()=>{const d=new Date();d.setDate(d.getDate()-29);return isoLocal(d);});
-  const [dateTo,setDateTo]=useState(()=>isoLocal(new Date()));
+function DynamicsPage({leads,sales,t,lang,range}){
+  const [dateFrom0,setDateFrom]=useState(()=>{const d=new Date();d.setDate(d.getDate()-29);return isoLocal(d);});
+  const [dateTo0,setDateTo]=useState(()=>isoLocal(new Date()));
+  const dateFrom=range&&range.from?range.from:dateFrom0,dateTo=range&&range.to?range.to:dateTo0;
   const [mgr,setMgr]=useState("all");
   const [visible,setVisible]=useState({qual:true,visits:true,sales:true,avg:false,conv45:true,conv56:true});
   const [smooth,setSmooth]=useState(true);
@@ -8294,7 +8364,7 @@ function DynamicsPage({leads,sales,t,lang}){
             {MANAGERS.map(m=><option key={m} value={m}>🧑 {m}</option>)}
           </select>
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end"}}>
+        {range&&range.from?<div style={{fontSize:11,color:C.muted}}>📅 {isoToDot(dateFrom)} — {isoToDot(dateTo)}</div>:<div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end"}}>
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
             <span style={{fontSize:11,color:C.muted}}>📅</span>
             <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={ins}/>
@@ -8309,7 +8379,7 @@ function DynamicsPage({leads,sales,t,lang}){
               </button>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* Summary */}
@@ -8394,11 +8464,12 @@ function DynamicsPage({leads,sales,t,lang}){
     </div>
   );
 }
-function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead,currentUser}){
-  // По умолчанию — текущий месяц (а не всё время)
+function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead,currentUser,range}){
+  // По умолчанию — текущий месяц (а не всё время); в «Центре продаж» период задаётся сверху для всего раздела
   const _mStart=(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`;})();
-  const [dateFrom,setDateFrom]=useState(_mStart);
-  const [dateTo,setDateTo]=useState(getToday());
+  const [dateFrom0,setDateFrom]=useState(_mStart);
+  const [dateTo0,setDateTo]=useState(getToday());
+  const dateFrom=range?range.from:dateFrom0,dateTo=range?range.to:dateTo0;
   // Открыть лида по клику на карточку продажи
   const openLeadOfSale=(s)=>{
     const byId=(leads||[]).find(l=>l.leadId===s.leadId)||(leads||[]).find(l=>l.phone===s.phone);
@@ -8449,7 +8520,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead,
   };
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t}/></div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div style={{fontSize:16,fontWeight:700,color:C.text}}>★ {t.saleSectionTitle} <span style={{fontSize:11,color:C.muted}}>({fs.length})</span></div>{!range&&<DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t}/>}</div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
         <span style={{fontSize:11,color:C.muted}}>{lang==="pl"?"Menedżer":"Менеджер"}:</span>
         {["all",...MANAGERS].map(m=>{const on=fMgr===m;const c=m==="all"?C.accent:(MGR_COLOR[m]||C.accent);return <button key={m} onClick={()=>setFMgr(m)} style={{background:on?`${c}26`:"transparent",border:`1px solid ${on?c:C.border}`,color:on?c:C.muted,borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:on?800:500,cursor:"pointer"}}>{m==="all"?(lang==="pl"?"Wszyscy":"Все"):m}</button>;})}
