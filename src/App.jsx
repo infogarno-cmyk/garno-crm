@@ -996,6 +996,7 @@ function useDatabase(){
       deletedOrderIds:[...new Set([...(local.deletedOrderIds||[]),...(remote?.deletedOrderIds||[])])],
       // 🎯 Цели: по id, побеждает более свежая правка; удалённые не возвращаются
       goals:(()=>{const dead=new Set([...(local.deletedGoalIds||[]),...(remote?.deletedGoalIds||[])]);const m=new Map();(remote?.goals||[]).forEach(x=>m.set(x.id,x));(local.goals||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()].filter(x=>!dead.has(x.id));})(),
+      updates:(()=>{const m=new Map();(remote?.updates||[]).forEach(x=>m.set(x.id,x));(local.updates||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()];})(),
       abTests:(()=>{const m=new Map();(remote?.abTests||[]).forEach(x=>m.set(x.id,x));(local.abTests||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()];})(),
       deletedGoalIds:[...new Set([...(local.deletedGoalIds||[]),...(remote?.deletedGoalIds||[])])],
       // Журнал выполненных задач (чтобы KPI «выполнено задач» не обнулялся после «Очистить DONE»)
@@ -1679,11 +1680,13 @@ function LeadFileThumb({f,onDelete,pl}){
   const [url,setUrl]=useState(null);const [err,setErr]=useState(false);
   const isImg=/^image\//.test(f.type||"")||/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(f.name||"");
   useEffect(()=>{let alive=true;leadFileUrl(f.path).then(u=>{if(alive)setUrl(u);}).catch(()=>{if(alive)setErr(true);});return()=>{alive=false;};},[f.path]);
-  const open=()=>{if(url)window.open(url,"_blank");};
+  const [view,setView]=useState(false);
+  const open=()=>{if(!url)return;if(isImg)setView(true);else window.open(url,"_blank");};
   return(<div style={{position:"relative"}} title={`${f.name||""} · ${f.by||""}${f.at?" · "+new Date(f.at).toLocaleString(pl?"pl-PL":"ru-RU"):""}`}>
     {isImg&&url?<img src={url} alt={f.name} onClick={open} style={{width:96,height:96,objectFit:"cover",borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",display:"block",cursor:"zoom-in"}}/>
       :<div onClick={open} style={{width:96,height:96,borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,cursor:url?"pointer":"default",color:err?"#ef4444":"#38bdf8",fontSize:10,textAlign:"center",padding:4,boxSizing:"border-box",overflow:"hidden"}}><span style={{fontSize:22}}>{err?"⚠":isImg?"⏳":"📄"}</span><span style={{wordBreak:"break-all",maxHeight:28,overflow:"hidden"}}>{f.name}</span></div>}
     {onDelete&&<button onClick={()=>onDelete(f)} title={pl?"Usuń":"Удалить"} style={{position:"absolute",top:-6,right:-6,width:20,height:20,borderRadius:"50%",border:"none",background:"#ef4444",color:"#fff",fontSize:11,fontWeight:900,cursor:"pointer",lineHeight:"20px",padding:0}}>✕</button>}
+    {view&&url&&<ImgViewer src={url} title={f.name} onClose={()=>setView(false)}/>}
   </div>);
 }
 function Dot({color}){return <span style={{width:7,height:7,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>;}
@@ -1771,7 +1774,7 @@ function CalPopup({initDate,initEvent,onSave,onDelete,onClose,t,lang}){
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontSize:14,color:C.muted}}>👤</span>
-            <select value={form.manager} onChange={e=>set("manager",e.target.value)} style={{...ins,width:"auto"}}>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>
+            <select value={form.manager} onChange={e=>set("manager",e.target.value)} style={{...ins,width:"auto"}}>{leadAssignees().map(m=><option key={m}>{m}</option>)}</select>
           </div>
           <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
             <span style={{fontSize:14,color:C.muted,marginTop:8}}>📝</span>
@@ -1969,7 +1972,7 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=
           </div>);})()}
 
           {/* STONE UPSELL */}
-          {stoneAmt&&(
+          {stoneAmt>0&&(
             <div style={{marginTop:12,background:"linear-gradient(135deg,#7f1d1d,#991b1b)",borderRadius:10,padding:"14px 20px",border:"2px solid #fca5a5"}}>
               <div style={{fontSize:11,color:"#fca5a5",fontWeight:700,marginBottom:8}}>
                 🔥 {L("RABAT! Blat premium z konglomeratu kwarcowego","ЗНИЖКА! Преміум стільниця з кварцового конгломерату","DISCOUNT! Premium quartz composite countertop")}
@@ -2297,7 +2300,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
             <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.action}</div><select value={form.action} onChange={e=>set("action",e.target.value)} style={{...ins,color:ACT_COLOR[form.action]||"#fff",borderColor:ACT_COLOR[form.action]||C.borderMd}}>{ACTIONS.map(a=><option key={a} value={a}>{t[a]||a}</option>)}</select></div>
           </div>
           {form.action==="push"&&<div style={{background:"rgba(249,115,22,0.08)",border:`1px solid ${PUSH_C}55`,borderRadius:8,padding:"9px 11px"}}><div style={{fontSize:10,color:PUSH_C,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:700}}>🚀 {t.pushDate}</div><div style={{display:"flex",gap:8}}><input type="date" value={form.pushDate||""} onChange={e=>set("pushDate",e.target.value)} style={{...ins,colorScheme:"dark"}}/><input type="time" value={form.pushTime||"12:00"} onChange={e=>set("pushTime",e.target.value)} style={{...ins,colorScheme:"dark",maxWidth:110}}/></div></div>}
-          <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.manager}</div><select value={form.manager} onChange={e=>set("manager",e.target.value)} style={ins}><option value="">{lang==="ru"?"— не назначен —":"— nieprzypisany —"}</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select></div>
+          <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.manager}</div><select value={form.manager} onChange={e=>set("manager",e.target.value)} style={ins}><option value="">{lang==="ru"?"— не назначен —":"— nieprzypisany —"}</option>{leadAssignees().map(m=><option key={m}>{m}</option>)}</select></div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.period}</div><select value={form.budgetTimeline} onChange={e=>set("budgetTimeline",e.target.value)} style={{...ins,borderColor:BUD_COLOR[form.budgetTimeline]||C.borderMd}}>{BUDGETS.map(b=><option key={b} value={b}>{t[b]||b}</option>)}</select></div>
           <div><div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>{t.notes}</div><textarea value={form.notes} onChange={e=>set("notes",e.target.value)} rows={2} style={{...ins,resize:"vertical"}}/></div>
         </div>
@@ -2345,7 +2348,7 @@ function Sidebar({page,setPage,lang,collapsed,mgr,setMgr,unreadTasks=0,pushDue=0
       <nav className={`g-nav${intro?" intro":""}`} style={{flex:1,padding:"10px 8px",display:"flex",flexDirection:"column",gap:NAV_GAP,overflowY:"auto",overflowX:"hidden",position:"relative"}}>
         <div className="g-ind" style={{position:"absolute",left:8,right:8,top:10,height:NAV_H,borderRadius:13,transform:`translateY(${Math.max(0,idx)*(NAV_H+NAV_GAP)}px)`,opacity:idx<0?0:1,pointerEvents:"none",background:C.accentDim,border:`1px solid ${C.accentBorder}`,transition:"transform .55s cubic-bezier(.22,.9,.24,1), opacity .3s"}}/>
         {NAV.map((item,i)=>{const active=page===item.key;return(<button key={item.key} className={active?"on":""} onClick={()=>setPage(item.key)} title={collapsed?(lang==="ru"?item.ru:item.pl):undefined} style={{"--d":intro?`${i*0.09}s`:"0s",position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:12,height:NAV_H,minHeight:NAV_H,padding:"0 12px",borderRadius:13,border:"none",background:"transparent",color:active?C.accent:C.muted,cursor:"pointer",textAlign:"left",fontSize:13,transition:"color .3s"}}><NavIcon k={item.key}/>{!collapsed&&<span style={{whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,color:active?C.text:undefined}}>{lang==="ru"?item.ru:item.pl}{item.key==="tasks"&&unreadTasks>0?<span style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>{unreadTasks}</span>:null}{item.key==="leads"&&freshLeads>0?<span style={{background:"#facc15",color:"#00132f",borderRadius:10,fontSize:9,fontWeight:900,padding:"0 6px",lineHeight:"14px",animation:"pulse 0.9s infinite"}}>🚨 {freshLeads}</span>:null}{item.key==="leads"&&pushDue>0?<span title={t.pushToday} style={{background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {pushDue}</span>:null}{item.key==="alerts"&&aiUnread>0?<span title={t.aiUnread} style={{display:"inline-flex",alignItems:"center",gap:2,background:"#ef4444",color:"#fff",borderRadius:10,fontSize:9,fontWeight:800,padding:"0 5px",lineHeight:"14px"}}>⚠️ {aiUnread}</span>:null}</span>}</button>);})}
-        {!collapsed&&page==="leads"&&(<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}}>{["all",...MANAGERS].map(m=>(<button key={m} onClick={()=>setMgr(m)} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderRadius:10,border:"none",background:mgr===m?`${MGR_COLOR[m]||C.accent}22`:"transparent",color:mgr===m?(MGR_COLOR[m]||C.accent):C.muted,cursor:"pointer",fontSize:12,fontWeight:mgr===m?600:400,width:"100%",textAlign:"left"}}>{m!=="all"&&<Avatar name={m} color={MGR_COLOR[m]} size={18}/>}{m==="all"?`◉ ${lang==="ru"?"Все":"Wszyscy"}`:m}</button>))}</div>)}
+        {!collapsed&&(page==="leads"||page==="orders")&&(<div style={{marginTop:10,borderTop:`1px solid ${C.border}`,paddingTop:10}}>{["all",...leadAssignees()].map(m=>(<button key={m} onClick={()=>setMgr(m)} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 10px",borderRadius:10,border:"none",background:mgr===m?`${MGR_COLOR[m]||C.accent}22`:"transparent",color:mgr===m?(MGR_COLOR[m]||C.accent):C.muted,cursor:"pointer",fontSize:12,fontWeight:mgr===m?600:400,width:"100%",textAlign:"left"}}>{m!=="all"&&<Avatar name={m} color={MGR_COLOR[m]} size={18}/>}{m==="all"?`◉ ${lang==="ru"?"Все":"Wszyscy"}`:m}</button>))}</div>)}
       </nav>
     </div>
   );
@@ -2360,8 +2363,134 @@ function SearchBox({value,onChange,placeholder,style}){
   const set=v=>{setQ(v);clearTimeout(tm.current);tm.current=setTimeout(()=>{tm.current=null;onChange(v);},v?200:0);};
   return <input value={q} onChange={e=>set(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){clearTimeout(tm.current);tm.current=null;onChange(q);}}} placeholder={placeholder} style={style}/>;
 }
+// ─── ПРОСМОТР КАРТИНОК: щипок двумя пальцами, двойной тап, колесо, кнопки ─────
+function ImgViewer({src,onClose,title}){
+  const [z,setZ]=useState(1);const [o,setO]=useState({x:0,y:0});const pts=useRef(new Map());const g=useRef(null);const last=useRef(0);
+  const clamp=v=>Math.max(1,Math.min(6,v));
+  useEffect(()=>{const k=e=>{if(e.key==="Escape")onClose();};window.addEventListener("keydown",k);return()=>window.removeEventListener("keydown",k);},[onClose]);
+  const down=e=>{e.preventDefault();pts.current.set(e.pointerId,{x:e.clientX,y:e.clientY});try{e.currentTarget.setPointerCapture(e.pointerId);}catch{}
+    const a=[...pts.current.values()];
+    if(a.length===2)g.current={d:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)||1,z0:z,o0:o,m:{x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2}};
+    else{const now=Date.now();if(now-last.current<300){setZ(v=>v>1?1:2.5);setO({x:0,y:0});}last.current=now;g.current={p:{x:e.clientX,y:e.clientY},o0:o};}};
+  const move=e=>{if(!pts.current.has(e.pointerId))return;pts.current.set(e.pointerId,{x:e.clientX,y:e.clientY});const a=[...pts.current.values()];const G=g.current;if(!G)return;
+    if(a.length>=2&&G.d){const d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);const m={x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2};setZ(clamp(G.z0*d/G.d));setO({x:G.o0.x+m.x-G.m.x,y:G.o0.y+m.y-G.m.y});}
+    else if(G.p&&z>1)setO({x:G.o0.x+e.clientX-G.p.x,y:G.o0.y+e.clientY-G.p.y});};
+  const up=e=>{pts.current.delete(e.pointerId);const a=[...pts.current.values()];g.current=a.length===1?{p:a[0],o0:o}:null;if(z<=1.01)setO({x:0,y:0});};
+  const wheel=e=>{setZ(v=>{const n=clamp(v*(e.deltaY<0?1.15:1/1.15));if(n<=1)setO({x:0,y:0});return n;});};
+  const B={width:40,height:40,borderRadius:12,border:"1px solid rgba(255,255,255,.25)",background:"rgba(0,10,30,.6)",color:"#fff",fontSize:18,cursor:"pointer"};
+  return <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:4000,background:"rgba(0,6,20,.94)",display:"flex",flexDirection:"column"}}>
+    <div onClick={e=>e.stopPropagation()} style={{display:"flex",gap:8,alignItems:"center",padding:"calc(10px + env(safe-area-inset-top,0px)) 12px 10px"}}>
+      <div style={{flex:1,minWidth:0,color:"rgba(255,255,255,.7)",fontSize:12,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{title||""}</div>
+      <button style={B} onClick={()=>{setZ(v=>{const n=clamp(v/1.4);if(n<=1)setO({x:0,y:0});return n;});}}>−</button>
+      <button style={{...B,width:64,fontSize:13}} onClick={()=>{setZ(1);setO({x:0,y:0});}}>{Math.round(z*100)}%</button>
+      <button style={B} onClick={()=>setZ(v=>clamp(v*1.4))}>＋</button>
+      <a href={src} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{...B,display:"grid",placeItems:"center",textDecoration:"none"}}>↗</a>
+      <button style={B} onClick={onClose}>✕</button>
+    </div>
+    <div onClick={e=>e.stopPropagation()} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={wheel}
+      style={{flex:1,minHeight:0,overflow:"hidden",display:"grid",placeItems:"center",touchAction:"none",cursor:z>1?"grab":"zoom-in"}}>
+      <img src={src} alt="" draggable={false} style={{maxWidth:"100%",maxHeight:"100%",transform:`translate(${o.x}px,${o.y}px) scale(${z})`,transformOrigin:"center",transition:pts.current.size?"none":"transform .12s",userSelect:"none",pointerEvents:"none",background:"#fff"}}/>
+    </div>
+    <div style={{textAlign:"center",color:"rgba(255,255,255,.45)",fontSize:11,padding:"6px 0 calc(10px + env(safe-area-inset-bottom,0px))"}}>щипок двумя пальцами — приблизить · двойной тап — ×2,5 · Esc — закрыть</div>
+  </div>;}
+
+// ─── UPDATE: правки CRM от команды ─────────────────────────────────────────────
+// Кнопка ✍ в шапке → выделяешь область экрана → пишешь, что поправить. Сохраняется кто, когда, страница,
+// область (координаты + скрин + текст под ней). Список — Настройки → Update. «Сделано» и «Скопировать» — только у Дани.
+const UPD_ADMIN=["Danya"];
+const UPD_PAGES={leads:["Лиды","Leady"],orders:["Заказы","Zamówienia"],salescenter:["Центр продаж","Centrum sprzedaży"],tasks:["Задачи","Zadania"],settings:["Настройки","Ustawienia"],tests:["Тесты","Testy"],alerts:["Аллерты","Alerty"],calendar:["Календарь","Kalendarz"],dashboard:["Дашборд","Dashboard"],sales:["Продажи","Sprzedaż"],funnel:["Воронка","Lejek"],analytics:["Аналитика","Analityka"]};
+const updPage=(p,pl)=>(UPD_PAGES[p]||[p||"—",p||"—"])[pl?1:0];
+let _h2c=null;
+function updLoadH2C(){if(window.html2canvas)return Promise.resolve(window.html2canvas);if(_h2c)return _h2c;
+  _h2c=new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";s.onload=()=>window.html2canvas?res(window.html2canvas):rej(new Error("no html2canvas"));s.onerror=()=>{_h2c=null;rej(new Error("load"));};document.head.appendChild(s);});return _h2c;}
+function updTextIn(r){const out=[];let n=0;try{const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let x;
+  while((x=w.nextNode())&&n<500){const t=(x.textContent||"").replace(/\s+/g," ").trim();if(!t||t.length<2)continue;const el=x.parentElement;if(!el||el.closest("[data-upd-ui]"))continue;
+    const b=el.getBoundingClientRect();if(!b.width||b.right<r.x||b.left>r.x+r.w||b.bottom<r.y||b.top>r.y+r.h)continue;const st=getComputedStyle(el);if(st.visibility==="hidden"||st.display==="none")continue;
+    if(out[out.length-1]!==t){out.push(t);n+=t.length;}}}catch{}return out.join(" · ").slice(0,500);}
+async function updShot(r){
+  try{const h2c=await Promise.race([updLoadH2C(),new Promise((_,j)=>setTimeout(()=>j(new Error("timeout")),8000))]);
+    const sc=Math.min(1.5,window.devicePixelRatio||1);
+    const cv=await h2c(document.body,{x:r.x+window.scrollX,y:r.y+window.scrollY,width:r.w,height:r.h,scale:sc,logging:false,useCORS:true,backgroundColor:"#020a1e",ignoreElements:el=>el.hasAttribute&&el.hasAttribute("data-upd-ui")});
+    const k=Math.min(1,1100/cv.width);const o=document.createElement("canvas");o.width=Math.round(cv.width*k);o.height=Math.round(cv.height*k);o.getContext("2d").drawImage(cv,0,0,o.width,o.height);
+    return o;}catch{return null;}}
+function UpdButton({currentUser,page,updateDb,lang}){const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;
+  const [mode,setMode]=useState(null); // null | "sel" | "form"
+  const [r,setR]=useState(null);const st=useRef(null);const [txt,setTxt]=useState("");const [busy,setBusy]=useState(false);const [toast,setToast]=useState(null);const shotRef=useRef(null);
+  useEffect(()=>{if(!mode)return;const k=e=>{if(e.key==="Escape"){setMode(null);setR(null);}};window.addEventListener("keydown",k);return()=>window.removeEventListener("keydown",k);},[mode]);
+  const down=e=>{e.preventDefault();st.current={x:e.clientX,y:e.clientY};setR({x:e.clientX,y:e.clientY,w:0,h:0});};
+  const move=e=>{if(!st.current)return;const a=st.current;setR({x:Math.min(a.x,e.clientX),y:Math.min(a.y,e.clientY),w:Math.abs(e.clientX-a.x),h:Math.abs(e.clientY-a.y)});};
+  const up=async()=>{if(!st.current)return;st.current=null;if(!r||r.w<12||r.h<12){setR(null);return;}
+    setMode("hide");await new Promise(x=>requestAnimationFrame(()=>requestAnimationFrame(x)));
+    const cv=await updShot(r);shotRef.current={cv,text:updTextIn(r)};setMode("form");};
+  const send=async()=>{const c=txt.trim();if(!c||busy)return;setBusy(true);const id="up"+Date.now().toString(36);const now=Date.now();let shot=null;const S=shotRef.current||{};
+    if(S.cv){try{const blob=await new Promise(res=>S.cv.toBlob(res,"image/jpeg",0.75));if(blob){const f=new File([blob],`upd_${id}.jpg`,{type:"image/jpeg"});const meta=await uploadLeadFile(`upd_${id}`,f);shot={path:meta.path};}}
+      catch{try{const k=Math.min(1,520/S.cv.width);const o=document.createElement("canvas");o.width=Math.round(S.cv.width*k);o.height=Math.round(S.cv.height*k);o.getContext("2d").drawImage(S.cv,0,0,o.width,o.height);const d=o.toDataURL("image/jpeg",0.6);if(d.length<160000)shot={data:d};}catch{}}}
+    const e={id,by:currentUser||"—",at:now,page:page||"",rect:{x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)},vw:window.innerWidth,vh:window.innerHeight,text:S.text||"",comment:c,shot,status:"open",updatedAt:now};
+    updateDb(p=>({...p,updates:[...(p.updates||[]),e]}),true);
+    setBusy(false);setMode(null);setR(null);setTxt("");shotRef.current=null;setToast(L("✓ Правка отправлена — видно в Настройки → Update","✓ Uwaga wysłana — widać w Ustawienia → Update"));setTimeout(()=>setToast(null),3500);};
+  const ov={position:"fixed",inset:0,zIndex:3900};
+  return <>
+    <button onClick={()=>{setMode("sel");setR(null);}} title={L("Выделить область и написать правку для CRM","Zaznacz obszar i napisz uwagę do CRM")} style={{display:"flex",alignItems:"center",gap:6,background:C.card,border:`1px solid ${C.border}`,borderRadius:7,padding:"4px 12px",cursor:"pointer",fontSize:11,fontWeight:600,color:C.muted,whiteSpace:"nowrap"}}><span style={{fontSize:14}}>✍</span>{L("Правка","Uwaga")}</button>
+    {mode==="sel"&&<div data-upd-ui="1" onPointerDown={down} onPointerMove={move} onPointerUp={up} style={{...ov,cursor:"crosshair",background:r&&r.w?"transparent":"rgba(0,8,24,.35)",touchAction:"none"}}>
+      {!r||!r.w?<div style={{position:"absolute",top:70,left:"50%",transform:"translateX(-50%)",background:"rgba(10,26,58,.95)",border:"1px solid rgba(227,184,96,.6)",borderRadius:12,padding:"10px 16px",color:"#fff",fontSize:13,fontWeight:700,whiteSpace:"nowrap"}}>✍ {L("Выдели мышкой или пальцем область, которую надо поправить · Esc — отмена","Zaznacz obszar do poprawy · Esc — anuluj")}</div>:null}
+      {r&&r.w>0&&<div style={{position:"absolute",left:r.x,top:r.y,width:r.w,height:r.h,border:"2px solid #e3b860",boxShadow:"0 0 0 9999px rgba(0,8,24,.45)",borderRadius:6}}/>}
+    </div>}
+    {mode==="hide"&&<div data-upd-ui="1" style={{...ov,cursor:"wait"}}/>}
+    {mode==="form"&&r&&<div data-upd-ui="1" style={{...ov,background:"rgba(0,8,24,.55)"}} onClick={()=>{setMode(null);setR(null);}}>
+      <div style={{position:"absolute",left:r.x,top:r.y,width:r.w,height:r.h,border:"2px solid #e3b860",borderRadius:6,pointerEvents:"none"}}/>
+      <div onClick={e=>e.stopPropagation()} style={{position:"absolute",left:Math.max(10,Math.min(window.innerWidth-370,r.x)),top:r.y+r.h+10+230>window.innerHeight?Math.max(10,r.y-240):r.y+r.h+10,width:360,maxWidth:"calc(100vw - 20px)",background:"linear-gradient(165deg,#0a1a3a,#00132f)",border:"1px solid rgba(227,184,96,.6)",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:8,boxShadow:"0 20px 60px rgba(0,0,0,.6)"}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#fff"}}>✍ {L("Что поправить здесь?","Co tu poprawić?")}</div>
+        <div style={{fontSize:10.5,color:"rgba(255,255,255,.5)"}}>{currentUser||"—"} · {updPage(page,pl)} · {Math.round(r.w)}×{Math.round(r.h)}{shotRef.current&&shotRef.current.cv?" · 📸":""}</div>
+        <textarea autoFocus value={txt} onChange={e=>setTxt(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey))send();}} rows={4} placeholder={L("Например: здесь нужна колонка с датой монтажа","Np. tu potrzebna kolumna z datą montażu")} style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.18)",borderRadius:9,color:"#fff",padding:"8px 10px",fontSize:13,resize:"vertical",outline:"none",fontFamily:"inherit"}}/>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button onClick={()=>{setMode("sel");setR(null);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,.25)",color:"#ddd",borderRadius:9,padding:"7px 12px",fontSize:12,cursor:"pointer"}}>↺ {L("Другая область","Inny obszar")}</button>
+          <button onClick={send} disabled={!txt.trim()||busy} style={{background:"linear-gradient(135deg,#f6e0aa,#e3b860)",border:"none",color:"#08153a",borderRadius:9,padding:"7px 16px",fontSize:12.5,fontWeight:900,cursor:txt.trim()?"pointer":"not-allowed",opacity:txt.trim()?1:.5}}>{busy?"⏳":L("Отправить","Wyślij")}</button>
+        </div>
+      </div>
+    </div>}
+    {toast&&<div data-upd-ui="1" style={{position:"fixed",left:"50%",bottom:24,transform:"translateX(-50%)",zIndex:3950,background:"rgba(10,26,58,.97)",border:"1px solid rgba(71,230,160,.6)",color:"#fff",borderRadius:12,padding:"10px 16px",fontSize:13,fontWeight:700}}>{toast}</div>}
+  </>;}
+function UpdShot({u,onOpen}){const [src,setSrc]=useState(u.shot&&u.shot.data||null);
+  useEffect(()=>{let ok=true;if(u.shot&&u.shot.path&&!u.shot.data)leadFileUrl(u.shot.path).then(x=>{if(ok)setSrc(x);}).catch(()=>{});return()=>{ok=false;};},[u.shot]);
+  const map=<div title="Где на экране" style={{position:"relative",width:120,height:Math.round(120*(u.vh||800)/(u.vw||1400)),border:`1px solid ${C.borderMd}`,borderRadius:6,background:"rgba(255,255,255,.03)",flexShrink:0}}>
+    <div style={{position:"absolute",left:`${u.rect.x/(u.vw||1)*100}%`,top:`${u.rect.y/(u.vh||1)*100}%`,width:`${Math.max(2,u.rect.w/(u.vw||1)*100)}%`,height:`${Math.max(2,u.rect.h/(u.vh||1)*100)}%`,background:"rgba(227,184,96,.35)",border:"1px solid #e3b860",borderRadius:2}}/></div>;
+  return <div style={{display:"flex",gap:8,alignItems:"flex-start",flexShrink:0}}>{src?<img src={src} alt="" onClick={()=>onOpen(src)} style={{maxWidth:220,maxHeight:130,borderRadius:8,border:`1px solid ${C.border}`,cursor:"zoom-in",display:"block"}}/>:null}{map}</div>;}
+function updCopyText(list,pl){const d=x=>new Date(x).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+  const head=`GarnoCRM — правки от команды (${list.length}) · выгружено ${d(Date.now())}\n`;
+  return head+list.map((u,i)=>[`\n### ${i+1}. ${updPage(u.page,false)} — ${u.by}, ${d(u.at)}`,`Правка: ${u.comment}`,`Область: x ${u.rect.x}, y ${u.rect.y}, ${u.rect.w}×${u.rect.h} на экране ${u.vw}×${u.vh}`,u.text?`Текст в области: «${u.text}»`:null,u.shot?"Скрин: есть в CRM (Настройки → Update)":null,u.status==="done"?`Статус: сделано (${u.doneBy||"—"}, ${u.doneAt?d(u.doneAt):""})`:null].filter(Boolean).join("\n")).join("\n");}
+function UpdatesPanel({db,updateDb,currentUser,lang}){const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;const adm=UPD_ADMIN.includes(currentUser);
+  const [f,setF]=useState("open");const [view,setView]=useState(null);const [cp,setCp]=useState(null);const [arm,setArm]=useState(null);
+  const all=(db.updates||[]).filter(u=>!u.deleted).sort((a,b)=>b.at-a.at);const list=all.filter(u=>f==="all"||u.status===f);
+  const patch=(id,fn)=>updateDb(p=>({...p,updates:(p.updates||[]).map(u=>u.id===id?{...fn(u),updatedAt:Date.now()}:u)}),true);
+  const copy=async()=>{const s=updCopyText(list,pl);try{await navigator.clipboard.writeText(s);setCp(L(`✓ Скопировано ${list.length} — вставь в чат Claude`,`✓ Skopiowano ${list.length}`));}catch{setCp(s);}setTimeout(()=>setCp(c=>c&&c.length<80?null:c),4000);};
+  const d=x=>new Date(x).toLocaleString(pl?"pl-PL":"ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+  const chip=on=>({padding:"5px 12px",borderRadius:999,border:`1px solid ${on?C.accent:C.border}`,background:on?C.accentDim:"transparent",color:on?C.accent:C.muted,fontSize:12,fontWeight:700,cursor:"pointer"});
+  return <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:18}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:12}}>
+      <div style={{fontSize:11,color:C.accent,textTransform:"uppercase",letterSpacing:1,fontWeight:800}}>✍ Update · {L("правки CRM от команды","uwagi do CRM od zespołu")}</div>
+      <div style={{display:"flex",gap:6,marginLeft:"auto"}}>{[["open",L("Открытые","Otwarte")],["done",L("Сделано","Zrobione")],["all",L("Все","Wszystkie")]].map(([k,l])=><button key={k} onClick={()=>setF(k)} style={chip(f===k)}>{l} {k==="all"?all.length:all.filter(u=>u.status===k).length}</button>)}</div>
+      {adm&&<button onClick={copy} disabled={!list.length} style={{background:C.accent,color:"#00132f",border:"none",borderRadius:9,padding:"7px 14px",fontSize:12,fontWeight:900,cursor:list.length?"pointer":"not-allowed",opacity:list.length?1:.5}}>📋 {L("Скопировать для Claude","Kopiuj dla Claude")}</button>}
+    </div>
+    <div style={{fontSize:11.5,color:C.muted,marginBottom:12}}>{L("Кнопка «✍ Правка» вверху возле «Обновить»: выдели область экрана и напиши, что поправить.","Przycisk «✍ Uwaga» na górze obok «Odśwież»: zaznacz obszar i napisz, co poprawić.")}</div>
+    {cp&&<div style={{marginBottom:10}}>{cp.length<80?<div style={{fontSize:12,color:C.green,fontWeight:700}}>{cp}</div>:<textarea readOnly value={cp} rows={8} onFocus={e=>e.target.select()} style={{width:"100%",boxSizing:"border-box",background:C.surface,color:C.text,border:`1px solid ${C.borderMd}`,borderRadius:9,padding:8,fontSize:12}}/>}</div>}
+    {!list.length?<div style={{fontSize:12,color:C.dim,padding:"10px 0"}}>{L("Пока пусто","Na razie pusto")}</div>:
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>{list.map(u=><div key={u.id} style={{display:"flex",gap:12,flexWrap:"wrap",padding:"10px 12px",borderRadius:11,border:`1px solid ${u.status==="done"?"rgba(34,197,94,.35)":C.border}`,background:C.surface,opacity:u.status==="done"?.7:1}}>
+      <div style={{flex:"1 1 280px",minWidth:0,display:"flex",flexDirection:"column",gap:4}}>
+        <div style={{fontSize:11,color:C.muted}}><b style={{color:MGR_COLOR[u.by]||C.text}}>{u.by}</b> · {d(u.at)} · {updPage(u.page,pl)}{u.status==="done"?<span style={{color:C.green}}> · ✓ {L("сделано","zrobione")} {u.doneBy?`(${u.doneBy})`:""}</span>:null}</div>
+        <div style={{fontSize:13.5,color:C.text,whiteSpace:"pre-wrap"}}>{u.comment}</div>
+        {u.text&&<div style={{fontSize:11,color:C.dim,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}} title={u.text}>{L("в области","w obszarze")}: «{u.text}»</div>}
+        {adm&&<div style={{display:"flex",gap:6,marginTop:4}}>
+          <button onClick={()=>patch(u.id,x=>x.status==="done"?{...x,status:"open",doneBy:null,doneAt:null}:{...x,status:"done",doneBy:currentUser,doneAt:Date.now()})} style={{background:u.status==="done"?"transparent":"rgba(34,197,94,.15)",border:"1px solid rgba(34,197,94,.55)",color:C.green,borderRadius:8,padding:"4px 12px",fontSize:11.5,fontWeight:800,cursor:"pointer"}}>{u.status==="done"?L("↺ Вернуть","↺ Przywróć"):L("✓ Сделано","✓ Zrobione")}</button>
+          <button onClick={()=>{if(arm===u.id){patch(u.id,x=>({...x,deleted:true}));setArm(null);}else{setArm(u.id);setTimeout(()=>setArm(a=>a===u.id?null:a),3000);}}} style={{background:arm===u.id?"rgba(239,68,68,.15)":"transparent",border:`1px solid ${arm===u.id?"rgba(239,68,68,.6)":C.border}`,color:arm===u.id?C.red:C.muted,borderRadius:8,padding:"4px 10px",fontSize:11.5,cursor:"pointer"}}>{arm===u.id?L("Удалить?","Usunąć?"):"🗑"}</button>
+        </div>}
+      </div>
+      <UpdShot u={u} onOpen={setView}/>
+    </div>)}</div>}
+    {view&&<ImgViewer src={view} onClose={()=>setView(null)}/>}
+  </div>;}
+
 // ─── TOPBAR ───────────────────────────────────────────────────────────────────
-function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,onRefresh,theme,toggleTheme}){
+function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLead,currentUser,setCurrentUser,syncLabel,onRefresh,theme,toggleTheme,updBtn=null}){
   const [showUsers,setShowUsers]=useState(false);
   const syncColor=syncLabel==="✓"?C.green:syncLabel==="!"?C.red:syncLabel==="⟳"?C.yellow:syncLabel==="offline"?C.yellow:C.green;
   const isDark=theme==="dark";
@@ -2373,6 +2502,7 @@ function TopBar({lang,setLang,search,setSearch,collapsed,setCollapsed,t,onAddLea
         <SearchBox value={search} onChange={setSearch} placeholder={t.search} style={{background:"transparent",border:"none",outline:"none",color:"#fff",fontSize:12,width:170}}/>
       </div>
       <div style={{flex:1}}/>
+      {updBtn}
       {/* Refresh button — saves requests vs auto-polling */}
       <button onClick={onRefresh} title={t.refreshHint}
         style={{display:"flex",alignItems:"center",gap:6,background:C.card,border:`1px solid ${C.border}`,borderRadius:7,padding:"4px 12px",cursor:"pointer",fontSize:11,fontWeight:600,color:syncLabel==="⟳"?C.yellow:syncLabel==="✓"?C.green:syncLabel==="!"?C.red:syncLabel==="offline"?C.yellow:C.muted,transition:"color 0.3s"}}>
@@ -3860,10 +3990,16 @@ function AbChip({tests,l}){const xs=abLeadTests(tests,l);if(!xs.length)return nu
       {v.ic} {v.k}{inf.reached?<b style={{color:"#47e6a0",fontWeight:400}}> ✓</b>:null}{inf.viol?<b style={{color:"#ff7d8c",fontWeight:400}}> ⚠</b>:null}</span>);})}</>;}
 
 // Плашка над таблицей лидов
-function AbBanner({tests,leads,lang,onOpen}){const pl=lang==="pl";const now=Date.now();
+// скрыть плашку теста / свернуть блок в карточке — у каждого в своём браузере
+const abLS=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k)==="1";if(v)localStorage.setItem(k,"1");else localStorage.removeItem(k);}catch{}return !!v;};
+function AbBanner({tests,leads,lang,onOpen}){const pl=lang==="pl";const now=Date.now();const [,rf]=useState(0);
   const act=(tests||[]).filter(t=>!t.deleted&&["active","paused"].includes(abState(t,now)));if(!act.length)return null;
-  return <div style={{display:"flex",flexDirection:"column",gap:8,margin:"0 0 12px"}}>{act.map(t=>{const st=abStats(t,leads,now);const vd=abVerdict(st,pl);const ps=abState(t,now)==="paused";return(
-    <div key={t.id} onClick={onOpen} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:20,flexWrap:"wrap",padding:"11px 16px",borderRadius:16,border:"1px solid rgba(227,184,96,.45)",background:"linear-gradient(100deg,rgba(227,184,96,.13),rgba(14,40,108,.6) 40%)"}}>
+  const hid=act.filter(t=>abLS("garno_ab_hide_"+t.id));const vis=act.filter(t=>!abLS("garno_ab_hide_"+t.id));
+  return <div style={{display:"flex",flexDirection:"column",gap:8,margin:hid.length&&!vis.length?"0 0 8px":"0 0 12px"}}>
+    {hid.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{hid.map(t=><button key={t.id} onClick={()=>{abLS("garno_ab_hide_"+t.id,false);rf(x=>x+1);}} title={pl?"Pokaż test":"Показать тест"} style={{height:26,padding:"0 10px",borderRadius:999,border:"1px solid rgba(227,184,96,.35)",background:"transparent",color:C.muted,fontSize:11,cursor:"pointer"}}>🧪 {t.name} · {pl?"pokaż":"показать"}</button>)}</div>}
+    {vis.map(t=>{const st=abStats(t,leads,now);const vd=abVerdict(st,pl);const ps=abState(t,now)==="paused";return(
+    <div key={t.id} onClick={onOpen} style={{position:"relative",cursor:"pointer",display:"flex",alignItems:"center",gap:20,flexWrap:"wrap",padding:"11px 40px 11px 16px",borderRadius:16,border:"1px solid rgba(227,184,96,.45)",background:"linear-gradient(100deg,rgba(227,184,96,.13),rgba(14,40,108,.6) 40%)"}}>
+      <button onClick={e=>{e.stopPropagation();abLS("garno_ab_hide_"+t.id,true);rf(x=>x+1);}} title={pl?"Ukryj":"Скрыть"} style={{position:"absolute",top:8,right:10,width:24,height:24,borderRadius:7,border:`1px solid ${C.borderMd}`,background:"rgba(2,10,30,.4)",color:C.muted,cursor:"pointer",fontSize:12,lineHeight:1,padding:0}}>✕</button>
       <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}><div style={{fontSize:26}}>🧪</div><div style={{minWidth:0}}>
         <div style={{fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:"#e3b860",whiteSpace:"nowrap"}}>{ps?(pl?"test wstrzymany":"тест на паузе"):(pl?"trwa test A/B":"идёт A/B тест")} · {pl?"dzień":"день"} {abDayOf(t,now)} {pl?"z":"из"} {t.days||14}</div>
         <div style={{fontSize:15,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.name}</div></div></div>
@@ -3875,7 +4011,7 @@ function AbBanner({tests,leads,lang,onOpen}){const pl=lang==="pl";const now=Date
     </div>);})}</div>;}
 
 // Блок в карточке лида: инструкция по переменной теста + отметки
-function AbLeadBox({tests,form,lang,onLog}){const pl=lang==="pl";const xs=abLeadTests(tests,form);const [,tick]=useState(0);const [cp,setCp]=useState(null);
+function AbLeadBox({tests,form,lang,onLog}){const pl=lang==="pl";const xs=abLeadTests(tests,form);const [,tick]=useState(0);const [cp,setCp]=useState(null);const [,rf]=useState(0);
   useEffect(()=>{if(!xs.length)return;const id=setInterval(()=>tick(x=>x+1),30000);return()=>clearInterval(id);},[xs.length]);
   if(!xs.length)return null;const now=Date.now();
   return <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:-4,marginBottom:14}}>{xs.map(({t,v})=>{const i=(t.variants||[]).indexOf(v);const col=AB_COLS[i%AB_COLS.length];const inf=abInfo(t,v,form);const vt=abVary(t);
@@ -3895,13 +4031,18 @@ function AbLeadBox({tests,form,lang,onLog}){const pl=lang==="pl";const xs=abLead
       return <button key={a} onClick={()=>onLog(t,v,a,dim,a==="write"?ch&&ch!=="call"?ch:undefined:undefined)} style={{height:40,borderRadius:11,cursor:"pointer",fontFamily:"inherit",fontSize:13,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.text,...extra,...((dim||done)?{opacity:.5}:{})}}>{lab||`${A.ic} ${pl?A.pl:A.ru}`}</button>;};
     const G={background:"linear-gradient(135deg,#f6e0aa,#e3b860 50%,#c8923a)",color:"#09153a",border:"none"};
     const tpl=vt==="script"?abTpl(v.tpl,form):"";
-    return <div key={t.id} style={{borderRadius:16,border:`1.5px solid ${col}99`,background:`linear-gradient(100deg,${col}26,${col}08 60%)`,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+    const MK="garno_ab_min_"+t.id;const HK="garno_ab_cardhide_"+t.id;
+    if(abLS(HK))return <div key={t.id} style={{display:"flex"}}><button onClick={()=>{abLS(HK,false);rf(x=>x+1);}} title={pl?"Pokaż test":"Показать тест"} style={{height:22,padding:"0 9px",borderRadius:999,border:`1px solid ${col}55`,background:"transparent",color:C.muted,fontSize:10.5,cursor:"pointer"}}>🧪 {pl?"test ukryty · pokaż":"тест скрыт · показать"}</button></div>;
+    if(abLS(MK))return <div key={t.id} onClick={()=>{abLS(MK,false);rf(x=>x+1);}} title={pl?"Rozwiń":"Развернуть"} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:10,borderRadius:12,border:`1px solid ${col}66`,background:`${col}10`,padding:"6px 12px",fontSize:12}}>
+      <span>{v.ic||"🧪"}</span><span style={{color:col,whiteSpace:"nowrap"}}>{pl?"grupa":"группа"} {v.k}</span><span style={{flex:1,minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:C.text}}>{big}</span><span style={{color:C.muted,fontSize:11,whiteSpace:"nowrap"}}>▸ {pl?"rozwiń":"развернуть"}</span><button onClick={e=>{e.stopPropagation();abLS(HK,true);rf(x=>x+1);}} title={pl?"Ukryj":"Скрыть"} style={{height:20,width:22,borderRadius:6,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.muted,cursor:"pointer",fontSize:10.5,padding:0}}>✕</button></div>;
+    return <div key={t.id} style={{position:"relative",borderRadius:16,border:`1.5px solid ${col}99`,background:`linear-gradient(100deg,${col}26,${col}08 60%)`,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{position:"absolute",top:8,right:10,display:"flex",gap:5}}><button onClick={()=>{abLS(MK,true);rf(x=>x+1);}} title={pl?"Zwiń":"Свернуть"} style={{height:22,padding:"0 8px",borderRadius:7,border:`1px solid ${C.borderMd}`,background:"rgba(2,10,30,.4)",color:C.muted,cursor:"pointer",fontSize:10.5}}>▾ {pl?"zwiń":"свернуть"}</button><button onClick={()=>{abLS(HK,true);rf(x=>x+1);}} title={pl?"Ukryj test":"Скрыть тест"} style={{height:22,padding:"0 8px",borderRadius:7,border:`1px solid ${C.borderMd}`,background:"rgba(2,10,30,.4)",color:C.muted,cursor:"pointer",fontSize:10.5}}>✕ {pl?"ukryj":"скрыть"}</button></div>
       <div style={{display:"flex",gap:14,alignItems:"center"}}>
         <div style={{fontSize:34,lineHeight:1}}>{v.ic||"🧪"}</div>
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:col}}>🧪 {pl?"test":"тест"} «{t.name}» · {pl?AB_VARS[vt].pl:AB_VARS[vt].ru} · {pl?"grupa":"группа"} {v.k} · {v.name}</div>
           <div style={{fontSize:19,marginTop:2,color:C.text}}>{big}</div>
           {v.hint&&<div className="hand" style={{fontSize:17,color:C.muted,marginTop:1,lineHeight:1.15}}>{v.hint}</div>}</div>
-        <div style={{textAlign:"right",fontSize:10.5,color:C.muted,flexShrink:0}}>{pl?"grupę wybrał CRM":"группу выбрала CRM"}<br/>{pl?"automatycznie":"автоматически"}</div></div>
+        <div style={{textAlign:"right",fontSize:10.5,color:C.muted,flexShrink:0,marginTop:22}}>{pl?"grupę wybrał CRM":"группу выбрала CRM"}<br/>{pl?"automatycznie":"автоматически"}</div></div>
       {tpl&&<div style={{display:"flex",gap:10,alignItems:"flex-start",padding:"9px 11px",borderRadius:11,border:`1px dashed ${col}88`,background:"rgba(2,10,30,.35)"}}>
         <div style={{flex:1,fontSize:12.5,lineHeight:1.45,whiteSpace:"pre-wrap",userSelect:"text"}}>{tpl}</div>
         <button onClick={e=>{const done=()=>{setCp(t.id);setTimeout(()=>setCp(null),1600);};try{navigator.clipboard.writeText(tpl).then(done,()=>window.prompt("",tpl));}catch{window.prompt("",tpl);}}} style={{flexShrink:0,height:30,padding:"0 10px",borderRadius:9,border:`1px solid ${C.borderMd}`,background:cp===t.id?"rgba(71,230,160,.15)":"transparent",color:cp===t.id?"#47e6a0":C.text,cursor:"pointer",fontFamily:"inherit",fontSize:11.5}}>{cp===t.id?(pl?"✓ Skopiowano":"✓ Скопировано"):(pl?"📋 Kopiuj":"📋 Копировать")}</button></div>}
@@ -4067,6 +4208,8 @@ const DZ_LOST=[{k:"nocall",ru:"Не дозвонились",pl:"Nie dodzwoniono 
 const dzWhyLbl=(w,pl)=>{const x=DZ_LOST.find(o=>o.k===w||o.pl===w||o.ru===w);return x?(pl?x.pl:x.ru):(w||"");};
 const dzClosed=l=>!!(l&&l.dz&&(l.dz.st==="done"||l.dz.st==="lost"));
 function dzPeople(){return [...new Set([...DZ_EXTRA,...MANAGERS])];}
+// кому можно назначить лида: менеджеры + дожимщики (Robert)
+function leadAssignees(){return [...new Set([...MANAGERS,...DZ_EXTRA])];}
 // последнее действие основного менеджера (всё в истории, кроме строк дожима 🦅)
 function dzLastMain(l){const hs=(l.history||[]).filter(h=>h&&!/^🦅/.test(String(h.action||"")));
   for(let i=hs.length-1;i>=0;i--){const ms=parseHistMs(hs[i].date);if(ms!=null)return {ms,h:hs[i]};}return null;}
@@ -4429,7 +4572,7 @@ function DutyNotes({l,updateDb,currentUser,lang,t}){
 function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={},onOpen,abTests=[]}){
   const pl=lang==="pl";const dk=C===DARK;const champ=dk?"#f6e0aa":C.accent;
   const today=getToday();const tomorrow=isoLocal(new Date(Date.now()+DUTY_DAY));
-  const isMgr=MANAGERS.includes(currentUser);
+  const isMgr=leadAssignees().includes(currentUser);
   const [scope,setScope]=useState(()=>isMgr&&(leads||[]).some(x=>x.manager===currentUser)?"mine":"all");
   const KEY=`garno_duty2_${currentUser||"x"}_${today}`;
   const [done,setDone]=useState(()=>{try{return new Set(JSON.parse(localStorage.getItem(KEY)||"[]"));}catch{return new Set();}});
@@ -4632,7 +4775,7 @@ const CALC_CAT=[
   {g:"ewis",z:"low", img:"p25_253", ru:"2 ящика + внутренний ящик",   pl:"2 szuflady + szuflada wewn.",  hRu:"w — внутренний ящик · Atira · доводчик",hPl:"w — szuflada wewnętrzna · Atira · domyk",sizes:[["С-45EwiS",45,1860],["С-60EwiS",60,1910],["С-80EwiS",80,2090],["С-90EwiS",90,2130]]},
   {g:"cu",  z:"low", img:"p28_253", ru:"Угловой шкаф",                pl:"Szafka narożna",               hRu:"у — угловой · ширина/глухая часть",     hPl:"u — narożna · szerokość/część ślepa",  sizes:[["Cу-90/45",90,900,"90/45"],["Cу-100/60",100,980,"100/60"]]},
   {g:"cmu", z:"low", img:"p30_341", ru:"Угловой под мойку",           pl:"Narożna pod zlew",             hRu:"м — мойка · глубина 545 мм",            hPl:"m — zlew · głębokość 545 mm",          sizes:[["Cму-90/45",90,1010,"90/45"],["Cму-100/60",100,1070,"100/60"]]},
-  {g:"cm",  z:"low", img:"p29_166", ru:"Под мойку с ящиком Atira",    pl:"Pod zlew z szufladą Atira",    hRu:"м — мойка · A — 1 ящик · глубина 545 мм",hPl:"m — zlew · A — 1 szuflada · głęb. 545 mm",sizes:[["См-60AiS",60,1540],["См-80AiS",80,1610]]},
+  {g:"cm",  z:"low", img:"p29_166", ru:"Под мойку с ящиком Atira",    pl:"Pod zlew z szufladą Atira",    hRu:"м — мойка · A — 1 ящик · глубина 545 мм",hPl:"m — zlew · A — 1 szuflada · głęb. 545 mm",sizes:[["См-60AiS",60,1940],["См-80AiS",80,2010]]},
   {g:"cdi", z:"low", img:"p31_oven",ru:"Под духовку + ящик Atira",    pl:"Pod piekarnik + szuflada Atira",hRu:"Д — под духовку · термопланка",       hPl:"D — pod piekarnik · listwa termiczna", sizes:[["С-60DiS",60,1080]]},
   {g:"cdf", z:"low", img:"p30_603", ru:"Под духовку, фальш-панель",   pl:"Pod piekarnik, maskownica",    hRu:"ф — фальш-панель · термопланка",        hPl:"f — maskownica · listwa termiczna",    sizes:[["С-60Df",60,650]]},
   {g:"pkx", z:"tall",img:"p70_603", ru:"Пенал под холодильник",       pl:"Słupek pod lodówkę",           hRu:"х — встроенный холодильник",            hPl:"x — lodówka do zabudowy",              sizes:[["PKx-60/1",60,1320]]},
@@ -4653,7 +4796,7 @@ const calcFamily=g=>{const c=g.sizes.map(s=>s[0]);return c.length<=2?c.join(" ·
 const CALC_BY_CODE=Object.fromEntries(CALC_CAT.flatMap(g=>g.sizes.map(s=>[s[0],{g,s}])));
 // Категории фасадов: 0 — наш бланк; 1/3/4/7 — прайс Roda (грн без последней цифры = zł). Порядок в массиве: 1,3,4,7
 const CALC_CATS=[0,1,3,4,7];
-const CALC_RODA={"С-30":[532,600,635,832],"С-45":[658,759,805,1065],"С-60":[746,881,934,1272],"С2-80":[1102,1298,1375,1868],"С2-90":[1163,1383,1465,2012],"С-45KIS":[1508,1612,1707,2042],"С-60KIS":[1609,1697,1798,2277],"С-80KIS":[1797,1955,2072,2582],"С-90KIS":[1879,2062,2185,2699],"С-45EIS":[1312,1410,1494,1737],"С-60EIS":[1406,1493,1582,1936],"С-80EIS":[1585,1699,1800,2312],"С-90EIS":[1665,1777,1883,2464],"С-45EwiS":[1688,1789,1896,2110],"С-60EwiS":[1806,1908,2022,2322],"С-80EwiS":[2008,2109,2235,2603],"С-90EwiS":[2119,2330,2469,2983],"Cу-90/45":[904,1008,1068,1344],"Cу-100/60":[1087,1239,1312,1703],"Cму-90/45":[980,1118,1185,1546],"Cму-100/60":[1104,1255,1330,1730],"См-60AiS":[1174,1326,1405,1832],"С-60DiS":[1061,1091,1146,1223],"С-60Df":[628,654,684,767],"PKx-60/1":[1750,2183,2314,3349],"Pk-60D":[1996,2317,2446,3245],"Pk-60ADiS":[2180,2485,2624,3541],"Pk-60ЕDiS":[2525,2841,3001,3731],"Pk2-60/1":[2064,2500,2649,3763],"Antresola 245/358":[530,598,634,816],"Antresola 359/537":[633,735,778,1038],"Antresola 538/716":[735,870,922,1260],"HN-30":[665,764,809,1066],"HN-40":[755,888,941,1279],"HN-45":[843,992,1051,1425],"HN-60":[970,1168,1238,1724],"HN2-80":[1435,1728,1831,2551],"HN2-90":[1519,1847,1958,2756],"НNу-79/45":[1458,1744,1848,2537],"НNу-94/60":[1674,2017,2137,2686],"НNу2-60/28":[1443,1664,1763,2334]};
+const CALC_RODA={"С-30":[532,600,635,832],"С-45":[658,759,805,1065],"С-60":[746,881,934,1272],"С2-80":[1102,1298,1375,1868],"С2-90":[1163,1383,1465,2012],"С-45KIS":[1508,1612,1707,2042],"С-60KIS":[1609,1697,1798,2277],"С-80KIS":[1797,1955,2072,2582],"С-90KIS":[1879,2062,2185,2699],"С-45EIS":[1312,1410,1494,1737],"С-60EIS":[1406,1493,1582,1936],"С-80EIS":[1585,1699,1800,2312],"С-90EIS":[1665,1777,1883,2464],"С-45EwiS":[1688,1789,1896,2110],"С-60EwiS":[1806,1908,2022,2322],"С-80EwiS":[2008,2109,2235,2603],"С-90EwiS":[2119,2330,2469,2983],"Cу-90/45":[904,1008,1068,1344],"Cу-100/60":[1087,1239,1312,1703],"Cму-90/45":[980,1118,1185,1546],"Cму-100/60":[1104,1255,1330,1730],"См-60AiS":[1574,1726,1805,2232],"С-60DiS":[1061,1091,1146,1223],"С-60Df":[628,654,684,767],"PKx-60/1":[1750,2183,2314,3349],"Pk-60D":[1996,2317,2446,3245],"Pk-60ADiS":[2180,2485,2624,3541],"Pk-60ЕDiS":[2525,2841,3001,3731],"Pk2-60/1":[2064,2500,2649,3763],"Antresola 245/358":[530,598,634,816],"Antresola 359/537":[633,735,778,1038],"Antresola 538/716":[735,870,922,1260],"HN-30":[665,764,809,1066],"HN-40":[755,888,941,1279],"HN-45":[843,992,1051,1425],"HN-60":[970,1168,1238,1724],"HN2-80":[1435,1728,1831,2551],"HN2-90":[1519,1847,1958,2756],"НNу-79/45":[1458,1744,1848,2537],"НNу-94/60":[1674,2017,2137,2686],"НNу2-60/28":[1443,1664,1763,2334]};
 const calcHasCat=(code,cat)=>!+cat||!!CALC_RODA[code];
 const calcPriceOf=(code,cat)=>{const b=CALC_BY_CODE[code];const base=b?b.s[2]:0;if(!+cat)return base;const r=CALC_RODA[code];const i=CALC_CATS.indexOf(+cat)-1;return r&&i>=0&&r[i]!=null?r[i]:base;};
 const calcCatLbl=x=>`K${calcHasCat(x.code,x.cat||0)?(x.cat||0):0}`;
@@ -4670,6 +4813,11 @@ const CALC_EXTRAS=[
   {k:"blendy", ru:"Бленды",               pl:"Blendy",                  uRu:"м",     uPl:"m",  price:null},
   {k:"cokol",  ru:"Цоколь",               pl:"Cokół",                   uRu:"м",     uPl:"m",  price:null},
   {k:"led",    ru:"LED подсветка",        pl:"Oświetlenie LED",         uRu:"м",     uPl:"m",  price:null},
+  {k:"ledFrez",ru:"LED фрезерованный",    pl:"LED frezowany",           uRu:"м",     uPl:"m",  price:220},
+  {k:"listwa", ru:"Профиль-ручка (listwa podchwytowa)",pl:"Listwa podchwytowa",uRu:"шт",uPl:"szt",price:500},
+  {k:"tipon",  ru:"Tip-on",               pl:"Tip-on",                  uRu:"шт",    uPl:"szt",price:40},
+  {k:"polka",  ru:"Полка, скрытый монтаж",pl:"Półka, niewidoczny montaż",uRu:"м²",   uPl:"m²", price:1700},
+  {k:"produkcja",ru:"Производство",       pl:"Produkcja",               uRu:"",      uPl:"",   price:null,sumOnly:true,presets:[1000,1300]},
   {k:"montaz", ru:"Монтаж",               pl:"Montaż",                  uRu:"",      uPl:"",   price:null,sumOnly:true},
 ];
 // Нестандартная секция (формула из бланка): (материал + 8 ножки) × 1,1 технолог + 20 ДВП + 90 сборка цех → × 1,74
@@ -4710,15 +4858,30 @@ function SketchPad({initialSrc,apiRef,lang,onDirty}){
   },[initialSrc]);
   useEffect(()=>{if(apiRef)apiRef.current={dirty:()=>dirty.current,blob:(type="image/png",q)=>new Promise(r=>cv.current?cv.current.toBlob(r,type,q):r(null)),dataUrl:(type="image/webp",q=.6)=>{const s=document.createElement("canvas");s.width=900;s.height=Math.round(900*SKETCH_H/SKETCH_W);s.getContext("2d").drawImage(cv.current,0,0,s.width,s.height);return s.toDataURL(type,q);}};});
   const pos=e=>{const r=cv.current.getBoundingClientRect();return{x:(e.clientX-r.left)*SKETCH_W/r.width,y:(e.clientY-r.top)*SKETCH_H/r.height};};
+  // Масштаб: щипок двумя пальцами (телефон), Ctrl + колесо, кнопки − / + . Одним пальцем — рисуем, двумя — приближаем и двигаем.
+  const wrap=useRef(null);const [z,setZ]=useState(1);const zr=useRef(1);const base=useRef(0);const pts=useRef(new Map());const pinch=useRef(null);
+  const zoomTo=(nz,cx,cy)=>{nz=Math.max(1,Math.min(5,nz));const w=wrap.current;const prev=zr.current;if(!w||Math.abs(nz-prev)<.001)return;
+    if(prev===1&&cv.current)base.current=cv.current.getBoundingClientRect().width;
+    const r=w.getBoundingClientRect();const mx=cx==null?r.width/2:cx-r.left,my=cy==null?r.height/2:cy-r.top;const f=nz/prev;
+    const sl=(w.scrollLeft+mx)*f-mx,st=(w.scrollTop+my)*f-my;zr.current=nz;setZ(nz);requestAnimationFrame(()=>{if(wrap.current){wrap.current.scrollLeft=sl;wrap.current.scrollTop=st;}});};
+  useEffect(()=>{const w=wrap.current;if(!w)return;const wh=e=>{if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();zoomTo(zr.current*(e.deltaY<0?1.15:1/1.15),e.clientX,e.clientY);};w.addEventListener("wheel",wh,{passive:false});return()=>w.removeEventListener("wheel",wh);});
+  const pDist=()=>{const a=[...pts.current.values()];return a.length<2?0:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);};
+  const pMid=()=>{const a=[...pts.current.values()];return {x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2};};
   const style=c=>{c.lineCap="round";c.lineJoin="round";c.strokeStyle=tool==="eraser"?"#ffffff":color;c.lineWidth=tool==="eraser"?size*6:size;};
-  const down=e=>{e.preventDefault();const c=ctx();if(!c)return;cv.current.setPointerCapture&&cv.current.setPointerCapture(e.pointerId);push();const p=pos(e);drag.current=p;
+  const down=e=>{e.preventDefault();try{cv.current&&cv.current.setPointerCapture&&cv.current.setPointerCapture(e.pointerId);}catch{}pts.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.current.size>=2){ // второй палец: отменяем начатый штрих и переходим в масштаб
+      if(drag.current){const c0=ctx();const h=hist.current.pop();if(c0&&h)c0.putImageData(h,0,0);drag.current=null;snap.current=null;force(x=>x+1);}
+      const m=pMid();pinch.current={d0:pDist()||1,z0:zr.current,mx:m.x,my:m.y};return;}
+    const c=ctx();if(!c)return;cv.current.setPointerCapture&&cv.current.setPointerCapture(e.pointerId);push();const p=pos(e);drag.current=p;
     if(tool==="pen"||tool==="eraser"){style(c);c.beginPath();c.moveTo(p.x,p.y);c.lineTo(p.x+.01,p.y+.01);c.stroke();}else snap.current=c.getImageData(0,0,SKETCH_W,SKETCH_H);mark();};
-  const move=e=>{if(!drag.current)return;const c=ctx();const p=pos(e);
+  const move=e=>{if(pts.current.has(e.pointerId))pts.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pinch.current&&pts.current.size>=2){const P=pinch.current;const m=pMid();zoomTo(P.z0*pDist()/P.d0,m.x,m.y);const w=wrap.current;if(w){w.scrollLeft-=m.x-P.mx;w.scrollTop-=m.y-P.my;}P.mx=m.x;P.my=m.y;return;}
+    if(!drag.current)return;const c=ctx();const p=pos(e);
     if(tool==="pen"||tool==="eraser"){style(c);c.beginPath();c.moveTo(drag.current.x,drag.current.y);c.lineTo(p.x,p.y);c.stroke();drag.current=p;return;}
     c.putImageData(snap.current,0,0);style(c);const a=drag.current;let bx=p.x,by=p.y;
     if(tool==="line"&&e.shiftKey){if(Math.abs(p.x-a.x)>Math.abs(p.y-a.y))by=a.y;else bx=a.x;}
     c.beginPath();if(tool==="line"){c.moveTo(a.x,a.y);c.lineTo(bx,by);}else c.rect(Math.min(a.x,bx),Math.min(a.y,by),Math.abs(bx-a.x),Math.abs(by-a.y));c.stroke();};
-  const up=()=>{drag.current=null;snap.current=null;};
+  const up=e=>{if(e&&e.pointerId!=null)pts.current.delete(e.pointerId);if(pts.current.size<2)pinch.current=null;drag.current=null;snap.current=null;};
   const undo=()=>{const c=ctx();const h=hist.current.pop();if(c&&h){c.putImageData(h,0,0);force(x=>x+1);mark();}};
   const clear=()=>{const c=ctx();if(!c)return;push();sketchGrid(c);mark();};
   const B=(on)=>({height:32,minWidth:32,padding:"0 10px",borderRadius:9,border:`1px solid ${on?"rgba(227,184,96,.7)":C.borderMd}`,background:on?"rgba(227,184,96,.16)":"transparent",color:C.text,cursor:"pointer",fontSize:12,display:"inline-flex",alignItems:"center",gap:5});
@@ -4733,11 +4896,12 @@ function SketchPad({initialSrc,apiRef,lang,onDirty}){
       <span style={{marginLeft:"auto",display:"flex",gap:6}}>
         <button onClick={undo} disabled={!hist.current.length} style={{...B(false),opacity:hist.current.length?1:.4}}>↶ {pl?"Cofnij":"Отменить"}</button>
         <button onClick={clear} style={B(false)}>🗑 {pl?"Wyczyść":"Очистить"}</button>
+        <span style={{display:"inline-flex",gap:4,alignItems:"center"}}><button onClick={()=>zoomTo(zr.current/1.4)} disabled={z<=1} style={{...B(false),opacity:z<=1?.4:1}} title={pl?"Oddal":"Отдалить"}>−</button><button onClick={()=>zoomTo(1)} style={{...B(z>1),minWidth:52}} title={pl?"Cały rysunek":"Весь рисунок"}>{Math.round(z*100)}%</button><button onClick={()=>zoomTo(zr.current*1.4)} disabled={z>=5} style={B(false)} title={pl?"Przybliż":"Приблизить"}>＋</button></span>
       </span>
     </div>
-    <div style={{flex:1,minHeight:0,display:"grid",placeItems:"center",borderRadius:16,background:"rgba(2,10,30,.25)",border:`1px solid ${C.border}`,padding:8}}>
-      <canvas ref={cv} width={SKETCH_W} height={SKETCH_H} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={e=>{if(drag.current&&!(e.buttons&1))up();}}
-        style={{maxWidth:"100%",maxHeight:"100%",width:"auto",height:"auto",borderRadius:10,background:"#fff",touchAction:"none",cursor:tool==="eraser"?"cell":"crosshair",boxShadow:"0 10px 30px rgba(0,0,0,.3)"}}/>
+    <div ref={wrap} style={{flex:1,minHeight:0,display:z>1?"block":"grid",placeItems:"center",overflow:z>1?"auto":"hidden",borderRadius:16,background:"rgba(2,10,30,.25)",border:`1px solid ${C.border}`,padding:8,touchAction:"none",overscrollBehavior:"contain"}}>
+      <canvas ref={cv} width={SKETCH_W} height={SKETCH_H} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={e=>{if(drag.current&&!(e.buttons&1))up(e);}}
+        style={{...(z>1?{width:Math.round((base.current||600)*z),height:"auto",maxWidth:"none",maxHeight:"none",display:"block"}:{maxWidth:"100%",maxHeight:"100%",width:"auto",height:"auto"}),borderRadius:10,background:"#fff",touchAction:"none",cursor:tool==="eraser"?"cell":"crosshair",boxShadow:"0 10px 30px rgba(0,0,0,.3)"}}/>
     </div>
     <div className="hand" style={{fontSize:17,color:C===DARK?"#f6e0aa":C.accent,lineHeight:1}}>{pl?"rysuj palcem, rysikiem albo myszką · 1 kratka = 10 cm, jeśli tak umówicie się na pomiarze":"рисуй пальцем, стилусом или мышкой · сетка — для масштаба (напр. 1 клетка = 10 см)"}</div>
   </div>);
@@ -4745,8 +4909,9 @@ function SketchPad({initialSrc,apiRef,lang,onDirty}){
 function CalcSketchThumb({c,size=40}){
   const [u,setU]=useState(c.sketchData||null);
   useEffect(()=>{let alive=true;if(!c.sketchData&&c.sketchFile&&c.sketchFile.path)leadFileUrl(c.sketchFile.path).then(x=>{if(alive)setU(x);}).catch(()=>{});return()=>{alive=false;};},[c.sketchData,c.sketchFile]);
+  const [view,setView]=useState(false);
   if(!u)return null;
-  return <img src={u} alt="" onClick={e=>{e.stopPropagation();window.open(u,"_blank");}} style={{width:size*1.55,height:size,objectFit:"cover",borderRadius:7,border:`1px solid ${C.border}`,background:"#fff",cursor:"zoom-in",flexShrink:0}}/>;
+  return <>{view&&<ImgViewer src={u} title={c.name} onClose={()=>setView(false)}/>}<img src={u} alt="" onClick={e=>{e.stopPropagation();setView(true);}} style={{width:size*1.55,height:size,objectFit:"cover",borderRadius:7,border:`1px solid ${C.border}`,background:"#fff",cursor:"zoom-in",flexShrink:0}}/></>;
 }
 
 // ─── ПЛАН КУХНИ (вид сверху) ─────────────────────────────────────────────────
@@ -5232,11 +5397,16 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
                 <div style={{...lbl,marginBottom:10}}>{pl?"dodatki":"доп. позиции"}</div>
                 {CALC_EXTRAS.map(e=>{const v=(c.extras||{})[e.k]||{};const sum=e.sumOnly?calcNum(v.price):calcNum(v.qty)*(e.price!=null?e.price:calcNum(v.price));return(
                   <div key={e.k} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 84px 96px 92px",gap:8,alignItems:"center",padding:"6px 0",borderTop:`1px solid ${C.border}`}}>
-                    <div style={{fontSize:12.5}}>{pl?e.pl:e.ru}{e.price!=null&&<span style={{fontSize:10.5,color:C.muted}}> · {e.price} zł/{pl?e.uPl:e.uRu}</span>}{e.k==="blat"&&tot.run.low>0&&!v.qty&&<button onClick={()=>setEx("blat","qty",String(Math.round((tot.run.low||0))/100))} style={{marginLeft:8,background:"transparent",border:`1px solid ${C.border}`,color:C.accent,borderRadius:7,padding:"1px 7px",fontSize:10.5,cursor:"pointer"}}>= {pl?"długość dołu":"длина низа"} {(tot.run.low/100).toFixed(2)}</button>}{e.k==="cokol"&&tot.run.low>0&&!v.qty&&<button onClick={()=>setEx("cokol","qty",String(Math.round(((tot.run.low||0)+(tot.run.tall||0)))/100))} style={{marginLeft:8,background:"transparent",border:`1px solid ${C.border}`,color:C.accent,borderRadius:7,padding:"1px 7px",fontSize:10.5,cursor:"pointer"}}>= {pl?"dół + słupki":"низ + пеналы"}</button>}</div>
+                    <div style={{fontSize:12.5}}>{pl?e.pl:e.ru}{e.price!=null&&<span style={{fontSize:10.5,color:C.muted}}> · {e.price} zł/{pl?e.uPl:e.uRu}</span>}{e.presets&&e.presets.map(pv=><button key={pv} className="calc-b" onClick={()=>setEx(e.k,"price",String(pv))} style={{marginLeft:6,background:String(v.price)===String(pv)?"rgba(227,184,96,.18)":"transparent",border:`1px solid ${String(v.price)===String(pv)?"rgba(227,184,96,.7)":C.border}`,color:C.accent,borderRadius:7,padding:"1px 8px",fontSize:10.5,cursor:"pointer"}}>{pv}</button>)}{e.k==="blat"&&tot.run.low>0&&!v.qty&&<button onClick={()=>setEx("blat","qty",String(Math.round((tot.run.low||0))/100))} style={{marginLeft:8,background:"transparent",border:`1px solid ${C.border}`,color:C.accent,borderRadius:7,padding:"1px 7px",fontSize:10.5,cursor:"pointer"}}>= {pl?"długość dołu":"длина низа"} {(tot.run.low/100).toFixed(2)}</button>}{e.k==="cokol"&&tot.run.low>0&&!v.qty&&<button onClick={()=>setEx("cokol","qty",String(Math.round(((tot.run.low||0)+(tot.run.tall||0)))/100))} style={{marginLeft:8,background:"transparent",border:`1px solid ${C.border}`,color:C.accent,borderRadius:7,padding:"1px 7px",fontSize:10.5,cursor:"pointer"}}>= {pl?"dół + słupki":"низ + пеналы"}</button>}</div>
                     {e.sumOnly?<span/>:<input value={v.qty||""} onChange={ev=>setEx(e.k,"qty",ev.target.value)} placeholder={pl?e.uPl:e.uRu} inputMode="decimal" style={inp}/>}
                     {e.price!=null?<span style={{fontSize:11,color:C.muted,textAlign:"center"}}>× {e.price}</span>:<input value={v.price||""} onChange={ev=>setEx(e.k,"price",ev.target.value)} placeholder={e.sumOnly?(pl?"kwota zł":"сумма zł"):(pl?`zł/${e.uPl}`:`zł/${e.uRu}`)} inputMode="decimal" style={inp}/>}
                     <div style={{textAlign:"right",fontSize:12.5,color:sum?C.text:C.dim}}>{sum?fmtM(Math.round(sum)):"—"}</div>
                   </div>);})}
+              </div>
+              <div style={{...glass,padding:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:12.5}}><input type="checkbox" checked={!!(c.stone&&c.stone.on)} onChange={e=>upd(p=>({stone:{...(p.stone||{}),on:e.target.checked}}))}/>🪨 {pl?"Blat kamienny — promocja w ofercie":"Каменная столешница — акция в КП"}</label>
+                {c.stone&&c.stone.on&&<input value={c.stone.amt||""} onChange={e=>upd(p=>({stone:{...(p.stone||{}),amt:e.target.value}}))} placeholder={pl?"kwota blatu zł":"сумма столешницы zł"} inputMode="decimal" style={{...inp,width:150}}/>}
+                <div style={{fontSize:10.5,color:C.muted,flexBasis:"100%"}}>{pl?"Jak w zwykłej ofercie: blat pokazany jako rabat 50% (cena × 2 → twoja kwota), osobno od sumy mebli":"Как в обычном КП: столешница показана со скидкой 50% (цена × 2 → ваша сумма), отдельно от суммы мебели"}</div>
               </div>
               <div style={{...glass,padding:14}}>
                 <div style={{...lbl,marginBottom:4}}>{pl?"sekcja niestandardowa":"нестандартная секция"}</div>
@@ -5272,15 +5442,136 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
 }
 
 // Список просчётов в карточке лида
+// ─── WYCENA SZAF (zabudowa meblowa) — по бланку WZ_R_wycena_zabudowa.xlsx ─────
+// Каждый шкаф: детали корпуса / фасадов / столешницы (мм → м²) × цена за м², фурнитура по штукам,
+// Produkcja и Montaż = (м² корпуса + м² фасадов) × ставка. Łazienka — влагостойкие материалы, свои цены.
+const WZ_MAT={szafa:{korpus:210,front:310,blat:300},lazienka:{korpus:300,front:350,blat:400}};
+const WZ_ITEMS=[
+  ["szuflady","Szuflady","Ящики","szt",450],["zawiasy","Zawiasy","Петли","szt",35],["tipon","Tip-on italiana feramenta","Tip-on","szt",40],
+  ["prowadnica","Prowadnica","Направляющая","szt",250],["drazek","Drążek","Штанга","szt",40],
+  ["ledListwa","LED na listwie","LED на планке","m",180],["ledFrez","LED frezowany","LED фрезерованный","m",220],["ledZas","LED zasilacz (1 szt / 6 m LED)","LED блок питания (1 шт / 6 м)","szt",80],["ledCzuj","LED czujnik światła (1 na drzwi)","LED датчик (1 на дверь)","szt",180],
+  ["nozki","Nóżki","Ножки","szt",9],["nozkiSpec","Nóżki specjalistyczne (frezowane w bok)","Ножки спец. (фрезеровка в бок)","szt",100],
+  ["lustro","Lustro","Зеркало","szt",500],["przesLustro","System przesuwny z lustrem","Раздвижная система с зеркалом","mb",1900],["przesPlyta","System przesuwny z płytą Kronospan","Раздвижная система с плитой Kronospan","mb",1600],
+  ["prostujacy","System prostujący (płyty powyżej 2 m)","Выпрямитель (плиты выше 2 м)","szt",340],["kratka","Kratka wentylacyjna","Вентиляционная решётка","szt",120],
+  ["polka","Półka ścienna (ukryty montaż)","Полка, скрытый монтаж","m²",1700],["listwa","Listwa podchwytowa","Профиль-ручка","szt",500],
+  ["uch1200","Uchwyty 1200 mm HEX","Ручки 1200 мм HEX","szt",120],["uch150","Uchwyty 150 mm HEX","Ручки 150 мм HEX","szt",20],
+];
+const WZ_RATE={prod:35,mont:35};
+const WZ_DOST=900;
+const wzN=v=>{const n=parseFloat(String(v??"").replace(",","."));return isNaN(n)?0:n;};
+const wzM2=rows=>(rows||[]).reduce((a,r)=>a+wzN(r.l)/1000*wzN(r.w)/1000*(r.q===""||r.q==null?1:wzN(r.q)),0);
+function wzUnit(u){const P={...WZ_MAT[u.type||"szafa"],...(u.mp||{})};const k=wzM2(u.korpus),f=wzM2(u.front),b=wzM2(u.blat);
+  const mat=k*wzN(P.korpus)+f*wzN(P.front)+b*wzN(P.blat);
+  const acc=WZ_ITEMS.reduce((a,[key,,,,pr])=>a+wzN((u.qty||{})[key])*wzN(((u.pr||{})[key])??pr),0);
+  const base=k+f;const prod=base*wzN(u.prodRate??WZ_RATE.prod),mont=base*wzN(u.montRate??WZ_RATE.mont);
+  const cus=(u.custom||[]).reduce((a,x)=>a+wzN(x.sum),0);
+  return {k,f,b,mat,acc,prod,mont,cus,total:mat+acc+prod+mont+cus};}
+function wzTotals(c){const us=(c.units||[]).map(wzUnit);const sum=us.reduce((a,x)=>a+x.total,0)+wzN(c.dostawa??WZ_DOST);
+  return {units:us,total8:Math.round(sum),total23:Math.round(sum*1.15)};}
+const wzNewUnit=(type,n)=>({uid:Date.now()+Math.floor(Math.random()*1000),type,name:type==="lazienka"?"Łazienka":`Szafa ${n}`,korpus:[{l:"",w:"",q:"1"}],front:[{l:"",w:"",q:"1"}],blat:[],qty:{},pr:{},custom:[]});
+function WardrobeCalcModal({lead,calc,onSave,onClose,lang="ru",currentUser}){
+  const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;const dk=C===DARK;
+  const [c,setC]=useState(()=>calc?JSON.parse(JSON.stringify(calc)):{id:Date.now(),kind:"szafa",name:pl?"Wycena szaf":"Просчёт шкафов",units:[wzNewUnit("szafa",1)],dostawa:WZ_DOST,notes:""});
+  const [cur,setCur]=useState(0);const [dirty,setDirty]=useState(false);const [arm,setArm]=useState(false);
+  const upd=fn=>{setC(p=>({...p,...(typeof fn==="function"?fn(p):fn)}));setDirty(true);};
+  const updU=fn=>upd(p=>({units:p.units.map((u,i)=>i===cur?{...u,...(typeof fn==="function"?fn(u):fn)}:u)}));
+  const T=wzTotals(c);const u=c.units[cur]||c.units[0];const ut=T.units[cur]||T.units[0];
+  const save=()=>{onSave({...c,total:T.total8,total23:T.total23,disc:0,totalDisc:T.total8,items:[],at:c.at||Date.now(),updatedAt:Date.now(),by:currentUser||"—"});};
+  const tryClose=()=>{if(!dirty)return onClose();if(arm)return onClose();setArm(true);setTimeout(()=>setArm(false),3000);};
+  useEffect(()=>{const k=e=>{if(e.key==="Escape"){e.preventDefault();tryClose();}};window.addEventListener("keydown",k);return()=>window.removeEventListener("keydown",k);});
+  const inp={background:dk?"rgba(2,10,30,.55)":C.bg,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,padding:"6px 8px",fontSize:12.5,outline:"none",width:"100%",boxSizing:"border-box",colorScheme:dk?"dark":"light"};
+  const glass={background:dk?"linear-gradient(160deg,rgba(30,72,170,.28),rgba(5,18,52,.55))":C.card,border:`1px solid ${C.border}`,borderRadius:14};
+  const lbl={fontSize:10,letterSpacing:".14em",textTransform:"uppercase",color:C.muted};
+  const btn=on=>({height:34,padding:"0 14px",borderRadius:10,border:`1px solid ${on?"rgba(227,184,96,.7)":C.borderMd}`,background:on?"linear-gradient(135deg,#e3b860,#c8973a)":"transparent",color:on?"#1a1200":C.text,fontWeight:800,fontSize:12.5,cursor:"pointer",whiteSpace:"nowrap"});
+  const P={...WZ_MAT[u.type||"szafa"],...(u.mp||{})};
+  const Parts=({k,title,price})=>{const rows=u[k]||[];const m2=wzM2(rows);return <div style={{...glass,padding:12,display:"flex",flexDirection:"column",gap:6,minWidth:0}}>
+    <div style={{display:"flex",alignItems:"baseline",gap:8}}><span style={lbl}>{title}</span><span style={{marginLeft:"auto",fontSize:11,color:C.muted}}>{m2.toFixed(2).replace(".",",")} m² ×</span>
+      <input value={price} onChange={e=>updU(x=>({mp:{...(x.mp||{}),[k]:e.target.value}}))} inputMode="decimal" style={{...inp,width:64,textAlign:"center"}}/><span style={{fontSize:11,color:C.muted}}>zł</span></div>
+    <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr) 52px 24px",gap:6,fontSize:10,color:C.dim}}><span>{L("длина, мм","długość, mm")}</span><span>{L("ширина, мм","szerokość, mm")}</span><span>{L("шт","szt")}</span><span/></div>
+    {rows.map((r,j)=><div key={j} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr) 52px 24px",gap:6}}>
+      {["l","w","q"].map(f=><input key={f} value={r[f]??""} onChange={e=>updU(x=>({[k]:x[k].map((y,jj)=>jj===j?{...y,[f]:e.target.value}:y)}))} inputMode="decimal" placeholder={f==="q"?"1":"0"} style={inp}/>)}
+      <button onClick={()=>updU(x=>({[k]:x[k].filter((_,jj)=>jj!==j)}))} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button></div>)}
+    <button onClick={()=>updU(x=>({[k]:[...(x[k]||[]),{l:"",w:"",q:"1"}]}))} style={{...btn(false),height:28,fontSize:11}}>＋ {L("деталь","element")}</button>
+    <div style={{textAlign:"right",fontSize:12.5,color:C.text}}>{fmtM(Math.round(m2*wzN(price)))}</div></div>;};
+  return(<div onClick={tryClose} style={{position:"fixed",inset:0,background:"rgba(0,8,24,.88)",zIndex:2650,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"18px 14px",overflowY:"auto"}}>
+    <div onClick={e=>e.stopPropagation()} style={{width:"min(1180px,100%)",background:dk?"linear-gradient(165deg,#0a1a3a,#00132f)":C.surface,border:"1px solid rgba(191,164,126,.45)",borderRadius:20,padding:18,display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <div style={{fontSize:20}}>🚪 {L("Просчёт шкафов","Wycena szaf")}</div>
+        <input value={c.name} onChange={e=>upd({name:e.target.value})} style={{...inp,width:240}}/>
+        <span style={{fontSize:12,color:C.muted}}>{lead&&(lead.name||lead.phone)}</span>
+        <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+          <button onClick={save} style={btn(true)}>✓ {L("Сохранить","Zapisz")}</button>
+          <button onClick={tryClose} style={btn(false)}>{arm?L("Закрыть без сохранения?","Zamknąć bez zapisu?"):"✕"}</button>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+        {c.units.map((x,i)=><button key={x.uid} onClick={()=>setCur(i)} style={{...btn(i===cur),height:32,background:i===cur?"rgba(227,184,96,.16)":"transparent",color:i===cur?C.accent:C.text}}>{x.type==="lazienka"?"🛁":"🚪"} {x.name} · {fmtM(Math.round(T.units[i].total))}</button>)}
+        <button onClick={()=>{upd(p=>({units:[...p.units,wzNewUnit("szafa",p.units.filter(z=>z.type!=="lazienka").length+1)]}));setCur(c.units.length);}} style={{...btn(false),height:32}}>＋ {L("Шкаф","Szafa")}</button>
+        <button onClick={()=>{upd(p=>({units:[...p.units,wzNewUnit("lazienka")]}));setCur(c.units.length);}} style={{...btn(false),height:32}}>＋ {L("Ванная","Łazienka")}</button>
+      </div>
+      {u&&<div style={{display:"grid",gridTemplateColumns:"minmax(0,1.6fr) minmax(300px,1fr)",gap:12}} className="wz-g">
+        <div style={{display:"flex",flexDirection:"column",gap:10,minWidth:0}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <input value={u.name} onChange={e=>updU({name:e.target.value})} style={{...inp,width:200}}/>
+            {[["szafa",L("Шкаф / гардероб","Szafa / zabudowa")],["lazienka",L("Ванная (влагостойкое)","Łazienka (wilgocioodporne)")]].map(([k,l])=><button key={k} onClick={()=>updU({type:k,mp:{}})} style={{...btn((u.type||"szafa")===k),height:30,fontSize:11.5}}>{l}</button>)}
+            {c.units.length>1&&<button onClick={()=>{upd(p=>({units:p.units.filter((_,i)=>i!==cur)}));setCur(0);}} style={{...btn(false),height:30,fontSize:11.5,color:"#ff7d8c",marginLeft:"auto"}}>🗑 {L("Удалить","Usuń")}</button>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:10}}>
+            {Parts({k:"korpus",title:L("Корпус · Kronospan","Korpus · Kronospan"),price:P.korpus})}
+            {Parts({k:"front",title:L("Фасады · Egger","Fronty · Egger"),price:P.front})}
+            {Parts({k:"blat",title:L("Столешница","Blat"),price:P.blat})}
+          </div>
+          <div style={{...glass,padding:12}}>
+            <div style={{...lbl,marginBottom:8}}>{L("фурнитура и опции","okucia i dodatki")}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(330px,1fr))",gap:"4px 16px"}}>
+              {WZ_ITEMS.map(([key,p1,r1,un,pr])=>{const q=(u.qty||{})[key]||"";const price=((u.pr||{})[key])??pr;const s=wzN(q)*wzN(price);return <div key={key} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 56px 66px 78px",gap:6,alignItems:"center",padding:"3px 0",borderTop:`1px solid ${C.border}`}}>
+                <span style={{fontSize:12,color:q?C.text:C.muted}}>{pl?p1:r1} <span style={{fontSize:10,color:C.dim}}>/{pl?un:({szt:"шт",m:"м",mb:"пог. м","m²":"м²"}[un]||un)}</span></span>
+                <input value={q} onChange={e=>updU(x=>({qty:{...(x.qty||{}),[key]:e.target.value}}))} inputMode="decimal" placeholder="0" style={{...inp,padding:"4px 6px",textAlign:"center"}}/>
+                <input value={price} onChange={e=>updU(x=>({pr:{...(x.pr||{}),[key]:e.target.value}}))} inputMode="decimal" style={{...inp,padding:"4px 6px",textAlign:"center",color:C.muted}}/>
+                <span style={{textAlign:"right",fontSize:12,color:s?C.text:C.dim}}>{s?fmtM(Math.round(s)):"—"}</span></div>;})}
+            </div>
+          </div>
+          <div style={{...glass,padding:12}}>
+            <div style={{...lbl,marginBottom:6}}>{L("своя позиция","własna pozycja")}</div>
+            {(u.custom||[]).map((x,j)=><div key={j} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 110px 24px",gap:6,marginBottom:5}}>
+              <input value={x.name||""} onChange={e=>updU(y=>({custom:y.custom.map((z,jj)=>jj===j?{...z,name:e.target.value}:z)}))} placeholder={L("Название","Nazwa")} style={inp}/>
+              <input value={x.sum||""} onChange={e=>updU(y=>({custom:y.custom.map((z,jj)=>jj===j?{...z,sum:e.target.value}:z)}))} placeholder="zł" inputMode="decimal" style={inp}/>
+              <button onClick={()=>updU(y=>({custom:y.custom.filter((_,jj)=>jj!==j)}))} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button></div>)}
+            <button onClick={()=>updU(y=>({custom:[...(y.custom||[]),{name:"",sum:""}]}))} style={{...btn(false),height:28,fontSize:11}}>＋ {L("позиция","pozycja")}</button>
+          </div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:10,minWidth:0}}>
+          <div style={{...glass,padding:14,display:"flex",flexDirection:"column",gap:6,fontSize:12.5}}>
+            <div style={lbl}>{u.name}</div>
+            {[[L("Корпус","Korpus"),`${ut.k.toFixed(2).replace(".",",")} m²`,ut.k*wzN(P.korpus)],[L("Фасады","Fronty"),`${ut.f.toFixed(2).replace(".",",")} m²`,ut.f*wzN(P.front)],[L("Столешница","Blat"),`${ut.b.toFixed(2).replace(".",",")} m²`,ut.b*wzN(P.blat)],[L("Фурнитура и опции","Okucia i dodatki"),"",ut.acc]].map(([a,b,v])=><div key={a} style={{display:"flex",gap:8}}><span style={{color:C.muted}}>{a}</span><span style={{color:C.dim,fontSize:11}}>{b}</span><span style={{marginLeft:"auto"}}>{fmtM(Math.round(v))}</span></div>)}
+            {[["prodRate",L("Produkcja","Produkcja"),ut.prod,WZ_RATE.prod],["montRate",L("Монтаж","Montaż"),ut.mont,WZ_RATE.mont]].map(([k,a,v,def])=><div key={k} style={{display:"flex",gap:6,alignItems:"center"}}><span style={{color:C.muted}}>{a}</span><span style={{color:C.dim,fontSize:11}}>{(ut.k+ut.f).toFixed(2).replace(".",",")} m² ×</span><input value={u[k]??def} onChange={e=>updU({[k]:e.target.value})} inputMode="decimal" style={{...inp,width:52,padding:"3px 5px",textAlign:"center"}}/><span style={{marginLeft:"auto"}}>{fmtM(Math.round(v))}</span></div>)}
+            {ut.cus>0&&<div style={{display:"flex"}}><span style={{color:C.muted}}>{L("Свои позиции","Własne pozycje")}</span><span style={{marginLeft:"auto"}}>{fmtM(Math.round(ut.cus))}</span></div>}
+            <div style={{display:"flex",borderTop:`1px solid ${C.border}`,paddingTop:6,fontSize:14,color:C.accent}}><span>{L("Итого шкаф","Razem szafa")}</span><span style={{marginLeft:"auto"}}>{fmtM(Math.round(ut.total))}</span></div>
+          </div>
+          <div style={{...glass,padding:14,display:"flex",flexDirection:"column",gap:7,fontSize:12.5,borderColor:"rgba(227,184,96,.45)"}}>
+            <div style={lbl}>{L("весь просчёт","cała wycena")}</div>
+            {c.units.map((x,i)=><div key={x.uid} style={{display:"flex"}}><span style={{color:C.muted}}>{x.name}</span><span style={{marginLeft:"auto"}}>{fmtM(Math.round(T.units[i].total))}</span></div>)}
+            <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{color:C.muted}}>{L("Доставка","Dostawa")}</span><input value={c.dostawa??WZ_DOST} onChange={e=>upd({dostawa:e.target.value})} inputMode="decimal" style={{...inp,width:80,marginLeft:"auto",textAlign:"right"}}/></div>
+            <div style={{display:"flex",borderTop:`1px solid ${C.border}`,paddingTop:6,fontSize:16,color:C.accent}}><span>{L("Итого, VAT 8%","Suma, VAT 8%")}</span><span style={{marginLeft:"auto"}}>{fmtM(T.total8)}</span></div>
+            <div style={{display:"flex",fontSize:13}}><span style={{color:C.muted}}>{L("Итого, VAT 23%","Suma, VAT 23%")}</span><span style={{marginLeft:"auto"}}>{fmtM(T.total23)}</span></div>
+            <div style={{fontSize:10.5,color:C.dim}}>{L("VAT 23% = сумма с 8% + 15%, как в бланке","VAT 23% = suma z 8% + 15%, jak w arkuszu")}</div>
+          </div>
+          <textarea value={c.notes||""} onChange={e=>upd({notes:e.target.value})} placeholder={L("Заметки","Notatki")} rows={3} style={{...inp,resize:"vertical"}}/>
+        </div>
+      </div>}
+      <style>{`@media(max-width:900px){.wz-g{grid-template-columns:1fr!important}}`}</style>
+    </div>
+  </div>);}
+
 function LeadCalcs({lead,lang,onOpen,onKP,onDup,onDel}){
   const pl=lang==="pl";const list=lead.calcs||[];const [arm,setArm]=useState(null);
   if(!list.length)return null;
   return(<div style={{display:"flex",flexDirection:"column",gap:6}}>
     {list.slice().reverse().map(c=>(<div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:10,border:`1px solid ${C.border}`,background:"rgba(227,184,96,.05)"}}>
-      {(c.sketchData||c.sketchFile)?<CalcSketchThumb c={c}/>:<span style={{fontSize:16}}>📐</span>}
+      {(c.sketchData||c.sketchFile)?<CalcSketchThumb c={c}/>:<span style={{fontSize:16}}>{c.kind==="szafa"?"🚪":"📐"}</span>}
       <div style={{minWidth:0,flex:1,cursor:"pointer"}} onClick={()=>onOpen(c)}>
         <div style={{fontSize:12.5,color:C.text}}>{c.name||"—"} · <b style={{color:C.accent}}>{fmtM(c.disc?c.totalDisc:c.total)}</b>{c.disc?<span style={{fontSize:10.5,color:C.muted}}> (−{c.disc}%)</span>:null}</div>
-        <div style={{fontSize:10.5,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(c.items||[]).reduce((a,x)=>a+x.qty,0)} {pl?"sekcji":"секций"} · {c.by||"—"} · {new Date(c.updatedAt||c.at||Date.now()).toLocaleDateString(pl?"pl-PL":"ru-RU")}{c.notes?` · ${c.notes}`:""}</div>
+        <div style={{fontSize:10.5,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.kind==="szafa"?`${(c.units||[]).length} ${pl?"szaf":"шкаф."}`:`${(c.items||[]).reduce((a,x)=>a+x.qty,0)} ${pl?"sekcji":"секций"}`} · {c.by||"—"} · {new Date(c.updatedAt||c.at||Date.now()).toLocaleDateString(pl?"pl-PL":"ru-RU")}{c.notes?` · ${c.notes}`:""}</div>
       </div>
       <button onClick={()=>onKP(c)} title={pl?"Oferta":"КП"} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"3px 7px",cursor:"pointer",fontSize:11}}>📄</button>
       <button onClick={()=>onDup(c)} title={pl?"Kopia":"Копия"} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"3px 7px",cursor:"pointer",fontSize:11}}>⧉</button>
@@ -5930,7 +6221,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
         <div style={{padding:22}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:18,paddingBottom:16,borderBottom:"1px solid rgba(191,164,126,0.2)"}}>
           <div style={{display:"flex",alignItems:"center",gap:14}}><div style={{position:"relative"}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={56} noMedal/><div style={{position:"absolute",right:-3,bottom:-3,width:14,height:14,borderRadius:"50%",background:QUAL_COLOR[form.qualification]||C.accent,border:"2px solid #00132f"}}/></div><div><div style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:0.2}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowTask(true)} title={lang==="pl"?"Nowe zadanie":"Новая задача"} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#ef4444",cursor:"pointer"}}>☰ {leadTasks.length>0?leadTasks.length:"+"}</button><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
-          <div style={{display:"flex",gap:8}}>{CALC_ON&&<Btn onClick={()=>setCalcOpen({})} variant="ghost" small>📐 {lang==="pl"?"Wycena":"Просчёт"}{(form.calcs||[]).length?` (${(form.calcs||[]).length})`:""}</Btn>}{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(inline&&autoEdit);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}{!inline&&<Btn onClick={onClose} variant="ghost" small>✕</Btn>}</div>
+          <div style={{display:"flex",gap:8}}>{CALC_ON&&<Btn onClick={()=>setCalcOpen({})} variant="ghost" small>📐 {lang==="pl"?"Wycena":"Просчёт"}{(form.calcs||[]).length?` (${(form.calcs||[]).length})`:""}</Btn>}{CALC_ON&&<Btn onClick={()=>setCalcOpen({kind:"szafa"})} variant="ghost" small>🚪 {lang==="pl"?"Szafy":"Шкафы"}</Btn>}{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(inline&&autoEdit);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}{!inline&&<Btn onClick={onClose} variant="ghost" small>✕</Btn>}</div>
         </div>
         {(()=>{const pl=lang==="pl";const arr=leadArrivalMs(form);const fc=firstContactMs(form);const d=arr!=null&&fc!=null?fc-arr:null;const waiting=arr!=null&&fc==null?Date.now()-arr:null;
           return <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:"6px 16px",marginTop:-6,marginBottom:14,fontSize:12,color:C.muted}}>
@@ -5959,8 +6250,8 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
               :<a key={i} href={f.url} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 10px",borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",color:"#38bdf8",fontSize:12,textDecoration:"none",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📄 {f.name}</a>)}</div>}
           </div>);})()}
         {CALC_ON&&(form.calcs||[]).length>0&&<div className="ld-sec" style={{marginBottom:14}}>
-          <div>📐 {lang==="pl"?"Wyceny":"Просчёты"} ({(form.calcs||[]).length})<button onClick={()=>setCalcOpen({})} style={{marginLeft:"auto",background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:8,padding:"3px 10px",fontSize:10.5,cursor:"pointer",letterSpacing:0,textTransform:"none"}}>＋ {lang==="pl"?"Nowa wycena":"Новый просчёт"}</button></div>
-          <LeadCalcs lead={form} lang={lang} onOpen={c=>setCalcOpen({calc:c})} onKP={c=>setCalcKP({amount:c.disc?c.totalDisc:c.total})}
+          <div>📐 {lang==="pl"?"Wyceny":"Просчёты"} ({(form.calcs||[]).length})<button onClick={()=>setCalcOpen({})} style={{marginLeft:"auto",background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:8,padding:"3px 10px",fontSize:10.5,cursor:"pointer",letterSpacing:0,textTransform:"none"}}>＋ {lang==="pl"?"Nowa wycena":"Новый просчёт"}</button><button onClick={()=>setCalcOpen({kind:"szafa"})} style={{marginLeft:6,background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:8,padding:"3px 10px",fontSize:10.5,cursor:"pointer",letterSpacing:0,textTransform:"none"}}>＋ {lang==="pl"?"Szafy":"Шкафы"}</button></div>
+          <LeadCalcs lead={form} lang={lang} onOpen={c=>setCalcOpen({calc:c})} onKP={c=>setCalcKP({amount:c.disc?c.totalDisc:c.total,stone:c.stone&&c.stone.on?calcNum(c.stone.amt):0})}
             onDup={c=>{const pl=lang==="pl";const n={...JSON.parse(JSON.stringify(c)),id:Date.now(),name:`${c.name} (${pl?"kopia":"копия"})`,at:Date.now(),updatedAt:Date.now(),by:currentUser||"—"};saveCalcs(list=>[...list,n],`📐 ${pl?"Kopia wyceny":"Копия просчёта"} «${n.name}»`);}}
             onDel={c=>{const pl=lang==="pl";saveCalcs(list=>list.filter(x=>x.id!==c.id),`📐 ${pl?"Usunięto wycenę":"Удалён просчёт"} «${c.name}»`);}}/>
         </div>}
@@ -5973,7 +6264,8 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
               <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.date}</div>{editing?<input type="date" value={createdAtToIso(form.createdAt)} onChange={e=>set("createdAt",isoToCreatedAt(e.target.value))} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%",colorScheme:"dark"}}/>:<div style={{fontSize:12,color:C.text}}>{form.createdAt||"—"}</div>}</div>
             </div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.action}</div>{editing?<select value={form.action||""} onChange={e=>set("action",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{ACTIONS.map(o=><option key={o} value={o}>{t[o]||o}</option>)}</select>:<Badge label={t[form.action]||"—"} color={ACT_COLOR[form.action]||C.muted} action={form.action} small/>}{form.action==="push"&&<div onClick={()=>{prevAction.current="push";setShowPush(true);}} title={t.editPush} style={{marginTop:5,fontSize:11,color:form.pushDate?dateStateColor(form.pushDate):PUSH_C,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5,border:`1px solid ${PUSH_C}44`,borderRadius:7,padding:"3px 9px"}}>🚀 {form.pushDate?`${isoToDot(form.pushDate)}${form.pushTime?` · ${form.pushTime}`:""}`:t.pushSetDate}</div>}</div>
-            <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select>:form.manager?<div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></div>:<span style={{color:C.dim}}>—</span>}</div>
+            <div><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.manager}</div>{editing?<select value={form.manager||""} onChange={e=>set("manager",e.target.value||null)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}><option value="">—</option>{leadAssignees().map(m=><option key={m}>{m}</option>)}</select>:<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{form.manager?<><Avatar name={form.manager} color={MGR_COLOR[form.manager]} size={22}/><span style={{color:MGR_COLOR[form.manager]}}>{form.manager}</span></>:<span style={{color:C.dim}}>—</span>}
+              {currentUser&&form.manager!==currentUser&&leadAssignees().includes(currentUser)&&<button onClick={()=>{const me=currentUser;const h={date:nowStr(),action:`✋ ${form.manager||"—"} → ${me}`,by:me};setForm(f=>({...f,manager:me,history:[...(f.history||[]),h]}));updateDb(p=>({...p,leads:(p.leads||[]).map(x=>x.id===lead.id?{...x,manager:me,history:[...(x.history||[]),h],updatedAt:Date.now()}:x)}),true);}} style={{background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:7,padding:"2px 9px",fontSize:11,fontWeight:700,cursor:"pointer"}}>✋ {lang==="pl"?"Weź sobie":"Взять себе"}</button>}</div>}</div>
           </div>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>◈ Оценка 0–6</div>
@@ -6071,8 +6363,9 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     {showVisit&&<VisitModal lead={form} t={t} initDate={form.visitDate} initTime={form.visitTime}
       onConfirm={confirmVisit}
       onCancel={()=>{setShowVisit(false);setForm(p=>({...p,score:4,qualification:"qualified"}));}}/>}
-    {calcOpen&&<CalcModal lead={form} calc={calcOpen.calc||null} lang={lang} currentUser={currentUser} onSave={onCalcSave} onClose={()=>setCalcOpen(null)} onKP={c=>setCalcKP({amount:c.disc?c.totalDisc:c.total})}/>}
-    {calcKP&&<KPModal lead={form} amount={calcKP.amount} stoneAmt={0} lang={kpLangOf()} vatOn={true} onClose={()=>setCalcKP(null)}/>}
+    {calcOpen&&(calcOpen.kind==="szafa"||(calcOpen.calc&&calcOpen.calc.kind==="szafa"))&&<WardrobeCalcModal lead={form} calc={calcOpen.calc||null} lang={lang} currentUser={currentUser} onSave={onCalcSave} onClose={()=>setCalcOpen(null)}/>}
+    {calcOpen&&!(calcOpen.kind==="szafa"||(calcOpen.calc&&calcOpen.calc.kind==="szafa"))&&<CalcModal lead={form} calc={calcOpen.calc||null} lang={lang} currentUser={currentUser} onSave={onCalcSave} onClose={()=>setCalcOpen(null)} onKP={c=>setCalcKP({amount:c.disc?c.totalDisc:c.total,stone:c.stone&&c.stone.on?calcNum(c.stone.amt):0})}/>}
+    {calcKP&&<KPModal lead={form} amount={calcKP.amount} stoneAmt={calcKP.stone||0} lang={kpLangOf()} vatOn={true} onClose={()=>setCalcKP(null)}/>}
     {showStickers&&<StickerModal lead={form} t={t} currentUser={currentUser} onSave={addStickerLD} onDelete={deleteStickerLD} onClose={()=>setShowStickers(false)}/>}
     {showTask&&<TaskModal task={{status:"todo",assignee:creatorLD||"—"}} onSave={addTaskForLead} onClose={()=>setShowTask(false)} t={t} taskTypes={taskTypes} leads={[]} onAddType={addTypeLD} presetLead={lead} lang={lang}/>}
     {showPush&&<PushModal lead={form} t={t} initDate={form.pushDate} initTime={form.pushTime}
@@ -6736,7 +7029,7 @@ function AlertPopup({alert,onAccept,onSnooze,onOpen,onDismiss,onForward,currentU
           </div>
           {alert.kind==="lead"&&onForward&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.12)"}}>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",textTransform:"uppercase",letterSpacing:1,fontWeight:800,marginBottom:8}}>↪ {ru?"Не могу — передать менеджеру":"Nie mogę — przekaż"}</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{MANAGERS.filter(m=>m!==currentUser).map(m=><button key={m} onClick={()=>onForward(m)} style={{background:`${MGR_COLOR[m]||"#888"}22`,border:`2px solid ${MGR_COLOR[m]||"#888"}`,color:MGR_COLOR[m]||"#fff",borderRadius:10,padding:"9px 16px",fontSize:14,fontWeight:800,cursor:"pointer"}}>→ {m}</button>)}</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{leadAssignees().filter(m=>m!==currentUser).map(m=><button key={m} onClick={()=>onForward(m)} style={{background:`${MGR_COLOR[m]||"#888"}22`,border:`2px solid ${MGR_COLOR[m]||"#888"}`,color:MGR_COLOR[m]||"#fff",borderRadius:10,padding:"9px 16px",fontSize:14,fontWeight:800,cursor:"pointer"}}>→ {m}</button>)}</div>
           </div>}
         </>):(
           <div>
@@ -7162,13 +7455,14 @@ const ORDER_RESP=[["manager","Менеджер"],["measure","Замер"],["prod
 // Внутренние ключи (названия этапов/пунктов) не меняются — переводится только показ.
 let ORD_LANG="ru";
 function oL(s){if(ORD_LANG!=="pl"||s==null)return s;const k=String(s);return Object.prototype.hasOwnProperty.call(ORD_PL,k)?ORD_PL[k]:k;}
-const ORD_PL={"· создан":"· utworzono","Авто: отмечено":"Auto: zaznaczono","Авто: этап":"Auto: etap","Бригада назначена":"Ekipa przydzielona","Бригада получила информацию по заказу":"Ekipa otrzymała informacje o zamówieniu","В группу добавлены сотрудники":"Pracownicy dodani do grupy","В задачи":"Do zadań","В работе":"W realizacji","Вияр подтвердил получение":"Viyar potwierdził odbiór","Время":"Godzina","Время замера":"Godzina pomiaru","Время монтажа":"Godzina montażu","Все комплектующие на производстве":"Wszystkie akcesoria na produkcji","Все материалы на производстве":"Wszystkie materiały na produkcji","Все необходимые файлы отправлены":"Wszystkie potrzebne pliki wysłane","Все размеры проверены":"Wszystkie wymiary sprawdzone","Готовность":"Gotowość","Готовность порезки — план":"Gotowość rozkroju — plan","Готовность порезки — факт":"Gotowość rozkroju — fakt","Да, удалить":"Tak, usuń","Данные заказа":"Dane zamówienia","Дата вручения":"Data wręczenia","Дата готовности зафиксирована":"Data gotowości zapisana","Дата доставки":"Data dostawy","Дата доставки назначена":"Data dostawy ustalona","Дата доставки подтверждена":"Data dostawy potwierdzona","Дата доставки с Вияра":"Data dostawy z Viyar","Дата заказа":"Data zamówienia","Дата замера":"Data pomiaru","Дата оплаты":"Data płatności","Дата отправки в Вияр":"Data wysłania do Viyar","Дата получения задатка":"Data otrzymania zaliczki","Дата получения задатка указана":"Data otrzymania zaliczki wpisana","Дата сборки назначена":"Data montażu w zakładzie ustalona","Дата фактической доплаты":"Data faktycznej dopłaty","Дедлайн":"Termin","Дедлайн до":"Termin do","Дедлайн отправки в работу":"Termin przekazania do realizacji","Дедлайн сборки на производстве":"Termin złożenia na produkcji","Дедлайн сегодня":"Termin dziś","Действительно удалить заказ №":"Na pewno usunąć zamówienie nr ","До дедлайна":"Do terminu","Добавить комплектующие":"Dodać akcesoria","Добавлено":"Dodano","Договор/документы оформлены":"Umowa/dokumenty przygotowane","Документ загружен в CRM":"Dokument wgrany do CRM","Документы/проект подписаны":"Dokumenty/projekt podpisane","Должны доплату":"Do dopłaty","Доплата запрошена":"Poproszono o dopłatę","Доплата клиента":"Dopłata klienta","Доплата получена":"Dopłata otrzymana","Дополнительные элементы":"Elementy dodatkowe","Доставка выполнена":"Dostawa wykonana","Доставка заказана":"Dostawa zamówiona","Доставка на объект":"Dostawa na obiekt","Доставка организована":"Dostawa zorganizowana","Доставка получена":"Dostawa odebrana","Другие комплектующие":"Inne akcesoria","Ждут Вияр":"Czekają na Viyar","Ждут доставки":"Czekają na dostawę","Ждут монтажа":"Czekają na montaż","Ждут отзыв":"Czekają na opinię","Ждут протокол":"Czekają na protokół","ЗАКАЗ ЗАВЕРШЁН":"ZAMÓWIENIE ZAKOŃCZONE","Задаток получен":"Zaliczka otrzymana","Задаток:":"Zaliczka:","Заказ":"Zamówienie","Заказ готов к доставке":"Zamówienie gotowe do dostawy","Заказ готов к производству":"Zamówienie gotowe do produkcji","Заказ доставлен на объект":"Zamówienie dostarczone na obiekt","Заказ переведён на этап":"Zamówienie przeszło na etap","Заказ передан технологу":"Zamówienie przekazane technologowi","Заказ проверен после сборки":"Zamówienie sprawdzone po złożeniu","Заказ со всеми этапами, отметками, файлами и историей будет удалён безвозвратно.":"Zamówienie ze wszystkimi etapami, zaznaczeniami, plikami i historią zostanie usunięte bezpowrotnie.","Заказ создан из продажи":"Zamówienie utworzone ze sprzedaży","Заказ №":"Zamówienie nr ","Заказано":"Zamówiono","Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически.":"Brak zamówień — utwórz ze sprzedaży (przycisk w prawym górnym rogu). Nowe sprzedaże tworzą zamówienie automatycznie.","Замер":"Pomiar","Замер назначен":"Pomiar umówiony","Замер проведён":"Pomiar wykonany","Замер проверен":"Pomiar sprawdzony","Замечания технолога":"Uwagi technologa","Замечания/вопросы зафиксированы":"Uwagi/pytania zapisane","Клиент":"Klient","Клиент подтвердил выполнение":"Klient potwierdził wykonanie","Клиент подтверждён":"Klient potwierdził termin","Клиент согласовал финальный вариант":"Klient zaakceptował wersję finalną","Клиент уведомлён":"Klient powiadomiony","Клиенту отправлен запрос на оплату":"Wysłano klientowi prośbę o płatność","Клиенту отправлена просьба оставить отзыв":"Wysłano klientowi prośbę o opinię","Клиенту отправлено напоминание":"Wysłano klientowi przypomnienie","Кол-во":"Ilość","Комментарий":"Komentarz","Комментарий в историю (Enter)":"Komentarz do historii (Enter)","Комментарий по замеру":"Komentarz do pomiaru","Комплектация проверена":"Kompletacja sprawdzona","Комплектующие":"Akcesoria","Контакт перевозчика":"Kontakt do przewoźnika","Контроль: технолог подтвердил получение и нет вопросов":"Kontrola: technolog potwierdził odbiór i brak pytań","Маршрут":"Trasa","Материалы проверены":"Materiały sprawdzone","Менеджер":"Menedżer","Механизмы":"Mechanizmy","Монтаж":"Montaż","Монтаж завершён":"Montaż zakończony","Монтаж назначен":"Montaż umówiony","Монтаж начат":"Montaż rozpoczęty","Монтаж — план":"Montaż — plan","Монтаж — факт":"Montaż — fakt","Монтажная бригада":"Ekipa montażowa","На производстве":"Na produkcji","Название позиции":"Nazwa pozycji","Название файла":"Nazwa pliku","Направляющие":"Prowadnice","Номер заказа":"Numer zamówienia","Номер фактуры":"Numer faktury","Общая стоимость:":"Wartość całkowita:","Ожидает":"Oczekuje","Остаток к оплате":"Do zapłaty","Остаток к оплате:":"Do zapłaty:","Ответственный":"Odpowiedzialny","Ответственный:":"Odpowiedzialny:","Отзыв":"Opinia","Отзыв получен":"Opinia otrzymana","Открытые задачи по заказу":"Otwarte zadania zamówienia","Открыть вручную (с причиной)":"Otwórz ręcznie (z powodem)","Открыть этап":"Otworzyć etap","Отмена":"Anuluj","Перевозчик":"Przewoźnik","Перевозчик назначен":"Przewoźnik wybrany","Переименовано":"Zmieniono nazwę","Петли":"Zawiasy","Плановая дата монтажа":"Planowana data montażu","Платёж зафиксирован":"Płatność zaksięgowana","По плану":"Zgodnie z planem","По фильтрам ничего":"Brak wyników dla filtrów","Подарок выбран":"Prezent wybrany","Подарок клиенту":"Prezent dla klienta","Подарок передан клиенту":"Prezent przekazany klientowi","Подарок подготовлен":"Prezent przygotowany","Подтверждена готовность порезки":"Potwierdzono gotowość rozkroju","Позиция":"Pozycja","Получено":"Otrzymano","Получить":"Odebrać","Порезка / логистика Вияр":"Rozkrój / logistyka Viyar","Поставщик":"Dostawca","Проблема":"Problem","Проверено, нужна ли доставка с Вияра":"Sprawdzono, czy potrzebna dostawa z Viyar","Проверить дату готовности порезки Вияр":"Sprawdzić datę gotowości rozkroju Viyar","Продажа / задаток":"Sprzedaż / zaliczka","Продажа останется — из неё можно создать заказ заново.":"Sprzedaż zostanie — można z niej utworzyć zamówienie ponownie.","Продажа подтверждена":"Sprzedaż potwierdzona","Проект подготовлен":"Projekt przygotowany","Проекты отправлены в Вияр":"Projekty wysłane do Viyar","Проекты получены от технолога":"Projekty otrzymane od technologa","Проекты проверены":"Projekty sprawdzone","Проекты → Вияр":"Projekty → Viyar","Производство / технолог":"Produkcja / technolog","Производство уведомлено":"Produkcja powiadomiona","Просрочено":"Po terminie","Просрочено задач":"Zadania po terminie","Просрочено на":"Po terminie o","Протокол отправлен клиенту":"Protokół wysłany klientowi","Протокол подготовлен":"Protokół przygotowany","Протокол подписан":"Protokół podpisany","Протокол приёмки / odbioru":"Protokół odbioru","Пункт в":"Punkt w","Пункт убран из":"Punkt usunięty z","Пункты применяются ко всем заказам. Переименование пункта сбросит его отметку в уже начатых заказах. Для «Комплектующих» — это стартовый список позиций новых заказов.":"Punkty dotyczą wszystkich zamówień. Zmiana nazwy punktu usunie jego zaznaczenie w rozpoczętych zamówieniach. Dla «Akcesoriów» to startowa lista pozycji nowych zamówień.","Разрешение на публикацию получено":"Zgoda na publikację otrzymana","Результаты замера переданы ответственному":"Wyniki pomiaru przekazane odpowiedzialnemu","Ручки":"Uchwyty","Ручной переход на этап":"Ręczne przejście na etap","Сборка завершена":"Złożenie zakończone","Сборка на производстве":"Złożenie na produkcji","Сборка начата":"Złożenie rozpoczęte","Сборка — план (дедлайн)":"Złożenie — plan (termin)","Сборка — факт":"Złożenie — fakt","Следующий шаг":"Następny krok","Собрано":"Złożone","Создана группа заказа в Telegram":"Utworzono grupę zamówienia w Telegram","Создать задачу из пункта":"Utwórz zadanie z punktu","Сохранить шаблон":"Zapisz szablon","Сразу на фабрику":"Od razu do fabryki","Срок доплаты":"Termin dopłaty","Срок не задан":"Brak terminu","Срок оплаты":"Termin płatności","Срок этапа":"Termin etapu","Ссылка (Google Drive, Dropbox…)":"Link (Google Drive, Dropbox…)","Ссылка на отзыв":"Link do opinii","Ссылка на отзыв добавлена в CRM":"Link do opinii dodany do CRM","Статус":"Status","Статус заказа":"Status zamówienia","Статус сборки":"Status złożenia","Стоимость доставки":"Koszt dostawy","Стоимость подтверждена":"Cena potwierdzona","Сумма доплаты":"Kwota dopłaty","Сумма задатка":"Kwota zaliczki","Сумма задатка внесена":"Kwota zaliczki wpisana","Сумма продажи":"Kwota sprzedaży","Сумма фактуры":"Kwota faktury","Текущий этап":"Bieżący etap","Технолог / фабрика":"Technolog / fabryka","Технолог подтвердил получение":"Technolog potwierdził odbiór","Тип подарка":"Rodzaj prezentu","Удалено":"Usunięto","Удалить":"Usuń","Удалить заказ":"Usuń zamówienie","Файл в":"Plik w","Фактура оплачена":"Faktura opłacona","Фактура получена":"Faktura otrzymana","Фактура проверена":"Faktura sprawdzona","Финализация проекта":"Finalizacja projektu","Финальная оплата":"Płatność końcowa","Финальная сумма":"Kwota końcowa","Финальная сумма рассчитана":"Kwota końcowa wyliczona","Финальный проект подготовлен для клиента":"Projekt finalny przygotowany dla klienta","Финальный проект проверен":"Projekt finalny sprawdzony","Фото после монтажа загружены":"Zdjęcia po montażu wgrane","Фото/видео от клиента получены":"Zdjęcia/wideo od klienta otrzymane","Фото/материалы загружены":"Zdjęcia/materiały wgrane","Фурнитура":"Okucia","Через технолога":"Przez technologa","Этап":"Etap","Этап завершён":"Etap zakończony","админ). Причина":"admin). Powód","в работе)":"w realizacji)","вручную, минуя незавершённые этапы.\nУкажи причину (обязательно":"ręcznie, z pominięciem niezakończonych etapów.\nPodaj powód (obowiązkowo","дата заказа":"data zamówienia","дн":"dn","завершён → следующий шаг":"zakończony → następny krok","заказано":"zamówiono","карточка лида →":"karta leada →","кол-во":"ilość","комментарий":"komentarz","не заказано":"nie zamówiono","не получено":"nie otrzymano","показать завершённые":"pokaż zakończone","получено":"otrzymano","поставщик":"dostawca","пропущен вручную (":"pominięty ręcznie (","тоже удалятся":"też zostaną usunięte","№ заказа":"Nr zamówienia","▼ Где сейчас заказы":"▼ Gdzie są teraz zamówienia","☐ Снята отметка":"☐ Odznaczono","☑ Выполнено":"☑ Wykonano","☰ Задачи заказа (":"☰ Zadania zamówienia (","⚙ Шаблон этапов":"⚙ Szablon etapów","⚙ Шаблон этапов заказа":"⚙ Szablon etapów zamówienia","⚠ задач просрочено:":"⚠ zadań po terminie:","✕ Сброс":"✕ Wyczyść","＋ Создать заказ из продажи (":"＋ Utwórz zamówienie ze sprzedaży (","＋ новый пункт (Enter)":"＋ nowy punkt (Enter)","＋ позиция":"＋ pozycja","＋ свой пункт для этого заказа (Enter)":"＋ własny punkt dla tego zamówienia (Enter)","🏁 ЗАКАЗ ЗАВЕРШЁН":"🏁 ZAMÓWIENIE ZAKOŃCZONE","🏁 Завершён":"🏁 Zakończone","📅 Срок этапа → задача":"📅 Termin etapu → zadanie","📎 Добавить":"📎 Dodaj","📝 Сгенерировать протокол odbioru":"📝 Wygeneruj protokół odbioru","📦 Заказы":"📦 Zamówienia","🔍 Клиент / телефон":"🔍 Klient / telefon","🔒 Этап закрыт — сначала завершите предыдущие этапы.":"🔒 Etap zamknięty — najpierw zakończ poprzednie etapy.","🔴 Просроченные":"🔴 Po terminie","🕓 История заказа":"🕓 Historia zamówienia","🗑 Удалить заказ":"🗑 Usuń zamówienie"};
+const ORD_PL={"Задаток 70 % оплачен":"Zaliczka 70% opłacona","Вияр (через технолога)":"Viyar (przez technologa)","Фабрика":"Fabryka","Вияр + фабрика":"Viyar + fabryka","Дата готовности Вияр":"Data gotowości Viyar","Номер заказа на фабрике":"Numer zamówienia w fabryce","Дата готовности фабрики":"Data gotowości fabryki","Проект отправлен технологу":"Projekt wysłany do technologa","Проекты отправлены на Вияр":"Projekty wysłane do Viyar","Вияр оплачен (дата готовности)":"Viyar opłacony (data gotowości)","Проект отправлен на фабрику":"Projekt wysłany do fabryki","Фабрика присвоила номер заказа":"Fabryka nadała numer zamówienia","Доставка с фабрики запланирована":"Dostawa z fabryki zaplanowana","Заказ на складе":"Zamówienie na magazynie","Столешница":"Blat","Столешница выбрана":"Blat wybrany","Столешница заказана":"Blat zamówiony","Столешница на складе":"Blat na magazynie","Поставщик столешницы":"Dostawca blatu","Дата готовности столешницы":"Data gotowości blatu","Технолог / фабрика → Вияр":"Technolog / fabryka → Viyar","Технолог / фабрика → Фабрика":"Technolog / fabryka → Fabryka","· создан":"· utworzono","Авто: отмечено":"Auto: zaznaczono","Авто: этап":"Auto: etap","Бригада назначена":"Ekipa przydzielona","Бригада получила информацию по заказу":"Ekipa otrzymała informacje o zamówieniu","В группу добавлены сотрудники":"Pracownicy dodani do grupy","В задачи":"Do zadań","В работе":"W realizacji","Вияр подтвердил получение":"Viyar potwierdził odbiór","Время":"Godzina","Время замера":"Godzina pomiaru","Время монтажа":"Godzina montażu","Все комплектующие на производстве":"Wszystkie akcesoria na produkcji","Все материалы на производстве":"Wszystkie materiały na produkcji","Все необходимые файлы отправлены":"Wszystkie potrzebne pliki wysłane","Все размеры проверены":"Wszystkie wymiary sprawdzone","Готовность":"Gotowość","Готовность порезки — план":"Gotowość rozkroju — plan","Готовность порезки — факт":"Gotowość rozkroju — fakt","Да, удалить":"Tak, usuń","Данные заказа":"Dane zamówienia","Дата вручения":"Data wręczenia","Дата готовности зафиксирована":"Data gotowości zapisana","Дата доставки":"Data dostawy","Дата доставки назначена":"Data dostawy ustalona","Дата доставки подтверждена":"Data dostawy potwierdzona","Дата доставки с Вияра":"Data dostawy z Viyar","Дата заказа":"Data zamówienia","Дата замера":"Data pomiaru","Дата оплаты":"Data płatności","Дата отправки в Вияр":"Data wysłania do Viyar","Дата получения задатка":"Data otrzymania zaliczki","Дата получения задатка указана":"Data otrzymania zaliczki wpisana","Дата сборки назначена":"Data montażu w zakładzie ustalona","Дата фактической доплаты":"Data faktycznej dopłaty","Дедлайн":"Termin","Дедлайн до":"Termin do","Дедлайн отправки в работу":"Termin przekazania do realizacji","Дедлайн сборки на производстве":"Termin złożenia na produkcji","Дедлайн сегодня":"Termin dziś","Действительно удалить заказ №":"Na pewno usunąć zamówienie nr ","До дедлайна":"Do terminu","Добавить комплектующие":"Dodać akcesoria","Добавлено":"Dodano","Договор/документы оформлены":"Umowa/dokumenty przygotowane","Документ загружен в CRM":"Dokument wgrany do CRM","Документы/проект подписаны":"Dokumenty/projekt podpisane","Должны доплату":"Do dopłaty","Доплата запрошена":"Poproszono o dopłatę","Доплата клиента":"Dopłata klienta","Доплата получена":"Dopłata otrzymana","Дополнительные элементы":"Elementy dodatkowe","Доставка выполнена":"Dostawa wykonana","Доставка заказана":"Dostawa zamówiona","Доставка на объект":"Dostawa na obiekt","Доставка организована":"Dostawa zorganizowana","Доставка получена":"Dostawa odebrana","Другие комплектующие":"Inne akcesoria","Ждут Вияр":"Czekają na Viyar","Ждут доставки":"Czekają na dostawę","Ждут монтажа":"Czekają na montaż","Ждут отзыв":"Czekają na opinię","Ждут протокол":"Czekają na protokół","ЗАКАЗ ЗАВЕРШЁН":"ZAMÓWIENIE ZAKOŃCZONE","Задаток получен":"Zaliczka otrzymana","Задаток:":"Zaliczka:","Заказ":"Zamówienie","Заказ готов к доставке":"Zamówienie gotowe do dostawy","Заказ готов к производству":"Zamówienie gotowe do produkcji","Заказ доставлен на объект":"Zamówienie dostarczone na obiekt","Заказ переведён на этап":"Zamówienie przeszło na etap","Заказ передан технологу":"Zamówienie przekazane technologowi","Заказ проверен после сборки":"Zamówienie sprawdzone po złożeniu","Заказ со всеми этапами, отметками, файлами и историей будет удалён безвозвратно.":"Zamówienie ze wszystkimi etapami, zaznaczeniami, plikami i historią zostanie usunięte bezpowrotnie.","Заказ создан из продажи":"Zamówienie utworzone ze sprzedaży","Заказ №":"Zamówienie nr ","Заказано":"Zamówiono","Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически.":"Brak zamówień — utwórz ze sprzedaży (przycisk w prawym górnym rogu). Nowe sprzedaże tworzą zamówienie automatycznie.","Замер":"Pomiar","Замер назначен":"Pomiar umówiony","Замер проведён":"Pomiar wykonany","Замер проверен":"Pomiar sprawdzony","Замечания технолога":"Uwagi technologa","Замечания/вопросы зафиксированы":"Uwagi/pytania zapisane","Клиент":"Klient","Клиент подтвердил выполнение":"Klient potwierdził wykonanie","Клиент подтверждён":"Klient potwierdził termin","Клиент согласовал финальный вариант":"Klient zaakceptował wersję finalną","Клиент уведомлён":"Klient powiadomiony","Клиенту отправлен запрос на оплату":"Wysłano klientowi prośbę o płatność","Клиенту отправлена просьба оставить отзыв":"Wysłano klientowi prośbę o opinię","Клиенту отправлено напоминание":"Wysłano klientowi przypomnienie","Кол-во":"Ilość","Комментарий":"Komentarz","Комментарий в историю (Enter)":"Komentarz do historii (Enter)","Комментарий по замеру":"Komentarz do pomiaru","Комплектация проверена":"Kompletacja sprawdzona","Комплектующие":"Akcesoria","Контакт перевозчика":"Kontakt do przewoźnika","Контроль: технолог подтвердил получение и нет вопросов":"Kontrola: technolog potwierdził odbiór i brak pytań","Маршрут":"Trasa","Материалы проверены":"Materiały sprawdzone","Менеджер":"Menedżer","Механизмы":"Mechanizmy","Монтаж":"Montaż","Монтаж завершён":"Montaż zakończony","Монтаж назначен":"Montaż umówiony","Монтаж начат":"Montaż rozpoczęty","Монтаж — план":"Montaż — plan","Монтаж — факт":"Montaż — fakt","Монтажная бригада":"Ekipa montażowa","На производстве":"Na produkcji","Название позиции":"Nazwa pozycji","Название файла":"Nazwa pliku","Направляющие":"Prowadnice","Номер заказа":"Numer zamówienia","Номер фактуры":"Numer faktury","Общая стоимость:":"Wartość całkowita:","Ожидает":"Oczekuje","Остаток к оплате":"Do zapłaty","Остаток к оплате:":"Do zapłaty:","Ответственный":"Odpowiedzialny","Ответственный:":"Odpowiedzialny:","Отзыв":"Opinia","Отзыв получен":"Opinia otrzymana","Открытые задачи по заказу":"Otwarte zadania zamówienia","Открыть вручную (с причиной)":"Otwórz ręcznie (z powodem)","Открыть этап":"Otworzyć etap","Отмена":"Anuluj","Перевозчик":"Przewoźnik","Перевозчик назначен":"Przewoźnik wybrany","Переименовано":"Zmieniono nazwę","Петли":"Zawiasy","Плановая дата монтажа":"Planowana data montażu","Платёж зафиксирован":"Płatność zaksięgowana","По плану":"Zgodnie z planem","По фильтрам ничего":"Brak wyników dla filtrów","Подарок выбран":"Prezent wybrany","Подарок клиенту":"Prezent dla klienta","Подарок передан клиенту":"Prezent przekazany klientowi","Подарок подготовлен":"Prezent przygotowany","Подтверждена готовность порезки":"Potwierdzono gotowość rozkroju","Позиция":"Pozycja","Получено":"Otrzymano","Получить":"Odebrać","Порезка / логистика Вияр":"Rozkrój / logistyka Viyar","Поставщик":"Dostawca","Проблема":"Problem","Проверено, нужна ли доставка с Вияра":"Sprawdzono, czy potrzebna dostawa z Viyar","Проверить дату готовности порезки Вияр":"Sprawdzić datę gotowości rozkroju Viyar","Продажа / задаток":"Sprzedaż / zaliczka","Продажа останется — из неё можно создать заказ заново.":"Sprzedaż zostanie — można z niej utworzyć zamówienie ponownie.","Продажа подтверждена":"Sprzedaż potwierdzona","Проект подготовлен":"Projekt przygotowany","Проекты отправлены в Вияр":"Projekty wysłane do Viyar","Проекты получены от технолога":"Projekty otrzymane od technologa","Проекты проверены":"Projekty sprawdzone","Проекты → Вияр":"Projekty → Viyar","Производство / технолог":"Produkcja / technolog","Производство уведомлено":"Produkcja powiadomiona","Просрочено":"Po terminie","Просрочено задач":"Zadania po terminie","Просрочено на":"Po terminie o","Протокол отправлен клиенту":"Protokół wysłany klientowi","Протокол подготовлен":"Protokół przygotowany","Протокол подписан":"Protokół podpisany","Протокол приёмки / odbioru":"Protokół odbioru","Пункт в":"Punkt w","Пункт убран из":"Punkt usunięty z","Пункты применяются ко всем заказам. Переименование пункта сбросит его отметку в уже начатых заказах. Для «Комплектующих» — это стартовый список позиций новых заказов.":"Punkty dotyczą wszystkich zamówień. Zmiana nazwy punktu usunie jego zaznaczenie w rozpoczętych zamówieniach. Dla «Akcesoriów» to startowa lista pozycji nowych zamówień.","Разрешение на публикацию получено":"Zgoda na publikację otrzymana","Результаты замера переданы ответственному":"Wyniki pomiaru przekazane odpowiedzialnemu","Ручки":"Uchwyty","Ручной переход на этап":"Ręczne przejście na etap","Сборка завершена":"Złożenie zakończone","Сборка на производстве":"Złożenie na produkcji","Сборка начата":"Złożenie rozpoczęte","Сборка — план (дедлайн)":"Złożenie — plan (termin)","Сборка — факт":"Złożenie — fakt","Следующий шаг":"Następny krok","Собрано":"Złożone","Создана группа заказа в Telegram":"Utworzono grupę zamówienia w Telegram","Создать задачу из пункта":"Utwórz zadanie z punktu","Сохранить шаблон":"Zapisz szablon","Сразу на фабрику":"Od razu do fabryki","Срок доплаты":"Termin dopłaty","Срок не задан":"Brak terminu","Срок оплаты":"Termin płatności","Срок этапа":"Termin etapu","Ссылка (Google Drive, Dropbox…)":"Link (Google Drive, Dropbox…)","Ссылка на отзыв":"Link do opinii","Ссылка на отзыв добавлена в CRM":"Link do opinii dodany do CRM","Статус":"Status","Статус заказа":"Status zamówienia","Статус сборки":"Status złożenia","Стоимость доставки":"Koszt dostawy","Стоимость подтверждена":"Cena potwierdzona","Сумма доплаты":"Kwota dopłaty","Сумма задатка":"Kwota zaliczki","Сумма задатка внесена":"Kwota zaliczki wpisana","Сумма продажи":"Kwota sprzedaży","Сумма фактуры":"Kwota faktury","Текущий этап":"Bieżący etap","Технолог / фабрика":"Technolog / fabryka","Технолог подтвердил получение":"Technolog potwierdził odbiór","Тип подарка":"Rodzaj prezentu","Удалено":"Usunięto","Удалить":"Usuń","Удалить заказ":"Usuń zamówienie","Файл в":"Plik w","Фактура оплачена":"Faktura opłacona","Фактура получена":"Faktura otrzymana","Фактура проверена":"Faktura sprawdzona","Финализация проекта":"Finalizacja projektu","Финальная оплата":"Płatność końcowa","Финальная сумма":"Kwota końcowa","Финальная сумма рассчитана":"Kwota końcowa wyliczona","Финальный проект подготовлен для клиента":"Projekt finalny przygotowany dla klienta","Финальный проект проверен":"Projekt finalny sprawdzony","Фото после монтажа загружены":"Zdjęcia po montażu wgrane","Фото/видео от клиента получены":"Zdjęcia/wideo od klienta otrzymane","Фото/материалы загружены":"Zdjęcia/materiały wgrane","Фурнитура":"Okucia","Через технолога":"Przez technologa","Этап":"Etap","Этап завершён":"Etap zakończony","админ). Причина":"admin). Powód","в работе)":"w realizacji)","вручную, минуя незавершённые этапы.\nУкажи причину (обязательно":"ręcznie, z pominięciem niezakończonych etapów.\nPodaj powód (obowiązkowo","дата заказа":"data zamówienia","дн":"dn","завершён → следующий шаг":"zakończony → następny krok","заказано":"zamówiono","карточка лида →":"karta leada →","кол-во":"ilość","комментарий":"komentarz","не заказано":"nie zamówiono","не получено":"nie otrzymano","показать завершённые":"pokaż zakończone","получено":"otrzymano","поставщик":"dostawca","пропущен вручную (":"pominięty ręcznie (","тоже удалятся":"też zostaną usunięte","№ заказа":"Nr zamówienia","▼ Где сейчас заказы":"▼ Gdzie są teraz zamówienia","☐ Снята отметка":"☐ Odznaczono","☑ Выполнено":"☑ Wykonano","☰ Задачи заказа (":"☰ Zadania zamówienia (","⚙ Шаблон этапов":"⚙ Szablon etapów","⚙ Шаблон этапов заказа":"⚙ Szablon etapów zamówienia","⚠ задач просрочено:":"⚠ zadań po terminie:","✕ Сброс":"✕ Wyczyść","＋ Создать заказ из продажи (":"＋ Utwórz zamówienie ze sprzedaży (","＋ новый пункт (Enter)":"＋ nowy punkt (Enter)","＋ позиция":"＋ pozycja","＋ свой пункт для этого заказа (Enter)":"＋ własny punkt dla tego zamówienia (Enter)","🏁 ЗАКАЗ ЗАВЕРШЁН":"🏁 ZAMÓWIENIE ZAKOŃCZONE","🏁 Завершён":"🏁 Zakończone","📅 Срок этапа → задача":"📅 Termin etapu → zadanie","📎 Добавить":"📎 Dodaj","📝 Сгенерировать протокол odbioru":"📝 Wygeneruj protokół odbioru","📦 Заказы":"📦 Zamówienia","🔍 Клиент / телефон":"🔍 Klient / telefon","🔒 Этап закрыт — сначала завершите предыдущие этапы.":"🔒 Etap zamknięty — najpierw zakończ poprzednie etapy.","🔴 Просроченные":"🔴 Po terminie","🕓 История заказа":"🕓 Historia zamówienia","🗑 Удалить заказ":"🗑 Usuń zamówienie"};
 const ORDER_STAGES=[
  {key:"deposit",name:"Продажа / задаток",icon:"💰",resp:"manager",date:"depositDate",items:["Продажа подтверждена","Задаток получен","Сумма задатка внесена","Дата получения задатка указана","Договор/документы оформлены"],fields:[["amount","Сумма продажи","num"],["deposit","Сумма задатка","num"],["depositDate","Дата получения задатка","date"]]},
  {key:"measure",name:"Замер",icon:"📏",resp:"measure",date:"measureDate",items:["Замер назначен","Замер проведён","Фото/материалы загружены","Результаты замера переданы ответственному","Замер проверен"],fields:[["measureDate","Дата замера","date"],["measureTime","Время замера","time"],["measureComment","Комментарий по замеру","text"]]},
- {key:"project",name:"Финализация проекта",icon:"📐",resp:"manager",date:"sendToWork",items:["Проект подготовлен","Все размеры проверены","Материалы проверены","Комплектация проверена","Стоимость подтверждена","Финальный проект подготовлен для клиента","Клиент согласовал финальный вариант","Документы/проект подписаны"],fields:[["sendToWork","Дедлайн отправки в работу","date"]]},
- {key:"technolog",name:"Технолог / фабрика",icon:"🧑‍🔧",resp:"production",date:null,items:["Финальный проект проверен","Заказ передан технологу","Все необходимые файлы отправлены","Технолог подтвердил получение","Замечания/вопросы зафиксированы","Заказ готов к производству"],fields:[["route","Маршрут","select:technolog=Через технолога|factory=Сразу на фабрику"],["techNotes","Замечания технолога","text"]]},
+ {key:"project",name:"Финализация проекта",icon:"📐",resp:"manager",date:"sendToWork",items:["Проект подготовлен","Все размеры проверены","Материалы проверены","Комплектация проверена","Стоимость подтверждена","Финальный проект подготовлен для клиента","Клиент согласовал финальный вариант","Документы/проект подписаны","Задаток 70 % оплачен"],fields:[["sendToWork","Дедлайн отправки в работу","date"]]},
+ {key:"technolog",name:"Технолог / фабрика",icon:"🧑‍🔧",resp:"production",date:null,items:["Финальный проект проверен","Заказ передан технологу","Все необходимые файлы отправлены","Технолог подтвердил получение","Замечания/вопросы зафиксированы","Заказ готов к производству"],fields:[["route","Маршрут","select:technolog=Вияр (через технолога)|factory=Фабрика|both=Вияр + фабрика"],["viyarReady","Дата готовности Вияр","date"],["factoryNum","Номер заказа на фабрике","text"],["factoryReady","Дата готовности фабрики","date"],["techNotes","Замечания технолога","text"]]},
  {key:"components",name:"Комплектующие",icon:"🔩",resp:"production",date:null,items:["Ручки","Cargo","Петли","Направляющие","Механизмы","Фурнитура","Дополнительные элементы","Другие комплектующие"],fields:[]},
+ {key:"blat",name:"Столешница",icon:"🪨",resp:"production",date:"blatReady",items:["Столешница выбрана","Столешница заказана","Столешница на складе"],fields:[["blatSupplier","Поставщик столешницы","text"],["blatReady","Дата готовности столешницы","date"]]},
  {key:"viyar",name:"Проекты → Вияр",icon:"🏭",resp:"production",date:"cutPlan",items:["Проекты получены от технолога","Проекты проверены","Проекты отправлены в Вияр","Вияр подтвердил получение","Фактура получена","Фактура проверена","Фактура оплачена"],fields:[["viyarSent","Дата отправки в Вияр","date"],["invoiceNo","Номер фактуры","text"],["invoiceSum","Сумма фактуры","num"],["invoicePaid","Дата оплаты","date"],["cutPlan","Готовность порезки — план","date"],["cutFact","Готовность порезки — факт","date"]]},
  {key:"logistics",name:"Порезка / логистика Вияр",icon:"🚚",resp:"production",date:"viyarDelivery",items:["Подтверждена готовность порезки","Дата готовности зафиксирована","Проверено, нужна ли доставка с Вияра","Доставка заказана","Дата доставки подтверждена","Доставка получена"],fields:[["viyarDelivery","Дата доставки с Вияра","date"]]},
  {key:"assembly",name:"Сборка на производстве",icon:"🛠",resp:"production",date:"assemblyPlan",items:["Дата сборки назначена","Производство уведомлено","Все материалы на производстве","Все комплектующие на производстве","Создана группа заказа в Telegram","В группу добавлены сотрудники","Сборка начата","Сборка завершена","Заказ проверен после сборки","Заказ готов к доставке"],fields:[["assemblyPlan","Сборка — план (дедлайн)","date"],["assemblyFact","Сборка — факт","date"],["assemblyStatus","Статус сборки","select:wait=Ожидает|work=В работе|done=Собрано|issue=Проблема"]]},
@@ -7182,10 +7476,25 @@ const ORDER_STAGES=[
 ];
 const oIso=(d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const oPlus=(n)=>{const d=new Date();d.setDate(d.getDate()+n);return oIso(d);};
-function orderItems(o,tpl,st){const base=(tpl&&tpl.stages&&tpl.stages[st.key])||st.items;if(st.key==="components")return [];return [...base,...((o.extra||{})[st.key]||[])];}
+// Маршрут производства: Вияр (через технолога) / фабрика / обе ветки
+const TECH_V=["Проект отправлен технологу","Проекты отправлены на Вияр","Вияр оплачен (дата готовности)","Технолог подтвердил получение","Замечания/вопросы зафиксированы","Заказ готов к производству"];
+const TECH_F=["Проект отправлен на фабрику","Фабрика присвоила номер заказа","Доставка с фабрики запланирована","Заказ на складе"];
+const orderRoute=o=>{const r=(o.f||{}).route;return r==="factory"?"f":r==="both"?"vf":"v";};
+// старые заказы, начатые до веток: этап 4 остаётся со старыми пунктами, столешница пропускается
+const orderLegacyTech=o=>!o.routeV2&&Object.keys((o.checks||{}).technolog||{}).length>0;
+const ORDER_AFTER_BLAT=["viyar","logistics","assembly","prepay","delivery","montage","finalpay","protocol","gift","review"];
+const orderLegacyBlat=o=>!o.routeV2&&!Object.keys((o.checks||{}).blat||{}).length&&(ORDER_AFTER_BLAT.some(k=>Object.keys((o.checks||{})[k]||{}).length||(o.forced||{})[k])||o.status==="done");
+const techLists=(tpl)=>({v:(tpl&&tpl.stages&&tpl.stages.technolog_v)||TECH_V,f:(tpl&&tpl.stages&&tpl.stages.technolog_f)||TECH_F});
+function orderItems(o,tpl,st){if(st.key==="components")return [];
+  let base=(tpl&&tpl.stages&&tpl.stages[st.key])||st.items;
+  if(st.key==="technolog"&&!orderLegacyTech(o)){const L=techLists(tpl),r=orderRoute(o);base=r==="f"?L.f:r==="vf"?[...new Set([...L.v,...L.f])]:L.v;}
+  return [...base,...((o.extra||{})[st.key]||[])];}
 function stageDone(o,tpl,st){
   // Пустой этап (нет комплектующих / все пункты убраны из шаблона) — проходной, иначе заказ застрянет
   if(st.key==="components"){const c=o.components||[];return c.every(x=>x.received);}
+  if(st.key==="blat"&&orderLegacyBlat(o))return true;
+  // только фабрика — этапы Вияра проходные
+  if((st.key==="viyar"||st.key==="logistics")&&o.routeV2&&orderRoute(o)==="f")return true;
   const it=orderItems(o,tpl,st);const ch=(o.checks||{})[st.key]||{};return it.every(x=>ch[x]);
 }
 function stagePassed(o,tpl,st){return stageDone(o,tpl,st)||!!(o.forced||{})[st.key];}
@@ -7206,7 +7515,7 @@ function orderNextStep(o,tpl){const ci=orderCur(o,tpl);if(ci>=ORDER_STAGES.lengt
 function makeOrder({sale,lead,num,by,tpl}){
   const now=Date.now();const comps=((tpl&&tpl.stages&&tpl.stages.components)||ORDER_STAGES[4].items).map((n,i)=>({id:now+i,name:n,qty:"",supplier:"",ordered:false,orderDate:"",received:false,comment:""}));
   return {id:now+Math.floor(Math.random()*1000),num:String(num),saleId:sale?.id||null,leadId:lead?.id||null,client:sale?.name||lead?.name||"",phone:sale?.phone||lead?.phone||"",amount:+(sale?.saleAmount||0),
-    resp:{manager:sale?.manager||lead?.manager||by||""},f:{amount:+(sale?.saleAmount||0)},checks:{deposit:{"Продажа подтверждена":{by:by||"—",at:now}}},components:comps,files:[],extra:{},sdl:{},forced:{},
+    resp:{manager:sale?.manager||lead?.manager||by||""},f:{amount:+(sale?.saleAmount||0)},checks:{deposit:{"Продажа подтверждена":{by:by||"—",at:now}}},components:comps,files:[],extra:{},sdl:{},forced:{},routeV2:true,
     history:[{date:nowStr(),by:by||"—",action:oL("Заказ создан из продажи")}],status:"active",createdAt:nowStr(),createdMs:now,updatedAt:now};
 }
 function nextOrderNum(orders){const n=(orders||[]).map(o=>parseInt(o.num)||0);return String(Math.max(1000,...n)+1);}
@@ -7225,7 +7534,7 @@ function printProtocol(o){
   w.document.close();
 }
 
-function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead}){
+function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead,mgr="all"}){
   ORD_LANG=lang==="pl"?"pl":"ru";
   const orders=db.orders||[];const tpl=db.orderTemplate||null;
   const isAdmin=ORDER_ADMIN.includes(currentUser);
@@ -7292,6 +7601,7 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
   // ── фильтры ──
   const active=orders.filter(o=>showDone||o.status!=="done");
   const rows=active.map(o=>({o,i:info(o)})).filter(({o,i})=>{
+    if(mgr&&mgr!=="all"&&!Object.values(o.resp||{}).includes(mgr))return false;
     if(fResp!=="all"&&!Object.values(o.resp||{}).includes(fResp))return false;
     if(fStage!=="all"&&String(i.ci)!==fStage)return false;
     if(fOver&&!(i.days!==null&&i.days<0)&&!i.ot)return false;
@@ -7304,13 +7614,13 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
     else if(fNum&&!String(o.num).includes(fNum))return false;
     if(kpi&&!kpi.fn(o,i))return false;
     return true;
-  }).sort((a,b)=>(a.i.days??9999)-(b.i.days??9999));
+  }).sort((a,b)=>(parseInt(String(b.o.num).replace(/\D/g,""))||0)-(parseInt(String(a.o.num).replace(/\D/g,""))||0)||(b.o.createdMs||0)-(a.o.createdMs||0));
   const act=orders.filter(o=>o.status!=="done").map(o=>({o,i:info(o)}));
   const at=(k)=>(x)=>x.i.st&&x.i.st.key===k;
   const KPI=[
     [oL("В работе"),"#38bdf8",()=>true],
     [oL("Просрочено"),"#ef4444",(o,i)=>(i.days!==null&&i.days<0)||i.ot>0],
-    [oL("На производстве"),"#fb923c",(o,i)=>i.st&&["technolog","components","assembly"].includes(i.st.key)],
+    [oL("На производстве"),"#fb923c",(o,i)=>i.st&&["technolog","components","blat","assembly"].includes(i.st.key)],
     [oL("Ждут Вияр"),"#c084fc",(o,i)=>i.st&&["viyar","logistics"].includes(i.st.key)],
     [oL("Ждут доставки"),"#facc15",(o,i)=>at("delivery")({i})],
     [oL("Ждут монтажа"),"#2dd4bf",(o,i)=>at("montage")({i})],
@@ -7344,16 +7654,6 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
           </div>);})}
       </div>
 
-      {/* Воронка заказов по этапам */}
-      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"12px 16px"}}>
-        <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{oL("▼ Где сейчас заказы")}</div>
-        {ORDER_STAGES.map((st,i)=>{const n=byStage[i];const on=fStage===String(i);return(
-          <div key={st.key} onClick={()=>setFStage(on?"all":String(i))} style={{display:"flex",alignItems:"center",gap:10,marginBottom:3,cursor:"pointer"}}>
-            <div style={{width:210,fontSize:11,color:on?C.accent:C.text,fontWeight:on?800:500,textAlign:"right",whiteSpace:"nowrap"}}>{i+1}. {st.icon} {oL(st.name)}</div>
-            <div style={{flex:1,display:"flex",justifyContent:"center"}}><div style={{width:`${Math.max(4,n/maxS*100)}%`,minWidth:28,background:n?`linear-gradient(90deg,${C.accent}cc,${C.accent}55)`:"rgba(255,255,255,0.05)",border:on?"2px solid #fff":"1px solid transparent",borderRadius:6,padding:"3px 8px",fontSize:12,fontWeight:900,color:n?"#00132f":C.dim,textAlign:"center"}}>{n}</div></div>
-          </div>);})}
-      </div>
-
       {/* Фильтры */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
         <select value={fResp} onChange={e=>setFResp(e.target.value)} style={ss}><option value="all">{oL("Ответственный")}</option>{allPeople.map(p=><option key={p} value={p}>{p}</option>)}</select>
@@ -7368,26 +7668,28 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
         {(fResp!=="all"||fStage!=="all"||fOver||fDl||fClient||fNum||fNumTo||kpi)&&<button onClick={()=>{setFResp("all");setFStage("all");setFOver(false);setFDl("");setFClient("");setFNum("");setFNumTo("");setKpi(null);}} style={{...ss,cursor:"pointer",color:C.muted}}>{oL("✕ Сброс")}</button>}
       </div>
 
-      {/* Таблица руководителя */}
-      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-          <thead><tr style={{background:C.surface}}>{[oL("Заказ"),oL("Клиент"),oL("Этап"),oL("Следующий шаг"),oL("Ответственный"),oL("Дедлайн"),oL("Статус"),oL("Готовность"),""].map(h=><th key={h} style={{padding:"9px 10px",textAlign:"left",fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
-          <tbody>
-            {rows.map(({o,i})=>(
-              <tr key={o.id} onClick={()=>setOpenId(o.id)} style={{borderTop:`1px solid ${C.border}`,cursor:"pointer"}}>
-                <td style={{padding:"9px 10px",fontWeight:900,color:C.accent,whiteSpace:"nowrap"}}>№{o.num}</td>
-                <td style={{padding:"9px 10px"}}><div style={{fontWeight:700,color:C.text}}>{o.client||"—"}</div><div style={{fontSize:10,color:C.muted}}>{o.phone}</div></td>
-                <td style={{padding:"9px 10px",whiteSpace:"nowrap",color:C.text}}>{i.st?`${i.st.icon} ${oL(i.st.name)}`:oL("🏁 Завершён")}</td>
-                <td style={{padding:"9px 10px",color:C.muted,maxWidth:220,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i.next}</td>
-                <td style={{padding:"9px 10px",fontWeight:700,color:MGR_COLOR[respOf(o,i.st)]||C.text}}>{respOf(o,i.st)}</td>
-                <td style={{padding:"9px 10px",whiteSpace:"nowrap",color:C.text}}>{i.dl?isoToDot(i.dl):"—"}</td>
-                <td style={{padding:"9px 10px",whiteSpace:"nowrap"}}><span style={{color:i.color,fontWeight:800}}>{i.emoji} {i.label}</span>{i.ot>0&&<div style={{fontSize:10,color:C.red,fontWeight:700}}>{oL("⚠ задач просрочено:")} {i.ot}</div>}</td>
-                <td style={{padding:"9px 10px",minWidth:110}}><div style={{height:7,background:"rgba(255,255,255,0.08)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${i.prog}%`,height:"100%",background:i.prog===100?C.green:C.accent}}/></div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{i.prog}%</div></td>
-                <td style={{padding:"9px 6px",textAlign:"center"}}><button onClick={e=>{e.stopPropagation();setDelId(o.id);}} title={oL("Удалить заказ")} style={{background:"rgba(248,113,113,0.12)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}}>🗑</button></td>
-              </tr>))}
-            {rows.length===0&&<tr><td colSpan={9} style={{padding:24,textAlign:"center",color:C.dim}}>{orders.length?oL("По фильтрам ничего"):oL("Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически.")}</td></tr>}
-          </tbody>
-        </table>
+      {/* Заказы: крупный номер + строка с данными, новые сверху */}
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {rows.map(({o,i})=>{const resp=respOf(o,i.st);const mDate=(o.f||{}).montagePlan;const H=({children})=><div style={{fontSize:9.5,color:C.muted,textTransform:"uppercase",letterSpacing:0.6,fontWeight:800,whiteSpace:"nowrap",marginBottom:4}}>{children}</div>;
+          return(<div key={o.id} onClick={()=>setOpenId(o.id)} className="ord-card" style={{background:C.card,border:`1px solid ${(i.days!==null&&i.days<0)||i.ot?"rgba(239,68,68,0.45)":C.border}`,borderRadius:14,padding:"12px 16px",cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+              <div style={{fontFamily:"'Russo One',sans-serif",fontSize:34,lineHeight:1,color:C.accent,letterSpacing:1}}>№{o.num}</div>
+              <div style={{flex:1}}/>
+              <button onClick={e=>{e.stopPropagation();setDelId(o.id);}} title={oL("Удалить заказ")} style={{background:"rgba(248,113,113,0.12)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}}>🗑</button>
+            </div>
+            <div className="ord-grid" style={{display:"grid",gridTemplateColumns:"minmax(150px,1.3fr) minmax(130px,1fr) minmax(140px,1.2fr) 112px minmax(130px,1fr) 104px minmax(90px,.8fr) 110px",gap:12,alignItems:"start",fontSize:12}}>
+              <div><H>{oL("Клиент")}</H><div style={{fontWeight:800,color:C.text}}>{o.client||"—"}</div><div style={{fontSize:10.5,color:C.muted}}>{o.phone}</div></div>
+              <div><H>{oL("Этап")}</H><div style={{color:C.text}}>{i.st?`${i.st.icon} ${oL(i.st.name)}`:oL("🏁 Завершён")}</div></div>
+              <div><H>{oL("Следующий шаг")}</H><div style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis"}}>{i.next}</div></div>
+              <div><H>{ORD_LANG==="pl"?"Termin etapu":"Дедлайн этапа"}</H><div style={{color:C.text,fontWeight:700}}>{i.dl?isoToDot(i.dl):"—"}</div></div>
+              <div><H>{oL("Статус")}</H><div style={{color:i.color,fontWeight:800}}>{i.emoji} {i.label}</div>{i.ot>0&&<div style={{fontSize:10,color:C.red,fontWeight:700}}>{oL("⚠ задач просрочено:")} {i.ot}</div>}</div>
+              <div><H>{ORD_LANG==="pl"?"Data montażu":"Дата монтажа"}</H><div style={{color:C.text,fontWeight:700}}>{mDate?isoToDot(mDate):"—"}</div></div>
+              <div><H>{oL("Ответственный")}</H><div style={{fontWeight:800,color:MGR_COLOR[resp]||C.text}}>{resp}</div></div>
+              <div><H>{oL("Готовность")}</H><div style={{height:7,background:"rgba(255,255,255,0.08)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${i.prog}%`,height:"100%",background:i.prog===100?C.green:C.accent}}/></div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{i.prog}%</div></div>
+            </div>
+          </div>);})}
+        {rows.length===0&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,textAlign:"center",color:C.dim}}>{orders.length?oL("По фильтрам ничего"):oL("Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически.")}</div>}
+        <style>{`@media(max-width:1100px){.ord-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important}}`}</style>
       </div>
       {open&&<OrderCard o={open} tpl={tpl} isAdmin={isAdmin} me={me} commit={commit} tasks={tasks} leads={leads} onOpenLead={onOpenLead} onClose={()=>setOpenId(null)} onDelete={()=>setDelId(open.id)} info={info(open)} respOf={respOf}/>}
       {delO&&<div onClick={()=>setDelId(null)} style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.9)",backdropFilter:"blur(4px)",zIndex:2700,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
@@ -7408,7 +7710,8 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
 }
 
 function OrderTemplateEditor({tpl,onSave,onClose}){
-  const [st,setSt]=useState(()=>{const m={};ORDER_STAGES.forEach(s=>{m[s.key]=[...((tpl&&tpl.stages&&tpl.stages[s.key])||s.items)];});return m;});
+  const ED=ORDER_STAGES.flatMap(s=>s.key==="technolog"?[{...s,key:"technolog_v",name:"Технолог / фабрика → Вияр",icon:"🏭",items:TECH_V},{...s,key:"technolog_f",name:"Технолог / фабрика → Фабрика",icon:"🏗",items:TECH_F}]:[s]);
+  const [st,setSt]=useState(()=>{const m={};ED.forEach(s=>{m[s.key]=[...((tpl&&tpl.stages&&tpl.stages[s.key])||s.items)];});if(tpl&&tpl.stages&&tpl.stages.technolog)m.technolog=[...tpl.stages.technolog];return m;});
   const [add,setAdd]=useState({});
   const ins={background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:7,padding:"5px 8px",fontSize:12,outline:"none"};
   return(
@@ -7416,9 +7719,9 @@ function OrderTemplateEditor({tpl,onSave,onClose}){
       <div onClick={e=>e.stopPropagation()} style={{width:"min(760px,100%)",maxHeight:"90vh",overflowY:"auto",background:"linear-gradient(165deg,#0a1a3a,#00132f)",border:"1px solid rgba(191,164,126,0.45)",borderRadius:18,padding:22}}>
         <div style={{display:"flex",alignItems:"center",marginBottom:6}}><div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{oL("⚙ Шаблон этапов заказа")}</div><button onClick={onClose} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#aaa",fontSize:20,cursor:"pointer"}}>✕</button></div>
         <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:14}}>{oL("Пункты применяются ко всем заказам. Переименование пункта сбросит его отметку в уже начатых заказах. Для «Комплектующих» — это стартовый список позиций новых заказов.")}</div>
-        {ORDER_STAGES.map((s,i)=>(
+        {ED.map((s,i)=>(
           <div key={s.key} style={{marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:11,padding:"10px 12px"}}>
-            <div style={{fontSize:12,fontWeight:800,color:"#bfa47e",marginBottom:6}}>{i+1}. {s.icon} {oL(s.name)}</div>
+            <div style={{fontSize:12,fontWeight:800,color:"#bfa47e",marginBottom:6}}>{ORDER_STAGES.findIndex(x=>x.key===s.key.replace(/_[vf]$/,""))+1}. {s.icon} {oL(s.name)}</div>
             {st[s.key].map((it,j)=>(
               <div key={j} style={{display:"flex",gap:6,marginBottom:4}}>
                 <input value={it} onChange={e=>setSt(m=>({...m,[s.key]:m[s.key].map((x,k)=>k===j?e.target.value:x)}))} style={{...ins,flex:1}}/>
@@ -7445,12 +7748,19 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
   const ins={background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:7,padding:"5px 8px",fontSize:12,outline:"none",colorScheme:"dark",width:"100%",boxSizing:"border-box"};
   const toggle=(k)=>setOpenSt(s=>{const n=new Set(s);n.has(k)?n.delete(k):n.add(k);return n;});
   const unlocked=(i)=>ORDER_STAGES.slice(0,i).every(st=>stagePassed(o,tpl,st));
-  const setField=(k,v,label)=>commit(o.id,x=>({...x,f:{...(x.f||{}),[k]:v},amount:k==="amount"?+v||0:x.amount}),`✎ ${oL(label)}: ${f[k]??"—"} → ${v||"—"}`);
+  const setField=(k,v,label)=>commit(o.id,x=>({...x,f:{...(x.f||{}),[k]:v},amount:k==="amount"?+v||0:x.amount,...(k==="route"?{routeV2:true}:{})}),`✎ ${oL(label)}: ${f[k]??"—"} → ${v||"—"}`);
   const setResp=(k,v,label)=>commit(o.id,x=>({...x,resp:{...(x.resp||{}),[k]:v}}),`👤 ${oL(label)}: ${(o.resp||{})[k]||"—"} → ${v||"—"}`);
   // Пункты-триггеры отдельных задач (раздел 4 ТЗ)
   const ITEM_TASKS={"Заказ передан технологу":{title:oL("Контроль: технолог подтвердил получение и нет вопросов"),days:2,stage:"technolog"},"Фактура оплачена":{title:oL("Проверить дату готовности порезки Вияр"),days:2,stage:"viyar",dateField:"cutPlan"}};
   const check=(st,it)=>{const was=!!((o.checks||{})[st.key]||{})[it];const trig=!was&&ITEM_TASKS[it];
-    commit(o.id,x=>{const c={...(x.checks||{})};const sc={...(c[st.key]||{})};if(was)delete sc[it];else sc[it]={by:me,at:Date.now()};c[st.key]=sc;return {...x,checks:c};},`${was?oL("☐ Снята отметка"):oL("☑ Выполнено")}: ${oL(st.name)} → ${oL(it)}`,
+    // Задаток 70 % → дедлайны: +1 нед. отправка (фабрика / Вияр / столешница / комплектующие), +6 нед. сборка, +8 нед. монтаж
+    const dep70=!was&&/70\s*%/.test(it)&&/задат|zalicz/i.test(it);
+    commit(o.id,x=>{const c={...(x.checks||{})};const sc={...(c[st.key]||{})};if(was)delete sc[it];else sc[it]={by:me,at:Date.now()};c[st.key]=sc;
+      if(dep70){const D=n=>oPlus(n);const ff={...(x.f||{})};const sd={...(x.sdl||{})};const w1=D(7);
+        ff.depositDate=ff.depositDate||td;["sendToWork"].forEach(k=>{if(!ff[k])ff[k]=w1;});if(!ff.assemblyPlan)ff.assemblyPlan=D(42);if(!ff.montagePlan)ff.montagePlan=D(56);if(!ff.blatReady)ff.blatReady=w1;
+        ["technolog","components","blat","viyar"].forEach(k=>{if(!sd[k])sd[k]=w1;});
+        return {...x,checks:c,f:ff,sdl:sd,history:[...(x.history||[]),{date:nowStr(),by:me,action:`📅 ${ORD_LANG==="pl"?"Zaliczka 70% → terminy: wysyłka":"Задаток 70% → дедлайны: отправка"} ${isoToDot(w1)} · ${ORD_LANG==="pl"?"złożenie":"сборка"} ${isoToDot(ff.assemblyPlan)} · ${ORD_LANG==="pl"?"montaż":"монтаж"} ${isoToDot(ff.montagePlan)}`}]};}
+      return {...x,checks:c};},`${was?oL("☐ Снята отметка"):oL("☑ Выполнено")}: ${oL(st.name)} → ${oL(it)}`,
       trig?(n,all)=>[buildNewTask({title:`📦 №${n.num} · ${trig.title}`,comment:`${oL("Авто: отмечено")} «${oL(it)}» (${me})`,status:"all",priority:"MID",assignee:respOf(n,st),deadline:(trig.dateField&&(n.f||{})[trig.dateField])||oPlus(trig.days),orderId:n.id,orderNum:n.num,orderStage:trig.stage,leadId:n.leadId,leadName:n.client},me==="—"?null:me,all)]:null);};
   const addItem=(st)=>{const v=(newItem[st.key]||"").trim();if(!v)return;commit(o.id,x=>({...x,extra:{...(x.extra||{}),[st.key]:[...((x.extra||{})[st.key]||[]),v]}}),`＋ ${oL("Пункт в")} «${oL(st.name)}»: ${v}`);setNewItem(a=>({...a,[st.key]:""}));};
   const delExtra=(st,it)=>commit(o.id,x=>({...x,extra:{...(x.extra||{}),[st.key]:((x.extra||{})[st.key]||[]).filter(y=>y!==it)}}),`− ${oL("Пункт убран из")} «${oL(st.name)}»: ${oL(it)}`);
@@ -7538,7 +7848,7 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
                     <input type="date" key={"sdl"+((o.sdl||{})[st.key]||"")} defaultValue={(o.sdl||{})[st.key]||""} onChange={e=>setStageDl(st,e.target.value)} style={{...ins,width:150}}/>
                     <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>👤 {respOf(o,st)}</span>
                   </div>
-                  {st.fields.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:10}}>{st.fields.map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL(fd[1])}</div>{renderField(fd)}</div>)}</div>}
+                  {st.fields.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:10}}>{st.fields.filter(fd=>{if(st.key!=="technolog")return true;const r=orderRoute(o);if(fd[0]==="viyarReady")return r!=="f";if(fd[0]==="factoryNum"||fd[0]==="factoryReady")return r!=="v";return true;}).map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL(fd[1])}</div>{renderField(fd)}</div>)}</div>}
                   {st.key==="prepay"&&<div style={{fontSize:12,color:"#fff",marginBottom:10,display:"flex",gap:14,flexWrap:"wrap"}}><span>{oL("Общая стоимость:")} <b>{fmtM(+f.amount||o.amount||0)}</b></span><span>{oL("Задаток:")} <b>{fmtM(+f.deposit||0)}</b></span><span>{oL("Остаток к оплате:")} <b style={{color:info.rem?"#f87171":"#22c55e"}}>{fmtM(info.rem)}</b></span></div>}
                   {st.key==="protocol"&&<button onClick={()=>printProtocol(o)} style={{background:"#818cf8",border:"none",color:"#00132f",borderRadius:9,padding:"8px 14px",fontSize:12,fontWeight:800,cursor:"pointer",marginBottom:10}}>{oL("📝 Сгенерировать протокол odbioru")}</button>}
                   {st.key==="components"
@@ -7558,14 +7868,17 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
                         <button onClick={()=>{const n=prompt(oL("Название позиции"));if(n&&n.trim())commit(o.id,x=>({...x,components:[...(x.components||[]),{id:Date.now(),name:n.trim(),qty:"",supplier:"",ordered:false,orderDate:"",received:false,comment:""}]}),`🔩 ${oL("Добавлено")}: ${n.trim()}`);}} style={{marginTop:6,background:"transparent",border:"1px dashed rgba(191,164,126,0.5)",color:"#bfa47e",borderRadius:8,padding:"5px 12px",fontSize:11,cursor:"pointer"}}>{oL("＋ позиция")}</button>
                       </div>
                     : <div style={{display:"flex",flexDirection:"column",gap:3,marginBottom:8}}>
-                        {items.map(it=>{const c=ch[it];const isExtra=extra.includes(it);return(
-                          <div key={it} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 6px",borderRadius:7,background:c?"rgba(34,197,94,0.07)":"transparent"}}>
+                        {items.map((it,ix)=>{const c=ch[it];const isExtra=extra.includes(it);
+                          const TL=st.key==="technolog"&&!orderLegacyTech(o)?techLists(tpl):null;const rt=orderRoute(o);
+                          const hdr=TL&&rt==="vf"?(ix===0?"🏭 "+(ORD_LANG==="pl"?"Viyar":"Вияр"):(it===TL.f.find(x=>!TL.v.includes(x))?"🏗 "+(ORD_LANG==="pl"?"Fabryka":"Фабрика"):null)):null;
+                          return(<div key={it}>{hdr&&<div style={{fontSize:10.5,fontWeight:900,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1,margin:ix?"10px 0 4px":"0 0 4px"}}>{hdr}</div>}
+                          <div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 6px",borderRadius:7,background:c?"rgba(34,197,94,0.07)":"transparent"}}>
                             <button disabled={!unl&&!done} onClick={()=>check(st,it)} style={{width:20,height:20,borderRadius:5,border:`2px solid ${c?"#22c55e":"rgba(255,255,255,0.3)"}`,background:c?"#22c55e":"transparent",color:"#00132f",fontSize:12,fontWeight:900,cursor:unl||done?"pointer":"not-allowed",lineHeight:1,padding:0,flexShrink:0}}>{c?"✓":""}</button>
                             <span style={{flex:1,fontSize:12,color:c?"#86efac":"#fff",textDecoration:c?"line-through":"none"}}>{oL(it)}</span>
                             {c&&<span style={{fontSize:9,color:"rgba(255,255,255,0.4)"}}>{c.by} · {new Date(c.at).toLocaleDateString("ru-RU")}</span>}
                             {!c&&<button title={oL("Создать задачу из пункта")} onClick={()=>itemToTask(st,it)} style={{background:"transparent",border:"none",color:"#38bdf8",cursor:"pointer",fontSize:11}}>→☰</button>}
                             {isExtra&&<button onClick={()=>delExtra(st,it)} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer",fontSize:11}}>✕</button>}
-                          </div>);})}
+                          </div></div>);})}
                         <input value={newItem[st.key]||""} onChange={e=>setNewItem(a=>({...a,[st.key]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addItem(st)} placeholder={oL("＋ свой пункт для этого заказа (Enter)")} style={{...ins,marginTop:4,background:"transparent",border:"1px dashed rgba(255,255,255,0.15)"}}/>
                       </div>}
                   {/* Файлы/ссылки этапа */}
@@ -7810,7 +8123,7 @@ function TaskReport({tasks,taskTypes,lang,t}){
 
 // ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
 // Единственное место, где управляют типами задач (в задачах — только выбор из списка).
-function SettingsPage({db,updateDb,lang,t,srcList,setDomains}){
+function SettingsPage({db,updateDb,lang,t,srcList,setDomains,currentUser}){
   const ru=lang!=="pl";
   const [name,setName]=useState("");
   const types=db.taskTypes||[];
@@ -7828,9 +8141,10 @@ function SettingsPage({db,updateDb,lang,t,srcList,setDomains}){
   const rename=(id,v)=>updateDb(p=>({...p,taskTypes:(p.taskTypes||[]).map(x=>x.id===id?{...x,name:v}:x)}),true);
   const ins={background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:9,padding:"9px 12px",fontSize:13,outline:"none"};
   return(
-    <div style={{padding:22,maxWidth:760}}>
+    <div style={{padding:22,maxWidth:980}}>
       <div style={{fontSize:20,fontWeight:800,color:C.text,marginBottom:4}}>⚙ {ru?"Настройки":"Ustawienia"}</div>
       <div style={{fontSize:12,color:C.muted,marginBottom:22}}>{ru?"Справочники CRM":"Słowniki CRM"}</div>
+      <UpdatesPanel db={db} updateDb={updateDb} currentUser={currentUser} lang={lang}/>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18}}>
         <div style={{fontSize:11,color:C.accent,textTransform:"uppercase",letterSpacing:1,fontWeight:800,marginBottom:12}}>☰ {ru?"Типы задач":"Typy zadań"} <span style={{color:C.muted,fontWeight:600}}>({types.length})</span></div>
         <div style={{display:"flex",gap:8,marginBottom:14}}>
@@ -8832,7 +9146,9 @@ function GarnoCRM(){
   useEffect(()=>{ if(activeAlert&&activeAlert.key!==lastAlertKey.current){lastAlertKey.current=activeAlert.key; if(activeAlert.kind==="lead")playSiren(SIREN_SECONDS,soundFor([activeAlert.lead])); else playDing();} },[activeAlert?.key]);
   const alertAccept=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);stopSiren();
     if(a.kind==="lead"){a.ids.forEach(unmarkFresh);const me=currentUser&&currentUser!=="all"?currentUser:"?";const ids=new Set(a.ids);
-      updateDb(p=>({...p,leads:(p.leads||[]).map(l=>ids.has(l.id)&&!(l.seenBy||[]).includes(me)?{...l,seenBy:[...new Set([...(l.seenBy||[]),me])],seenAt:l.seenAt||Date.now(),updatedAt:Date.now()}:l)}),true);}
+      const canTake=leadAssignees().includes(me);
+      updateDb(p=>({...p,leads:(p.leads||[]).map(l=>{if(!ids.has(l.id))return l;const take=canTake&&!l.manager;if((l.seenBy||[]).includes(me)&&!take)return l;
+        return {...l,seenBy:[...new Set([...(l.seenBy||[]),me])],seenAt:l.seenAt||Date.now(),updatedAt:Date.now(),...(take?{manager:me,history:[...(l.history||[]),{date:nowStr(),action:`✋ ${me}: взял лида`,by:me}]}:{})};})}),true);}
     else if(a.kind==="task"){updateDb(p=>({...p,tasks:(p.tasks||[]).map(x=>x.id===a.task.id?{...x,seenBy:[...new Set([...(x.seenBy||[]),currentUser])]}:x)}),true);}
     else if(a.kind==="reminder"){updateDb(p=>({...p,chat:(p.chat||[]).map(m=>(m.key===a.key&&m.kind==="reminder")?{...m,ackBy:currentUser||"?",ackAt:Date.now()}:m)}),true);}
     alertTick(x=>x+1);};
@@ -9034,19 +9350,19 @@ function GarnoCRM(){
       `}</style>
       <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr} unreadTasks={unreadTasksCount} pushDue={pushDueTodayCount} aiUnread={aiUnreadCount} freshLeads={freshCount()} t={t}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <TopBar lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} unreadTasks={unreadTasksCount} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
+        <TopBar updBtn={<UpdButton currentUser={currentUser} page={page} updateDb={updateDb} lang={lang}/>} lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} unreadTasks={unreadTasksCount} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <DashboardPage db={db} updateDb={updateDb} currentUser={currentUser} lang={DASH_LANG||lang} t={T[DASH_LANG||lang]||t} srcList={srcList} onOpenLead={setSelLead}/>}
           {page==="leads"      && <LeadsSection abTests={db.abTests||[]} onOpenTests={()=>setPage("tests")} ldp={{setLeads:setLeadsNow,srcList,onAddSale:addSale,taskTypes:db.taskTypes||[],tasks,orders:db.orders||[]}} lang={lang} funnels={db.funnels||[]} leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
-          {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead}/>}
+          {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead} mgr={mgr}/>}
           
           {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
           {(page==="salescenter"||page==="funnel"||page==="analytics")&& <SalesCenterTabs initialTab={page==="salescenter"?"center":"funnel"} srcList={srcList} funnels={db.funnels||[]} leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
           {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={setSelLead} currentUser={currentUser}/>}
           {page==="tests"      && <TestsPage db={db} updateDb={updateDb} currentUser={currentUser} lang={lang} onOpenLead={setSelLead}/>}
-          {page==="settings"   && <SettingsPage db={db} updateDb={updateDb} lang={lang} t={t} srcList={srcList} setDomains={setDomains}/>}
+          {page==="settings"   && <SettingsPage db={db} updateDb={updateDb} lang={lang} t={t} srcList={srcList} setDomains={setDomains} currentUser={currentUser}/>}
           {page==="tasks"      && <TasksPage orders={db.orders||[]} orderTaskTypes={db.orderTaskTypes||[]} tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t} leads={leads} taskTypes={db.taskTypes||[]} onOpenLead={setSelLead} initialModal={taskPreset} />}
         </div>
       </div>
