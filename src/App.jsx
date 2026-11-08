@@ -3873,7 +3873,7 @@ function SalesCenterTabs(props){
   useEffect(()=>{if(initialTab)setTab(initialTab);},[initialTab]);
   return(<div>
     <TabBar tabs={[{key:"center",icon:"◆",label:pl?"Centrum sprzedaży":"Центр продаж"},{key:"funnel",icon:"▼",label:pl?"Lejek sprzedaży":"Воронка продаж"}]} active={tab} onChange={setTab}/>
-    {tab==="center"?<SalesCenterPage {...props}/>:<FunnelPage leads={props.leads} sales={props.sales} srcList={props.srcList} funnels={props.funnels} t={props.t} lang={lang} onOpenLead={props.onOpenLead} currentUser={props.currentUser}/>}
+    {tab==="center"?<SalesCenterPage {...props} onGoFunnel={()=>setTab("funnel")}/>:<FunnelPage leads={props.leads} sales={props.sales} srcList={props.srcList} funnels={props.funnels} t={props.t} lang={lang} onOpenLead={props.onOpenLead} currentUser={props.currentUser} goals={props.goals||[]}/>}
   </div>);
 }
 
@@ -4459,6 +4459,345 @@ function DozhimMode({leads,updateDb,currentUser,onOpen,lang="ru"}){const pl=lang
         </div></div>}
       {toast&&<div key={toast.id} style={{position:"fixed",left:"50%",bottom:26,transform:"translateX(-50%)",zIndex:1600,padding:"11px 18px",borderRadius:14,background:dk?"linear-gradient(150deg,rgba(30,70,170,.96),rgba(6,22,62,.97))":C.surface,border:"1px solid rgba(227,184,96,.35)",fontSize:12.5,color:C.text,boxShadow:"0 20px 60px rgba(0,0,0,.45)",animation:"dutyToast .35s"}}>{toast.m}</div>}
     </div>);}
+
+// ─── РАДАР · ПРОГНОЗ ЦЕЛИ ─────────────────────────────────────────────────────
+// Берёт главную цель месяца (Цели → выручка, команда; разбивка по менеджерам — дочерние цели),
+// строит нормы KPI по истории 3 месяцев, считает вероятность выполнения (Монте-Карло по живой воронке:
+// визиты → квалы → новые лиды, с реальными лагами «визит → продажа» и «лид → продажа» и реальными чеками),
+// объясняет, почему вероятность низкая (KPI против нормы → цепочка до денег), ищет аномалии в срезах
+// (язык, источник, время заявки), показывает, где протекает воронка, и даёт подсказки.
+const GF_HIST=3;
+const gfYM=(ym,k)=>{const [y,m]=ym.split("-").map(Number);const d=new Date(y,m-1+k,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;};
+const gfMR=ym=>{const [y,m]=ym.split("-").map(Number);return [isoLocal(new Date(y,m-1,1)),isoLocal(new Date(y,m,0))];};
+const gfMs=iso=>new Date(iso+"T12:00:00").getTime();
+const GF_DAY=86400000;
+const GF_MON=[["янв","sty"],["фев","lut"],["мар","mar"],["апр","kwi"],["мая","maj"],["июн","cze"],["июл","lip"],["авг","sie"],["сен","wrz"],["окт","paź"],["ноя","lis"],["дек","gru"]];
+const gfMonName=(ym,pl)=>GF_MON[+ym.slice(5,7)-1][pl?1:0];
+function gfContact(l){if(l.c1==="yes"||l.c2==="yes")return 1;if(l.c1==="no"&&l.c2==="no")return 0;const s=parseFloat(l.score)||0;if(s>=1)return 1;if(l.c1==="no"||l.action==="missedCall"||(l.dutyMiss||0)>=2)return 0;return null;}
+function gfSlot(ms){if(!ms)return null;const d=new Date(ms);if(d.getDay()===0||d.getDay()===6)return "wknd";const h=d.getHours();return h>=8&&h<12?"morning":h>=12&&h<17?"day":h>=17&&h<22?"evening":"night";}
+const GF_DIM={lang:["язык клиента","język klienta"],src:["источник","źródło"],slot:["время заявки","pora zgłoszenia"]};
+const GF_SLOTN={morning:["утро 8–12","rano 8–12"],day:["день 12–17","dzień 12–17"],evening:["вечер 17–22","wieczór 17–22"],night:["ночь 22–8","noc 22–8"],wknd:["выходные","weekend"]};
+const GF_LANGN={pl:["поляки","Polacy"],ua:["украинцы","Ukraińcy"],ru:["русскоязычные","rosyjskojęzyczni"],en:["англоязычные","anglojęzyczni"],cz:["чехи","Czesi"],"?":["язык не указан","bez języka"]};
+const gfSegName=(dim,v,pl)=>dim==="lang"?((GF_LANGN[v]||[v,v])[pl?1:0])+` (${String(v).toUpperCase()})`:dim==="slot"?(GF_SLOTN[v]||[v,v])[pl?1:0]:String(v);
+function gfPrep(leads,sales){
+  const byLid=new Map(),byPh=new Map();
+  const L=(leads||[]).map(l=>{if(!l)return null;const d=createdAtToIsoDate(l.createdAt);if(!d)return null;let ar=null,fc=null;try{ar=leadArrivalMs(l);fc=firstContactMs(l);}catch{}
+    const x={id:l.id,mgr:l.manager||"",lang:l.clientLang?normLang(l.clientLang)||"?":"?",src:String(l.source||"—"),slot:gfSlot(ar),d,ms:gfMs(d),sc:parseFloat(l.score)||0,ct:gfContact(l),vd:l.visitDate||null,canc:l.action==="cancelled",
+      fcMin:ar!=null&&fc!=null&&fc>=ar?(fc-ar)/60000:null,name:l.name||l.phone||"—",saleMs:null,act:l.action,c2:l.c2,miss:!!l.visitMissAt};
+    if(l.leadId)byLid.set(String(l.leadId),x);if(l.phone)byPh.set(String(l.phone),x);return x;}).filter(Boolean);
+  const S=(sales||[]).map(s=>{const d=createdAtToIsoDate(String(s.createdAt||"").split(" ")[0]);if(!d)return null;const ld=byLid.get(String(s.leadId))||byPh.get(String(s.phone))||null;
+    return {mgr:s.manager||"",d,ms:gfMs(d),amt:+s.saleAmount||0,lead:ld,lang:ld?ld.lang:"?",src:ld?ld.src:"—"};}).filter(Boolean);
+  S.forEach(s=>{if(s.lead)s.lead.saleMs=s.lead.saleMs?Math.min(s.lead.saleMs,s.ms):s.ms;});
+  return {L,S};
+}
+function gfKpi(L,S){const n=L.length,re=L.filter(x=>x.ct===1).length,mi=L.filter(x=>x.ct===0).length,q=L.filter(x=>x.sc>=4).length,v=L.filter(x=>x.sc>=5).length,so=L.filter(x=>x.sc>=6||x.saleMs).length;
+  const rev=(S||[]).reduce((a,s)=>a+s.amt,0),f=L.map(x=>x.fcMin).filter(x=>x!=null).sort((a,b)=>a-b);
+  return {n,re,mi,nr:re+mi?mi/(re+mi):null,ct:re+mi,ar:n?q/n:null,q,v,c45:q?v/q:null,so,c56:v?Math.min(1,so/v):null,s:(S||[]).length,rev,aov:(S||[]).length?rev/(S||[]).length:null,fc:f.length?f[f.length>>1]:null,fcN:f.length};}
+// сглаживание малой выборки к норме команды
+const gfShr=(k,n,base,K=10)=>base==null?(n?k/n:null):(k+base*K)/(n+K);
+function gfRng(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gfPois(l,r){if(l<=0)return 0;if(l>30)return Math.max(0,Math.round(l+Math.sqrt(l)*(r()+r()+r()-1.5)*2));let L=Math.exp(-l),k=0,p=1;do{k++;p*=r();}while(p>L);return k-1;}
+const gfZ=(k1,n1,k2,n2)=>{if(!n1||!n2)return 0;const p=(k1+k2)/(n1+n2);const se=Math.sqrt(p*(1-p)*(1/n1+1/n2));return se?(k1/n1-k2/n2)/se:0;};
+function gfModel(P,mgr,target,today,team){
+  today=today||getToday();const ym=today.slice(0,7);const [ma,mb]=gfMR(ym);
+  const own=x=>!mgr||mgr==="all"||x.mgr===mgr;const L=P.L.filter(own),S=P.S.filter(own);
+  const hA=gfMR(gfYM(ym,-GF_HIST))[0],hB=gfMR(gfYM(ym,-1))[1],hD=gDays(hA,hB);
+  const LH=L.filter(x=>x.d>=hA&&x.d<=hB),SH=S.filter(x=>x.d>=hA&&x.d<=hB);const H=gfKpi(LH,SH);
+  const now=gfMs(today),el=gDays(ma,today),tot=gDays(ma,mb),left=tot-el;
+  const LM=L.filter(x=>x.d>=ma&&x.d<=today),SM=S.filter(x=>x.d>=ma&&x.d<=today);const M=gfKpi(LM,SM);
+  const LMm=LM.filter(x=>now-x.ms>=2*GF_DAY);const Mm=gfKpi(LMm,[]);
+  const T=team&&team.H;
+  const R={ar:gfShr(H.q,H.n,T&&T.ar),c45:gfShr(H.v,H.q,T&&T.c45),c56:gfShr(H.so,H.v,T&&T.c56),nr:gfShr(H.mi,H.ct,T&&T.nr)};
+  R.qc=H.re?H.q/H.re:(T&&T.re?T.q/T.re:0.3);R.pLS=(R.ar||0)*(R.c45||0)*(R.c56||0);
+  const amts=SH.map(s=>s.amt).filter(a=>a>0);const pool=amts.length>=3?amts:(team&&team.amts&&team.amts.length?team.amts:amts.length?amts:[10000]);
+  const aov=pool.reduce((a,b)=>a+b,0)/pool.length;
+  const lagVS=LH.filter(x=>x.saleMs&&x.vd).map(x=>(x.saleMs-gfMs(x.vd))/GF_DAY).filter(x=>x>=-1);
+  const lagLS=LH.filter(x=>x.saleMs).map(x=>(x.saleMs-x.ms)/GF_DAY).filter(x=>x>=0);
+  const lv=lagVS.length>=4?lagVS:(team&&team.lagVS)||lagVS,ll=lagLS.length>=4?lagLS:(team&&team.lagLS)||lagLS;
+  const cdf=(a,d)=>{if(d<=0)return 0;if(!a||!a.length)return Math.min(1,d/30);return a.filter(x=>x<=d).length/a.length;};
+  const cond=(p,a,age,win)=>{const Fa=cdf(a,age),Fb=cdf(a,age+win);const den=1-p*Fa;return den>0?Math.max(0,p*(Fb-Fa)/den):0;};
+  // живая воронка → вероятности продажи до конца месяца
+  const pipe=[];const live=L.filter(x=>!x.canc&&!x.saleMs&&x.sc<6&&now-x.ms<=120*GF_DAY);
+  live.forEach(x=>{
+    if(x.sc>=5&&x.vd){const vms=gfMs(x.vd);if(vms>now+left*GF_DAY)return;if(vms<now-75*GF_DAY)return;
+      const p=vms>now?(R.c56||0)*cdf(lv,left-(vms-now)/GF_DAY):cond(R.c56||0,lv,(now-vms)/GF_DAY,left);if(p>0.001)pipe.push({k:"v",p,x});}
+    else if(x.sc>=4&&x.sc<5&&now-x.ms<=90*GF_DAY){const p=cond((R.c45||0)*(R.c56||0),ll,(now-x.ms)/GF_DAY,left);if(p>0.001)pipe.push({k:"q",p,x});}
+    else if(x.sc<4&&x.ct!==0&&now-x.ms<=14*GF_DAY){const p=cond(R.pLS,ll,(now-x.ms)/GF_DAY,left);if(p>0.001)pipe.push({k:"n",p,x});}
+  });
+  const lpdH=H.n/hD,lpdM=el?LM.length/el:0,lpd=el>=7?lpdM*0.6+lpdH*0.4:lpdH;
+  let fNew=0;for(let u=0;u<left;u++)fNew+=cdf(ll,left-u-0.5);fNew=left?fNew/left:0;
+  const lamNew=lpd*left*R.pLS*fNew;
+  const done=M.rev;target=+target||0;
+  const r=gfRng(7+Math.round(done)+L.length);const N=2000;let hit=0;const tots=[];const draw=()=>pool[Math.floor(r()*pool.length)];
+  for(let i=0;i<N;i++){let e=0;for(const it of pipe)if(r()<it.p)e+=draw();const k=gfPois(lamNew,r);for(let j=0;j<k;j++)e+=draw();const t=done+e;tots.push(t);if(t>=target)hit++;}
+  tots.sort((a,b)=>a-b);const mean=tots.reduce((a,b)=>a+b,0)/N;
+  const eS={v:pipe.filter(x=>x.k==="v").reduce((a,x)=>a+x.p,0),q:pipe.filter(x=>x.k==="q").reduce((a,x)=>a+x.p,0),n:pipe.filter(x=>x.k==="n").reduce((a,x)=>a+x.p,0)+lamNew};
+  // нормы и «нужно для цели»
+  const vH=L.filter(x=>x.sc>=5&&x.vd&&x.vd>=hA&&x.vd<=hB).length,vM=L.filter(x=>x.sc>=5&&x.vd&&x.vd>=ma&&x.vd<=today).length;
+  const pace=v=>el?v/el*tot:0,norm=v=>v/hD*tot;
+  const needS=target&&aov?target/aov:null,needV=needS&&R.c56?needS/R.c56:null,needQ=needV&&R.c45?needV/R.c45:null,needL=needQ&&R.ar?needQ/R.ar:null;
+  const kpis=[
+    {k:"leads",ru:"Лиды",pl:"Leady",norm:norm(H.n),cur:pace(LM.length),need:needL,u:"cnt",up:true},
+    {k:"nr",ru:"Недозвон",pl:"Nieodebrane",norm:H.nr,cur:Mm.nr,need:null,u:"pct",up:false,n:Mm.ct},
+    {k:"ar",ru:"AR (квал / лиды)",pl:"AR (kwal / leady)",norm:H.ar,cur:Mm.ar,need:null,u:"pct",up:true,n:Mm.n},
+    {k:"q",ru:"Квалы (4+)",pl:"Kwal. (4+)",norm:norm(H.q),cur:pace(M.q),need:needQ,u:"cnt",up:true},
+    {k:"v",ru:"Визиты (по дате визита)",pl:"Wizyty (wg daty)",norm:norm(vH),cur:pace(vM),need:needV,u:"cnt",up:true},
+    {k:"s",ru:"Продажи",pl:"Sprzedaże",norm:norm(H.s),cur:pace(M.s),need:needS,u:"cnt",up:true},
+    {k:"aov",ru:"Средний чек",pl:"Średni paragon",norm:H.aov,cur:M.s?M.aov:null,need:null,u:"money",up:true,n:M.s},
+    {k:"fc",ru:"До 1-го контакта (медиана)",pl:"Do 1. kontaktu (mediana)",norm:H.fc,cur:Mm.fc,need:null,u:"min",up:false,n:Mm.fcN},
+  ];
+  return {mgr,target,done,mean,p:target?hit/N:null,p10:tots[Math.floor(N*0.1)],p90:tots[Math.floor(N*0.9)],pipe,eS,lamNew,H,M,Mm,R,aov,el,tot,left,lpdH,lpdM,vH,vM,hD,hA,hB,ma,LM,LMm,LH,kpis,
+    lagVSmed:lv&&lv.length?[...lv].sort((a,b)=>a-b)[lv.length>>1]:null,ym};
+}
+// Что исторически ведёт к продажам: менеджер-месяцы за последние 3 месяца
+function gfDrivers(P,today){const ym=today.slice(0,7);const rows=[];
+  for(let k=1;k<=GF_HIST;k++){const mk=gfYM(ym,-k);const [a,b]=gfMR(mk);
+    MANAGERS.forEach(mg=>{const L=P.L.filter(x=>x.mgr===mg&&x.d>=a&&x.d<=b),S=P.S.filter(x=>x.mgr===mg&&x.d>=a&&x.d<=b);if(L.length<5&&!S.length)return;const K=gfKpi(L,S);
+      rows.push({mg,mk,sales:S.length,leads:L.length,nr:K.nr,ar:K.ar,q:K.q,v:P.L.filter(x=>x.mgr===mg&&x.sc>=5&&x.vd&&x.vd>=a&&x.vd<=b).length,fc:K.fc});});}
+  const r=(xs,ys)=>{const p=xs.map((x,i)=>[x,ys[i]]).filter(([x,y])=>x!=null&&y!=null);if(p.length<4)return null;const mx=p.reduce((s,q)=>s+q[0],0)/p.length,my=p.reduce((s,q)=>s+q[1],0)/p.length;let a=0,bx=0,by=0;p.forEach(([x,y])=>{a+=(x-mx)*(y-my);bx+=(x-mx)**2;by+=(y-my)**2;});return bx&&by?a/Math.sqrt(bx*by):null;};
+  const ys=rows.map(x=>x.sales);
+  const D=[["v",["Визиты назначены","Wizyty umówione"]],["q",["Квалы","Kwal."]],["leads",["Лиды","Leady"]],["ar",["AR","AR"]],["nr",["Недозвон","Nieodebrane"]],["fc",["Скорость 1-го контакта","Szybkość 1. kontaktu"]]].map(([k,l])=>({k,l,r:r(rows.map(x=>x[k]),ys)})).filter(x=>x.r!=null).sort((a,b)=>Math.abs(b.r)-Math.abs(a.r));
+  return {rows,D};}
+function gfTargets(goals,ym,P,today){
+  const team=(goals||[]).find(g=>g.metric==="revenue"&&g.period&&g.period.type==="month"&&g.period.key===ym&&g.scope&&g.scope.type==="team"&&!(g.langs||[]).length);
+  const kids={};(goals||[]).filter(g=>g.metric==="revenue"&&g.period&&g.period.type==="month"&&g.period.key===ym&&g.scope&&g.scope.type==="mgr"&&!(g.langs||[]).length).forEach(g=>{kids[g.scope.id]=+g.target||0;});
+  const hA=gfMR(gfYM(ym,-GF_HIST))[0],hB=gfMR(gfYM(ym,-1))[1];const hr={};let ht=0;P.S.filter(s=>s.d>=hA&&s.d<=hB).forEach(s=>{hr[s.mgr]=(hr[s.mgr]||0)+s.amt;ht+=s.amt;});
+  const teamT=team?+team.target||0:Math.round(ht/GF_HIST/1000)*1000;
+  const per={};MANAGERS.forEach(m=>{per[m]=kids[m]!=null?{t:kids[m],src:"goal"}:{t:ht?Math.round(teamT*(hr[m]||0)/ht/1000)*1000:0,src:team?"split":"avg"};});
+  return {team:teamT,teamSrc:team?"goal":"avg",per};}
+function gfAll(leads,sales,goals,today){today=today||getToday();const ym=today.slice(0,7);const P=gfPrep(leads,sales);const tg=gfTargets(goals,ym,P,today);
+  const team=gfModel(P,"all",tg.team,today,null);const teamCtx={H:team.H,amts:P.S.filter(s=>s.d>=team.hA&&s.d<=team.hB).map(s=>s.amt).filter(a=>a>0)};
+  const mg=MANAGERS.map(m=>{const x=gfModel(P,m,tg.per[m].t,today,teamCtx);x.tsrc=tg.per[m].src;return x;}).filter(x=>x.target>0||x.H.n>=5||x.M.n>0);
+  return {P,tg,team,mg,today,ym};}
+
+// ── UI ──
+const gfPct=v=>v==null?"—":Math.round(v*100)+"%";
+const gfCol=p=>p==null?C.muted:p>=0.7?"#47e6a0":p>=0.4?"#f0c040":"#ff7d8c";
+function gfVal(k,v){if(v==null||isNaN(v))return "—";if(k.u==="pct")return Math.round(v*100)+"%";if(k.u==="money")return fmtM(Math.round(v/100)*100);if(k.u==="min")return Math.round(v)+" мин";return String(Math.round(v*10)/10).replace(".",",");}
+function gfKCol(k,cur,norm){if(cur==null||norm==null)return C.text;const d=k.up?cur/norm-1:norm/cur-1;return d<=-0.2?"#ff7d8c":d<=-0.08?"#f0c040":"#47e6a0";}
+function GfGauge({p,size=64}){const R=size/2-6,CI=2*Math.PI*R,c=gfCol(p);return <div style={{position:"relative",width:size,height:size,flexShrink:0}}><svg width={size} height={size} style={{transform:"rotate(-90deg)"}}><circle cx={size/2} cy={size/2} r={R} fill="none" stroke="rgba(120,170,255,.16)" strokeWidth="6"/><circle cx={size/2} cy={size/2} r={R} fill="none" stroke={c} strokeWidth="6" strokeLinecap="round" strokeDasharray={CI} strokeDashoffset={CI*(1-(p||0))}/></svg><div style={{position:"absolute",inset:0,display:"grid",placeItems:"center",fontSize:size>60?17:13,color:c}}>{p==null?"—":Math.round(p*100)+"%"}</div></div>;}
+// ─── АНАЛИЗ ВОРОНКИ: дерево причин, сравнения, динамика, ранние предупреждения ───
+// Модель месяца: выручка = лиды × дозвон × квал после контакта × 4→5 × 5→6 × средний чек.
+// Каждый множитель «сейчас» сравнивается со своей нормой за 3 прошлых месяца; разница переводится в zł/мес.
+// Дальше алгоритм спускается вниз: в каком срезе (менеджер / язык / источник / время заявки) просело,
+// внутри среза — что именно, и что за этим стоит (скорость контакта, второй звонок, квалы без визита, «думает» после визита).
+const GA_DIMS_TEAM=["mgr","lang","src","slot"],GA_DIMS_MGR=["lang","src","slot"];
+const gaDimName=(d,pl)=>d==="mgr"?(pl?"menedżer":"менеджер"):(GF_DIM[d]||[d,d])[pl?1:0];
+const gaSeg=(d,v,pl)=>d==="mgr"?String(v):gfSegName(d,v,pl);
+const GA_RF={
+  nr:a=>{const re=a.filter(x=>x.ct===1).length,mi=a.filter(x=>x.ct===0).length;return {k:mi,n:re+mi};},
+  qc:a=>{const re=a.filter(x=>x.ct===1);return {k:re.filter(x=>x.sc>=4).length,n:re.length};},
+  ar:a=>({k:a.filter(x=>x.sc>=4).length,n:a.length}),
+  c45:a=>({k:a.filter(x=>x.sc>=5).length,n:a.length}),
+  c56:a=>({k:a.filter(x=>x.saleMs||x.sc>=6).length,n:a.length}),
+};
+const gaV=r=>r&&r.n?r.k/r.n:null;
+const gaF=v=>String(Math.round(v*10)/10).replace(".",",");
+const gaM=v=>fmtM(Math.round((v||0)/100)*100);
+// окна: «сейчас» и «норма» для каждого шага воронки
+function gaWin(P,mgr,today){
+  const ym=today.slice(0,7),[ma,mb]=gfMR(ym);const hA=gfMR(gfYM(ym,-GF_HIST))[0],hB=gfMR(gfYM(ym,-1))[1];
+  const own=x=>!mgr||mgr==="all"||x.mgr===mgr;const L=P.L.filter(own),S=P.S.filter(own);
+  const add=(iso,n)=>isoLocal(new Date(gfMs(iso)+n*GF_DAY));const el=gDays(ma,today),tot=gDays(ma,mb),hD=gDays(hA,hB);
+  const fA=el>=5?ma:add(today,-16),fB=add(today,-2);
+  const inH=d=>d&&d>=hA&&d<=hB;
+  return {L,S,ym,ma,mb,hA,hB,el,tot,hD,fA,fB,
+    fresh:[L.filter(x=>x.d>=fA&&x.d<=fB),L.filter(x=>inH(x.d))],
+    q:[L.filter(x=>x.sc>=4&&x.d>=add(today,-45)&&x.d<=add(today,-10)),L.filter(x=>x.sc>=4&&inH(x.d))],
+    v:[L.filter(x=>x.sc>=5&&x.vd&&x.vd>=add(today,-75)&&x.vd<=add(today,-14)),L.filter(x=>x.sc>=5&&inH(x.vd))],
+    s:[S.filter(x=>x.d>=add(today,-60)&&x.d<=today),S.filter(x=>inH(x.d))],
+    pace:el?L.filter(x=>x.d>=ma&&x.d<=today).length/el*tot:0,norm:L.filter(x=>inH(x.d)).length/hD*tot};
+}
+const gaAov=a=>a.length?a.reduce((s,x)=>s+x.amt,0)/a.length:null;
+// разбор одного шага по срезам (и подсрезам внутри лучшего среза)
+function gaSplit(cur,hist,rf,worse,dims,depth,pl){
+  const C0=rf(cur),H0=rf(hist);const cv=gaV(C0),hv=gaV(H0);if(cv==null||hv==null)return [];
+  const total=(cv-hv)*C0.n*worse;if(total<=0)return [];const out=[];
+  dims.forEach(dim=>{const vals=[...new Set(cur.map(x=>x[dim]).filter(v=>v!=null&&v!==""))];
+    vals.forEach(v=>{const c=rf(cur.filter(x=>x[dim]===v));if(c.n<5)return;const h=rf(hist.filter(x=>x[dim]===v));const hh=h.n>=8?gaV(h):hv;
+      const imp=(gaV(c)-hh)*c.n*worse;if(imp<=0)return;const share=imp/total;if(share<0.2)return;
+      out.push({dim,v,cur:gaV(c),hist:hh,n:c.n,hn:h.n,share,z:h.n>=8?gfZ(c.k,c.n,h.k,h.n)*worse:0,
+        kids:depth>0?gaSplit(cur.filter(x=>x[dim]===v),hist.filter(x=>x[dim]===v),rf,worse,dims.filter(d=>d!==dim),depth-1,pl).filter(k=>k.share>=0.3).slice(0,2):[]});});});
+  return out.sort((a,b)=>b.share-a.share).slice(0,3);}
+function gaTips(k,seg,best,pl){const L=(ru,p)=>pl?p:ru;const t=[];const s0=seg&&seg[0];
+  if(k==="nr"){t.push(L("Звонить в первые 5 минут после заявки","Dzwoń w ciągu 5 minut od zgłoszenia"));
+    if(best)t.push(L(`Второй звонок — в ${gfSegName("slot",best.v,false)}: там по истории недозвон всего ${gfPct(best.r)}`,`Drugi telefon — ${gfSegName("slot",best.v,true)}: tam nieodebrane tylko ${gfPct(best.r)}`));
+    t.push(L("После первого недозвона — SMS / WhatsApp, второй звонок через 3–6 ч","Po pierwszym nieodebranym — SMS / WhatsApp, drugi telefon po 3–6 h"));
+    if(s0&&s0.dim==="lang")t.push(L(`Для «${gaSeg("lang",s0.v,false)}» — первое сообщение на их языке, проверить формат номеров`,`Dla „${gaSeg("lang",s0.v,true)}” — pierwsza wiadomość w ich języku, sprawdzić format numerów`));
+    if(s0&&s0.dim==="src")t.push(L(`Источник «${s0.v}» — сверить с баингом качество трафика`,`Źródło „${s0.v}” — sprawdzić z buyerem jakość ruchu`));
+    if(s0&&s0.dim==="mgr")t.push(L(`${s0.v}: проверить скорость первого звонка и делает ли второй`,`${s0.v}: sprawdzić szybkość pierwszego telefonu i czy robi drugi`));}
+  if(k==="qc"){if(s0&&(s0.dim==="src"||s0.dim==="lang"))t.push(L(`Срез «${gaSeg(s0.dim,s0.v,false)}» квалифицируется хуже — первый кандидат для баинга`,`„${gaSeg(s0.dim,s0.v,true)}” kwalifikuje się gorzej — temat dla buyera`));
+    t.push(L("В разговоре закрывать ветку: срок, инфо о кухне, расстояние, жильё","W rozmowie zamykać ścieżkę: termin, info o kuchni, odległość, mieszkanie"));
+    if(s0&&s0.dim==="mgr")t.push(L(`${s0.v}: разобрать 3–5 его разговоров, где лид не стал квалом`,`${s0.v}: przejrzeć 3–5 rozmów, gdzie lead nie został kwalem`));}
+  if(k==="c45"){t.push(L("Предлагать визит в первом же разговоре с квалом — 2 конкретных времени","Proponować wizytę w pierwszej rozmowie z kwalem — 2 konkretne terminy"));
+    t.push(L("Квалы старше 7 дней без визита — перезвонить сегодня","Kwal. starsze niż 7 dni bez wizyty — oddzwonić dziś"));
+    if(s0&&s0.dim==="mgr")t.push(L(`${s0.v}: квалы есть, визиты не назначаются — проверить его список квалов`,`${s0.v}: kwal. są, wizyt brak — sprawdzić jego listę`));}
+  if(k==="c56"){t.push(L("КП отправлять в день визита, звонок по КП через 3 дня","Ofertę wysyłać w dniu wizyty, telefon po 3 dniach"));
+    t.push(L("«Думает» дольше 7 дней — отдавать в дожим","„Myśli” ponad 7 dni — oddać do dożymu"));
+    if(s0&&s0.dim==="mgr")t.push(L(`${s0.v}: разобрать последние визиты без продажи — причина отказа`,`${s0.v}: przejrzeć ostatnie wizyty bez sprzedaży`));}
+  if(k==="leads")t.push(L("Лидов меньше нормы — вопрос к баингу: какой источник просел, бюджет и креативы","Mniej leadów niż norma — temat dla buyera: które źródło spadło"));
+  if(k==="aov")t.push(L("Предлагать допы на визите: подсветка, фасады, антресоли, камень по акции","Proponować dodatki: oświetlenie, fronty, antresole, kamień w promocji"));
+  return t;}
+// дерево причин для области (команда или менеджер)
+function gaTree(P,m,today,pl){
+  const L=(ru,p)=>pl?p:ru;const W=gaWin(P,m.mgr,today);const dims=m.mgr==="all"?GA_DIMS_TEAM:GA_DIMS_MGR;
+  const r=(k,i)=>gaV(GA_RF[k](k==="nr"||k==="qc"?W.fresh[i]:k==="c45"?W.q[i]:W.v[i]));
+  const H={nr:r("nr",1),qc:r("qc",1),c45:r("c45",1),c56:r("c56",1)},Cc={nr:r("nr",0),qc:r("qc",0),c45:r("c45",0),c56:r("c56",0)};
+  const aovH=gaAov(W.s[1])||m.aov,aovC=W.s[0].length>=3?gaAov(W.s[0]):null;
+  if(!W.norm||H.qc==null||H.c45==null||H.c56==null)return {nodes:[],R0:0,W};
+  const R0=W.norm*(1-(H.nr||0))*H.qc*H.c45*H.c56*(aovH||0);
+  const chainFrom=(lvl,imp)=>{const s=imp/(aovH||1),v=s/(H.c56||1),q=v/(H.c45||1),c=q/(H.qc||1),l=c/(1-(H.nr||0)||1);
+    const parts=[[L("лидов","leadów"),l],[L("дозвонов","połączeń"),c],[L("квал.","kwal."),q],[L("визитов","wizyt"),v],[L("продаж","sprzedaży"),s]].slice(lvl);
+    return parts.map(([n,x])=>`${x>0?"+":"−"}${gaF(Math.abs(x))} ${n}`).join(" → ")+` ≈ ${imp>0?"+":"−"}${gaM(Math.abs(imp))}${L("/мес","/mies.")}`;};
+  const nodes=[];const push=o=>{if(o.imp<0&&Math.abs(o.imp)>=R0*0.04)nodes.push(o);};
+  // объём лидов
+  if(W.el>=5){const imp=R0*(W.pace/W.norm-1);const seg=[];
+    ["src","lang"].concat(m.mgr==="all"?["mgr"]:[]).forEach(dim=>{const vals=[...new Set(W.L.map(x=>x[dim]).filter(Boolean))];vals.forEach(v=>{const cp=W.L.filter(x=>x[dim]===v&&x.d>=W.ma&&x.d<=today).length/W.el*W.tot,hp=W.fresh[1].filter(x=>x[dim]===v).length/W.hD*W.tot;const d=hp-cp;if(d>=1&&d/(W.norm-W.pace||1)>=0.2)seg.push({dim,v,cur:cp,hist:hp,n:Math.round(cp),share:d/(W.norm-W.pace),vol:true,kids:[]});});});
+    push({k:"leads",t:L(`Лидов ${gaF(W.pace)} в месяц против нормы ${gaF(W.norm)}`,`Leadów ${gaF(W.pace)}/mies. wobec ${gaF(W.norm)}`),imp,txt:chainFrom(0,imp),seg:seg.sort((a,b)=>b.share-a.share).slice(0,3),sev:W.pace<W.norm*0.75?"crit":"warn",z:0});}
+  const step=(k,lvl,title,arrs,sub)=>{const cv=Cc[k],hv=H[k];if(cv==null||hv==null)return;const C0=GA_RF[k](arrs[0]),H0=GA_RF[k](arrs[1]);if(C0.n<6)return;
+    const worse=k==="nr"?1:-1;const z=gfZ(C0.k,C0.n,H0.k,H0.n)*worse;const big=(cv-hv)*worse>=0.1;if(z<1.3&&C0.n<25&&!big)return;
+    const f=k==="nr"?(1-cv)/(1-hv||1):cv/(hv||1);const imp=R0*(f-1);
+    const o={k,t:title(cv,hv)+(z<1.64&&C0.n<20?L(` · мало данных (${C0.n})`,` · mało danych (${C0.n})`):""),imp,txt:chainFrom(lvl,imp),z,sev:imp<=-R0*0.15&&z>=1.96?"crit":"warn",n:C0.n,hn:H0.n,seg:gaSplit(arrs[0],arrs[1],GA_RF[k],worse,dims,1,pl),sub:sub?sub(arrs):[]};push(o);};
+  const P1=p=>gfPct(p);
+  step("nr",1,(c,h)=>L(`Недозвон ${P1(c)} против нормы ${P1(h)}`,`Nieodebrane ${P1(c)} wobec ${P1(h)}`),W.fresh,([c,h])=>{const out=[];
+    const f=a=>{const v=a.map(x=>x.fcMin).filter(x=>x!=null).sort((p,q)=>p-q);return v.length>=5?v[v.length>>1]:null;};const fc=f(c),fh=f(h);
+    if(fc!=null&&fh!=null&&fc>fh*1.3)out.push(L(`до первого звонка ${Math.round(fc)} мин против ${Math.round(fh)} мин — медленнее в ${gaF(fc/fh)} раза`,`do 1. telefonu ${Math.round(fc)} min wobec ${Math.round(fh)} min`));
+    const nc=c.filter(x=>x.ct===0);if(nc.length>=4){const one=nc.filter(x=>!x.c2).length/nc.length;if(one>=0.4)out.push(L(`у ${gfPct(one)} недозвонов не было второго звонка`,`${gfPct(one)} nieodebranych bez drugiego telefonu`));}
+    return out;});
+  step("qc",2,(c,h)=>L(`Квалов из дозвонившихся ${P1(c)} против ${P1(h)}`,`Kwal. z odebranych ${P1(c)} wobec ${P1(h)}`),W.fresh,null);
+  step("c45",3,(c,h)=>L(`4→5: визит у ${P1(c)} квалов против ${P1(h)}`,`4→5: wizyta u ${P1(c)} kwal. wobec ${P1(h)}`),W.q,([c])=>{const out=[];const nv=c.filter(x=>x.sc<5);if(nv.length>=4){const miss=nv.filter(x=>x.miss).length,never=nv.length-miss;
+    out.push(L(`из ${nv.length} квалов без визита: ${never} — визит даже не назначен${miss?`, ${miss} — не пришли`:""}`,`z ${nv.length} kwal. bez wizyty: ${never} — wizyta nieumówiona${miss?`, ${miss} — nie przyszli`:""}`));}return out;});
+  step("c56",4,(c,h)=>L(`5→6: продажа у ${P1(c)} визитов против ${P1(h)}`,`5→6: sprzedaż u ${P1(c)} wizyt wobec ${P1(h)}`),W.v,([c])=>{const out=[];const ns=c.filter(x=>!(x.saleMs||x.sc>=6));if(ns.length>=4){const by={};ns.forEach(x=>{const a=x.act==="quote"?"quote":x.act==="thinking"?"think":x.act==="cancelled"?"lost":"other";by[a]=(by[a]||0)+1;});
+    const N={quote:L("ждут КП / просчёт","czekają na ofertę"),think:L("«думают»","„myślą”"),lost:L("отказ","odmowa"),other:L("без статуса","bez statusu")};
+    out.push(L(`после визита без продажи ${ns.length}: `,`po wizycie bez sprzedaży ${ns.length}: `)+Object.entries(by).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${N[k]} ${v}`).join(", "));}return out;});
+  if(aovH&&aovC&&aovC<aovH*0.88){const imp=R0*(aovC/aovH-1);const seg=[];
+    if(m.mgr==="all")MANAGERS.forEach(mg=>{const a=W.s[0].filter(x=>x.mgr===mg);if(a.length>=2){const av=gaAov(a);const h=gaAov(W.s[1].filter(x=>x.mgr===mg))||aovH;if(av<h*0.85)seg.push({dim:"mgr",v:mg,cur:av,hist:h,n:a.length,share:(h-av)*a.length/((aovH-aovC)*W.s[0].length||1),money:true,kids:[]});}});
+    push({k:"aov",t:L(`Средний чек ${gaM(aovC)} против ${gaM(aovH)}`,`Średni paragon ${gaM(aovC)} wobec ${gaM(aovH)}`),imp,txt:L(`каждая продажа на ${gaM(aovH-aovC)} меньше ≈ ${gaM(imp)}/мес`,`każda sprzedaż o ${gaM(aovH-aovC)} mniej ≈ ${gaM(imp)}/mies.`),seg:seg.slice(0,3),sev:"warn",z:0});}
+  // лучшее время для дозвона по истории — для подсказки
+  const best=(()=>{const v=[...new Set(W.fresh[1].map(x=>x.slot).filter(Boolean))].map(s=>{const rr=GA_RF.nr(W.fresh[1].filter(x=>x.slot===s));return {v:s,r:gaV(rr),n:rr.n};}).filter(o=>o.n>=10&&o.r!=null).sort((a,b)=>a.r-b.r);return v[0]||null;})();
+  nodes.forEach(n=>{n.tips=gaTips(n.k,n.seg,best,pl);});
+  nodes.sort((a,b)=>a.imp-b.imp);
+  return {nodes,R0,W,H,Cc,aovH,aovC};}
+// помесячная динамика (6 мес + текущий темп) и прогноз следующего месяца
+function gaSeries(P,mgr,today){const ym=today.slice(0,7);const own=x=>!mgr||mgr==="all"||x.mgr===mgr;const L=P.L.filter(own),S=P.S.filter(own);const out=[];
+  for(let k=-5;k<=0;k++){const mk=gfYM(ym,k);let [a,b]=gfMR(mk);const cur=k===0;if(cur)b=today;const f=cur?gDays(a,gfMR(mk)[1])/Math.max(1,gDays(a,today)):1;
+    const ld=L.filter(x=>x.d>=a&&x.d<=b),q=ld.filter(x=>x.sc>=4),v=L.filter(x=>x.sc>=5&&x.vd&&x.vd>=a&&x.vd<=b),s=S.filter(x=>x.d>=a&&x.d<=b);
+    const qv=q.filter(x=>x.sc>=5).length,vc=ld.filter(x=>x.sc>=5),vs=vc.filter(x=>x.saleMs||x.sc>=6).length;
+    out.push({mk,cur,leads:ld.length*f,q:q.length*f,v:v.length*f,s:s.length*f,rev:s.reduce((t,x)=>t+x.amt,0)*f,ar:ld.length?q.length/ld.length:null,c45:q.length?qv/q.length:null,c56:vc.length?vs/vc.length:null,aov:s.length?s.reduce((t,x)=>t+x.amt,0)/s.length:null,young:k>=-1});}
+  const prev=out.slice(2,5);const avg=key=>{const v=prev.map(x=>x[key]).filter(x=>x!=null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
+  const c56h=(()=>{const v=L.filter(x=>x.sc>=5&&x.vd&&x.vd>=gfMR(gfYM(ym,-GF_HIST))[0]&&x.vd<=gfMR(gfYM(ym,-1))[1]);return v.length?v.filter(x=>x.saleMs||x.sc>=6).length/v.length:null;})();
+  const cur=out[5];const nextS=c56h!=null?cur.v*c56h:null;
+  return {rows:out,avg,nextS,sAvg:avg("s"),vAvg:avg("v"),qAvg:avg("q"),c56h};}
+// похожий менеджер: тот же поток (языки + источники), сравниваем обработку
+function gaPeer(P,mgr,today){if(!mgr||mgr==="all")return null;const ym=today.slice(0,7);const hA=gfMR(gfYM(ym,-GF_HIST))[0];
+  const vec=m=>{const a=P.L.filter(x=>x.mgr===m&&x.d>=hA);const v={};a.forEach(x=>{v["l:"+x.lang]=(v["l:"+x.lang]||0)+1;v["s:"+x.src]=(v["s:"+x.src]||0)+1;});const n=a.length||1;Object.keys(v).forEach(k=>v[k]/=n);return {v,n:a.length};};
+  const me=vec(mgr);if(me.n<10)return null;const cos=(a,b)=>{let d=0,x=0,y=0;new Set([...Object.keys(a),...Object.keys(b)]).forEach(k=>{const p=a[k]||0,q=b[k]||0;d+=p*q;x+=p*p;y+=q*q;});return x&&y?d/Math.sqrt(x*y):0;};
+  const c=MANAGERS.filter(m=>m!==mgr).map(m=>({m,...vec(m)})).filter(o=>o.n>=15).map(o=>({...o,sim:cos(me.v,o.v)})).sort((a,b)=>b.sim-a.sim)[0];if(!c||c.sim<0.6)return null;
+  const K=m=>{const W=gaWin(P,m,today);return {nr:gaV(GA_RF.nr(W.fresh[1])),qc:gaV(GA_RF.qc(W.fresh[1])),c45:gaV(GA_RF.c45(W.q[1])),c56:gaV(GA_RF.c56(W.v[1])),aov:gaAov(W.s[1]),
+    nrC:gaV(GA_RF.nr(W.fresh[0])),qcC:gaV(GA_RF.qc(W.fresh[0])),c45C:gaV(GA_RF.c45(W.q[0])),c56C:gaV(GA_RF.c56(W.v[0])),lpm:W.norm};};
+  const a=K(mgr),b=K(c.m);const top=(o,k)=>{const L=P.L.filter(x=>x.mgr===o&&x.d>=hA);const m={};L.forEach(x=>{m[x[k]]=(m[x[k]]||0)+1;});const e=Object.entries(m).sort((p,q)=>q[1]-p[1])[0];return e?[e[0],e[1]/(L.length||1)]:null;};
+  const gaps=[["nr",-1],["qc",1],["c45",1],["c56",1],["aov",1]].map(([k,s])=>({k,me:a[k],peer:b[k],gap:a[k]!=null&&b[k]!=null?(k==="aov"?(b[k]-a[k])/(b[k]||1):(b[k]-a[k])*s):0})).sort((x,y)=>y.gap-x.gap);
+  return {peer:c.m,sim:c.sim,me:a,pe:b,gaps,langMe:top(mgr,"lang"),langPe:top(c.m,"lang"),srcMe:top(mgr,"src"),srcPe:top(c.m,"src")};}
+// ранние предупреждения
+function gaWarn(m,ser,pl){const L=(ru,p)=>pl?p:ru;const w=[];const cur=ser.rows[5];
+  if(m.p!=null&&m.p<0.6)w.push({sev:m.p<0.35?"crit":"warn",t:L(`Цель месяца под угрозой: вероятность ${gfPct(m.p)} · ждём ${gaM(m.mean)} из ${gaM(m.target)}`,`Cel zagrożony: szansa ${gfPct(m.p)} · ${gaM(m.mean)} z ${gaM(m.target)}`)});
+  if(ser.vAvg&&cur.v<ser.vAvg*0.8&&ser.nextS!=null&&ser.sAvg)w.push({sev:cur.v<ser.vAvg*0.6?"crit":"warn",t:L(`Визитов в темпе ${gaF(cur.v)} против обычных ${gaF(ser.vAvg)} → в следующем месяце ждём ~${gaF(ser.nextS)} продаж вместо ${gaF(ser.sAvg)}`,`Wizyt w tempie ${gaF(cur.v)} wobec ${gaF(ser.vAvg)} → w przyszłym miesiącu ~${gaF(ser.nextS)} sprzedaży zamiast ${gaF(ser.sAvg)}`)});
+  if(ser.qAvg&&cur.q<ser.qAvg*0.8)w.push({sev:"warn",t:L(`Квалов в темпе ${gaF(cur.q)} против ${gaF(ser.qAvg)} → через 2–3 недели просядут визиты`,`Kwal. w tempie ${gaF(cur.q)} wobec ${gaF(ser.qAvg)} → za 2–3 tygodnie spadną wizyty`)});
+  return w;}
+
+// ── UI ──
+function GaSeg({s,k,pl,lvl=0}){const pct=k==="leads"?null:k==="aov";const val=v=>s.vol?gaF(v)+(pl?"/mies.":"/мес"):s.money?gaM(v):k==="fc"?Math.round(v)+" мин":gfPct(v);
+  return <div style={{marginLeft:lvl*14,paddingLeft:10,borderLeft:`2px solid ${lvl?"rgba(240,192,64,.35)":"rgba(255,125,140,.45)"}`,display:"flex",flexDirection:"column",gap:3}}>
+    <div style={{fontSize:12,color:C.muted}}>{lvl?"↳":"🔎"} <span style={{color:C.dim}}>{gaDimName(s.dim,pl)}</span> <b style={{color:s.dim==="mgr"?(MGR_COLOR[s.v]||C.text):C.text,fontWeight:400}}>{gaSeg(s.dim,s.v,pl)}</b>: {val(s.cur)} {pl?"wobec":"против"} {val(s.hist)}{s.n?<span style={{color:C.dim}}> ({s.n})</span>:null} · <span style={{color:"#ff9aa6"}}>{Math.min(100,Math.round(s.share*100))}% {pl?"spadku":"просадки"}</span>{s.z>=2?<span style={{color:"#ff9aa6"}}> · {pl?"anomalia":"аномалия"}</span>:null}</div>
+    {(s.kids||[]).map((c,i)=><GaSeg key={i} s={c} k={k} pl={pl} lvl={lvl+1}/>)}
+  </div>;}
+function GaNode({n,i,pl}){const L=(ru,p)=>pl?p:ru;const [open,setOpen]=useState(i<2);const dk=C===DARK;
+  return <div style={{borderRadius:12,border:`1px solid ${n.sev==="crit"?"rgba(255,125,140,.55)":"rgba(240,192,64,.45)"}`,background:dk?"rgba(2,10,30,.35)":C.bg,padding:"10px 12px",display:"flex",flexDirection:"column",gap:7}}>
+    <div onClick={()=>setOpen(o=>!o)} style={{display:"flex",gap:8,alignItems:"baseline",cursor:"pointer",flexWrap:"wrap"}}>
+      <span style={{fontSize:14,color:n.sev==="crit"?"#ff9aa6":"#f6d57a"}}>{i+1}. {n.t}</span>
+      {n.z>=2?<span style={{fontSize:10.5,padding:"1px 7px",borderRadius:999,border:"1px solid #ff9aa6",color:"#ff9aa6"}}>{L("аномалия","anomalia")}</span>:null}
+      <span style={{marginLeft:"auto",fontSize:12.5,color:"#ff9aa6",whiteSpace:"nowrap"}}>−{gaM(Math.abs(n.imp))}{L("/мес","/mies.")}</span><span style={{color:C.muted,fontSize:12}}>{open?"▾":"▸"}</span></div>
+    {open&&<>
+      {n.txt&&<div style={{fontSize:12,color:C.text}}>⛓ {n.txt}</div>}
+      {(n.sub||[]).map((s,j)=><div key={j} style={{fontSize:12,color:C.text}}>⚙ {s}</div>)}
+      {(n.seg||[]).map((s,j)=><GaSeg key={j} s={s} k={n.k} pl={pl}/>)}
+      {(n.tips||[]).length>0&&<div style={{display:"flex",flexDirection:"column",gap:3}}>{n.tips.map((t,j)=><div key={j} style={{fontSize:12,color:"#9fd8ff"}}>→ {t}</div>)}</div>}
+    </>}
+  </div>;}
+function FunnelAnalysis({leads,sales,goals,lang}){const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;const dk=C===DARK;
+  const A=useMemo(()=>gfAll(leads,sales,goals),[leads,sales,goals]);
+  const [sel,setSel]=useState("all");const list=useMemo(()=>[{...A.team,isTeam:true},...A.mg],[A]);const m=list.find(x=>x.mgr===sel)||list[0];
+  const tree=useMemo(()=>gaTree(A.P,m,A.today,pl),[m,A,pl]);const ser=useMemo(()=>gaSeries(A.P,m.mgr,A.today),[m,A]);const peer=useMemo(()=>gaPeer(A.P,m.mgr,A.today),[m,A]);
+  const drv=useMemo(()=>gfDrivers(A.P,A.today),[A]);const warns=gaWarn(m,ser,pl);
+  const [showTree,setShowTree]=useState(false);const treeOn=showTree||(m.p!=null&&m.p<0.6);
+  const card={background:dk?"linear-gradient(160deg,rgba(30,72,170,.4),rgba(5,18,52,.7))":C.card,border:`1px solid ${dk?"rgba(227,184,96,.35)":C.border}`,borderRadius:18,padding:"16px 18px",display:"flex",flexDirection:"column",gap:12};
+  const box={borderRadius:12,border:`1px solid ${C.border}`,padding:"10px 12px",background:dk?"rgba(2,10,30,.35)":C.bg};
+  const lbl={fontSize:10,letterSpacing:".12em",textTransform:"uppercase",color:C.muted,marginBottom:6};
+  const th={fontSize:9.5,letterSpacing:".1em",textTransform:"uppercase",color:C.muted,padding:"5px 8px",textAlign:"right",fontWeight:400,whiteSpace:"nowrap"};const td={padding:"6px 8px",textAlign:"right",borderTop:`1px solid ${C.border}`,whiteSpace:"nowrap",fontSize:12.5};
+  const hist=`${gfMonName(gfYM(A.ym,-GF_HIST),pl)}–${gfMonName(gfYM(A.ym,-1),pl)}`;
+  const SR=[["leads",L("Лиды","Leady"),"n"],["q",L("Квалы (4+)","Kwal. (4+)"),"n"],["v",L("Визиты (по дате)","Wizyty (wg daty)"),"n"],["s",L("Продажи","Sprzedaże"),"n"],["rev",L("Выручка","Przychód"),"m"],["ar","AR","p"],["c45","4→5","p"],["c56","5→6","p"],["aov",L("Средний чек","Śr. paragon"),"m"]];
+  const fv=(t,v)=>v==null?"—":t==="p"?gfPct(v):t==="m"?(v>=1e5?Math.round(v/1000)+"k":gaM(v)):gaF(v);
+  const langs=[...new Set(tree.W.fresh?tree.W.fresh[0].map(x=>x.lang):[])].filter(v=>v&&v!=="?").map(v=>({v,n:tree.W.fresh[0].filter(x=>x.lang===v).length})).filter(o=>o.n>=4).sort((a,b)=>b.n-a.n).slice(0,4);
+  const KN={nr:L("Недозвон","Nieodebrane"),qc:L("Квал из дозвонов","Kwal. z odebranych"),c45:"4→5",c56:"5→6",aov:L("Средний чек","Śr. paragon")};
+  return <div style={card}>
+    <style>{`@media(max-width:1000px){.ga-2{grid-template-columns:1fr!important}}`}</style>
+    <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+      <GfGauge p={m.p} size={78}/>
+      <div style={{flex:1,minWidth:240}}>
+        <div style={{fontSize:20}}>🧠 {L("Анализ воронки и прогноз цели","Analiza lejka i prognoza celu")} · {gfMonName(A.ym,pl)}</div>
+        <div style={{fontSize:13,color:C.muted,marginTop:4}}>{m.isTeam?L("Вся команда","Cały zespół"):m.mgr} · {L("цель","cel")} <b style={{color:C.text,fontWeight:400}}>{fmtM(m.target)}</b>{(m.isTeam?A.tg.teamSrc:m.tsrc)==="avg"?L(" (не задана — средний месяц)"," (brak — średni miesiąc)"):(m.tsrc==="split"?L(" (доля от цели команды)"," (udział w celu)"):"")} · {L("сделано","zrobione")} <b style={{color:C.text,fontWeight:400}}>{fmtM(m.done)}</b> · {L("ждём","oczekujemy")} <b style={{color:gfCol(m.p),fontWeight:400}}>{gaM(m.mean)}</b> <span style={{color:C.dim}}>({gaM(m.p10)} – {gaM(m.p90)})</span></div>
+        <div style={{fontSize:11,color:C.dim,marginTop:3}}>{L(`2000 прогонов живой воронки на конверсиях, сроках и чеках за ${hist}`,`2000 symulacji lejka na danych ${hist}`)}</div>
+      </div>
+    </div>
+    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{list.map(x=><button key={x.mgr} onClick={()=>{setSel(x.mgr);setShowTree(false);}} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 11px",borderRadius:999,border:`1px solid ${sel===x.mgr?"rgba(227,184,96,.7)":C.border}`,background:sel===x.mgr?"rgba(227,184,96,.12)":"transparent",color:x.isTeam?C.text:(MGR_COLOR[x.mgr]||C.text),fontSize:12.5,cursor:"pointer"}}>{x.isTeam?L("Команда","Zespół"):x.mgr} <b style={{color:gfCol(x.p),fontWeight:400}}>{gfPct(x.p)}</b></button>)}</div>
+    {warns.length>0&&<div style={{display:"flex",flexDirection:"column",gap:6}}>{warns.map((w,i)=><div key={i} style={{borderRadius:10,padding:"8px 12px",border:`1px solid ${w.sev==="crit"?"rgba(255,125,140,.55)":"rgba(240,192,64,.5)"}`,background:w.sev==="crit"?"rgba(255,125,140,.08)":"rgba(240,192,64,.07)",fontSize:13,color:C.text}}>⚠ {w.t}</div>)}</div>}
+    <div style={box}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{...lbl,marginBottom:0}}>{L(`почему · дерево причин — сейчас против нормы ${hist}`,`dlaczego · drzewo przyczyn`)}</div>
+        {!(m.p!=null&&m.p<0.6)&&<button onClick={()=>setShowTree(s=>!s)} style={{marginLeft:"auto",background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:8,padding:"3px 10px",fontSize:11,cursor:"pointer"}}>{showTree?L("скрыть","ukryj"):L("показать разбор","pokaż analizę")}</button>}</div>
+      {!treeOn?<div style={{fontSize:12.5,color:"#47e6a0",marginTop:6}}>✓ {L("Вероятность цели 60%+ — разбор открывается сам, когда она падает ниже","Szansa 60%+ — analiza otworzy się sama, gdy spadnie")}</div>
+        :!tree.nodes.length?<div style={{fontSize:12.5,color:C.text,marginTop:6,display:"flex",flexDirection:"column",gap:4}}><span style={{color:"#47e6a0"}}>✓ {L("Шаги воронки в норме — просадки по конверсиям не видно","Etapy lejka w normie")}</span>
+          {m.p!=null&&m.p<0.6&&tree.R0>0&&<span>⚙ {L(`Вероятность низкая из-за самой цели и сроков: при обычных конверсиях месяц даёт ~${gaM(tree.R0)}, цель ${gaM(m.target)}${m.target>tree.R0?` — на ${Math.round((m.target/tree.R0-1)*100)}% выше обычного месяца`:""}. Продажа приходит в среднем через ${m.lagVSmed!=null?Math.round(m.lagVSmed):"~14"} дн. после визита — значит, для цели нужно больше визитов уже сейчас: ~${gaF(m.kpis.find(k=>k.k==="v").need||0)} за месяц против темпа ${gaF(m.kpis.find(k=>k.k==="v").cur||0)}`,`Szansa niska przez sam cel: przy normalnych konwersjach miesiąc daje ~${gaM(tree.R0)}, cel ${gaM(m.target)}`)}</span>}</div>
+        :<div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8}}>{tree.nodes.map((n,i)=><GaNode key={n.k} n={n} i={i} pl={pl}/>)}
+          <div style={{fontSize:10.5,color:C.dim}}>{L(`модель месяца при нормах: ${gaM(tree.R0)} · недозвон, квалы — лиды месяца старше 2 дней; 4→5 — квалы 10–45 дней назад; 5→6 — визиты 14–75 дней назад`,`model miesiąca: ${gaM(tree.R0)}`)}</div></div>}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"minmax(0,1.2fr) minmax(0,1fr)",gap:12}} className="ga-2">
+      <div style={box}><div style={lbl}>{L("динамика по месяцам · текущий — темп на конец месяца","dynamika miesięczna")}</div>
+        <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",width:"100%",fontVariantNumeric:"tabular-nums"}}><thead><tr><th style={{...th,textAlign:"left"}}></th>{ser.rows.map(r=><th key={r.mk} style={{...th,color:r.cur?C.accent:C.muted}}>{gfMonName(r.mk,pl)}{r.cur?" ~":""}</th>)}</tr></thead>
+        <tbody>{SR.map(([k,lb,t])=>{const avg=ser.avg(k);return <tr key={k}><td style={{...td,textAlign:"left",color:C.muted}}>{lb}</td>{ser.rows.map(r=>{const v=r[k];const bad=r.cur&&avg&&v!=null&&v<avg*0.8,good=r.cur&&avg&&v!=null&&v>avg*1.1;return <td key={r.mk} style={{...td,color:bad?"#ff7d8c":good?"#47e6a0":(t==="p"&&r.young?C.dim:C.text)}}>{fv(t,v)}</td>;})}</tr>;})}</tbody></table></div>
+        <div style={{fontSize:10.5,color:C.dim,marginTop:6}}>{L("4→5 и 5→6 — по лидам месяца (свежие месяцы ещё дозревают, серым). ","4→5 i 5→6 — wg leadów miesiąca. ")}{ser.nextS!=null?L(`Прогноз продаж на следующий месяц по визитам этого: ~${gaF(ser.nextS)} (обычно ${gaF(ser.sAvg||0)})`,`Prognoza sprzedaży na przyszły miesiąc: ~${gaF(ser.nextS)}`):""}</div></div>
+      <div style={{display:"flex",flexDirection:"column",gap:12,minWidth:0}}>
+        {peer&&<div style={box}><div style={lbl}>{L(`похожий менеджер · тот же поток`,`podobny menedżer`)}</div>
+          <div style={{fontSize:12.5,color:C.text,marginBottom:6}}>{m.mgr} ↔ <b style={{color:MGR_COLOR[peer.peer]||C.text,fontWeight:400}}>{peer.peer}</b> · {L("сходство потока","podobieństwo")} {Math.round(peer.sim*100)}%{peer.langMe&&peer.langPe?<span style={{color:C.dim}}> · {String(peer.langMe[0]).toUpperCase()} {gfPct(peer.langMe[1])} / {gfPct(peer.langPe[1])}</span>:null}{peer.srcMe&&peer.srcPe?<span style={{color:C.dim}}> · {peer.srcMe[0]} {gfPct(peer.srcMe[1])}</span>:null}</div>
+          <table style={{borderCollapse:"collapse",width:"100%",fontVariantNumeric:"tabular-nums"}}><thead><tr><th style={{...th,textAlign:"left"}}></th><th style={th}>{m.mgr}</th><th style={th}>{peer.peer}</th></tr></thead><tbody>
+            {peer.gaps.map(g=><tr key={g.k}><td style={{...td,textAlign:"left",color:C.muted}}>{KN[g.k]}</td><td style={{...td,color:g.gap>0.05?"#ff7d8c":C.text}}>{g.k==="aov"?(g.me?gaM(g.me):"—"):gfPct(g.me)}</td><td style={td}>{g.k==="aov"?(g.peer?gaM(g.peer):"—"):gfPct(g.peer)}</td></tr>)}</tbody></table>
+          {peer.gaps[0]&&peer.gaps[0].gap>0.05&&<div style={{fontSize:12,color:"#9fd8ff",marginTop:6}}>→ {L(`Поток почти одинаковый, а ${KN[peer.gaps[0].k]} заметно хуже — разница в обработке, не в трафике. Разобрать с ${peer.peer}, как он это делает`,`Ruch prawie taki sam, a ${KN[peer.gaps[0].k]} gorzej — różnica w obsłudze`)}</div>}
+          <div style={{fontSize:10.5,color:C.dim,marginTop:4}}>{L(`нормы за ${hist}`,`normy ${hist}`)}</div></div>}
+        {langs.length>0&&<div style={box}><div style={lbl}>{L("аудитории · сейчас / норма","grupy · teraz / norma")}</div>
+          <table style={{borderCollapse:"collapse",width:"100%",fontVariantNumeric:"tabular-nums"}}><thead><tr><th style={{...th,textAlign:"left"}}></th>{langs.map(o=><th key={o.v} style={th}>{gaSeg("lang",o.v,pl).split(" (")[0]}</th>)}</tr></thead><tbody>
+            {[["nr",tree.W.fresh],["qc",tree.W.fresh],["c45",tree.W.q],["c56",tree.W.v]].map(([k,arr])=>arr?<tr key={k}><td style={{...td,textAlign:"left",color:C.muted}}>{KN[k]}</td>{langs.map(o=>{const c=GA_RF[k](arr[0].filter(x=>x.lang===o.v)),h=GA_RF[k](arr[1].filter(x=>x.lang===o.v));const cv=c.n>=4?gaV(c):null,hv=h.n>=6?gaV(h):null;const w=k==="nr"?1:-1;const bad=cv!=null&&hv!=null&&(cv-hv)*w>0.07,good=cv!=null&&hv!=null&&(hv-cv)*w>0.04;
+              return <td key={o.v} style={td}><span style={{color:bad?"#ff7d8c":good?"#47e6a0":C.text}}>{gfPct(cv)}</span><span style={{color:C.dim,fontSize:10.5}}> / {gfPct(hv)}</span></td>;})}</tr>:null)}</tbody></table></div>}
+      </div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)",gap:12}} className="ga-2">
+      <div style={box}><div style={lbl}>{L("KPI · норма · сейчас · нужно для цели","KPI · norma · teraz · potrzeba")}</div>
+        <table style={{width:"100%",borderCollapse:"collapse",fontVariantNumeric:"tabular-nums"}}><tbody>{m.kpis.map(k=><tr key={k.k}><td style={{...td,textAlign:"left",color:C.muted}}>{pl?k.pl:k.ru}</td><td style={td}>{gfVal(k,k.norm)}</td><td style={{...td,color:gfKCol(k,k.cur,k.norm)}}>{gfVal(k,k.cur)}</td><td style={{...td,color:k.need!=null&&k.cur!=null&&k.cur<k.need*0.95?"#ff7d8c":C.text}}>{k.need!=null?gfVal(k,k.need):""}</td></tr>)}</tbody></table></div>
+      <div style={box}><div style={lbl}>{L("откуда придут продажи до конца месяца","skąd przyjdą sprzedaże")}</div>
+        {[[L("уже продано","już sprzedane"),`${m.M.s} · ${fmtM(m.done)}`],[L(`визиты в работе (${m.pipe.filter(x=>x.k==="v").length})`,`wizyty w toku (${m.pipe.filter(x=>x.k==="v").length})`),`≈ ${gaF(m.eS.v)}`],[L(`квалы без визита (${m.pipe.filter(x=>x.k==="q").length})`,`kwal. bez wizyty (${m.pipe.filter(x=>x.k==="q").length})`),`≈ ${gaF(m.eS.q)}`],[L("новые лиды до конца месяца","nowe leady do końca miesiąca"),`≈ ${gaF(m.eS.n)}`]].map(([a,b],i)=><div key={i} style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:12.5,padding:"3px 0"}}><span style={{color:C.muted}}>{a}</span><span>{b}</span></div>)}
+        <div style={{fontSize:10.5,color:C.dim,marginTop:4}}>{L(`визит → продажа ${gfPct(m.R.c56)}${m.lagVSmed!=null?`, обычно через ${Math.round(m.lagVSmed)} дн.`:""} · квал → визит ${gfPct(m.R.c45)} · чек ${gaM(m.aov)}`,`wizyta → sprzedaż ${gfPct(m.R.c56)} · kwal → wizyta ${gfPct(m.R.c45)}`)}</div>
+        {m.isTeam&&drv.D.length>0&&<div style={{marginTop:10}}><div style={lbl}>{L("что исторически ведёт к продажам","co prowadzi do sprzedaży")}</div>{drv.D.slice(0,4).map(d=><div key={d.k} style={{display:"grid",gridTemplateColumns:"150px minmax(0,1fr) 44px",gap:8,alignItems:"center",fontSize:12,marginBottom:3}}><span>{d.l[pl?1:0]}</span><div style={{height:7,borderRadius:4,background:"rgba(120,170,255,.12)"}}><div style={{height:7,borderRadius:4,width:`${Math.abs(d.r)*100}%`,background:d.r>0?"#e3b860":"#5cb8ff"}}/></div><span style={{textAlign:"right",color:d.r>0?"#e3b860":"#5cb8ff"}}>{d.r.toFixed(2).replace(".",",")}</span></div>)}</div>}
+      </div>
+    </div>
+  </div>;}
+// короткая полоса в Центре продаж
+function GoalStrip({leads,sales,goals,lang,onOpen}){const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;const A=useMemo(()=>gfAll(leads,sales,goals),[leads,sales,goals]);const t=A.team;const dk=C===DARK;
+  const tree=useMemo(()=>t.p!=null&&t.p<0.6?gaTree(A.P,t,A.today,pl):null,[A,t,pl]);
+  return <div onClick={onOpen} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",borderRadius:16,padding:"10px 14px",border:`1px solid ${gfCol(t.p)}66`,background:dk?"linear-gradient(100deg,rgba(14,40,108,.6),rgba(5,18,52,.5))":C.card}}>
+    <GfGauge p={t.p} size={52}/>
+    <div style={{minWidth:200}}><div style={{fontSize:14}}>🧠 {L("Прогноз цели","Prognoza celu")} · {gfMonName(A.ym,pl)}</div><div style={{fontSize:12,color:C.muted}}>{fmtM(t.done)} / {fmtM(t.target)} · {L("ждём","oczekujemy")} <span style={{color:gfCol(t.p)}}>{gaM(t.mean)}</span></div></div>
+    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{A.mg.map(x=><span key={x.mgr} style={{fontSize:11.5,padding:"2px 9px",borderRadius:999,border:`1px solid ${(MGR_COLOR[x.mgr]||C.muted)}55`,color:MGR_COLOR[x.mgr]||C.text}}>{x.mgr} <b style={{color:gfCol(x.p),fontWeight:400}}>{gfPct(x.p)}</b></span>)}</div>
+    <div style={{flex:1,minWidth:200,fontSize:12,color:tree&&tree.nodes.length?"#ff9aa6":C.muted}}>{tree&&tree.nodes.length?`${L("главная причина","główna przyczyna")}: ${tree.nodes[0].t}`:""}</div>
+    <span style={{fontSize:12,color:C.accent,whiteSpace:"nowrap"}}>{L("Разбор →","Analiza →")}</span>
+  </div>;}
 
 // ─── РЕЖИМ ДЕЖУРНОГО ──────────────────────────────────────────────────────────
 // Очередь сверху вниз: 🔥 свежие (таймер заявки) → 📐 просчёты (выше оценка, при равной — старее просчёт) →
@@ -6579,7 +6918,7 @@ function DomainManager({srcList,setDomains,t,funnels=[]}){
 
 // ─── ВОРОНКА ПРОДАЖ (по оценкам) — заменяет раздел «Аналитика» ─────────────────
 function scoreEverReached(l,x){const cur=parseFloat(l.score)||0;if(cur>=x)return true;return (l.scoreTrail||[]).some(v=>(parseFloat(v)||0)>=x);}
-function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUser}){
+function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUser,goals=[]}){
   const ru=lang!=="pl";
   const td=getToday();const mS=`${td.slice(0,8)}01`;
   const [dateFrom,setDateFrom]=useState(mS);const [dateTo,setDateTo]=useState(td);
@@ -6610,6 +6949,7 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
   const curSales=filterByCustomRange(sales||[],dateFrom,dateTo).filter(x=>fm==="all"||x.manager===fm).filter(x=>{if(fLang==="all")return true;const l=(leads||[]).find(y=>y.leadId===x.leadId||y.id===x.leadId)||(leads||[]).find(y=>y.phone===x.phone);const cl=l&&l.clientLang;return fLang==="none"?!cl:cl===fLang;}).filter(x=>buyerMatch(x.source,fBuy));
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
+      <FunnelAnalysis leads={leads} sales={sales} goals={goals} lang={lang}/>
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <div style={{fontSize:18,fontWeight:800,color:C.text}}>▼ {ru?"Воронка продаж":"Lejek sprzedaży"} <span style={{fontSize:12,color:C.muted}}>({cur.length})</span></div>
         <select value={fm} onChange={e=>setFm(e.target.value)} style={ss}><option value="all">{ru?"Все менеджеры":"Wszyscy"}</option>{MANAGERS.map(m=><option key={m} value={m}>{m}</option>)}</select>
@@ -7191,7 +7531,7 @@ function SalesClientCard({leads,sales,from,to,cmp,mgr,lang}){const ru=lang!=="pl
     <div style={{fontSize:10.5,color:C.dim,lineHeight:1.5,fontFamily:"inherit"}}>{ru?"Лиды, 4 и 5 — по дате поступления лида в периоде · продажи и выручка — по дате продажи · 4→5 = визиты / квалы, 5→6 = продажи / визиты (больше 100% — в продажах есть визиты прошлых периодов) · AR = квалы / лиды · маленькие цифры — прошлый период":"Leady, 4 i 5 — wg daty wpływu · sprzedaż — wg daty sprzedaży · 4→5 = wizyty / kwal, 5→6 = sprzedaże / wizyty (ponad 100% — sprzedaże z wizyt wcześniejszych) · AR = kwal / leady · małe liczby — poprzedni okres"}</div>
   </div>;}
 
-function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpenLead,updateDb,setPage,setSales,setSalesNow}){
+function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpenLead,updateDb,setPage,setSales,setSalesNow,goals=[],onGoFunnel}){
   const ru=lang!=="pl";
   // Свой кабинет открывается автоматически; Даня (руководитель) и Эрика — общий
   const [mgr,setMgr]=useState(currentUser&&MANAGERS.includes(currentUser)&&currentUser!=="Danya"?currentUser:"all");
@@ -7266,6 +7606,7 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
       </div>
 
       {/* 📊 Sales & Client — вся статистика на одном экране */}
+      <GoalStrip leads={leads} sales={sales} goals={goals} lang={lang} onOpen={onGoFunnel}/>
       <SalesClientCard leads={leads} sales={sales} from={pFrom} to={pTo} cmp={cmp} mgr={mgr} lang={lang}/>
 
       {/* Выбранный период vs прошлый — по выбранному кабинету (у Дани — вся команда) */}
@@ -9359,7 +9700,7 @@ function GarnoCRM(){
           {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead} mgr={mgr}/>}
           
           {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
-          {(page==="salescenter"||page==="funnel"||page==="analytics")&& <SalesCenterTabs initialTab={page==="salescenter"?"center":"funnel"} srcList={srcList} funnels={db.funnels||[]} leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
+          {(page==="salescenter"||page==="funnel"||page==="analytics")&& <SalesCenterTabs goals={db.goals||[]} initialTab={page==="salescenter"?"center":"funnel"} srcList={srcList} funnels={db.funnels||[]} leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
           {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={setSelLead} currentUser={currentUser}/>}
           {page==="tests"      && <TestsPage db={db} updateDb={updateDb} currentUser={currentUser} lang={lang} onOpenLead={setSelLead}/>}
           {page==="settings"   && <SettingsPage db={db} updateDb={updateDb} lang={lang} t={t} srcList={srcList} setDomains={setDomains} currentUser={currentUser}/>}
