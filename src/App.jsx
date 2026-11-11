@@ -2317,7 +2317,7 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"tests",icon:"🧪",ru:"Тесты",pl:"Testy"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
+const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"finance",icon:"💰",ru:"Финансы",pl:"Finanse"},{key:"timesheets",icon:"⏱",ru:"Табели",pl:"Ewidencja"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"tests",icon:"🧪",ru:"Тесты",pl:"Testy"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
 // Анимированные иконки меню: части с классом .p играют свою анимацию при открытии раздела / наведении / старте
 const NAV_SVG={
   dashboard:<><rect className="p p1" x="3" y="3" width="7" height="9" rx="2"/><rect className="p p2" x="14" y="3" width="7" height="5" rx="2"/><rect className="p p3" x="14" y="12" width="7" height="9" rx="2"/><rect className="p p4" x="3" y="16" width="7" height="5" rx="2"/></>,
@@ -2327,6 +2327,8 @@ const NAV_SVG={
   salescenter:<><path className="p gem" d="M6.5 3.5h11L22 9l-10 12L2 9z"/><path className="p gem" d="M2 9h20M9 3.5 7.5 9 12 21l4.5-12-1.5-5.5"/><path className="p spark" d="M20 1.5v3M18.5 3h3"/></>,
   sales:<><path className="p line" d="M3 17l6-6 4 4 8-8"/><path className="p head" d="M15 7h6v6"/></>,
   orders:<><path className="p body" d="M3 9v8.5l9 4 9-4V9"/><path className="p body" d="M12 13v8.5"/><path className="p lidl" d="M3 9l9 4 0-4-9-4z"/><path className="p lidr" d="M21 9l-9 4 0-4 9-4z"/><path className="p pop" d="M12 6.5v-4M9.5 4l-1-1.5M14.5 4l1-1.5"/></>,
+  finance:<><ellipse cx="10" cy="17" rx="6.5" ry="2.6"/><path d="M3.5 13.2v3.8M16.5 13.2v3.8"/><ellipse cx="10" cy="13.2" rx="6.5" ry="2.6"/><g className="p coin"><circle cx="17.5" cy="6.5" r="3.6"/><path d="M17.5 5v3"/></g></>,
+  timesheets:<><circle cx="12" cy="12.5" r="8.5"/><path className="p hand" d="M12 12.5V7.5"/><path className="p hand2" d="M12 12.5l3.5 2"/><path d="M9.5 2.5h5"/></>,
   tasks:<><path d="M10 6h10M10 12h10M10 18h10"/><path className="p c1" d="M3.5 6l1.5 1.5 2.5-2.5"/><path className="p c2" d="M3.5 12l1.5 1.5 2.5-2.5"/><path className="p c3" d="M3.5 18l1.5 1.5 2.5-2.5"/></>,
   tests:<><path d="M9 3h6M10 3v6l-5.5 9.5A2 2 0 0 0 6.2 21.5h11.6a2 2 0 0 0 1.7-3L14 9V3"/><path d="M7 15h10"/><circle className="p b1" cx="10.5" cy="18" r=".9" fill="currentColor" stroke="none"/><circle className="p b2" cx="13.5" cy="17" r=".7" fill="currentColor" stroke="none"/></>,
   settings:<><g className="p gear"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></g><circle cx="12" cy="12" r="2.5"/></>,
@@ -2398,7 +2400,7 @@ function ImgViewer({src,onClose,title}){
 // Кнопка ✍ в шапке → выделяешь область экрана → пишешь, что поправить. Сохраняется кто, когда, страница,
 // область (координаты + скрин + текст под ней). Список — Настройки → Update. «Сделано» и «Скопировать» — только у Дани.
 const UPD_ADMIN=["Danya"];
-const UPD_PAGES={leads:["Лиды","Leady"],orders:["Заказы","Zamówienia"],salescenter:["Центр продаж","Centrum sprzedaży"],tasks:["Задачи","Zadania"],settings:["Настройки","Ustawienia"],tests:["Тесты","Testy"],alerts:["Аллерты","Alerty"],calendar:["Календарь","Kalendarz"],dashboard:["Дашборд","Dashboard"],sales:["Продажи","Sprzedaż"],funnel:["Воронка","Lejek"],analytics:["Аналитика","Analityka"]};
+const UPD_PAGES={finance:["Финансы","Finanse"],timesheets:["Табели","Ewidencja"],leads:["Лиды","Leady"],orders:["Заказы","Zamówienia"],salescenter:["Центр продаж","Centrum sprzedaży"],tasks:["Задачи","Zadania"],settings:["Настройки","Ustawienia"],tests:["Тесты","Testy"],alerts:["Аллерты","Alerty"],calendar:["Календарь","Kalendarz"],dashboard:["Дашборд","Dashboard"],sales:["Продажи","Sprzedaż"],funnel:["Воронка","Lejek"],analytics:["Аналитика","Analityka"]};
 const updPage=(p,pl)=>(UPD_PAGES[p]||[p||"—",p||"—"])[pl?1:0];
 let _h2c=null;
 function updLoadH2C(){if(window.html2canvas)return Promise.resolve(window.html2canvas);if(_h2c)return _h2c;
@@ -7875,18 +7877,21 @@ function printProtocol(o){
   w.document.close();
 }
 
-function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead,mgr="all"}){
+function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead,mgr="all",F=null,focusNum=null,onFocused}){
   ORD_LANG=lang==="pl"?"pl":"ru";
   const orders=db.orders||[];const tpl=db.orderTemplate||null;
   const isAdmin=ORDER_ADMIN.includes(currentUser);
   const me=currentUser&&currentUser!=="all"?currentUser:"—";
   const [openId,setOpenId]=useState(null);
+  useEffect(()=>{if(!focusNum)return;const o=orders.find(x=>String(x.num)===String(focusNum));if(o)setOpenId(o.id);onFocused&&onFocused();},[focusNum]);
+  const finClosed=(o)=>!!(F&&F.fin&&finIsClosed(F.fin,String(o.num)));
   const [showTpl,setShowTpl]=useState(false);
   const [fResp,setFResp]=useState("all");const [fStage,setFStage]=useState("all");const [fOver,setFOver]=useState(false);
   const [fDl,setFDl]=useState("");const [fClient,setFClient]=useState("");const [fNum,setFNum]=useState("");const [fNumTo,setFNumTo]=useState("");const [kpi,setKpi]=useState(null);const [showDone,setShowDone]=useState(false);
   const td=getToday();
   const overdueTasks=(o)=>(tasks||[]).filter(x=>x.orderId===o.id&&(x.status||"all")!=="done"&&x.deadline&&x.deadline<td).length;
-  const info=(o)=>{const s=orderStatus(o,tpl);return {...s,st:ORDER_STAGES[s.ci]||null,prog:orderProgress(o,tpl),next:orderNextStep(o,tpl),rem:orderRemaining(o),ot:overdueTasks(o)};};
+  const finRem=(o)=>{const fn=F&&F.fin;if(!fn)return orderRemaining(o);const n=String(o.num);if(!fn.tx.some(t=>!t.del&&t.order===n&&t.type==="in"))return orderRemaining(o);return finOrderCalc(fn,n,o).rest;};
+  const info=(o)=>{const s=orderStatus(o,tpl);return {...s,st:ORDER_STAGES[s.ci]||null,prog:orderProgress(o,tpl),next:orderNextStep(o,tpl),rem:finRem(o),ot:overdueTasks(o)};};
   const respOf=(o,st)=>(st&&o.resp&&o.resp[st.resp])||(o.resp&&o.resp.manager)||"—";
   // ── запись заказа (+ задачи) одним updateDb ──
   const commit=(id,fn,hist,mkTasks,taskPatch)=>{
@@ -8014,7 +8019,8 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
         {rows.map(({o,i})=>{const resp=respOf(o,i.st);const mDate=(o.f||{}).montagePlan;const H=({children})=><div style={{fontSize:9.5,color:C.muted,textTransform:"uppercase",letterSpacing:0.6,fontWeight:800,whiteSpace:"nowrap",marginBottom:4}}>{children}</div>;
           return(<div key={o.id} onClick={()=>setOpenId(o.id)} className="ord-card" style={{background:C.card,border:`1px solid ${(i.days!==null&&i.days<0)||i.ot?"rgba(239,68,68,0.45)":C.border}`,borderRadius:14,padding:"12px 16px",cursor:"pointer"}}>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
-              <div style={{fontFamily:"'Russo One',sans-serif",fontSize:34,lineHeight:1,color:C.accent,letterSpacing:1}}>№{o.num}</div>
+              <div style={{fontFamily:"'Russo One',sans-serif",fontSize:34,lineHeight:1,color:finClosed(o)?C.dim:C.accent,letterSpacing:1}}>№{o.num}</div>
+              {finClosed(o)&&<span title={ORD_LANG==="pl"?"Zamknięte finansowo — wydatki zablokowane":"Закрыт финансово — расходы заблокированы"} style={{fontSize:12,fontWeight:800,color:C.muted,background:"rgba(148,163,184,0.14)",border:"1px solid rgba(148,163,184,0.4)",borderRadius:8,padding:"3px 9px"}}>🔒 {ORD_LANG==="pl"?"zamknięte":"закрыт"}{(()=>{const c=finOrderCalc(F.fin,String(o.num),o);const sn=F.fin.snaps.find(x=>x.order===String(o.num)&&!x.superseded);const pr=sn?sn.prof:c.prof;return pr!=null?` · ${pr.toFixed(1)}%`:"";})()}</span>}
               <div style={{flex:1}}/>
               <button onClick={e=>{e.stopPropagation();setDelId(o.id);}} title={oL("Удалить заказ")} style={{background:"rgba(248,113,113,0.12)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}}>🗑</button>
             </div>
@@ -8032,7 +8038,7 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
         {rows.length===0&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,textAlign:"center",color:C.dim}}>{orders.length?oL("По фильтрам ничего"):oL("Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически.")}</div>}
         <style>{`@media(max-width:1100px){.ord-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important}}`}</style>
       </div>
-      {open&&<OrderCard o={open} tpl={tpl} isAdmin={isAdmin} me={me} commit={commit} tasks={tasks} leads={leads} onOpenLead={onOpenLead} onClose={()=>setOpenId(null)} onDelete={()=>setDelId(open.id)} info={info(open)} respOf={respOf}/>}
+      {open&&<OrderCard o={open} tpl={tpl} isAdmin={isAdmin} me={me} commit={commit} tasks={tasks} leads={leads} onOpenLead={onOpenLead} onClose={()=>setOpenId(null)} onDelete={()=>setDelId(open.id)} info={info(open)} respOf={respOf} F={F} orders={orders} lang={lang}/>}
       {delO&&<div onClick={()=>setDelId(null)} style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.9)",backdropFilter:"blur(4px)",zIndex:2700,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
         <div onClick={e=>e.stopPropagation()} style={{width:"min(440px,100%)",background:"linear-gradient(165deg,#0a1a3a,#00132f)",border:"1px solid rgba(239,68,68,0.6)",borderRadius:18,padding:24,textAlign:"center",boxShadow:"0 30px 90px rgba(0,0,0,0.65)"}}>
           <div style={{fontSize:36,marginBottom:6}}>🗑</div>
@@ -8080,7 +8086,7 @@ function OrderTemplateEditor({tpl,onSave,onClose}){
     </div>);
 }
 
-function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDelete,info,respOf}){
+function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDelete,info,respOf,F=null,orders=[],lang="ru"}){
   const [openSt,setOpenSt]=useState(()=>new Set([info.ci]));
   const [newItem,setNewItem]=useState({});
   const [fileIn,setFileIn]=useState({});
@@ -8161,6 +8167,9 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
             </div>
             <datalist id="order-people">{MANAGERS.map(m=><option key={m} value={m}/>)}</datalist>
           </div>
+
+          {/* ФИНАНСЫ ЗАКАЗА */}
+          {F&&<OrderFinBlock num={String(o.num)} order={o} F={F} me={me} opts={F.fin?finOrderOpts(orders,F.fin):[]} lang={lang}/>}
 
           {/* ЛЕНТА ЭТАПОВ */}
           {ORDER_STAGES.map((st,i)=>{
@@ -8464,6 +8473,945 @@ function TaskReport({tasks,taskTypes,lang,t}){
 
 // ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
 // Единственное место, где управляют типами задач (в задачах — только выбор из списка).
+// ═══ ФИНАНСЫ: ядро (данные, расчёты, хранение, импорт) ═══════════════════════
+// Хранение: строка garnocrm id=3 (отдельно от лидов), запись через CAS по updated_at.
+// Каждое действие — чистая функция над свежими данными с сервера → параллельные правки не теряются.
+const FIN_ROW=3;
+const FIN_CUR="PLN",FIN_SYM=" zł";
+const FIN_ADMIN=["Danya"];               // Garno: всё, переоткрытие заказов, начальные остатки
+const FIN_APPROVE=["Danya","Dmytro"];    // утверждение табелей
+const FIN_CLOSE=["Danya","Dmytro","Oleh"]; // закрытие заказов
+const FIN_BOOK=["Danya","Dmytro","Oleh"];  // видят весь журнал, остатки, отчёты
+const FIN_START="2026-09-01";
+const FIN_ACC_SEED=[["cash","Касса (наличка)",13650],["paun","ФОП Паун",28867.60],["stukanov","Stukanov",12532.70],["stukanova","Stukanova",1104],["garno","GARNO фирма",0]];
+const FIN_CAT_SEED=[[1,"Интернет, телефон","Internet, telefon"],[2,"ЗП и аванс","Wynagrodzenia i zaliczki"],[3,"Транспорт","Transport"],[4,"Салон расходы","Koszty salonu"],[5,"Бензин","Paliwo"],[6,"Олег ЗП","Oleh — wynagrodzenie"],[7,"Дима ЗП","Dima — wynagrodzenie"],[8,"Аренда","Najem"],[9,"Инструменты","Narzędzia"],[10,"Реклама","Reklama"],[11,"Налоги (ZUS, PIT)","Podatki (ZUS, PIT)"],[12,"Бухгалтерские расходы","Księgowość"],[13,"Перенос средств между счетами","Przelew między kontami"],[14,"Банк комиссия","Prowizja bankowa"]];
+const FIN_EMP_SEED=["Дима Амид","Едік","Ігорь","Олексій цех","Саша","Саша Мелешко","Саша поставки","Святослав","Степа"];
+const FIN_IN_P=[["deposit","Задаток клиента","Zaliczka klienta"],["extra","Доплата клиента","Dopłata klienta"],["full","Полная оплата","Pełna płatność"],["refund","Возврат","Zwrot"],["otherIn","Прочий приход","Inny przychód"]];
+const FIN_OUT_P=[["mat","Материалы","Materiały"],["work","Работа (сборка/монтаж)","Praca (montaż)"],["deliv","Доставка / транспорт","Dostawa / transport"],["mkt","Премия маркетинга","Premia marketingu"],["mgr","Премия менеджера","Premia menedżera"],["otherOrd","Прочее по заказу","Inne do zamówienia"]];
+const FIN_STAGE=[["workshop","Цех","Warsztat"],["install","Монтаж","Montaż"],["salon","Салон","Salon"]];
+const FIN_TS_ST={draft:["Черновик","Szkic","#94a3b8"],submitted:["Сдан","Złożony","#5cb8ff"],approved:["Утверждён","Zatwierdzony","#47e6a0"],paid:["Выплачен","Wypłacony","#e3b860"]};
+let FIN_LANG="ru";
+const fL=(ru,pl)=>FIN_LANG==="pl"?pl:ru;
+const fid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const r2=n=>Math.round((+n||0)*100)/100;
+function fNum(v){if(v==null||v==="")return 0;if(typeof v==="number")return v;const s=String(v).replace(/[\s  ]/g,"").replace(",",".").replace(/[^\d.\-]/g,"");return parseFloat(s)||0;}
+function fmtF(n,d=2){if(n==null||isNaN(n))return "—";const neg=n<0;const p=Math.abs(+n).toFixed(d).split(".");p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g," ");return (neg?"−":"")+p.join(",");}
+const fmtZ=(n,d=0)=>n==null||isNaN(n)?"—":fmtF(n,d)+FIN_SYM;
+const fIso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const fDot=s=>s?String(s).slice(0,10).split("-").reverse().join("."):"—";
+const fToday=()=>fIso(new Date());
+function fMonthRange(ym){const [y,m]=ym.split("-").map(Number);return {from:`${ym}-01`,to:fIso(new Date(y,m,0))};}
+function fHalf(date){const [y,m,d]=date.split("-").map(Number);return d<=15?{start:`${y}-${String(m).padStart(2,"0")}-01`,end:`${y}-${String(m).padStart(2,"0")}-15`}:{start:`${y}-${String(m).padStart(2,"0")}-16`,end:fIso(new Date(y,m,0))};}
+function fHalfShift(start,k){const [y,m,d]=start.split("-").map(Number);let idx=(y*12+(m-1))*2+(d>1?1:0)+k;const yy=Math.floor(idx/24),mm=Math.floor((idx%24)/2),h=idx%2;return fHalf(`${yy}-${String(mm+1).padStart(2,"0")}-${h?"16":"01"}`);}
+
+// ── нормализация / упаковка ──
+function finNorm(d){d=d&&typeof d==="object"?d:{};
+  const accounts=Array.isArray(d.accounts)&&d.accounts.length?d.accounts:FIN_ACC_SEED.map(([id,name,op],i)=>({id,name,opening:op,openingDate:FIN_START,active:true,sort:i}));
+  const cats=Array.isArray(d.cats)&&d.cats.length?d.cats:FIN_CAT_SEED.map(([num,name,pl])=>({id:"c"+num,num,name,pl,scope:"salon",active:true}));
+  const emps=Array.isArray(d.emps)?d.emps:FIN_EMP_SEED.map((n,i)=>({id:"e"+(i+1),name:n,role:"assembler",rates:[{rate:40,from:"2020-01-01"}],active:true,pin:""}));
+  return {v:1,accounts,cats,emps,tx:d.tx||[],periods:d.periods||[],tse:d.tse||[],pw:d.pw||[],ord:d.ord||{},onec:{orders:{},overheads:[],imports:[],...(d.onec||{})},snaps:d.snaps||[],log:d.log||[],
+    set:{mkt:{mode:"pct",val:0},mgrPct:0,thr:[15,30],payrollFromTs:true,...(d.set||{})}};}
+
+// ── хранение (строка id=3) ──
+async function finRead(){
+  const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm?id=eq.${FIN_ROW}&select=data,updated_at`,{headers:SB_HDR,cache:"no-store"});
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  const j=await r.json();return j&&j.length?{data:j[0].data,ver:j[0].updated_at}:{data:null,ver:null};
+}
+async function finWriteCAS(data,ver){const now=new Date().toISOString();
+  if(!ver){ // строки ещё нет — создаём; если кто-то успел раньше, база вернёт 409 → перечитаем
+    const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm`,{method:"POST",headers:{...SB_HDR,"Prefer":"return=minimal"},body:JSON.stringify({id:FIN_ROW,data,updated_at:now})});
+    if(r.status===409)return false;if(!r.ok){const t=await r.text().catch(()=>"");throw new Error(`HTTP ${r.status} ${t.slice(0,120)}`);}return true;}
+  const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm?id=eq.${FIN_ROW}&updated_at=eq.${encodeURIComponent(ver)}`,{method:"PATCH",headers:{...SB_HDR,"Prefer":"return=representation"},body:JSON.stringify({data,updated_at:now})});
+  if(!r.ok){const t=await r.text().catch(()=>"");throw new Error(`HTTP ${r.status} ${t.slice(0,160)}`);}
+  const j=await r.json().catch(()=>[]);return Array.isArray(j)&&j.length>0;
+}
+// Хук: сервер + очередь действий (оптимистично), повтор при сбое сети
+function useFin(enabled=true){
+  const [base,setBase]=useState(null);const [pend,setPend]=useState([]);const [st,setSt]=useState("load");const [err,setErr]=useState("");
+  const pendRef=useRef([]);const busy=useRef(false);const curRef=useRef(null);
+  const load=async()=>{try{const {data}=await finRead();setBase(finNorm(data));if(!pendRef.current.length)setSt("ok");}catch(e){setSt("err");setErr(e.message);}};
+  const flush=async()=>{if(busy.current)return;busy.current=true;setSt("sync");
+    try{while(pendRef.current.length){const batch=[...pendRef.current];let rejected=[],done=false;
+        for(let a=0;a<6&&!done;a++){const {data,ver}=await finRead();let s=finNorm(data);rejected=[];
+          for(const o of batch){try{s=o.fn(s)||s;}catch(e){rejected.push(e.message);}}
+          if(await finWriteCAS(s,ver)){setBase(s);done=true;}else await new Promise(r=>setTimeout(r,150+Math.random()*250));}
+        if(!done)throw new Error(fL("Слишком много одновременных правок, повторяю…","Za dużo równoczesnych zmian, ponawiam…"));
+        pendRef.current=pendRef.current.slice(batch.length);setPend(pendRef.current);
+        if(rejected.length){setErr(rejected.join(" · "));try{window.alert("⚠ "+rejected.join("\n"));}catch{}}}
+      setSt("ok");}
+    catch(e){setSt("err");setErr(e.message);setTimeout(()=>{busy.current=false;flush();},6000);return;}
+    busy.current=false;};
+  useEffect(()=>{if(!enabled)return;load();const id=setInterval(()=>{if(!pendRef.current.length&&!busy.current)load();},45000);
+    const f=()=>{if(!pendRef.current.length&&!busy.current)load();};window.addEventListener("focus",f);return()=>{clearInterval(id);window.removeEventListener("focus",f);};},[enabled]);
+  const fin=useMemo(()=>{if(!base)return null;let s=base;for(const p of pend){try{s=p.fn(s)||s;}catch{}}return s;},[base,pend]);
+  curRef.current=fin;
+  // op(fn): сначала проверка на текущих данных (ошибка → сообщение, ничего не уходит), потом в очередь
+  const op=(fn)=>{const cur=curRef.current;if(!cur)return false;try{fn(cur);}catch(e){try{window.alert("⚠ "+e.message);}catch{}return false;}
+    pendRef.current=[...pendRef.current,{fn}];setPend(pendRef.current);flush();return true;};
+  return {fin,op,st,err,pending:pend.length,reload:load};
+}
+
+// ── справочники / доступ ──
+const finAcc=(s,id)=>(s.accounts||[]).find(a=>a.id===id);
+const finCat=(s,num)=>(s.cats||[]).find(c=>+c.num===+num);
+const finCatName=(c)=>c?(FIN_LANG==="pl"&&c.pl?c.pl:c.name):"—";
+const finPurpose=(k)=>{const x=[...FIN_IN_P,...FIN_OUT_P].find(p=>p[0]===k);return x?fL(x[1],x[2]):"";};
+const finIsClosed=(s,num)=>!!num&&((s.ord||{})[num]||{}).status==="closed";
+const finRole=u=>({admin:FIN_ADMIN.includes(u),book:FIN_BOOK.includes(u),approve:FIN_APPROVE.includes(u),close:FIN_CLOSE.includes(u)});
+function finRateAt(emp,date){const rs=[...((emp&&emp.rates)||[])].sort((a,b)=>a.from<b.from?-1:1);let r=40;for(const x of rs)if(x.from<=date)r=+x.rate;else break;return r;}
+function finTxValid(t){if(!(+t.amount>0))return fL("сумма должна быть больше 0","kwota musi być > 0");if(!t.acc)return fL("не выбран счёт","nie wybrano konta");
+  if(t.type==="transfer"){if(!t.toAcc)return fL("не выбран счёт получения","nie wybrano konta docelowego");if(t.toAcc===t.acc)return fL("счета перевода совпадают","konta są takie same");return null;}
+  if(t.type==="out"&&!t.order&&!t.cat)return fL("укажите заказ или категорию затрат","podaj zamówienie lub kategorię");
+  if(t.type==="out"&&t.order&&!t.purpose)return fL("укажите цель расхода по заказу","podaj cel wydatku");
+  if(t.type==="in"&&!t.order&&!t.purpose)return fL("укажите заказ или цель прихода","podaj zamówienie lub cel");
+  return null;}
+function finGuardOrder(s,num,what){if(finIsClosed(s,num))throw new Error(`${fL("Заказ","Zamówienie")} №${num} ${fL("закрыт 🔒 —","zamknięte 🔒 —")} ${what}`);}
+
+// ── действия (чистые функции) ──
+const FX={
+  txAdd:(t)=>s=>{const e=finTxValid(t);if(e&&!t.flags)throw new Error(e);if(t.type==="out")finGuardOrder(s,t.order,fL("расходы запрещены","wydatki zablokowane"));
+    const now=Date.now();const x={id:t.id||fid(),cur:FIN_CUR,createdAt:now,updatedAt:now,...t,amount:r2(t.amount)};if(t.type==="in"&&finIsClosed(s,t.order))x.afterClose=true;
+    return {...s,tx:[x,...s.tx]};},
+  txUpd:(id,patch)=>s=>{const old=s.tx.find(t=>t.id===id);if(!old)return s;const n={...old,...patch,updatedAt:Date.now()};
+    if(old.type==="out")finGuardOrder(s,old.order,fL("его расходы нельзя менять","nie można zmieniać wydatków"));if(n.type==="out")finGuardOrder(s,n.order,fL("расходы запрещены","wydatki zablokowane"));
+    const e=finTxValid(n);if(e)throw new Error(e);if(n.flags){const f={...n.flags};delete f.invalid;n.flags=Object.keys(f).length?f:undefined;}
+    return {...s,tx:s.tx.map(t=>t.id===id?n:t)};},
+  txDel:(id,by)=>s=>{const old=s.tx.find(t=>t.id===id);if(!old)return s;if(old.type==="out")finGuardOrder(s,old.order,fL("его расходы нельзя удалять","nie można usuwać wydatków"));
+    if(old.src==="ts")throw new Error(fL("Это выплата по табелю — отмените выплату во вкладке «Табели»","To wypłata z ewidencji — cofnij ją w zakładce «Ewidencja»"));
+    return {...s,tx:s.tx.map(t=>t.id===id?{...t,del:true,delBy:by,updatedAt:Date.now()}:t)};},
+  ordSet:(num,patch)=>s=>({...s,ord:{...s.ord,[num]:{...(s.ord[num]||{}),...patch,updatedAt:Date.now()}}}),
+  close:(num,snap,by,warn)=>s=>{if(finIsClosed(s,num))return s;const at=Date.now();
+    return {...s,ord:{...s.ord,[num]:{...(s.ord[num]||{}),status:"closed",closedAt:at,closedBy:by,updatedAt:at}},
+      snaps:[...s.snaps.map(x=>x.order===num?{...x,superseded:true}:x),{id:fid(),order:num,data:snap,profit:snap.profit,prof:snap.prof,closedBy:by,closedAt:at,warn,superseded:false}],
+      log:[...s.log,{id:fid(),order:num,from:(s.ord[num]||{}).status||"open",to:"closed",reason:warn&&warn.length?fL("закрыт с предупреждениями: ","zamknięte z ostrzeżeniami: ")+warn.join("; "):"",by,at}]};},
+  reopen:(num,reason,by)=>s=>{if(!FIN_ADMIN.includes(by))throw new Error(fL("Переоткрыть может только админ","Tylko admin może ponownie otworzyć"));if(!reason)throw new Error(fL("Нужна причина","Podaj powód"));const at=Date.now();
+    return {...s,ord:{...s.ord,[num]:{...(s.ord[num]||{}),status:"open",reopenedAt:at,reopenedBy:by,updatedAt:at}},snaps:s.snaps.map(x=>x.order===num?{...x,superseded:true}:x),
+      log:[...s.log,{id:fid(),order:num,from:"closed",to:"open",reason,by,at}]};},
+  set:(patch)=>s=>({...s,set:{...s.set,...patch}}),
+  accounts:(list)=>s=>({...s,accounts:list}),
+  cats:(list)=>s=>({...s,cats:list}),
+  empUpsert:(e)=>s=>({...s,emps:s.emps.some(x=>x.id===e.id)?s.emps.map(x=>x.id===e.id?{...x,...e}:x):[...s.emps,{id:fid(),rates:[{rate:40,from:"2020-01-01"}],active:true,role:"assembler",...e}]}),
+  // табель: период создаётся сам при первой строке
+  _per:(s,emp,date)=>{const h=fHalf(date);const id=`${emp}_${h.start}`;let p=s.periods.find(x=>x.id===id);let periods=s.periods;if(!p){p={id,emp,start:h.start,end:h.end,status:"draft",updatedAt:Date.now()};periods=[...periods,p];}return {p,periods};},
+  tseAdd:(e)=>s=>{if(e.order)finGuardOrder(s,e.order,fL("часы на него не вносятся","godzin nie można dodać"));const {p,periods}=FX._per(s,e.emp,e.date);
+    if(p.status==="approved"||p.status==="paid")throw new Error(fL("Период уже утверждён — строки не добавляются","Okres zatwierdzony — nie można dodać"));
+    return {...s,periods,tse:[...s.tse,{id:fid(),period:p.id,...e,hours:r2(e.hours),updatedAt:Date.now()}]};},
+  tseUpd:(id,patch)=>s=>{const o=s.tse.find(x=>x.id===id);if(!o)return s;const p=s.periods.find(x=>x.id===o.period);if(p&&(p.status==="approved"||p.status==="paid"))throw new Error(fL("Период утверждён — правка закрыта","Okres zatwierdzony"));
+    if(o.order)finGuardOrder(s,o.order,fL("часы не меняются","godziny zablokowane"));if(patch.order)finGuardOrder(s,patch.order,fL("часы на него не вносятся","godzin nie można dodać"));
+    return {...s,tse:s.tse.map(x=>x.id===id?{...x,...patch,updatedAt:Date.now()}:x)};},
+  tseDel:(id)=>s=>{const o=s.tse.find(x=>x.id===id);if(!o)return s;const p=s.periods.find(x=>x.id===o.period);if(p&&(p.status==="approved"||p.status==="paid"))throw new Error(fL("Период утверждён","Okres zatwierdzony"));
+    if(o.order)finGuardOrder(s,o.order,fL("строки не удаляются","nie można usuwać"));return {...s,tse:s.tse.filter(x=>x.id!==id)};},
+  pwAdd:(e)=>s=>{if(e.order)finGuardOrder(s,e.order,fL("сдельные на него не вносятся","prac akordowych nie można dodać"));const {p,periods}=FX._per(s,e.emp,e.date);
+    if(p.status==="approved"||p.status==="paid")throw new Error(fL("Период уже утверждён","Okres zatwierdzony"));return {...s,periods,pw:[...s.pw,{id:fid(),period:p.id,...e,amount:r2(e.amount),updatedAt:Date.now()}]};},
+  pwDel:(id)=>s=>{const o=s.pw.find(x=>x.id===id);if(!o)return s;const p=s.periods.find(x=>x.id===o.period);if(p&&(p.status==="approved"||p.status==="paid"))throw new Error(fL("Период утверждён","Okres zatwierdzony"));
+    if(o.order)finGuardOrder(s,o.order,fL("строки не удаляются","nie można usuwać"));return {...s,pw:s.pw.filter(x=>x.id!==id)};},
+  perStatus:(pid,to,by,extra={})=>s=>{const p=s.periods.find(x=>x.id===pid);if(!p)return s;const now=Date.now();let tse=s.tse,tx=s.tx;const emp=s.emps.find(e=>e.id===p.emp);
+    if(to==="approved"){if(!FIN_APPROVE.includes(by))throw new Error(fL("Утверждает только Дима или админ","Zatwierdza tylko Dima lub admin"));
+      const bad=s.tse.filter(x=>x.period===pid&&x.order&&finIsClosed(s,x.order)).map(x=>x.order);if(bad.length)throw new Error(`${fL("В табеле есть закрытые заказы","Zamknięte zamówienia w ewidencji")}: ${[...new Set(bad)].join(", ")}`);
+      tse=tse.map(x=>x.period===pid?{...x,rate:finRateAt(emp,x.date),amount:r2((+x.hours||0)*finRateAt(emp,x.date))}:x);}
+    if(to==="submitted"&&p.status==="approved"&&!FIN_APPROVE.includes(by))throw new Error(fL("Снять утверждение может только Дима или админ","Tylko Dima lub admin"));
+    if(to==="paid"){if(!FIN_APPROVE.includes(by))throw new Error(fL("Выплату отмечает Дима или админ","Wypłatę oznacza Dima lub admin"));if(p.status!=="approved")throw new Error(fL("Сначала утвердите табель","Najpierw zatwierdź"));
+      const tot=finPeriodTotal(s,pid);const t={id:fid(),date:extra.date||fToday(),by,acc:extra.acc,type:"out",amount:r2(tot.total),cat:2,purpose:"",order:null,desc:`${fL("ЗП по табелю","Wypłata wg ewidencji")}: ${emp?emp.name:""} · ${fDot(p.start)}–${fDot(p.end)}`,src:"ts",period:pid,cur:FIN_CUR,createdAt:now,updatedAt:now};
+      if(!t.acc)throw new Error(fL("Выберите счёт выплаты","Wybierz konto"));tx=[t,...tx];return {...s,tx,tse,periods:s.periods.map(x=>x.id===pid?{...x,status:"paid",paidTx:t.id,paidBy:by,paidAt:now,updatedAt:now}:x)};}
+    if(p.status==="paid"&&to!=="paid"){if(!FIN_ADMIN.includes(by)&&!FIN_APPROVE.includes(by))throw new Error("—");tx=tx.map(t=>t.id===p.paidTx?{...t,del:true,delBy:by,updatedAt:now}:t);}
+    return {...s,tx,tse,periods:s.periods.map(x=>x.id===pid?{...x,status:to,...(to==="approved"?{approvedBy:by,approvedAt:now}:{}),...(to!=="paid"?{paidTx:null}:{}),updatedAt:now}:x)};},
+  // ── импорт (повторный импорт того же файла не создаёт дублей: impKey) ──
+  impJournal:(items,crmNums,by)=>s=>{const keys=new Set(s.tx.filter(t=>t.impKey).map(t=>t.impKey));const now=Date.now();const add=[];const ord={...s.ord};let skipped=0,locked=0;
+    items.forEach(it=>{if(keys.has(it.impKey)){skipped++;return;}if(it.type==="out"&&finIsClosed(s,it.order)){locked++;return;}const {row,pair,...t}=it;add.push({...t,id:fid(),cur:FIN_CUR,createdAt:now,updatedAt:now,importedBy:by});
+      if(t.order&&!crmNums.has(t.order)&&!ord[t.order])ord[t.order]={legacy:true,status:"legacy",updatedAt:now};});
+    FX._last={added:add.length,skipped,locked};return {...s,ord,tx:[...add,...s.tx]};},
+  impTimesheets:(files,status,by)=>s=>{let emps=[...s.emps],periods=[...s.periods],tse=[...s.tse],pw=[...s.pw];const keys=new Set([...tse,...pw].filter(x=>x.impKey).map(x=>x.impKey));const now=Date.now();let added=0,skipped=0,locked=0;
+    files.forEach(f=>{let e=emps.find(x=>x.name.toLowerCase()===f.emp.toLowerCase());if(!e){e={id:fid(),name:f.emp,role:"assembler",rates:[{rate:f.rate||40,from:"2020-01-01"}],active:true,pin:""};emps.push(e);}
+      const per=(date)=>{const h=fHalf(date);const id=`${e.id}_${h.start}`;let p=periods.find(x=>x.id===id);if(!p){p={id,emp:e.id,start:h.start,end:h.end,status,updatedAt:now,...(status==="approved"?{approvedBy:by,approvedAt:now}:{})};periods.push(p);}return p;};
+      f.items.forEach(x=>{if(keys.has(x.impKey)){skipped++;return;}if(x.order&&finIsClosed(s,x.order)){locked++;return;}const p=per(x.date);const rate=f.rate||finRateAt(e,x.date);
+        tse.push({id:fid(),period:p.id,emp:e.id,date:x.date,from:x.from,to:x.to,hours:x.hours,order:x.order,stage:x.stage,comment:x.comment||"",impKey:x.impKey,...(p.status==="approved"||p.status==="paid"?{rate,amount:r2(x.hours*rate)}:{}),updatedAt:now});added++;});
+      f.pw.forEach(x=>{if(keys.has(x.impKey)){skipped++;return;}if(x.order&&finIsClosed(s,x.order)){locked++;return;}const p=per(x.date);pw.push({id:fid(),period:p.id,emp:e.id,date:x.date,order:x.order,amount:x.amount,note:x.note,impKey:x.impKey,updatedAt:now});added++;});});
+    FX._last={added,skipped,locked};return {...s,emps,periods,tse,pw};},
+  impBonus:(items,mgr,crmNums)=>s=>{const ord={...s.ord};const now=Date.now();items.forEach(it=>{const o={...(ord[it.order]||{})};o.mgrPct=it.pct;if(!crmNums.has(it.order)){o.legacy=true;o.status=o.status||"legacy";if(o.contract==null&&it.amount)o.contract=it.amount;if(!o.client&&it.client)o.client=it.client;if(!o.mgr)o.mgr=mgr;}o.updatedAt=now;ord[it.order]=o;});
+    FX._last={added:items.length};return {...s,ord};},
+  imp1C:(res,by)=>s=>{const now=Date.now();const orders={...s.onec.orders};res.orders.forEach(o=>{orders[o.no]={...(orders[o.no]||{}),...o,importedAt:now,period:res.period};});
+    const pf=res.period&&res.period.from,pt=res.period&&res.period.to;const overheads=[...(s.onec.overheads||[]).filter(x=>!(x.from===pf&&x.to===pt)),...res.overheads.map(x=>({id:fid(),...x,from:pf,to:pt,importedAt:now}))];
+    FX._last={added:res.orders.length};return {...s,onec:{...s.onec,orders,overheads,imports:[...(s.onec.imports||[]),{at:now,by,period:res.period,orders:res.orders.length,overheads:res.overheads.length}]}};},
+};
+function finImpKeys(list,base){const n={};return list.map(x=>{const b=base(x);n[b]=(n[b]||0)+1;return {...x,impKey:b+"#"+n[b]};});}
+
+// ── расчёты ──
+function finPeriodTotal(s,pid){let h=0,hs=0,pw=0;const p=s.periods.find(x=>x.id===pid);const emp=p&&s.emps.find(e=>e.id===p.emp);
+  s.tse.filter(x=>x.period===pid).forEach(x=>{h+=+x.hours||0;hs+=x.amount!=null&&p&&(p.status==="approved"||p.status==="paid")?+x.amount:(+x.hours||0)*finRateAt(emp,x.date);});
+  s.pw.filter(x=>x.period===pid).forEach(x=>{pw+=+x.amount||0;});return {hours:r2(h),hoursSum:r2(hs),pw:r2(pw),total:r2(hs+pw)};}
+const finPerOk=(s,pid)=>{const p=s.periods.find(x=>x.id===pid);return p&&(p.status==="approved"||p.status==="paid");};
+function finOrderContract(s,num,order){const o=(s.ord||{})[num]||{};if(o.contract!=null&&o.contract!=="")return +o.contract;if(order)return +((order.f||{}).amount)||+order.amount||0;return 0;}
+function finOrderCalc(s,num,order){
+  const of=(s.ord||{})[num]||{};const contract=finOrderContract(s,num,order);
+  const txs=s.tx.filter(t=>!t.del&&t.order===num);
+  const paid=txs.filter(t=>t.type==="in").reduce((a,t)=>a+(t.purpose==="refund"?0:+t.amount),0);
+  const bySum=(p)=>txs.filter(t=>t.type==="out"&&t.purpose===p).reduce((a,t)=>a+ +t.amount,0);
+  const unk=txs.filter(t=>t.type==="out"&&!FIN_OUT_P.some(p=>p[0]===t.purpose)).reduce((a,t)=>a+ +t.amount,0);
+  const tsAll=s.tse.filter(x=>x.order===num);const tsOk=tsAll.filter(x=>finPerOk(s,x.period));const tsPend=tsAll.filter(x=>!finPerOk(s,x.period));
+  const empOf=x=>{const p=s.periods.find(q=>q.id===x.period);return p&&s.emps.find(e=>e.id===p.emp);};
+  const amt=x=>x.amount!=null&&finPerOk(s,x.period)?+x.amount:(+x.hours||0)*finRateAt(empOf(x),x.date);
+  const ws=tsOk.filter(x=>x.stage!=="install").reduce((a,x)=>a+amt(x),0),inst=tsOk.filter(x=>x.stage==="install").reduce((a,x)=>a+amt(x),0);
+  const hours=tsOk.reduce((a,x)=>a+(+x.hours||0),0),pendH=tsPend.reduce((a,x)=>a+(+x.hours||0),0),pendSum=tsPend.reduce((a,x)=>a+amt(x),0);
+  const pwOk=s.pw.filter(x=>x.order===num&&finPerOk(s,x.period));const pwPend=s.pw.filter(x=>x.order===num&&!finPerOk(s,x.period));
+  const pw=pwOk.reduce((a,x)=>a+ +x.amount,0);
+  const mk=of.mkt||s.set.mkt||{mode:"pct",val:0};const mktCalc=mk.mode==="fix"?+mk.val||0:contract*(+mk.val||0)/100;const mktPaid=bySum("mkt");
+  const mgrPct=of.mgrPct!=null&&of.mgrPct!==""?+of.mgrPct:(+s.set.mgrPct||0);const mgrCalc=contract*mgrPct/100;const mgrPaid=bySum("mgr");
+  const L={mat:bySum("mat"),work:ws+inst+bySum("work"),workExt:bySum("work"),ws,inst,hours,pw,deliv:bySum("deliv"),mkt:Math.max(mktCalc,mktPaid),mktCalc,mktPaid,mgr:Math.max(mgrCalc,mgrPaid),mgrCalc,mgrPaid,mgrPct,other:bySum("otherOrd")+unk};
+  const cost=L.mat+L.work+L.pw+L.deliv+L.mkt+L.mgr+L.other;const profit=contract-cost;const prof=contract>0?profit/contract*100:null;
+  return {num,contract,paid,rest:Math.max(0,contract-paid),lines:L,cost:r2(cost),profit:r2(profit),prof:prof==null?null:Math.round(prof*100)/100,pendH,pendSum:r2(pendSum),pendPw:pwPend.length,tsCount:tsAll.length,txs,ts:tsAll,pws:[...pwOk,...pwPend]};}
+function finProfColor(p,thr){if(p==null)return "#94a3b8";const [a,b]=thr||[15,30];return p<a?"#ff7d8c":p<=b?"#f6c453":"#47e6a0";}
+function finBalances(s,from,to){return (s.accounts||[]).filter(a=>a.active!==false).map(a=>{const od=a.openingDate||FIN_START;let open=+a.opening||0,inn=0,out=0;
+  s.tx.forEach(t=>{if(t.del||t.date<od)return;const before=t.date<from,inP=t.date>=from&&t.date<=to;let d=0,isIn=false;
+    if(t.type==="transfer"){if(t.acc===a.id){d=-t.amount;}else if(t.toAcc===a.id){d=+t.amount;isIn=true;}else return;}
+    else if(t.acc===a.id){d=t.type==="in"?+t.amount:-t.amount;isIn=t.type==="in";}else return;
+    if(before)open+=d;else if(inP){if(isIn)inn+=Math.abs(d);else out+=Math.abs(d);}});
+  return {...a,open:r2(open),inn:r2(inn),out:r2(out),end:r2(open+inn-out)};});}
+// Отчёт P&L салона
+function finPnl(s,orders,from,to,mode){
+  const om={};(orders||[]).forEach(o=>{om[String(o.num)]=o;});const nums=new Set([...Object.keys(om),...Object.keys(s.ord||{})]);
+  const rows=[];nums.forEach(num=>{const o=om[num];const of=s.ord[num]||{};
+    const calc=of.status==="closed"?((s.snaps.find(x=>x.order===num&&!x.superseded)||{}).data||finOrderCalc(s,num,o)):finOrderCalc(s,num,o);
+    let rev=0,cost=0;
+    if(mode==="closed"){if(of.status!=="closed")return;const d=fIso(new Date(of.closedAt));if(d<from||d>to)return;rev=calc.contract;cost=calc.cost;}
+    else{const pin=s.tx.filter(t=>!t.del&&t.order===num&&t.type==="in"&&t.purpose!=="refund"&&t.date>=from&&t.date<=to).reduce((a,t)=>a+ +t.amount,0);if(!pin)return;rev=pin;cost=calc.contract>0?calc.cost*Math.min(1,pin/calc.contract):0;}
+    rows.push({num,client:(o&&o.client)||of.client||"",status:of.status||(of.legacy?"legacy":"open"),rev:r2(rev),cost:r2(cost),profit:r2(rev-cost),prof:rev>0?Math.round((rev-cost)/rev*1000)/10:null,mgr:(o&&o.resp&&o.resp.manager)||of.mgr||""});});
+  const rev=rows.reduce((a,r)=>a+r.rev,0),cogs=rows.reduce((a,r)=>a+r.cost,0);
+  const oh={};const add=(k,name,v,src)=>{if(!oh[k])oh[k]={k,name,journal:0,onec:0};oh[k][src]+=v;};
+  let payroll=0;
+  s.tx.forEach(t=>{if(t.del||t.type!=="out"||t.order||t.date<from||t.date>to)return;if(+t.cat===13)return;
+    if(t.src==="ts"||(s.set.payrollFromTs&&+t.cat===2)){payroll+=+t.amount;return;}const c=finCat(s,t.cat);add("c"+(t.cat||0),c?`${c.num}. ${finCatName(c)}`:fL("Без категории","Bez kategorii"),+t.amount,"journal");});
+  s.tse.forEach(x=>{if(x.order||x.date<from||x.date>to||!finPerOk(s,x.period))return;const k=x.stage==="salon"?"tsSalon":"tsShop";add(k,x.stage==="salon"?fL("Часы менеджеров салона","Godziny salonu"):fL("Часы цеха без заказа","Godziny warsztatu bez zamówienia"),+x.amount||0,"journal");});
+  s.pw.forEach(x=>{if(x.order||x.date<from||x.date>to||!finPerOk(s,x.period))return;add("pwShop",fL("Сдельные без заказа (бензин, бус…)","Akord bez zamówienia"),+x.amount||0,"journal");});
+  // накладные 1С за свой период; если он шире отчёта — берём долю по дням пересечения
+  const dN=(a,b)=>Math.round((new Date(b)-new Date(a))/86400000)+1;
+  (s.onec.overheads||[]).forEach(x=>{const xf=x.from||from,xt=x.to||to;if(xt<from||xf>to)return;const ov=dN(xf>from?xf:from,xt<to?xt:to);const k=Math.min(1,ov/dN(xf,xt));add("1c:"+x.name,x.name,r2((+x.amount||0)*k),"onec");});
+  const ohList=Object.values(oh).sort((a,b)=>(b.journal+b.onec)-(a.journal+a.onec));const ohJ=ohList.reduce((a,x)=>a+x.journal,0),ohC=ohList.reduce((a,x)=>a+x.onec,0);
+  const profs=rows.filter(r=>r.prof!=null);
+  return {rows,rev:r2(rev),cogs:r2(cogs),gross:r2(rev-cogs),avgProf:rev>0?Math.round((rev-cogs)/rev*1000)/10:null,simpleAvg:profs.length?Math.round(profs.reduce((a,r)=>a+r.prof,0)/profs.length*10)/10:null,oh:ohList,ohJ:r2(ohJ),ohC:r2(ohC),payroll:r2(payroll)};}
+
+// ═══ ИМПОРТ (SheetJS в браузере). Парсеры работают с «листом как массивом строк». ═══
+let _xlsxP=null;
+function finLoadXLSX(){if(window.XLSX)return Promise.resolve(window.XLSX);if(_xlsxP)return _xlsxP;
+  _xlsxP=new Promise((res,rej)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=()=>res(window.XLSX);sc.onerror=()=>{_xlsxP=null;rej(new Error(fL("Не удалось загрузить SheetJS (нет интернета?)","Nie udało się załadować SheetJS")));};document.head.appendChild(sc);});return _xlsxP;}
+async function finReadBook(file){const X=await finLoadXLSX();const buf=await file.arrayBuffer();const wb=X.read(buf,{type:"array",cellDates:false});
+  return wb.SheetNames.map(n=>({name:n,rows:X.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:null,blankrows:true})}));}
+const fStr=v=>v==null?"":String(v).replace(/ /g," ").trim();
+function fCellIso(v){if(v==null||v==="")return null;if(typeof v==="number"){if(v<20000||v>80000)return null;return new Date(Math.round((v-25569)*86400000)).toISOString().slice(0,10);}
+  if(v instanceof Date)return fIso(v);const s=fStr(v);let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[0];m=s.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})/);if(m){const y=m[3].length===2?"20"+m[3]:m[3];return `${y}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;}return null;}
+const FIN_MON_RX=[/^(січ|янв|sty|jan)/i,/^(лют|фев|lut|feb)/i,/^(бер|мар|mar)/i,/^(квіт|апр|kwi|apr)/i,/^(трав|ма[йя]|maj|may)/i,/^(черв|июн|cze|jun)/i,/^(лип|июл|lip|jul)/i,/^(серп|авг|sie|aug)/i,/^(верес|сен|wrz|sep)/i,/^(жовт|окт|pa[źz]|oct)/i,/^(листоп|ноя|lis|nov)/i,/^(груд|дек|gru|dec)/i];
+const finMonthOf=s=>{s=fStr(s).toLowerCase();for(let i=0;i<12;i++)if(FIN_MON_RX[i].test(s))return i+1;return null;};
+function finAccGuess(s){s=fStr(s).toLowerCase();if(/stukanova|стуканова/.test(s))return "stukanova";if(/stukanov|стуканов/.test(s))return "stukanov";if(/paun|паун/.test(s))return "paun";if(/garno|гарно|фирм/.test(s))return "garno";if(/касс|кеш|готів|готув|налич|cash|kasa/.test(s))return "cash";return null;}
+const FIN_WHO={"олег":"Oleh","дима":"Dmytro","даня":"Danya","тарас":"Taras","матеуш":"Mateusz","эрика":"Erika","роберт":"Robert"};
+function finDetect(name,sheets){const txt=sheets.map(sh=>sh.rows.slice(0,40).map(r=>(r||[]).map(fStr).join("|")).join("\n")).join("\n").toLowerCase();
+  if(/заказ покупателя|сумма продажи/.test(txt))return "onec";if(/кто ввёл|кто ввел|учёт операций|учет операций/.test(txt))return "journal";
+  if(/(^|[-_ ])сумма/i.test(fStr(name).replace(/\.[^.]+$/,""))&&/замовлен/.test(txt))return "tsSum";
+  if(/сумма годин|номер замовлення\s*\|?\s*\|?.*від|від\|до/.test(txt))return "ts";
+  if(/опис/.test(txt)&&/номер замовлення/.test(txt)&&/сумма/.test(txt))return "tsPw";if(/процент/.test(txt)&&/заказ/.test(txt))return "bonus";return null;}
+function finParseOrder(v){const s=fStr(v);if(!s)return {order:null,stage:null};const m=s.match(/(\d{3,5})\s*([^\d\s]*)/);const w=s.toLowerCase();
+  const stage=/монт|montaż|montaz/.test(w)?"install":/цех|сбор|warszt/.test(w)?"workshop":null;return {order:m?m[1]:null,stage};}
+// 1) журнал «Учёт операций»
+function finParseJournal(rows){const out={items:[],errors:[],period:null};
+  const hi=rows.findIndex(r=>(r||[]).some(c=>/^дата$/i.test(fStr(c)))&&(r||[]).some(c=>/сч[её]т/i.test(fStr(c))));if(hi<0){out.errors.push("Не найдена строка заголовков (Дата | Кто ввёл | Счёт …)");return out;}
+  const H=rows[hi].map(fStr);const ci=rx=>H.findIndex(h=>rx.test(h));const C={date:ci(/^дата/i),by:ci(/кто/i),acc:ci(/сч[её]т/i),num:ci(/заказ/i),type:ci(/приход|расход/i),amount:ci(/сумма/i),desc:ci(/описан/i)};
+  const raw=[];for(let i=hi+1;i<rows.length;i++){const r=rows[i]||[];const date=fCellIso(r[C.date]);const amount=fNum(r[C.amount]);if(!date&&!amount)continue;
+    const num=r[C.num]==null||r[C.num]===""?null:Math.round(fNum(r[C.num]));const tp=fStr(r[C.type]).toLowerCase();
+    raw.push({row:i+1,date,by:FIN_WHO[fStr(r[C.by]).toLowerCase()]||fStr(r[C.by]),acc:finAccGuess(r[C.acc]),accRaw:fStr(r[C.acc]),num,type:/приход/.test(tp)?"in":/расход/.test(tp)?"out":null,amount:r2(amount),desc:fStr(r[C.desc])});}
+  const mc={};raw.forEach(x=>{if(x.date){const k=x.date.slice(0,7);mc[k]=(mc[k]||0)+1;}});const ym=Object.keys(mc).sort((a,b)=>mc[b]-mc[a])[0];out.period=ym||null;
+  const used=new Set();
+  raw.forEach((x,i)=>{const flags={};let date=x.date;
+    if(date&&ym&&date.slice(0,7)!==ym){const [y,m,d]=date.split("-");const sw=`${y}-${d}-${m}`;const yf=`${ym.slice(0,4)}-${m}-${d}`;flags.date=date;
+      if(+d<=12&&sw.slice(0,7)===ym)date=sw;else if(yf.slice(0,7)===ym)date=yf;}
+    if(!date){flags.invalid=1;}if(!x.acc)flags.invalid=1;if(!x.type)flags.invalid=1;if(!(x.amount>0))flags.invalid=1;
+    const it={row:x.row,date:date||(ym?ym+"-01":fToday()),by:x.by||"—",acc:x.acc,type:x.type,amount:x.amount,order:null,cat:null,purpose:"",desc:x.desc,src:"imp",flags};
+    if(x.num!=null&&x.num>=100)it.order=String(x.num);else if(x.num!=null&&x.num>0)it.cat=x.num;
+    if(it.cat===13){if(used.has(i))return;// перевод: ищем парную строку
+      const j=raw.findIndex((y,k)=>k!==i&&!used.has(k)&&y.num===13&&Math.abs(y.amount-x.amount)<0.01&&y.date===x.date&&y.type!==x.type&&y.acc!==x.acc);
+      it.type="transfer";
+      if(j>=0){used.add(i);used.add(j);const y=raw[j];if(x.type==="out"){it.acc=x.acc;it.toAcc=y.acc;}else{it.acc=y.acc;it.toAcc=x.acc;}it.pair=y.row;}
+      else{used.add(i);const g=finAccGuess(x.desc.replace(new RegExp(x.accRaw,"i"),""));if(x.type==="out"){it.acc=x.acc;it.toAcc=g&&g!==x.acc?g:null;}else{it.toAcc=x.acc;it.acc=g&&g!==x.acc?g:null;}flags.xfer=1;if(!it.acc||!it.toAcc)flags.invalid=1;}
+    }else if(it.order){const d=x.desc.toLowerCase();
+      if(it.type==="in")it.purpose=/задат|zalicz|аванс/.test(d)?"deposit":/полн|całość|całkow/.test(d)?"full":/возврат|zwrot/.test(d)?"refund":"extra";
+      else it.purpose=/достав|транспорт|перевоз|бус|такси|dostaw/.test(d)?"deliv":/монтаж|сборк|робот|работ|montaż/.test(d)?"work":/прем/.test(d)?"mgr":"mat";}
+    else if(it.type==="in")it.purpose="otherIn";
+    else if(!it.cat)flags.invalid=1;
+    if(it.type==="out"&&+it.cat===2&&it.order)flags.zp=1;
+    if(!Object.keys(flags).length)delete it.flags;
+    out.items.push(it);});
+  return out;}
+// 2) табель сборщика
+function finParseTimesheet(rows,fileName,yearHint){const out={emp:fStr(fileName).replace(/\.[^.]+$/,"").replace(/^[0-9a-f]{6,10}-/i,"").replace(/\s+/g," ").trim(),month:null,year:null,items:[],pw:[],errors:[]};
+  for(let i=0;i<4&&!out.month;i++)for(const c of rows[i]||[]){const m=finMonthOf(c);if(m){out.month=m;break;}}
+  if(!out.month){out.errors.push("Не найден месяц в шапке");return out;}
+  const now=new Date();out.year=yearHint||(out.month>now.getMonth()+2?now.getFullYear()-1:now.getFullYear());
+  const hi=rows.findIndex(r=>(r||[]).some(c=>/^дата$/i.test(fStr(c)))&&(r||[]).some(c=>/від|от|od/i.test(fStr(c))));if(hi<0){out.errors.push("Не найдена строка «Дата | від | до»");return out;}
+  const H=rows[hi].map(fStr);const cD=H.findIndex(h=>/^дата/i.test(h)),cF=H.findIndex(h=>/^(від|от|od)/i.test(h)),cT=H.findIndex(h=>/^(до|do)$/i.test(h)),cH=H.findIndex(h=>/годин|час|godz/i.test(h)),cO=H.findIndex(h=>/замовл|заказ/i.test(h));
+  // блок «розгрузки»: строка, где после 5-й колонки идут «замовлення | сумма | дата | пояснення»
+  let pO=-1,pS=-1,pD=-1,pN=-1,pStart=-1;for(let i=hi;i<Math.min(rows.length,hi+8)&&pO<0;i++){const r=(rows[i]||[]).map(fStr);for(let k=6;k<r.length-1;k++)if(/^замовл|^заказ/i.test(r[k])&&/сумм/i.test(r[k+1]||"")){pO=k;pS=k+1;pD=/дата/i.test(r[k+2]||"")?k+2:-1;pN=r.findIndex((h,q)=>q>k&&/поясн|прим|опис/i.test(h));pStart=i+1;break;}}
+  const tv=v=>{if(v==null||v==="")return null;if(typeof v==="number")return v<1&&v>0?r2(v*24):v;const m=fStr(v).match(/^(\d{1,2})[:.](\d{2})/);return m?+m[1]+(+m[2])/60:fNum(v)||null;};
+  const mm=String(out.month).padStart(2,"0");const mk=d=>`${out.year}-${mm}-${String(d).padStart(2,"0")}`;let day=null,run=0,fuel=false;
+  for(let i=hi+1;i<rows.length;i++){const r=rows[i]||[];const dv=r[cD];
+    if(typeof dv==="number"&&dv>=1&&dv<=31)day=Math.round(dv);else{const iso=fCellIso(dv);if(iso)day=+iso.slice(8,10);}
+    const h=fNum(r[cH]);const txt0=fStr(r[cO]);const isTot=h>0&&!txt0&&r[cF]==null&&r[cT]==null&&Math.abs(h-run)<0.01;
+    if(day&&h>0&&!isTot){run+=h;const {order,stage}=finParseOrder(r[cO]);const txt=txt0;
+      out.items.push({date:mk(day),from:tv(r[cF]),to:tv(r[cT]),hours:r2(h),order,stage:stage||(order?"workshop":"workshop"),comment:order?"":txt,src:txt,row:i+1,flag:!order&&txt&&!/цех/i.test(txt)?"order?":null});}
+    if(pO>=0&&i>=pStart){const hO=fStr(r[pO]);if(/^бензин|^паливо|^пальне/i.test(hO)&&!fNum(r[pS]))fuel=true;if(/^замовл/i.test(hO)&&/сумм/i.test(fStr(r[pS])))fuel=/км/i.test(fStr(r[pD]))||fuel;
+      const a=fNum(r[pS]);const note0=fStr(r[pN]);if(a>0&&(hO||note0)&&!/^замовл/i.test(hO)){let d=day;const dd=r[pD];if(typeof dd==="number"&&dd>20000){d=+fCellIso(dd).slice(8,10);}else{const m=fStr(dd).match(/^(\d{1,2})\b/);if(m&&+m[1]<=31)d=+m[1];}
+        if(fuel)d=day;const {order,stage}=finParseOrder(r[pO]);const km=fuel?fNum(r[pD]):0;
+        out.pw.push({date:mk(d||1),order,stage,amount:r2(a),note:[fuel?`${fL("бензин","paliwo")}${km?" "+km+" км":""}`:note0,!order?hO:""].filter(Boolean).join(" · "),row:i+1,fuel:fuel||undefined});}}}
+  // ставка из правого блока «ставка за годину»
+  const rc={};for(let i=hi;i<Math.min(rows.length,hi+3);i++){const r=(rows[i]||[]).map(fStr);const k=r.findIndex(h=>/ставк/i.test(h));if(k>=0){for(let q=i+1;q<rows.length;q++){const v=fNum((rows[q]||[])[k]);if(v>0)rc[v]=(rc[v]||0)+1;}break;}}
+  const rr=Object.keys(rc).sort((a,b)=>rc[b]-rc[a])[0];out.rate=rr?+rr:null;
+  for(let i=hi;i<Math.min(rows.length,hi+3);i++){const r=(rows[i]||[]).map(fStr);const k=r.findIndex(h=>/сумма за замов/i.test(h));if(k>=0){let t=0;for(let q=i+1;q<rows.length;q++)t=Math.max(t,fNum((rows[q]||[])[k]));out.fileSum=r2(t);break;}}
+  return out;}
+// 2б) табель-поставки (Саша поставки): «Дата | Опис | Номер замовлення | сумма | Сплачено | Коментар», всё = сдельные
+function finParseTsPw(sheets,fileName,yearHint){const out={emp:fStr(fileName).replace(/\.[^.]+$/,"").replace(/^[0-9a-f]{6,10}-/i,"").replace(/\s+/g," ").trim(),items:[],pw:[],errors:[],rate:null};const now=new Date();
+  sheets.forEach(sh=>{const rows=sh.rows;const hi=rows.findIndex(r=>(r||[]).some(c=>/^опис/i.test(fStr(c)))&&(r||[]).some(c=>/сумма/i.test(fStr(c))));if(hi<0)return;
+    const H=rows[hi].map(fStr);const cD=H.findIndex(h=>/^дата/i.test(h)),cO=H.findIndex(h=>/^опис/i.test(h)),cN=H.findIndex(h=>/замовл/i.test(h)),cS=H.findIndex(h=>/^сумма/i.test(h)),cK=H.findIndex(h=>/комент/i.test(h));
+    let last=null;for(let i=hi+1;i<rows.length;i++){const r=rows[i]||[];let iso=null;const dv=r[cD];
+      if(typeof dv==="number"&&dv>20000)iso=fCellIso(dv);else{const m=fStr(dv).match(/^(\d{1,2})[.\/](\d{1,2})/);if(m){const mo=+m[2];const y=yearHint||(mo>now.getMonth()+2?now.getFullYear()-1:now.getFullYear());iso=`${y}-${String(mo).padStart(2,"0")}-${m[1].padStart(2,"0")}`;}}
+      if(iso)last=iso;const a=fNum(r[cS]);if(!(a>0)||!last)continue;let {order,stage}=finParseOrder(r[cN]);if(!order){const m=fStr(r[cO]).match(/(?:№|#|зам\.?\s*)(\d{3,4})/i);if(m)order=m[1];}
+      out.pw.push({date:last,order,stage,amount:r2(a),note:[fStr(r[cO]),fStr(r[cK])].filter(Boolean).join(" · ").slice(0,240),row:i+1,sheet:sh.name});}});
+  if(!out.pw.length)out.errors.push("Нет строк с суммой");return out;}
+// 3) премии менеджера (таблица Тараса)
+function finParseBonus(rows){const out={items:[],errors:[]};const seen={};
+  rows.forEach((r,i)=>{r=r||[];const pi=r.findIndex(c=>typeof c==="number"&&c>0&&c<0.2);if(pi<0)return;let oi=-1;for(let k=0;k<pi;k++)if(typeof r[k]==="number"&&Number.isInteger(r[k])&&r[k]>=100&&r[k]<100000){oi=k;break;}
+    if(oi<0)return;let ai=-1;for(let k=oi+1;k<pi;k++)if(typeof r[k]==="number"){ai=k;break;}const client=r.slice(oi+1,pi).filter(c=>typeof c==="string").map(fStr).join(" ");
+    const it={order:String(r[oi]),amount:ai>=0?r2(r[ai]):0,pct:Math.round(r[pi]*10000)/100,client,row:i+1};seen[it.order]=it;});
+  out.items=Object.values(seen);return out;}
+// 4) 1С «Продажи по оплате»: Покупатель → Заказ покупателя РС… от … → номенклатура; верхний блок = накладные
+const FIN_1C_ORD=/^заказ покупателя\s+(\S+)\s+от\s+(\d{2}\.\d{2}\.\d{4})/i;
+function finParse1C(rows){const out={orders:[],overheads:[],period:null,errors:[]};
+  for(const r of rows.slice(0,15)){const s=(r||[]).map(fStr).join(" ");const m=s.match(/(\d{2}\.\d{2}\.\d{4})\D+(\d{2}\.\d{2}\.\d{4})/);if(m&&/период|period/i.test(s)){out.period={from:fCellIso(m[1]),to:fCellIso(m[2])};break;}}
+  const hi=rows.findIndex(r=>(r||[]).some(c=>/сумма продажи/i.test(fStr(c))));if(hi<0){out.errors.push("Не найдена колонка «Сумма продажи»");return out;}
+  const H=rows[hi].map(fStr);const ci=rx=>H.findIndex(h=>rx.test(h));const C={sale:ci(/сумма продажи/i),cost:ci(/^стоимость/i),profit:ci(/^прибыль/i),exp:ci(/сумма затрат/i),net:ci(/чистая/i),prof:ci(/рентаб/i)};
+  const numCols=Object.values(C).filter(x=>x>=0);const firstNum=Math.min(...numCols);
+  const L=[];for(let i=hi+1;i<rows.length;i++){const r=rows[i]||[];let name="";for(let k=0;k<firstNum;k++){const v=fStr(r[k]);if(v){name=v;break;}}
+    if(/^(заказ покупателя|номенклатура|покупатель)$/i.test(name))continue;const g=k=>k>=0?fNum(r[k]):0;
+    L.push({i,name,sale:g(C.sale),cost:g(C.cost),profit:g(C.profit),exp:g(C.exp),net:g(C.net),prof:g(C.prof)});}
+  const named=L.filter(x=>x.name&&!/^итого/i.test(x.name));let cust=null,ord=null,seenCust=false;
+  named.forEach((x,k)=>{const m=x.name.match(FIN_1C_ORD);const nx=named[k+1];
+    if(m){ord={no:m[1],date:fCellIso(m[2]),customer:cust||"",sale:r2(x.sale),cost:r2(x.cost),profit:r2(x.profit),prof:x.prof||(x.sale?Math.round(x.profit/x.sale*10000)/100:null),items:[]};out.orders.push(ord);return;}
+    // строка перед «Заказ покупателя» — покупатель, если только это не последняя позиция текущего заказа (позиции в сумме дают сумму заказа)
+    const inOrd=ord&&ord.items.reduce((a,i)=>a+i.sale,0)+x.sale<=ord.sale+0.5&&ord.items.reduce((a,i)=>a+i.sale,0)<ord.sale-0.5;
+    if(nx&&FIN_1C_ORD.test(nx.name)&&!inOrd){cust=x.name;seenCust=true;ord=null;return;}
+    if(ord){ord.items.push({name:x.name,sale:r2(x.sale),cost:r2(x.cost),profit:r2(x.profit),prof:x.prof});return;}
+    if(!seenCust){const a=x.exp||Math.abs(x.net)||0;if(a)out.overheads.push({name:x.name,amount:r2(a)});}});
+  return out;}
+const FIN_TR={а:"a",б:"b",в:"v",г:"g",ґ:"g",д:"d",е:"e",ё:"e",є:"ie",ж:"z",з:"z",и:"i",і:"i",ї:"i",й:"i",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"c",ч:"c",ш:"s",щ:"s",ъ:"",ы:"y",ь:"",э:"e",ю:"u",я:"a"};
+const finTok=s=>fStr(s).toLowerCase().split("").map(c=>FIN_TR[c]!=null?FIN_TR[c]:c).join("").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(w=>w.length>=3);
+function finMatch1C(o1,list){const t1=finTok(o1.customer);return list.map(o=>{let sc=0;const why=[];const t2=finTok(o.client);
+    if(t1.some(a=>t2.some(b=>a.slice(0,5)===b.slice(0,5)))){sc+=2;why.push(fL("ФИО","nazwisko"));}
+    if(o.amount>0&&Math.abs(o.amount-o1.sale)/o1.sale<=0.01){sc+=2;why.push(fL("сумма ±1%","kwota ±1%"));}
+    if(o.date&&o1.date&&Math.abs(new Date(o.date)-new Date(o1.date))<=45*86400000){sc+=1;why.push(fL("дата","data"));}
+    return {o,sc,why};}).filter(x=>x.sc>=2).sort((a,b)=>b.sc-a.sc).slice(0,3);}
+
+// ═══ ФИНАНСЫ: интерфейс ═════════════════════════════════════════════════════
+const fDk=()=>C===DARK;
+// Enter в форме: переход к следующему полю, на последнем — сохранить
+function finEnterNav(e,onLast){if(e.key!=="Enter"||e.shiftKey||e.nativeEvent&&e.nativeEvent.isComposing)return;const t=e.target;if(!t||!/^(INPUT|SELECT)$/.test(t.tagName))return;
+  const els=[...e.currentTarget.querySelectorAll("input,select")].filter(x=>!x.disabled&&x.type!=="hidden"&&x.type!=="checkbox"&&x.getAttribute("data-nonav")==null&&(x.offsetParent!==null||x===t));
+  const i=els.indexOf(t);if(i<0)return;e.preventDefault();if(i===els.length-1){onLast&&onLast();return;}const n=els[i+1];n.focus();if(n.tagName==="INPUT"&&n.type==="text")try{n.select();}catch{}}
+// PIN на раздел «Финансы»: спрашивается при каждом новом открытии CRM (после перезагрузки — снова)
+const FIN_PIN="1404";let FIN_UNLOCKED=false;
+function useFinLock(){const [ok,setOk]=useState(FIN_UNLOCKED);useEffect(()=>{const h=()=>setOk(true);window.addEventListener("garno-fin-unlock",h);return()=>window.removeEventListener("garno-fin-unlock",h);},[]);
+  return [ok,()=>{FIN_UNLOCKED=true;setOk(true);try{window.dispatchEvent(new Event("garno-fin-unlock"));}catch{}}];}
+function FinPinGate({onOk,compact,dark}){const [v,setV]=useState("");const [bad,setBad]=useState(false);
+  const go=(x)=>{if(x===FIN_PIN){onOk();}else{setBad(true);setV("");}};
+  const ch=x=>{const d=x.replace(/\D/g,"").slice(0,4);setV(d);setBad(false);if(d.length===4)go(d);};
+  const inp=<input autoFocus={!compact} type="password" inputMode="numeric" autoComplete="off" value={v} onChange={e=>ch(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go(v)} placeholder="• • • •"
+    style={{...fIn({fontSize:compact?18:30,textAlign:"center",letterSpacing:compact?8:14,fontWeight:900,width:compact?130:"100%",borderColor:bad?C.red:C.accentBorder}),...(dark?{background:"rgba(255,255,255,0.06)",color:"#fff"}:{})}}/>;
+  if(compact)return <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",padding:"12px 14px",border:"1px solid rgba(191,164,126,0.3)",borderRadius:14,marginBottom:16,background:"rgba(255,255,255,0.03)"}}>
+    <span style={{fontSize:13,fontWeight:800,color:dark?"#fff":C.text,flex:"1 1 200px"}}>🔒 {fL("Финансы заказа скрыты — введите PIN","Finanse ukryte — wpisz PIN")}</span>{inp}{bad&&<span style={{color:C.red,fontSize:12,fontWeight:800}}>{fL("неверный PIN","zły PIN")}</span>}</div>;
+  return <div style={fCard({maxWidth:360,margin:"60px auto",textAlign:"center",padding:28})}><div style={{fontSize:40,marginBottom:6}}>🔒</div>
+    <div style={{fontFamily:"'Russo One',sans-serif",fontSize:22,color:C.accent,marginBottom:4}}>{fL("Финансы","Finanse")}</div><div style={{fontSize:13,color:C.muted,marginBottom:16}}>{fL("Введите PIN-код","Wpisz kod PIN")}</div>
+    {inp}<div style={{height:20,marginTop:8,color:C.red,fontSize:13,fontWeight:800}}>{bad?fL("Неверный PIN","Zły PIN"):""}</div></div>;}
+const fIn=(x={})=>({background:fDk()?"rgba(255,255,255,0.06)":"#fff",border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:9,padding:"8px 10px",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box",colorScheme:fDk()?"dark":"light",minHeight:38,...x});
+const fCard=(x={})=>({background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:14,...x});
+const fBtn=(c,solid,x={})=>({background:solid?c:`${c}1f`,color:solid?(fDk()?"#00132f":"#fff"):c,border:`1px solid ${c}${solid?"":"66"}`,borderRadius:10,padding:"8px 14px",fontSize:13,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap",minHeight:38,...x});
+const fLbl={fontSize:10,color:"var(--fin-muted)",textTransform:"uppercase",letterSpacing:0.8,fontWeight:800,marginBottom:4};
+const FIN_CSS=`.fin-g{--fin-muted:${"rgba(214,232,255,0.62)"}}
+.fin-row{display:grid;grid-template-columns:84px 70px 120px 92px 112px minmax(140px,1.2fr) minmax(160px,2fr) 54px;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--fin-b);font-size:12.5px;cursor:pointer}
+.fin-row:hover{background:var(--fin-h)}
+.fin-form{display:grid;grid-template-columns:130px 150px 130px minmax(170px,1fr) minmax(190px,1.1fr) minmax(170px,1.4fr) auto;gap:8px;align-items:end}
+.fin-ts{display:grid;grid-template-columns:120px 78px 78px 70px minmax(150px,1fr) 150px minmax(120px,1fr) auto;gap:8px;align-items:end}
+.fin-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.fin-tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--fin-b);margin:0 -2px 14px}
+.fin-tabs::-webkit-scrollbar{display:none}
+.fin-t{background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 14px;font-size:13px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.fin-tbl{width:100%;border-collapse:collapse;font-size:14.5px}.fin-tbl th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;padding:11px 12px;border-bottom:1px solid var(--fin-b);white-space:nowrap;cursor:pointer;user-select:none;vertical-align:bottom}
+.fin-tbl th.fin-num,.fin-tbl td.fin-num{text-align:right}
+.fin-tbl td{padding:11px 12px;border-bottom:1px solid var(--fin-b);vertical-align:middle}.fin-tbl tr.cl:hover td{background:var(--fin-h);cursor:pointer}
+.fin-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fin-quick{display:flex;gap:8px;flex-wrap:wrap}
+@keyframes finIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}.fin-anim{animation:finIn .25s ease}
+@keyframes finToast{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+.fin-g{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+@media(max-width:1350px){.fin-row{grid-template-columns:78px 110px 80px 104px minmax(120px,1fr) minmax(120px,1.4fr)}.fin-row>.hx{display:none}}
+@media(max-width:1180px){.fin-form{grid-template-columns:repeat(3,minmax(0,1fr))}.fin-form>.w2{grid-column:span 2}.fin-form>.wf{grid-column:1/-1}}
+@media(max-width:900px){.fin-row{grid-template-columns:1fr auto;gap:2px 8px}.fin-row>.hm{display:none}.fin-row>.am{grid-row:1;grid-column:2;text-align:right}
+ .fin-ts{grid-template-columns:repeat(3,minmax(0,1fr))}.fin-ts>.w2{grid-column:span 2}.fin-ts>.wf{grid-column:1/-1}}
+@media(max-width:620px){.fin-form{grid-template-columns:1fr 1fr}.fin-form>.w2,.fin-form>.wf{grid-column:1/-1}.fin-quick>button{flex:1;font-size:15px!important;padding:14px 8px!important}.fin-ts{grid-template-columns:1fr 1fr}.fin-ts>.w2,.fin-ts>.wf{grid-column:1/-1}}`;
+function FinStyle(){const dk=fDk();return <style>{FIN_CSS+`.fin-g{--fin-muted:${C.muted};--fin-b:${C.border};--fin-h:${dk?"rgba(227,184,96,0.06)":"rgba(139,105,20,0.05)"}}`}</style>;}
+function FinToast({msg}){if(!msg)return null;return <div style={{position:"fixed",left:"50%",bottom:28,transform:"translateX(-50%)",zIndex:5000,background:fDk()?"#0b2a1c":"#ecfdf5",color:C.green,border:`1px solid ${C.green}88`,borderRadius:12,padding:"10px 18px",fontWeight:800,fontSize:14,animation:"finToast .25s ease",boxShadow:"0 10px 40px rgba(0,0,0,.4)"}}>{msg}</div>;}
+function useFinToast(){const [m,setM]=useState("");const t=useRef(null);return [m,(x)=>{setM(x);clearTimeout(t.current);t.current=setTimeout(()=>setM(""),1800);}];}
+function FinSync({F}){const c=F.st==="err"?C.red:F.st==="sync"||F.pending?C.yellow:C.green;
+  return <span title={F.err||""} style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11,color:c,fontWeight:700}}><span style={{width:8,height:8,borderRadius:4,background:c}}/>{F.st==="err"?fL("нет связи — повторяю","brak połączenia"):F.pending?fL(`сохраняю (${F.pending})`,`zapisuję (${F.pending})`):fL("сохранено","zapisano")}</span>;}
+function FinTabs({tabs,tab,setTab}){return <div className="fin-tabs">{tabs.map(([k,ic,l,cnt])=>{const on=k===tab;return <button key={k} className="fin-t" onClick={()=>setTab(k)} style={{color:on?C.accent:C.muted,fontWeight:on?800:500,borderBottomColor:on?C.accent:"transparent"}}>{ic} {l}{cnt?<span style={{marginLeft:6,fontSize:10,background:C.red,color:"#fff",borderRadius:9,padding:"1px 6px"}}>{cnt}</span>:null}</button>;})}</div>;}
+function finOrderOpts(orders,fin){const m=new Map();(orders||[]).forEach(o=>{const n=String(o.num);m.set(n,{num:n,client:o.client||"",mgr:(o.resp||{}).manager||"",amount:+((o.f||{}).amount)||+o.amount||0,date:o.createdMs?fIso(new Date(o.createdMs)):null,crm:true,o});});
+  Object.entries((fin&&fin.ord)||{}).forEach(([n,x])=>{if(!m.has(n))m.set(n,{num:n,client:x.client||"",mgr:x.mgr||"",amount:+x.contract||0,legacy:true,crm:false});});
+  return [...m.values()].map(x=>({...x,closed:fin?finIsClosed(fin,x.num):false})).sort((a,b)=>(parseInt(b.num)||0)-(parseInt(a.num)||0));}
+// Поиск заказа: закрытые серые с замком; для расходов — недоступны
+function FinOrderPick({value,onChange,opts,expense,placeholder,style,autoFocus}){const [q,setQ]=useState("");const [open,setOpen]=useState(false);const ref=useRef(null);
+  useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
+  const cur=opts.find(o=>o.num===value);const ql=q.trim().toLowerCase();
+  const list=opts.filter(o=>!ql||o.num.includes(ql)||o.client.toLowerCase().includes(ql)).slice(0,40);
+  const pick=o=>{if(expense&&o.closed)return;onChange(o.num);setQ("");setOpen(false);};
+  return <div ref={ref} style={{position:"relative",...style}}>
+    <input autoFocus={autoFocus} value={open?q:(cur?`№${cur.num}${cur.client?" · "+cur.client:""}${cur.closed?" 🔒":""}`:(value?`№${value}`:""))} placeholder={placeholder||fL("№ или клиент…","Nr lub klient…")} onFocus={()=>{setOpen(true);setQ("");}} onBlur={()=>setTimeout(()=>setOpen(false),150)} onChange={e=>{setQ(e.target.value);setOpen(true);}}
+      onKeyDown={e=>{if(e.key==="Enter"&&open){const f=list.find(o=>!(expense&&o.closed));if(f){e.preventDefault();pick(f);}else if(/^\d{3,5}$/.test(q.trim())){e.preventDefault();onChange(q.trim());setOpen(false);}}if(e.key==="Escape")setOpen(false);}} style={fIn({paddingRight:value?28:10})}/>
+    {value&&!open&&<button onClick={()=>onChange(null)} title={fL("Без заказа","Bez zamówienia")} style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:14}}>✕</button>}
+    {open&&<div style={{position:"absolute",zIndex:60,top:"calc(100% + 4px)",left:0,right:0,minWidth:240,maxHeight:280,overflowY:"auto",background:fDk()?"#081b45":"#fff",border:`1px solid ${C.accentBorder}`,borderRadius:10,boxShadow:"0 14px 40px rgba(0,0,0,.45)"}}>
+      <div onMouseDown={e=>{e.preventDefault();onChange(null);setOpen(false);}} style={{padding:"8px 10px",fontSize:12,color:C.muted,cursor:"pointer",borderBottom:`1px solid ${C.border}`}}>— {fL("без заказа","bez zamówienia")}</div>
+      {list.map(o=>{const dis=expense&&o.closed;return <div key={o.num} onMouseDown={e=>{e.preventDefault();pick(o);}} title={dis?fL("Заказ закрыт — расходы запрещены","Zamknięte — wydatki zablokowane"):""} style={{padding:"7px 10px",fontSize:12.5,cursor:dis?"not-allowed":"pointer",opacity:o.closed?0.45:1,display:"flex",gap:8,alignItems:"center",background:o.num===value?C.accentDim:"transparent"}}>
+        <b style={{color:C.accent,minWidth:44}}>№{o.num}</b><span style={{flex:1,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.client||(o.legacy?fL("старый заказ","stare zamówienie"):"—")}</span>{o.closed&&<span>🔒</span>}{o.legacy&&!o.closed&&<span style={{fontSize:9,color:C.dim}}>legacy</span>}</div>;})}
+      {!list.length&&<div style={{padding:10,fontSize:12,color:C.dim}}>{/^\d{3,5}$/.test(q.trim())?fL("Enter — использовать №","Enter — użyj nr ")+q.trim():fL("Ничего не найдено","Brak wyników")}</div>}
+    </div>}
+  </div>;}
+function FinSeg({value,onChange,opts,size}){return <div style={{display:"flex",background:fDk()?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.04)",border:`1px solid ${C.border}`,borderRadius:10,padding:3,gap:3,flexWrap:"wrap"}}>
+  {opts.map(([k,l,c])=>{const on=value===k;return <button key={k} onClick={()=>onChange(k)} style={{flex:1,background:on?(c||C.accent):"transparent",color:on?(fDk()?"#00132f":"#fff"):C.muted,border:"none",borderRadius:8,padding:size==="l"?"10px 12px":"6px 10px",fontSize:size==="l"?14:12,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>{l}</button>;})}</div>;}
+function FinPeriod({from,to,set}){const ym=from.slice(0,7);const full=fMonthRange(ym);const isM=full.from===from&&full.to===to;
+  const sh=k=>{const [y,m]=ym.split("-").map(Number);const d=new Date(y,m-1+k,1);set(fMonthRange(fIso(d).slice(0,7)));};
+  return <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+    <button onClick={()=>sh(-1)} style={fBtn(C.muted,false,{padding:"6px 10px"})}>◀</button>
+    <input type="month" value={ym} onChange={e=>e.target.value&&set(fMonthRange(e.target.value))} style={fIn({width:150,fontWeight:800})}/>
+    <button onClick={()=>sh(1)} style={fBtn(C.muted,false,{padding:"6px 10px"})}>▶</button>
+    <span style={{fontSize:11,color:C.dim,margin:"0 2px"}}>{fL("или","lub")}</span>
+    <input type="date" value={from} onChange={e=>e.target.value&&set({from:e.target.value,to})} style={fIn({width:140,opacity:isM?0.6:1})}/>
+    <span style={{color:C.dim}}>—</span>
+    <input type="date" value={to} onChange={e=>e.target.value&&set({from,to:e.target.value})} style={fIn({width:140,opacity:isM?0.6:1})}/>
+  </div>;}
+
+// ── форма операции (inline) ──
+function FinTxForm({fin,opts,me,role,init,onSave,onCancel,lockOrder,compact}){
+  const [t,setT]=useState(()=>({date:fToday(),by:me,acc:(fin.accounts[0]||{}).id,type:"out",amount:"",order:null,cat:null,purpose:"",desc:"",toAcc:"",...init,amount:init&&init.amount!=null?String(init.amount).replace(".",","):""}));
+  const [mode,setMode]=useState(()=>init&&init.order?"order":init&&init.cat?"salon":"order");
+  const [err,setErr]=useState("");const amtRef=useRef(null);
+  useEffect(()=>{if(amtRef.current&&!compact)amtRef.current.focus();},[t.type]);
+  const S=(k,v)=>{setErr("");setT(x=>({...x,[k]:v}));};
+  const out=t.type==="out",inn=t.type==="in",tr=t.type==="transfer";
+  const purposes=out?FIN_OUT_P:FIN_IN_P;
+  const save=()=>{const x={...t,amount:fNum(t.amount)};if(tr){x.cat=13;x.order=null;x.purpose="";}else{x.toAcc=null;}
+    if(out&&mode==="salon"){x.order=null;x.purpose="";}if(out&&mode==="order")x.cat=null;if(inn){x.cat=null;if(!x.order&&!x.purpose)x.purpose="otherIn";}
+    if(x.order&&!x.purpose)x.purpose=out?"mat":"extra";
+    const e=finTxValid(x);if(e){setErr(e);return;}if(out&&finIsClosed(fin,x.order)){setErr(fL("Заказ закрыт 🔒 — расход запрещён","Zamknięte 🔒"));return;}
+    if(onSave(x)!==false&&!init?.id){setT(p=>({...p,amount:"",desc:"",order:lockOrder?p.order:null}));setTimeout(()=>amtRef.current&&amtRef.current.focus(),30);}};
+  const kd=e=>{if(e.key==="Escape"&&onCancel)onCancel();};
+  const accs=fin.accounts.filter(a=>a.active!==false);const cats=fin.cats.filter(c=>c.active!==false&&+c.num!==13).sort((a,b)=>a.num-b.num);
+  const hint=out&&mode==="order"&&t.purpose==="work"?fL("Часы сборщиков считаются из табелей сами — сюда только внешние подрядчики.","Godziny montażystów liczą się z ewidencji — tu tylko podwykonawcy."):
+    out&&mode==="salon"&&+t.cat===2?fL("Выплата ЗП — только движение денег. Работа уже в себестоимости заказов из табелей, в P&L второй раз не считается.","Wypłata to tylko ruch pieniędzy — praca jest już w kosztach zamówień."):
+    inn&&t.order&&finIsClosed(fin,t.order)?fL("Заказ закрыт — приход разрешён, будет пометка «после закрытия».","Zamówienie zamknięte — wpłata dozwolona, z oznaczeniem."):"";
+  const typeC=out?C.red:inn?C.green:C.blue;
+  return <div className="fin-anim" style={{...fCard({padding:compact?10:14,borderColor:`${typeC}66`,background:fDk()?`linear-gradient(135deg,${typeC}12,rgba(14,40,108,0.55))`:C.card})}}>
+    <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10,flexWrap:"wrap"}}>
+      <div style={{flex:"1 1 260px",maxWidth:420}}><FinSeg size="l" value={t.type} onChange={v=>S("type",v)} opts={[["in","＋ "+fL("Приход","Przychód"),C.green],["out","− "+fL("Расход","Wydatek"),C.red],["transfer","⇄ "+fL("Перевод","Przelew"),C.blue]]}/></div>
+      {out&&!lockOrder&&<div style={{flex:"1 1 220px",maxWidth:340}}><FinSeg value={mode} onChange={setMode} opts={[["order","📦 "+fL("по заказу","do zamówienia")],["salon","🏬 "+fL("расход салона","koszt salonu")]]}/></div>}
+      <div style={{flex:1}}/>
+      {role.admin?<select value={t.by} onChange={e=>S("by",e.target.value)} title={fL("Кто проводит","Kto księguje")} style={fIn({width:130})}>{[...new Set([me,...USERS])].map(u=><option key={u}>{u}</option>)}</select>:<span style={{fontSize:12,color:C.muted}}>👤 {t.by}</span>}
+    </div>
+    <div className="fin-form" onKeyDown={e=>finEnterNav(e,save)}>
+      <div><div style={fLbl}>{fL("Дата","Data")}</div><input type="date" value={t.date} onChange={e=>S("date",e.target.value)} style={fIn()}/></div>
+      <div><div style={fLbl}>{tr?fL("Со счёта","Z konta"):fL("Счёт","Konto")}</div><select value={t.acc||""} onChange={e=>S("acc",e.target.value)} style={fIn()}>{accs.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+      <div><div style={fLbl}>{fL("Сумма","Kwota")}, {FIN_CUR}</div><input ref={amtRef} inputMode="decimal" value={t.amount} onChange={e=>S("amount",e.target.value.replace(/[^\d,.\s]/g,""))} onKeyDown={kd} placeholder="0,00" style={fIn({fontSize:16,fontWeight:900,color:typeC,textAlign:"right"})}/></div>
+      {tr?<div className="w2"><div style={fLbl}>{fL("На счёт","Na konto")}</div><select value={t.toAcc||""} onChange={e=>S("toAcc",e.target.value)} style={fIn()}><option value="">—</option>{accs.filter(a=>a.id!==t.acc).map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+      :(out&&mode==="salon")?<div className="w2"><div style={fLbl}>{fL("Категория затрат","Kategoria")} *</div><select value={t.cat||""} onChange={e=>S("cat",e.target.value?+e.target.value:null)} style={fIn({borderColor:t.cat?C.borderMd:`${C.red}aa`})}><option value="">— {fL("выберите","wybierz")} —</option>{cats.map(c=><option key={c.id} value={c.num}>{c.num}. {finCatName(c)}</option>)}</select></div>
+      :<><div><div style={fLbl}>{fL("№ заказа","Nr zamówienia")}{out?" *":""}</div>{lockOrder?<div style={fIn({fontWeight:800,color:C.accent})}>№{t.order}</div>:<FinOrderPick value={t.order} onChange={v=>S("order",v)} opts={opts} expense={out}/>}</div>
+        <div><div style={fLbl}>{fL("Цель","Cel")} *</div><select value={t.purpose||""} onChange={e=>S("purpose",e.target.value)} style={fIn({borderColor:t.purpose||(!out&&!t.order)?C.borderMd:`${C.red}aa`})}><option value="">— {fL("выберите","wybierz")} —</option>{purposes.map(([k,ru,pl])=><option key={k} value={k}>{fL(ru,pl)}</option>)}</select></div></>}
+      <div className={tr||(out&&mode==="salon")?"wf":"wf"}><div style={fLbl}>{fL("Описание","Opis")}</div><input value={t.desc} onChange={e=>S("desc",e.target.value)} onKeyDown={kd} placeholder={tr?fL("напр. внесение наличных на Паун","np. wpłata gotówki"):fL("что и за что","co i za co")} style={fIn()}/></div>
+      <div className="wf" style={{display:"flex",gap:6}}><button onClick={save} style={fBtn(typeC,true,{flex:1,minHeight:40})}>{init&&init.id?fL("✓ Сохранить","✓ Zapisz"):fL("✓ Добавить","✓ Dodaj")}</button>{onCancel&&<button onClick={onCancel} style={fBtn(C.muted,false)}>✕</button>}</div>
+    </div>
+    {(err||hint)&&<div style={{marginTop:8,fontSize:12,color:err?C.red:C.yellow,fontWeight:700}}>{err?"⚠ "+err:"💡 "+hint}</div>}
+  </div>;}
+
+function finTxLabel(fin,t){if(t.type==="transfer")return `⇄ ${(finAcc(fin,t.acc)||{}).name||"?"} → ${(finAcc(fin,t.toAcc)||{}).name||"?"}`;if(t.order)return finPurpose(t.purpose)||"—";const c=finCat(fin,t.cat);return c?`${c.num}. ${finCatName(c)}`:"—";}
+function FinTxRow({t,fin,onClick}){const inv=t.flags&&(t.flags.invalid||(t.flags.xfer&&(!t.acc||!t.toAcc)));const c=t.type==="in"?C.green:t.type==="out"?C.red:C.blue;const cl=finIsClosed(fin,t.order);
+  return <div className="fin-row" onClick={onClick} style={{background:inv?`${C.red}14`:undefined,borderLeft:`3px solid ${inv?C.red:"transparent"}`}}>
+    <div style={{fontWeight:700}}>{fDot(t.date)}{t.flags&&t.flags.date&&<span title={fL("Проверить дату: в файле было ","Sprawdź datę: było ")+fDot(t.flags.date)} style={{color:C.yellow,marginLeft:4}}>⚠</span>}</div>
+    <div className="hm hx" style={{color:C.muted}}>{t.by}</div>
+    <div className="hm">{t.type==="transfer"?"⇄":(finAcc(fin,t.acc)||{}).name||<span style={{color:C.red}}>?</span>}</div>
+    <div className="hm">{t.order?<span style={{color:cl?C.dim:C.accent,fontWeight:800}}>№{t.order}{cl?" 🔒":""}</span>:<span style={{color:C.dim}}>—</span>}</div>
+    <div className="am fin-num" style={{color:c,fontWeight:900,fontSize:13.5}}>{t.type==="in"?"+":t.type==="out"?"−":""}{fmtF(t.amount)}</div>
+    <div style={{color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{finTxLabel(fin,t)}</div>
+    <div className="hm" style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}{t.afterClose&&<span style={{color:C.yellow}}> · {fL("после закрытия","po zamknięciu")}</span>}{t.src==="ts"&&<span style={{color:C.cyan}}> · {fL("табель","ewidencja")}</span>}</div>
+    <div className="hm hx" style={{textAlign:"right",fontSize:11}}>{inv?<span style={{color:C.red,fontWeight:800}}>⚠</span>:t.flags&&t.flags.xfer?<span title={fL("Перевод угадан по описанию — проверьте","Przelew odgadnięty — sprawdź")} style={{color:C.yellow}}>?</span>:t.src==="imp"?<span style={{color:C.dim}}>xls</span>:""}</div>
+  </div>;}
+
+function FinancePage({db,F,currentUser,lang,onOpenOrder}){FIN_LANG=lang==="pl"?"pl":"ru";const fin=F.fin;const me=currentUser||"—";const role=finRole(me);const [unl,unlock]=useFinLock();
+  const [tab,setTab]=useState("journal");const [per,setPer]=useState(()=>fMonthRange(fToday().slice(0,7)));
+  const [flt,setFlt]=useState({acc:"",type:"",order:"",cat:"",by:"",q:"",bad:false});const [toast,showToast]=useFinToast();const [modalNum,setModalNum]=useState(null);
+  const opts=useMemo(()=>fin?finOrderOpts(db.orders,fin):[],[db.orders,fin]);
+  if(!unl)return <div className="fin-g" style={{padding:"16px 18px"}}><FinStyle/><FinPinGate onOk={unlock}/></div>;
+  if(!fin)return <div style={{padding:30,color:C.muted}}><FinStyle/>{F.st==="err"?<>⚠ {fL("Нет связи с базой финансов","Brak połączenia")}: {F.err} <button onClick={F.reload} style={fBtn(C.accent,false,{marginLeft:8})}>↻</button></>:fL("Загружаю финансы…","Ładuję finanse…")}</div>;
+  const bad=fin.tx.filter(t=>!t.del&&t.flags&&(t.flags.invalid||(t.flags.xfer&&(!t.acc||!t.toAcc)))).length;
+  const tabs=[["journal","📒",fL("Журнал","Dziennik"),bad],["cats","📊",fL("Категории","Kategorie")],["orders","📦",fL("По заказам","Wg zamówień")],...(role.book?[["pnl","📈",fL("Отчёт P&L","Raport P&L")],["onec","🧾","1С"],["import","⇪",fL("Импорт","Import")]]:[]),...(role.admin?[["settings","⚙",fL("Настройки","Ustawienia")]]:[])];
+  const goJournal=(f)=>{setFlt(x=>({...x,acc:"",type:"",order:"",cat:"",by:"",q:"",bad:false,...f}));setTab("journal");};
+  return <div className="fin-g" style={{padding:"16px 18px 40px",maxWidth:1500,margin:"0 auto"}}><FinStyle/><FinToast msg={toast}/>
+    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:12}}>
+      <div style={{fontFamily:"'Russo One',sans-serif",fontSize:24,color:C.accent,letterSpacing:.5}}>{fL("Финансы","Finanse")}</div><FinSync F={F}/>
+      <div style={{flex:1}}/>{(tab==="journal"||tab==="cats"||tab==="pnl"||tab==="orders")&&<FinPeriod from={per.from} to={per.to} set={setPer}/>}
+    </div>
+    <FinTabs tabs={tabs} tab={tab} setTab={setTab}/>
+    {tab==="journal"&&<FinJournal fin={fin} F={F} opts={opts} me={me} role={role} per={per} flt={flt} setFlt={setFlt} toast={showToast} onOrder={setModalNum}/>}
+    {tab==="cats"&&<FinCats fin={fin} per={per} role={role} me={me} onPick={c=>goJournal({cat:String(c),type:"out"})}/>}
+    {tab==="orders"&&<FinByOrders fin={fin} opts={opts} per={per} onPick={setModalNum}/>}
+    {tab==="pnl"&&<FinPnlView fin={fin} db={db} per={per} onPick={setModalNum}/>}
+    {tab==="onec"&&<FinOneC fin={fin} F={F} opts={opts} me={me} onPick={setModalNum} goImport={()=>setTab("import")}/>}
+    {tab==="import"&&<FinImport fin={fin} F={F} db={db} me={me} opts={opts} toast={showToast}/>}
+    {tab==="settings"&&<FinSettings fin={fin} F={F} me={me}/>}
+    {modalNum&&<FinOrderModal num={modalNum} F={F} db={db} me={me} opts={opts} onClose={()=>setModalNum(null)} onOpenOrder={onOpenOrder}/>}
+  </div>;}
+
+function FinJournal({fin,F,opts,me,role,per,flt,setFlt,toast,onOrder}){const [form,setForm]=useState(null);const [edit,setEdit]=useState(null);const [lim,setLim]=useState(150);
+  const bal=useMemo(()=>finBalances(fin,per.from,per.to),[fin,per]);const tot=bal.reduce((a,b)=>({open:a.open+b.open,inn:a.inn+b.inn,out:a.out+b.out,end:a.end+b.end}),{open:0,inn:0,out:0,end:0});
+  const q=flt.q.trim().toLowerCase();
+  const rows=useMemo(()=>fin.tx.filter(t=>!t.del&&t.date>=per.from&&t.date<=per.to&&(role.book||t.by===me)
+    &&(!flt.acc||t.acc===flt.acc||t.toAcc===flt.acc)&&(!flt.type||t.type===flt.type)&&(!flt.order||t.order===flt.order)&&(!flt.cat||String(t.cat)===flt.cat)&&(!flt.by||t.by===flt.by)
+    &&(!flt.bad||(t.flags&&(t.flags.invalid||t.flags.xfer||t.flags.date)))&&(!q||(t.desc||"").toLowerCase().includes(q)||String(t.order||"").includes(q)||String(t.amount).includes(q)))
+    .sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:(b.createdAt||0)-(a.createdAt||0)),[fin,per,flt,q,role.book,me]);
+  const sIn=rows.filter(t=>t.type==="in").reduce((a,t)=>a+ +t.amount,0),sOut=rows.filter(t=>t.type==="out").reduce((a,t)=>a+ +t.amount,0);
+  const add=x=>{const ok=F.op(FX.txAdd(x));if(ok)toast(`✓ ${x.type==="in"?"+":x.type==="out"?"−":"⇄"} ${fmtZ(x.amount,2)}`);return ok;};
+  const save=(id,x)=>{if(F.op(FX.txUpd(id,x))){setEdit(null);toast("✓ "+fL("Сохранено","Zapisano"));}};
+  const del=(t)=>{if(!window.confirm(fL(`Удалить операцию ${fmtZ(t.amount,2)}?`,`Usunąć operację ${fmtZ(t.amount,2)}?`)))return;if(F.op(FX.txDel(t.id,me))){setEdit(null);toast("🗑 "+fL("Удалено","Usunięto"));}};
+  const exportX=async()=>{const data=rows.map(t=>({[fL("Дата","Data")]:fDot(t.date),[fL("Кто ввёл","Kto")]:t.by,[fL("Счёт","Konto")]:(finAcc(fin,t.acc)||{}).name||"",[fL("На счёт","Na konto")]:t.toAcc?(finAcc(fin,t.toAcc)||{}).name:"",[fL("Тип","Typ")]:t.type==="in"?fL("Приход","Przychód"):t.type==="out"?fL("Расход","Wydatek"):fL("Перевод","Przelew"),[`${fL("Сумма","Kwota")}, ${FIN_CUR}`]:+t.amount,[fL("№ заказа","Nr zam.")]:t.order||"",[fL("Категория","Kategoria")]:t.cat?`${t.cat}. ${finCatName(finCat(fin,t.cat))}`:"",[fL("Цель","Cel")]:finPurpose(t.purpose),[fL("Описание","Opis")]:t.desc||""}));
+    try{const X=await finLoadXLSX();const ws=X.utils.json_to_sheet(data);ws["!cols"]=[{wch:11},{wch:10},{wch:16},{wch:16},{wch:10},{wch:12},{wch:9},{wch:26},{wch:20},{wch:40}];const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,fL("Журнал","Dziennik"));X.writeFile(wb,`garno_journal_${per.from}_${per.to}.xlsx`);}
+    catch(e){const csv=[Object.keys(data[0]||{}).join(";"),...data.map(r=>Object.values(r).map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";"))].join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+csv],{type:"text/csv"}));a.download=`garno_journal_${per.from}.csv`;a.click();}};
+  const canEdit=t=>role.book||t.by===me;
+  return <div>
+    {role.book&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,marginBottom:14}}>
+      {bal.map(a=>{const on=flt.acc===a.id;return <div key={a.id} onClick={()=>setFlt(f=>({...f,acc:on?"":a.id}))} style={{...fCard({padding:"11px 13px",cursor:"pointer",borderColor:on?C.accent:C.border,boxShadow:on?`0 0 0 1px ${C.accent}`:"none"})}}>
+        <div style={{fontSize:11,color:C.muted,fontWeight:800,marginBottom:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.name}</div>
+        <div style={{fontSize:19,fontWeight:900,color:a.end<0?C.red:C.text,fontVariantNumeric:"tabular-nums"}}>{fmtF(a.end)}</div>
+        <div style={{display:"flex",gap:8,fontSize:10.5,marginTop:4,flexWrap:"wrap",fontVariantNumeric:"tabular-nums"}}><span style={{color:C.dim}}>{fL("нач.","pocz.")} {fmtF(a.open,0)}</span><span style={{color:C.green}}>+{fmtF(a.inn,0)}</span><span style={{color:C.red}}>−{fmtF(a.out,0)}</span></div></div>;})}
+      <div style={fCard({padding:"11px 13px",background:C.accentDim,borderColor:C.accentBorder})}><div style={{fontSize:11,color:C.accent,fontWeight:900,marginBottom:4}}>{fL("ИТОГО","RAZEM")}</div><div style={{fontSize:19,fontWeight:900,color:C.accent,fontVariantNumeric:"tabular-nums"}}>{fmtF(tot.end)}</div>
+        <div style={{display:"flex",gap:8,fontSize:10.5,marginTop:4,flexWrap:"wrap"}}><span style={{color:C.dim}}>{fmtF(tot.open,0)}</span><span style={{color:C.green}}>+{fmtF(tot.inn,0)}</span><span style={{color:C.red}}>−{fmtF(tot.out,0)}</span></div></div>
+    </div>}
+    <div className="fin-quick" style={{marginBottom:12}}>
+      <button onClick={()=>setForm({type:"in"})} style={fBtn(C.green,form&&form.type==="in",{fontSize:14,padding:"10px 18px"})}>＋ {fL("Приход","Przychód")}</button>
+      <button onClick={()=>setForm({type:"out"})} style={fBtn(C.red,form&&form.type==="out",{fontSize:14,padding:"10px 18px"})}>− {fL("Расход","Wydatek")}</button>
+      <button onClick={()=>setForm({type:"transfer"})} style={fBtn(C.blue,form&&form.type==="transfer",{fontSize:14,padding:"10px 18px"})}>⇄ {fL("Перевод","Przelew")}</button>
+    </div>
+    {form&&<div style={{marginBottom:12}}><FinTxForm key={form.type} fin={fin} opts={opts} me={me} role={role} init={{type:form.type,acc:flt.acc||undefined}} onSave={add} onCancel={()=>setForm(null)}/></div>}
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
+      <input value={flt.q} onChange={e=>setFlt(f=>({...f,q:e.target.value}))} placeholder={"🔍 "+fL("поиск по описанию / сумме","szukaj")} style={fIn({width:220,flex:"1 1 200px"})}/>
+      <select value={flt.type} onChange={e=>setFlt(f=>({...f,type:e.target.value}))} style={fIn({width:130})}><option value="">{fL("Все типы","Wszystkie")}</option><option value="in">{fL("Приход","Przychód")}</option><option value="out">{fL("Расход","Wydatek")}</option><option value="transfer">{fL("Перевод","Przelew")}</option></select>
+      {role.book&&<select value={flt.acc} onChange={e=>setFlt(f=>({...f,acc:e.target.value}))} style={fIn({width:150})}><option value="">{fL("Все счета","Wszystkie konta")}</option>{fin.accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>}
+      <select value={flt.cat} onChange={e=>setFlt(f=>({...f,cat:e.target.value}))} style={fIn({width:170})}><option value="">{fL("Все категории","Wszystkie kategorie")}</option>{fin.cats.map(c=><option key={c.id} value={String(c.num)}>{c.num}. {finCatName(c)}</option>)}</select>
+      <div style={{width:170}}><FinOrderPick value={flt.order||null} onChange={v=>setFlt(f=>({...f,order:v||""}))} opts={opts} placeholder={fL("Заказ…","Zamówienie…")}/></div>
+      {role.book&&<select value={flt.by} onChange={e=>setFlt(f=>({...f,by:e.target.value}))} style={fIn({width:120})}><option value="">{fL("Все","Wszyscy")}</option>{[...new Set(fin.tx.map(t=>t.by).filter(Boolean))].map(u=><option key={u}>{u}</option>)}</select>}
+      <label style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:flt.bad?C.red:C.muted,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={flt.bad} onChange={e=>setFlt(f=>({...f,bad:e.target.checked}))}/>⚠ {fL("требуют проверки","do sprawdzenia")}</label>
+      <div style={{flex:1}}/><button onClick={exportX} style={fBtn(C.accent,false)}>⬇ XLSX</button>
+    </div>
+    <div style={fCard({padding:0,overflow:"hidden"})}>
+      <div className="fin-row hm-h" style={{cursor:"default",fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:.7,fontWeight:800,background:fDk()?"rgba(255,255,255,0.03)":"rgba(0,0,0,0.03)"}}>
+        <div>{fL("Дата","Data")}</div><div className="hm hx">{fL("Кто","Kto")}</div><div className="hm">{fL("Счёт","Konto")}</div><div className="hm">{fL("Заказ","Zam.")}</div><div className="am fin-num">{fL("Сумма","Kwota")}</div><div>{fL("Цель / категория","Cel / kategoria")}</div><div className="hm">{fL("Описание","Opis")}</div><div className="hm hx"/></div>
+      {rows.slice(0,lim).map(t=>edit===t.id?<div key={t.id} style={{padding:8}}>
+          {t.type==="out"&&finIsClosed(fin,t.order)?<div style={{...fCard({padding:12}),display:"flex",gap:10,alignItems:"center"}}><span>🔒 {fL("Расход по закрытому заказу — правка запрещена","Wydatek zamkniętego zamówienia — edycja zablokowana")}</span><div style={{flex:1}}/><button onClick={()=>onOrder(t.order)} style={fBtn(C.accent,false)}>№{t.order}</button><button onClick={()=>setEdit(null)} style={fBtn(C.muted,false)}>✕</button></div>
+          :<><FinTxForm compact fin={fin} opts={opts} me={me} role={role} init={t} onSave={x=>save(t.id,x)} onCancel={()=>setEdit(null)}/>
+            <div style={{display:"flex",gap:8,marginTop:6,fontSize:11,color:C.dim,alignItems:"center",flexWrap:"wrap"}}>{t.importedBy&&<span>⇪ {fL("из импорта","z importu")}</span>}{t.flags&&t.flags.date&&<span style={{color:C.yellow}}>⚠ {fL("в файле дата была","w pliku data była")} {fDot(t.flags.date)}</span>}{t.order&&<button onClick={()=>onOrder(t.order)} style={fBtn(C.accent,false,{padding:"4px 10px",minHeight:0,fontSize:11})}>📦 №{t.order} → {fL("финансы заказа","finanse zam.")}</button>}<div style={{flex:1}}/>
+              {canEdit(t)&&t.src!=="ts"&&<button onClick={()=>del(t)} style={fBtn(C.red,false,{padding:"4px 10px",minHeight:0,fontSize:11})}>🗑 {fL("Удалить","Usuń")}</button>}</div></>}
+        </div>:<FinTxRow key={t.id} t={t} fin={fin} onClick={()=>canEdit(t)?setEdit(t.id):null}/>)}
+      {!rows.length&&<div style={{padding:24,textAlign:"center",color:C.dim}}>{fL("Операций за период нет. Нажмите «＋ Приход» или «− Расход».","Brak operacji. Kliknij «＋ Przychód» lub «− Wydatek».")}</div>}
+      {rows.length>lim&&<div style={{padding:10,textAlign:"center"}}><button onClick={()=>setLim(l=>l+300)} style={fBtn(C.accent,false)}>{fL("Показать ещё","Pokaż więcej")} ({rows.length-lim})</button></div>}
+      <div style={{display:"flex",gap:16,padding:"10px 14px",fontSize:12,borderTop:`1px solid ${C.border}`,flexWrap:"wrap",fontWeight:800}}><span style={{color:C.muted}}>{rows.length} {fL("операций","operacji")}</span><span style={{color:C.green}}>＋ {fmtF(sIn)}</span><span style={{color:C.red}}>− {fmtF(sOut)}</span><span style={{color:C.text}}>= {fmtF(sIn-sOut)}</span></div>
+    </div>
+  </div>;}
+
+function FinCats({fin,per,onPick}){const data=useMemo(()=>{const m={};fin.tx.forEach(t=>{if(t.del||t.type!=="out"||t.order||t.date<per.from||t.date>per.to)return;const k=+t.cat||0;if(!m[k])m[k]={num:k,sum:0,n:0};m[k].sum+=+t.amount;m[k].n++;});
+    const ordSum=fin.tx.filter(t=>!t.del&&t.type==="out"&&t.order&&t.date>=per.from&&t.date<=per.to).reduce((a,t)=>a+ +t.amount,0);
+    return {rows:Object.values(m).map(x=>({...x,name:x.num?`${x.num}. ${finCatName(finCat(fin,x.num))}`:fL("Без категории","Bez kategorii")})).sort((a,b)=>b.sum-a.sum),ordSum};},[fin,per]);
+  const tot=data.rows.reduce((a,x)=>a+x.sum,0);const TIP=getTIP();
+  return <div style={{display:"grid",gridTemplateColumns:"minmax(0,1.3fr) minmax(0,1fr)",gap:14}} className="ga-2">
+    <style>{`@media(max-width:1000px){.ga-2{grid-template-columns:1fr!important}}`}</style>
+    <div style={fCard()}><div style={{fontSize:13,fontWeight:900,color:C.text,marginBottom:8}}>{fL("Расходы салона по категориям","Koszty salonu wg kategorii")}</div>
+      <div style={{height:Math.max(220,data.rows.length*34+40)}}><ResponsiveContainer><BarChart data={data.rows} layout="vertical" margin={{left:10,right:30,top:4,bottom:4}}>
+        <CartesianGrid horizontal={false} stroke={C.border}/><XAxis type="number" tick={{fill:C.muted,fontSize:10}} tickFormatter={v=>fmtF(v,0)}/><YAxis type="category" dataKey="name" width={190} tick={{fill:C.text,fontSize:11}}/>
+        <Tooltip {...TIP} formatter={v=>fmtZ(v,2)}/><Bar dataKey="sum" radius={[0,6,6,0]} onClick={d=>onPick(d.num)} cursor="pointer">{data.rows.map((x,i)=><Cell key={i} fill={+x.num===13?C.blue:i<3?C.accent:fDk()?"#5c7fb8":"#94a3b8"}/>)}</Bar></BarChart></ResponsiveContainer></div></div>
+    <div style={fCard({padding:0,overflow:"hidden"})}><table className="fin-tbl"><thead><tr style={{color:C.muted}}><th>№</th><th>{fL("Категория","Kategoria")}</th><th className="fin-num">{fL("Сумма","Kwota")}</th><th className="fin-num">%</th><th className="fin-num">{fL("опер.","op.")}</th></tr></thead>
+      <tbody>{data.rows.map(x=><tr key={x.num} className="cl" onClick={()=>onPick(x.num)}><td style={{color:C.accent,fontWeight:800}}>{x.num||"—"}</td><td style={{color:C.text}}>{x.name.replace(/^\d+\.\s*/,"")}{+x.num===13&&<span style={{color:C.dim,fontSize:11}}> · {fL("не в P&L","poza P&L")}</span>}</td><td className="fin-num" style={{color:C.text,fontWeight:800}}>{fmtF(x.sum)}</td><td className="fin-num" style={{color:C.muted}}>{tot?Math.round(x.sum/tot*100):0}</td><td className="fin-num" style={{color:C.dim}}>{x.n}</td></tr>)}
+        <tr><td/><td style={{fontWeight:900,color:C.text}}>{fL("Итого салон","Razem salon")}</td><td className="fin-num" style={{fontWeight:900,color:C.accent}}>{fmtF(tot)}</td><td/><td/></tr>
+        <tr><td/><td style={{color:C.muted}}>{fL("+ расходы на заказы (материалы и др.)","+ wydatki na zamówienia")}</td><td className="fin-num" style={{color:C.muted}}>{fmtF(data.ordSum)}</td><td/><td/></tr></tbody></table>
+      {!data.rows.length&&<div style={{padding:20,color:C.dim,textAlign:"center"}}>{fL("Нет расходов за период","Brak wydatków")}</div>}</div>
+  </div>;}
+
+function FinByOrders({fin,opts,per,onPick}){const [q,setQ]=useState("");const [only,setOnly]=useState("period");const [sort,setSort]=useState(["num",-1]);
+  const rows=useMemo(()=>{const act=new Set(fin.tx.filter(t=>!t.del&&t.order&&t.date>=per.from&&t.date<=per.to).map(t=>t.order));fin.tse.forEach(x=>{if(x.order&&x.date>=per.from&&x.date<=per.to)act.add(x.order);});
+    return opts.filter(o=>only==="all"||act.has(o.num)).map(o=>{const c=finOrderCalc(fin,o.num,o.o);const ex=c.txs.filter(t=>t.type==="out").reduce((a,t)=>a+ +t.amount,0);const pin=c.txs.filter(t=>t.type==="in").reduce((a,t)=>a+ +t.amount,0);
+      return {...o,c,ex,pin,work:c.lines.ws+c.lines.inst+c.lines.pw};}).filter(r=>!q||r.num.includes(q)||r.client.toLowerCase().includes(q.toLowerCase()));},[fin,opts,per,only,q]);
+  const [sk,sd]=sort;const val=(r)=>sk==="num"?parseInt(r.num)||0:sk==="prof"?(r.c.prof==null?-1e9:r.c.prof):sk==="client"?r.client:r[sk]??r.c[sk];
+  const sorted=[...rows].sort((a,b)=>{const x=val(a),y=val(b);return (x>y?1:x<y?-1:0)*sd;});
+  const Th=({k,children,num})=><th className={num?"fin-num":""} onClick={()=>setSort(s=>[k,s[0]===k?-s[1]:-1])} style={{color:sk===k?C.accent:C.muted}}>{children}{sk===k?(sd>0?" ↑":" ↓"):""}</th>;
+  return <div>
+    <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}><input value={q} onChange={e=>setQ(e.target.value)} placeholder={"🔍 "+fL("№ или клиент","nr lub klient")} style={fIn({width:240})}/>
+      <div style={{width:300}}><FinSeg value={only} onChange={setOnly} opts={[["period",fL("с движением за период","z ruchem w okresie")],["all",fL("все заказы","wszystkie")]]}/></div></div>
+    <div style={fCard({padding:0,overflowX:"auto"})}><table className="fin-tbl" style={{minWidth:860}}><thead><tr><Th k="num">№</Th><Th k="client">{fL("Клиент","Klient")}</Th><Th k="ex" num>{fL("Расходы (журнал)","Wydatki")}</Th><Th k="work" num>{fL("Работа (табели)","Praca")}</Th><Th k="cost" num>{fL("Себестоимость","Koszt")}</Th><Th k="pin" num>{fL("Приходы","Wpłaty")}</Th><Th k="contract" num>{fL("Договор","Umowa")}</Th><Th k="prof" num>{fL("Рентаб.","Rentown.")}</Th><th style={{color:C.muted}}>{fL("Статус","Status")}</th></tr></thead>
+      <tbody>{sorted.map(r=>{const thr=fin.set.thr;return <tr key={r.num} className="cl" onClick={()=>onPick(r.num)} style={{opacity:r.closed?0.75:1}}>
+        <td style={{color:C.accent,fontWeight:900}}>№{r.num}</td><td style={{color:C.text}}>{r.client||<span style={{color:C.dim}}>{r.legacy?"legacy":"—"}</span>}</td>
+        <td className="fin-num" style={{color:C.text}}>{fmtF(r.ex,0)}</td><td className="fin-num" style={{color:C.text}}>{fmtF(r.work,0)}</td><td className="fin-num" style={{color:C.text,fontWeight:800}}>{fmtF(r.c.cost,0)}</td>
+        <td className="fin-num" style={{color:C.green}}>{fmtF(r.pin,0)}</td><td className="fin-num" style={{color:C.muted}}>{r.c.contract?fmtF(r.c.contract,0):<span style={{color:C.red}}>?</span>}</td>
+        <td className="fin-num" style={{color:finProfColor(r.c.prof,thr),fontWeight:900}}>{r.c.prof==null?"—":r.c.prof.toFixed(1)+"%"}</td>
+        <td>{r.closed?<span style={{color:C.muted}}>🔒 {fL("закрыт","zamknięte")}</span>:r.legacy?<span style={{color:C.dim}}>legacy</span>:<span style={{color:C.green}}>● {fL("в работе","w toku")}</span>}</td></tr>;})}</tbody></table>
+      {!sorted.length&&<div style={{padding:20,color:C.dim,textAlign:"center"}}>{fL("Нет заказов с движением за период","Brak zamówień z ruchem")}</div>}</div>
+  </div>;}
+
+function FinPnlView({fin,db,per,onPick}){const [mode,setMode]=useState("closed");const [ohSrc,setOhSrc]=useState("journal");const [sort,setSort]=useState(["rev",-1]);
+  const P=useMemo(()=>finPnl(fin,db.orders||[],per.from,per.to,mode),[fin,db.orders,per,mode]);const oh=ohSrc==="journal"?P.ohJ:P.ohC;const net=P.gross-oh;
+  const K=({l,v,c,sub})=><div style={fCard({padding:"12px 14px"})}><div style={{fontSize:10.5,color:C.muted,fontWeight:800,textTransform:"uppercase",letterSpacing:.7}}>{l}</div><div style={{fontSize:21,fontWeight:900,color:c||C.text,fontVariantNumeric:"tabular-nums",marginTop:3}}>{v}</div>{sub&&<div style={{fontSize:11,color:C.dim,marginTop:2}}>{sub}</div>}</div>;
+  const [sk,sd]=sort;const rows=[...P.rows].sort((a,b)=>{const x=a[sk]??-1e9,y=b[sk]??-1e9;return (x>y?1:x<y?-1:0)*sd;});
+  const Th=({k,children,num})=><th className={num?"fin-num":""} onClick={()=>setSort(s=>[k,s[0]===k?-s[1]:-1])} style={{color:sk===k?C.accent:C.muted}}>{children}{sk===k?(sd>0?" ↑":" ↓"):""}</th>;
+  return <div>
+    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}><span style={{fontSize:12,color:C.muted}}>{fL("Выручка:","Przychód:")}</span>
+      <div style={{width:360}}><FinSeg value={mode} onChange={setMode} opts={[["closed",fL("закрытые заказы","zamknięte zamówienia")],["paid",fL("по оплате (как 1С)","wg płatności (jak 1C)")]]}/></div></div>
+    <div className="fin-kpi" style={{marginBottom:14}}>
+      <K l={fL("Выручка","Przychód")} v={fmtZ(P.rev)} sub={`${P.rows.length} ${fL("заказов","zamówień")}`}/><K l={fL("Себестоимость","Koszt własny")} v={fmtZ(P.cogs)}/>
+      <K l={fL("Валовая прибыль","Zysk brutto")} v={fmtZ(P.gross)} c={P.gross<0?C.red:C.green}/><K l={fL("Ср. рентабельность","Śr. rentowność")} v={P.avgProf==null?"—":P.avgProf+"%"} c={finProfColor(P.avgProf,fin.set.thr)} sub={P.simpleAvg!=null?fL("простое среднее ","średnia prosta ")+P.simpleAvg+"%":""}/>
+      <K l={fL("Накладные салона","Koszty stałe")} v={fmtZ(oh)} c={C.yellow} sub={ohSrc==="journal"?fL("журнал + часы","dziennik + godziny"):"1С"}/><K l={fL("Чистая прибыль","Zysk netto")} v={fmtZ(net)} c={net<0?C.red:C.accent}/>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1.5fr)",gap:14}} className="ga-2"><style>{`@media(max-width:1000px){.ga-2{grid-template-columns:1fr!important}}`}</style>
+      <div style={fCard({padding:0,overflow:"hidden"})}><div style={{display:"flex",alignItems:"center",padding:"10px 12px",gap:8}}><b style={{color:C.text,fontSize:13,flex:1}}>{fL("Накладные по статьям","Koszty stałe wg pozycji")}</b>
+          <div style={{width:200}}><FinSeg value={ohSrc} onChange={setOhSrc} opts={[["journal","CRM"],["onec","1С"]]}/></div></div>
+        <table className="fin-tbl"><thead><tr style={{color:C.muted}}><th>{fL("Статья","Pozycja")}</th><th className="fin-num" style={{color:ohSrc==="journal"?C.accent:C.muted}}>CRM</th><th className="fin-num" style={{color:ohSrc==="onec"?C.accent:C.muted}}>1С</th></tr></thead>
+          <tbody>{P.oh.map(x=><tr key={x.k}><td style={{color:C.text}}>{x.name}</td><td className="fin-num" style={{color:x.journal?C.text:C.dim}}>{x.journal?fmtF(x.journal,0):"—"}</td><td className="fin-num" style={{color:x.onec?C.text:C.dim}}>{x.onec?fmtF(x.onec,0):"—"}</td></tr>)}
+            <tr><td style={{fontWeight:900,color:C.text}}>{fL("Итого","Razem")}</td><td className="fin-num" style={{fontWeight:900,color:C.accent}}>{fmtF(P.ohJ,0)}</td><td className="fin-num" style={{fontWeight:900,color:C.accent}}>{fmtF(P.ohC,0)}</td></tr></tbody></table>
+        {P.payroll>0&&<div style={{padding:"8px 12px",fontSize:11.5,color:C.muted,borderTop:`1px solid ${C.border}`}}>💡 {fL("Выплачено ЗП сборщикам","Wypłacono montażystom")} {fmtZ(P.payroll)} — {fL("это движение денег; стоимость их работы уже в себестоимости заказов (из табелей).","to ruch pieniędzy; koszt pracy jest już w kosztach zamówień.")}</div>}</div>
+      <div style={fCard({padding:0,overflowX:"auto"})}><table className="fin-tbl" style={{minWidth:640}}><thead><tr><Th k="num">№</Th><Th k="client">{fL("Клиент","Klient")}</Th><Th k="rev" num>{fL("Сумма","Kwota")}</Th><Th k="cost" num>{fL("Себест.","Koszt")}</Th><Th k="profit" num>{fL("Прибыль","Zysk")}</Th><Th k="prof" num>%</Th><th style={{color:C.muted}}>{fL("Статус","Status")}</th></tr></thead>
+        <tbody>{rows.map(r=><tr key={r.num} className="cl" onClick={()=>onPick(r.num)}><td style={{color:C.accent,fontWeight:900}}>№{r.num}</td><td style={{color:C.text}}>{r.client||"—"}</td><td className="fin-num" style={{color:C.text}}>{fmtF(r.rev,0)}</td><td className="fin-num" style={{color:C.muted}}>{fmtF(r.cost,0)}</td><td className="fin-num" style={{color:r.profit<0?C.red:C.text,fontWeight:800}}>{fmtF(r.profit,0)}</td><td className="fin-num" style={{color:finProfColor(r.prof,fin.set.thr),fontWeight:900}}>{r.prof==null?"—":r.prof+"%"}</td><td style={{color:C.muted}}>{r.status==="closed"?"🔒":r.status==="legacy"?"legacy":"●"}</td></tr>)}</tbody></table>
+        {!rows.length&&<div style={{padding:20,color:C.dim,textAlign:"center"}}>{mode==="closed"?fL("За период нет закрытых заказов. Переключите на «по оплате» или закройте заказы.","Brak zamkniętych zamówień w okresie."):fL("Нет оплат по заказам за период","Brak wpłat")}</div>}</div>
+    </div></div>;}
+
+// ── Финансы заказа (в карточке заказа и в модалке из «Финансов») ──
+function OrderFinBlock({num,order,F,me,opts,lang,dark=true}){FIN_LANG=lang==="pl"?"pl":"ru";const fin=F.fin;const [open,setOpen]=useState({});const [form,setForm]=useState(null);const [closing,setClosing]=useState(false);const [unl,unlock]=useFinLock();
+  if(!unl)return <div className="fin-g"><FinStyle/><FinPinGate compact dark={dark} onOk={unlock}/></div>;
+  if(!fin)return <div style={{padding:12,color:"rgba(255,255,255,.5)",fontSize:12}}>💰 {fL("Финансы загружаются…","Ładowanie…")}</div>;
+  const role=finRole(me);const of=fin.ord[num]||{};const closed=of.status==="closed";const snap=closed?fin.snaps.find(x=>x.order===num&&!x.superseded):null;
+  const live=finOrderCalc(fin,num,order);const c=closed&&snap?{...snap.data,paid:live.paid,rest:Math.max(0,snap.data.contract-live.paid),txs:live.txs,ts:live.ts,pws:live.pws}:live;const L=c.lines;
+  const T=dark?{t:"#fff",m:"rgba(255,255,255,0.55)",b:"rgba(191,164,126,0.22)",bg:"rgba(255,255,255,0.035)",acc:"#bfa47e"}:{t:C.text,m:C.muted,b:C.border,bg:C.card,acc:C.accent};
+  const ins={background:dark?"rgba(255,255,255,0.06)":"#fff",border:`1px solid ${dark?"rgba(255,255,255,0.15)":C.borderMd}`,color:T.t,borderRadius:7,padding:"5px 8px",fontSize:12,outline:"none",colorScheme:dark?"dark":"light",boxSizing:"border-box"};
+  const tg=k=>setOpen(o=>({...o,[k]:!o[k]}));const pc=finProfColor(c.prof,fin.set.thr);
+  const setO=(p)=>F.op(FX.ordSet(num,p));
+  const txL=(f)=>c.txs.filter(f);const one=(t)=><div key={t.id} style={{display:"flex",gap:8,fontSize:11.5,padding:"3px 0",color:T.m}}><span style={{width:74}}>{fDot(t.date)}</span><span style={{flex:1,color:T.t}}>{t.desc||finPurpose(t.purpose)}</span><span>{(finAcc(fin,t.acc)||{}).name}</span><b style={{color:t.type==="in"?C.green:T.t,minWidth:80,textAlign:"right"}}>{fmtF(t.amount)}</b></div>;
+  const tsL=(f)=>c.ts.filter(f).map(x=>{const p=fin.periods.find(q=>q.id===x.period)||{};const e=fin.emps.find(q=>q.id===p.emp)||{};const ok=finPerOk(fin,x.period);return <div key={x.id} style={{display:"flex",gap:8,fontSize:11.5,padding:"3px 0",color:T.m,opacity:ok?1:0.55}}><span style={{width:74}}>{fDot(x.date)}</span><span style={{flex:1,color:T.t}}>{e.name} · {x.hours} {fL("ч","h")}{!ok&&" · "+fL("не утверждён","niezatwierdz.")}</span><b style={{minWidth:80,textAlign:"right",color:T.t}}>{fmtF(ok&&x.amount!=null?x.amount:x.hours*finRateAt(e,x.date))}</b></div>;});
+  const Row=({k,l,v,sub,list,bold,color})=><div><div onClick={list?()=>tg(k):undefined} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:`1px dashed ${T.b}`,cursor:list?"pointer":"default"}}>
+      <span style={{flex:1,fontSize:12.5,color:bold?T.t:T.m,fontWeight:bold?900:600}}>{list&&<span style={{display:"inline-block",width:14,color:T.acc}}>{open[k]?"▾":"▸"}</span>}{l}{sub&&<span style={{fontSize:11,color:T.m,fontWeight:500}}> · {sub}</span>}</span>
+      <b style={{fontVariantNumeric:"tabular-nums",fontSize:bold?16:13,color:color||T.t}}>{fmtF(v)}</b></div>
+    {list&&open[k]&&<div style={{padding:"4px 0 6px 22px"}}>{list.length?list:<span style={{fontSize:11,color:T.m}}>{fL("нет строк","brak")}</span>}</div>}</div>;
+  // 1С
+  const o1=of.onec&&fin.onec.orders[of.onec];const d1=o1?{sale:o1.sale-c.contract,cost:o1.cost-c.cost}:null;const big=(d,base)=>base&&Math.abs(d)/Math.abs(base)>0.02;
+  const doClose=()=>{const w=[];if(live.pendH>0||live.pendPw)w.push(fL(`неутверждённые табели: ${r2(live.pendH)} ч`,`niezatwierdzone godziny: ${r2(live.pendH)} h`));if(live.rest>0)w.push(fL(`клиент не оплатил ${fmtZ(live.rest)}`,`klient nie dopłacił ${fmtZ(live.rest)}`));if(!of.onec)w.push(fL("нет привязки к 1С","brak powiązania z 1C"));if(!L.mat)w.push(fL("нет ни одного расхода «Материалы»","brak wydatków «Materiały»"));if(!live.contract)w.push(fL("не указана сумма договора","brak kwoty umowy"));return w;};
+  const warn=closing?doClose():[];
+  const confirmClose=()=>{const {txs,ts,pws,...snapD}=live;if(F.op(FX.close(num,snapD,me,warn)))setClosing(false);};
+  const reopen=()=>{const r=window.prompt(fL(`Переоткрыть заказ №${num}. Причина (обязательно):`,`Otworzyć ponownie №${num}. Powód:`));if(r&&r.trim())F.op(FX.reopen(num,r.trim(),me));};
+  return <div className="fin-g" style={{background:T.bg,border:`1px solid ${closed?"rgba(148,163,184,0.45)":T.b}`,borderRadius:14,padding:14,marginBottom:16}}><FinStyle/>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+      <div style={{fontSize:10,color:T.acc,textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,flex:1}}>💰 {fL("Финансы заказа","Finanse zamówienia")}</div>
+      {closed?<span style={{fontSize:11.5,fontWeight:800,color:"#cbd5e1",background:"rgba(148,163,184,0.15)",border:"1px solid rgba(148,163,184,0.4)",borderRadius:8,padding:"3px 9px"}}>🔒 {fL("Закрыт","Zamknięte")} {fDot(fIso(new Date(of.closedAt)))} · {of.closedBy}</span>
+        :<span style={{fontSize:11,color:C.green,fontWeight:800}}>● {fL("открыт для затрат","otwarte")}</span>}
+      <FinSync F={F}/>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:10}}>
+      {[[fL("Сумма заказа (договор)","Kwota umowy"),fmtZ(c.contract,2),T.t],[fL("Оплачено клиентом","Opłacono"),fmtZ(c.paid,2),C.green],[fL("Остаток к оплате","Do zapłaty"),fmtZ(c.rest,2),c.rest>0?C.yellow:T.m],[fL("Рентабельность","Rentowność"),c.prof==null?"—":c.prof.toFixed(1)+" %",pc]].map(([l,v,col])=>
+        <div key={l} style={{background:dark?"rgba(255,255,255,0.04)":C.surface,border:`1px solid ${T.b}`,borderRadius:11,padding:"8px 11px"}}><div style={{fontSize:9,color:T.m,textTransform:"uppercase",letterSpacing:.8,fontWeight:800,marginBottom:3}}>{l}</div><div style={{fontSize:16,fontWeight:900,color:col,fontVariantNumeric:"tabular-nums"}}>{v}</div></div>)}
+    </div>
+    {!closed&&<div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:10,fontSize:12,color:T.m}}>
+      <label style={{display:"flex",alignItems:"center",gap:6}}>{fL("Договор","Umowa")}: <input key={"ct"+(of.contract??"")} defaultValue={of.contract??""} placeholder={fmtF(finOrderContract({...fin,ord:{}},num,order),0)} inputMode="decimal" onBlur={e=>{const v=e.target.value.trim();setO({contract:v===""?null:fNum(v)});}} style={{...ins,width:110}}/></label>
+      <span>{fL("Премия менеджера","Premia menedżera")} {(order&&order.resp&&order.resp.manager)||of.mgr||""}:</span>
+      {[1,2,3].map(p=><button key={p} onClick={()=>setO({mgrPct:p})} style={{...ins,cursor:"pointer",fontWeight:800,background:+L.mgrPct===p?T.acc:ins.background,color:+L.mgrPct===p?"#00132f":T.t}}>{p}%</button>)}
+      <input key={"mp"+(of.mgrPct??"")} defaultValue={of.mgrPct!=null&&![1,2,3].includes(+of.mgrPct)?of.mgrPct:""} placeholder="%" inputMode="decimal" onBlur={e=>{const v=e.target.value.trim();if(v)setO({mgrPct:fNum(v)});}} style={{...ins,width:52}}/>
+      <span>{fL("Маркетинг","Marketing")}:</span><select value={of.mkt?of.mkt.mode:"def"} onChange={e=>{const m=e.target.value;setO({mkt:m==="def"?null:{mode:m,val:(of.mkt&&of.mkt.val)||0}});}} style={ins}><option value="def">{fL("по умолчанию","domyślnie")} ({fin.set.mkt.mode==="fix"?fmtZ(fin.set.mkt.val):fin.set.mkt.val+"%"})</option><option value="pct">%</option><option value="fix">{fL("сумма","kwota")}</option></select>
+      {of.mkt&&<input key={"mk"+of.mkt.val} defaultValue={of.mkt.val} inputMode="decimal" onBlur={e=>setO({mkt:{...of.mkt,val:fNum(e.target.value)}})} style={{...ins,width:80}}/>}
+    </div>}
+    <Row k="mat" l={fL("Материалы","Materiały")} v={L.mat} list={txL(t=>t.type==="out"&&t.purpose==="mat").map(one)}/>
+    <Row k="work" l={fL("Работа","Praca")} sub={`${fL("цех","warsztat")} ${fmtF(L.ws,0)} / ${fL("монтаж","montaż")} ${fmtF(L.inst,0)} · ${r2(L.hours)} ${fL("ч","h")}${L.workExt?` · ${fL("внешние","zewn.")} ${fmtF(L.workExt,0)}`:""}`} v={L.work} list={[...tsL(()=>true),...txL(t=>t.type==="out"&&t.purpose==="work").map(one)]}/>
+    <Row k="pw" l={fL("Сдельные (погрузка, доставка, порезка…)","Akord (załadunek, dostawa…)")} v={L.pw} list={c.pws.map(x=>{const p=fin.periods.find(q=>q.id===x.period)||{};const e=fin.emps.find(q=>q.id===p.emp)||{};return <div key={x.id} style={{display:"flex",gap:8,fontSize:11.5,padding:"3px 0",color:T.m,opacity:finPerOk(fin,x.period)?1:0.55}}><span style={{width:74}}>{fDot(x.date)}</span><span style={{flex:1,color:T.t}}>{e.name} · {x.note}</span><b style={{minWidth:80,textAlign:"right",color:T.t}}>{fmtF(x.amount)}</b></div>;})}/>
+    <Row k="deliv" l={fL("Доставка / транспорт","Dostawa / transport")} v={L.deliv} list={txL(t=>t.type==="out"&&t.purpose==="deliv").map(one)}/>
+    <Row k="mkt" l={fL("Премия маркетинга","Premia marketingu")} sub={L.mktPaid?`${fL("начислено","naliczono")} ${fmtF(L.mktCalc,0)} · ${fL("выплачено","wypłacono")} ${fmtF(L.mktPaid,0)}`:""} v={L.mkt}/>
+    <Row k="mgr" l={`${fL("Премия менеджера","Premia menedżera")} (${L.mgrPct||0}%)`} sub={L.mgrPaid?`${fL("выплачено","wypłacono")} ${fmtF(L.mgrPaid,0)}`:""} v={L.mgr}/>
+    <Row k="oth" l={fL("Прочее по заказу","Inne")} v={L.other} list={txL(t=>t.type==="out"&&!["mat","work","deliv","mkt","mgr"].includes(t.purpose)).map(one)}/>
+    <Row k="cost" bold l={fL("СЕБЕСТОИМОСТЬ","KOSZT WŁASNY")} v={c.cost}/>
+    <Row k="profit" bold l={fL("ПРИБЫЛЬ","ZYSK")} v={c.profit} color={c.profit<0?C.red:C.green}/>
+    <Row k="inc" l={fL("Приходы от клиента","Wpłaty klienta")} v={c.paid} color={C.green} list={txL(t=>t.type==="in").map(one)}/>
+    {!closed&&live.pendH>0&&<div style={{marginTop:8,fontSize:12,color:C.yellow}}>⏳ {fL("Ещё не утверждено","Jeszcze niezatwierdzone")}: {r2(live.pendH)} {fL("ч","h")} ≈ {fmtZ(live.pendSum)} — {fL("попадут в себестоимость после утверждения табеля","wejdą do kosztu po zatwierdzeniu")}</div>}
+    {closed&&snap&&<div style={{marginTop:8,fontSize:11.5,color:T.m}}>📸 {fL("Расчёт зафиксирован снимком при закрытии. Приходы после закрытия показываются живыми.","Wynik zapisany przy zamknięciu. Wpłaty po zamknięciu — na bieżąco.")}{live.cost!==snap.data.cost&&<span style={{color:C.yellow}}> {fL("Текущий пересчёт","Bieżący przeliczony koszt")}: {fmtZ(live.cost)}</span>}</div>}
+    {/* 1С */}
+    <div style={{marginTop:12,paddingTop:10,borderTop:`1px solid ${T.b}`}}>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6}}><span style={{fontSize:10,color:T.acc,textTransform:"uppercase",letterSpacing:1.2,fontWeight:800}}>🧾 {fL("Данные 1С / налоговая","Dane 1C / podatkowe")}</span><div style={{flex:1}}/>
+        <input key={"oc"+(of.onec||"")} list="fin-1c-nos" defaultValue={of.onec||""} placeholder="РС0000000XX" onBlur={e=>{const v=e.target.value.trim();if(v!==(of.onec||""))setO({onec:v||null,onecDate:v&&fin.onec.orders[v]?fin.onec.orders[v].date:of.onecDate||null});}} style={{...ins,width:150}}/>
+        <datalist id="fin-1c-nos">{Object.keys(fin.onec.orders).slice(0,400).map(k=><option key={k} value={k}>{fin.onec.orders[k].customer}</option>)}</datalist></div>
+      {o1?<><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:6,fontSize:12}}>
+          {[[fL("Сумма продажи","Sprzedaż"),o1.sale,d1.sale,c.contract],[fL("Стоимость","Koszt"),o1.cost,d1.cost,c.cost],[fL("Прибыль","Zysk"),o1.profit],[fL("Рентабельность","Rentown."),null]].map(([l,v,d,base],i)=><div key={l} style={{background:dark?"rgba(255,255,255,0.03)":C.surface,borderRadius:9,padding:"6px 9px",border:`1px solid ${d!=null&&big(d,base)?C.red+"99":T.b}`}}>
+            <div style={{fontSize:9,color:T.m,textTransform:"uppercase",fontWeight:800}}>{l}</div><div style={{fontWeight:900,color:T.t}}>{i===3?(o1.prof!=null?o1.prof+"%":"—"):fmtF(v)}</div>
+            {d!=null&&<div style={{fontSize:10.5,color:big(d,base)?C.red:T.m,fontWeight:big(d,base)?800:500}}>CRM {d>=0?"−":"+"} {fmtF(Math.abs(d),0)}{base?` (${(Math.abs(d)/base*100).toFixed(1)}%)`:""}{big(d,base)?" ⚠":""}</div>}</div>)}
+        </div>
+        <div onClick={()=>tg("1c")} style={{fontSize:11.5,color:T.acc,cursor:"pointer",marginTop:6}}>{open["1c"]?"▾":"▸"} {fL("Номенклатура","Pozycje")} ({o1.items.length}) · {o1.customer} · {fDot(o1.date)}</div>
+        {open["1c"]&&<div style={{padding:"4px 0 0 16px"}}>{o1.items.map((it,i)=><div key={i} style={{display:"flex",gap:8,fontSize:11.5,color:T.m,padding:"2px 0"}}><span style={{flex:1,color:T.t}}>{it.name}</span><span>{fmtF(it.sale,0)}</span><span style={{minWidth:70,textAlign:"right"}}>{fmtF(it.cost,0)}</span></div>)}</div>}</>
+      :<div style={{fontSize:11.5,color:T.m}}>{of.onec?fL("Номер указан, но данных 1С ещё нет — загрузите отчёт «Продажи по оплате» во вкладке Финансы → Импорт.","Brak danych 1C — zaimportuj raport."):fL("Не привязан. Впишите номер РС… или привяжите в Финансы → 1С (там подсказки по ФИО и сумме).","Niepowiązane. Wpisz nr РС… lub powiąż w Finanse → 1C.")}</div>}
+    </div>
+    {/* действия */}
+    {form&&<div style={{marginTop:12}}><FinTxForm compact fin={fin} opts={opts} me={me} role={role} lockOrder init={{type:form,order:num,purpose:form==="in"?"extra":"mat"}} onSave={x=>{const ok=F.op(FX.txAdd(x));if(ok)setForm(null);return ok;}} onCancel={()=>setForm(null)}/></div>}
+    {closing&&<div style={{marginTop:12,background:"rgba(246,196,83,0.08)",border:"1px solid rgba(246,196,83,0.5)",borderRadius:12,padding:12}}>
+      <div style={{fontWeight:900,color:T.t,marginBottom:6}}>🔒 {fL(`Закрыть заказ №${num} и зафиксировать рентабельность ${c.prof==null?"—":c.prof.toFixed(1)+"%"}?`,`Zamknąć №${num}?`)}</div>
+      {warn.length?<div style={{marginBottom:8}}>{warn.map(w=><div key={w} style={{fontSize:12.5,color:C.yellow}}>⚠ {w}</div>)}</div>:<div style={{fontSize:12.5,color:C.green,marginBottom:8}}>✓ {fL("Всё заполнено","Wszystko uzupełnione")}</div>}
+      <div style={{fontSize:11.5,color:T.m,marginBottom:10}}>{fL("После закрытия на заказ нельзя провести расход, часы или сдельные. Доплата клиента — можно.","Po zamknięciu nie można dodać wydatków ani godzin. Wpłaty klienta — tak.")}</div>
+      <div style={{display:"flex",gap:8}}><button onClick={confirmClose} style={fBtn("#f6c453",true)}>{warn.length?fL("Закрыть всё равно","Zamknij mimo to"):fL("Закрыть","Zamknij")}</button><button onClick={()=>setClosing(false)} style={fBtn("#94a3b8",false)}>{fL("Отмена","Anuluj")}</button></div></div>}
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}>
+      {!form&&<button onClick={()=>setForm("in")} style={fBtn(C.green,false,{minHeight:34,padding:"6px 12px"})}>＋ {fL("Оплата клиента","Wpłata klienta")}</button>}
+      {!form&&!closed&&<button onClick={()=>setForm("out")} style={fBtn(C.red,false,{minHeight:34,padding:"6px 12px"})}>− {fL("Расход на заказ","Wydatek")}</button>}
+      <div style={{flex:1}}/>
+      {!closed&&role.close&&!closing&&<button onClick={()=>setClosing(true)} style={fBtn("#f6c453",false,{minHeight:34,padding:"6px 12px"})}>🔒 {fL("Закрыть заказ и рассчитать рентабельность","Zamknij i policz rentowność")}</button>}
+      {closed&&role.admin&&<button onClick={reopen} style={fBtn("#94a3b8",false,{minHeight:34,padding:"6px 12px"})}>↺ {fL("Переоткрыть","Otwórz ponownie")}</button>}
+    </div>
+    {fin.log.filter(x=>x.order===num).length>0&&<div style={{marginTop:10,fontSize:11,color:T.m}}>{fin.log.filter(x=>x.order===num).slice(-4).map(x=><div key={x.id}>{new Date(x.at).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · {x.by}: {x.from} → {x.to}{x.reason?` — ${x.reason}`:""}</div>)}</div>}
+  </div>;}
+function FinOrderModal({num,F,db,me,opts,onClose,onOpenOrder}){const o=(db.orders||[]).find(x=>String(x.num)===num);const of=(F.fin&&F.fin.ord[num])||{};
+  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.85)",backdropFilter:"blur(4px)",zIndex:2400,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 12px",overflowY:"auto"}}>
+    <div onClick={e=>e.stopPropagation()} style={{width:"min(860px,100%)",background:"linear-gradient(165deg,#0a1a3a 0%,#00132f 55%,#000d22 100%)",border:"1px solid rgba(191,164,126,0.45)",borderRadius:20,padding:18,boxShadow:"0 30px 90px rgba(0,0,0,0.65)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><div style={{fontFamily:"'Russo One',sans-serif",fontSize:28,color:"#e3b860"}}>№{num}</div><div style={{color:"#fff",fontWeight:800,flex:1}}>{(o&&o.client)||of.client||(of.legacy?fL("старый заказ (нет в CRM)","stare zamówienie (poza CRM)"):"")}</div>
+        {o&&onOpenOrder&&<button onClick={()=>{onClose();onOpenOrder(num);}} style={fBtn("#5cb8ff",false,{minHeight:34})}>📦 {fL("Карточка заказа","Karta zamówienia")}</button>}
+        <button onClick={onClose} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:10,width:36,height:36,fontSize:16,cursor:"pointer"}}>✕</button></div>
+      <OrderFinBlock num={num} order={o} F={F} me={me} opts={opts} lang={FIN_LANG}/>
+    </div></div>;}
+
+function FinOneC({fin,F,opts,me,onPick,goImport}){const [show,setShow]=useState("un");const list=Object.values(fin.onec.orders||{});
+  const linked={};Object.entries(fin.ord).forEach(([n,x])=>{if(x.onec)linked[x.onec]=n;});
+  const crm=opts.filter(o=>o.crm).map(o=>({num:o.num,client:o.client,amount:finOrderContract(fin,o.num,o.o),date:o.date}));
+  const rows=list.filter(o=>show==="all"||!linked[o.no]).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const link=(no,num)=>{const d=fin.onec.orders[no];F.op(FX.ordSet(num,{onec:no,onecDate:d?d.date:null}));};
+  const last=(fin.onec.imports||[]).slice(-1)[0];
+  return <div>
+    <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:12}}>
+      <div style={{width:330}}><FinSeg value={show} onChange={setShow} opts={[["un",`${fL("Не сопоставлено","Niepowiązane")} (${list.filter(o=>!linked[o.no]).length})`],["all",`${fL("Все","Wszystkie")} (${list.length})`]]}/></div>
+      <span style={{fontSize:12,color:C.muted}}>{last?`${fL("Последний импорт","Ostatni import")}: ${new Date(last.at).toLocaleString("ru-RU")} · ${last.by} · ${last.period?fDot(last.period.from)+"–"+fDot(last.period.to):""}`:fL("Отчёт 1С ещё не загружался","Raport 1C jeszcze nie był importowany")}</span>
+      <div style={{flex:1}}/><button onClick={goImport} style={fBtn(C.accent,true)}>⇪ {fL("Импорт 1С","Import 1C")}</button></div>
+    {!list.length?<div style={fCard({textAlign:"center",color:C.muted,padding:30})}>{fL("В 1С: Отчёты → «Продажи по оплате» → Сформировать → Действия → Сохранить как → XLSX. Затем загрузите файл во вкладке «Импорт».","W 1C: Raporty → «Sprzedaż wg płatności» → Zapisz jako XLSX, potem Import.")}</div>
+    :<div style={fCard({padding:0,overflowX:"auto"})}><table className="fin-tbl" style={{minWidth:900}}><thead><tr style={{color:C.muted}}><th>{fL("Заказ 1С","Zam. 1C")}</th><th>{fL("Дата","Data")}</th><th>{fL("Покупатель","Nabywca")}</th><th className="fin-num">{fL("Продажа","Sprzedaż")}</th><th className="fin-num">{fL("Стоимость","Koszt")}</th><th className="fin-num">%</th><th>{fL("Заказ CRM","Zam. CRM")}</th></tr></thead>
+      <tbody>{rows.slice(0,300).map(o=>{const n=linked[o.no];const sug=n?[]:finMatch1C(o,crm);return <tr key={o.no}><td style={{color:C.accent,fontWeight:800,whiteSpace:"nowrap"}}>{o.no}</td><td style={{color:C.muted}}>{fDot(o.date)}</td><td style={{color:C.text}}>{o.customer}<div style={{fontSize:10.5,color:C.dim}}>{o.items.slice(0,2).map(i=>i.name).join(" · ")}{o.items.length>2?" …":""}</div></td>
+        <td className="fin-num" style={{color:C.text}}>{fmtF(o.sale,0)}</td><td className="fin-num" style={{color:C.muted}}>{fmtF(o.cost,0)}</td><td className="fin-num" style={{color:finProfColor(o.prof,fin.set.thr),fontWeight:800}}>{o.prof!=null?o.prof:"—"}</td>
+        <td>{n?<span onClick={()=>onPick(n)} style={{color:C.green,fontWeight:800,cursor:"pointer"}}>✓ №{n}</span>:<div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+          {sug.map(s=><button key={s.o.num} onClick={()=>link(o.no,s.o.num)} title={s.why.join(", ")} style={fBtn(C.green,false,{padding:"3px 9px",minHeight:0,fontSize:11.5})}>✓ №{s.o.num} · {s.o.client.split(" ")[0]} <span style={{opacity:.7}}>({s.why.join(", ")})</span></button>)}
+          <div style={{width:150}}><FinOrderPick value={null} onChange={v=>v&&link(o.no,v)} opts={opts} placeholder={fL("привязать…","powiąż…")}/></div></div>}</td></tr>;})}</tbody></table></div>}
+    {(fin.onec.overheads||[]).length>0&&<div style={fCard({marginTop:14})}><b style={{color:C.text,fontSize:13}}>{fL("Накладные периода из 1С","Koszty stałe z 1C")}</b>
+      {Object.values((fin.onec.overheads||[]).reduce((a,x)=>{const k=(x.from||"")+(x.to||"");(a[k]=a[k]||{from:x.from,to:x.to,list:[]}).list.push(x);return a;},{})).map(g=><div key={g.from+g.to} style={{marginTop:8}}><div style={{fontSize:12.5,color:C.muted,marginBottom:4}}>{fL("Период","Okres")} {fDot(g.from)} – {fDot(g.to)}</div>
+        <table className="fin-tbl" style={{maxWidth:620}}><thead><tr style={{color:C.muted}}><th>{fL("Статья","Pozycja")}</th><th className="fin-num">{fL("Сумма","Kwota")}</th><th className="fin-num">%</th></tr></thead>
+          <tbody>{(()=>{const tot=g.list.reduce((a,x)=>a+x.amount,0);return [...g.list].sort((a,b)=>b.amount-a.amount).map(x=><tr key={x.id}><td style={{color:C.text}}>{x.name}</td><td className="fin-num" style={{color:C.text,fontWeight:800}}>{fmtF(x.amount,0)}</td><td className="fin-num" style={{color:C.muted}}>{tot?Math.round(x.amount/tot*100):0}</td></tr>).concat([<tr key="t"><td style={{color:C.text,fontWeight:900}}>{fL("Итого","Razem")}</td><td className="fin-num" style={{color:C.accent,fontWeight:900}}>{fmtF(tot,0)}</td><td/></tr>]);})()}</tbody></table></div>)}</div>}
+  </div>;}
+
+// ── Импорт с предпросмотром ──
+const FIN_KIND=()=>({journal:["📒",fL("Журнал «Учёт операций»","Dziennik operacji")],ts:["⏱",fL("Табель сборщика","Ewidencja montażysty")],tsPw:["🚚",fL("Табель: поставки / сдельные","Ewidencja: dostawy")],tsSum:["Σ",fL("Сводный «Сумма» — пропускаем (дубль табелей)","Zbiorczy — pomijamy")],bonus:["％",fL("Премии менеджера (таблица Тараса)","Premie menedżera")],onec:["🧾",fL("1С «Продажи по оплате»","1C «Sprzedaż wg płatności»")]});
+function FinImport({fin,F,db,me,opts,toast}){const [files,setFiles]=useState([]);const [busy,setBusy]=useState(false);const crmNums=useMemo(()=>new Set((db.orders||[]).map(o=>String(o.num))),[db.orders]);
+  const load=async(list)=>{setBusy(true);const out=[];for(const f of [...list]){try{const sh=await finReadBook(f);const kind=finDetect(f.name,sh);let res=null;
+      if(kind==="journal"){const sheet=sh.find(x=>/учёт|учет/i.test(x.name))||sh[0];res=finParseJournal(sheet.rows);res.items=finImpKeys(res.items,x=>[x.date,x.acc,x.toAcc||"",x.type,x.amount,x.desc].join("|"));}
+      else if(kind==="ts"){res=finParseTimesheet(sh[0].rows,f.name);res.items=finImpKeys(res.items,x=>[res.emp,x.date,x.hours,x.order,x.stage].join("|"));res.pw=finImpKeys(res.pw,x=>[res.emp,x.date,x.amount,x.order,x.note].join("|"));}
+      else if(kind==="tsPw"){res=finParseTsPw(sh,f.name);res.pw=finImpKeys(res.pw,x=>[res.emp,x.date,x.amount,x.order,x.note].join("|"));}
+      else if(kind==="bonus"){res={items:[],errors:[]};sh.slice(0,1).forEach(x=>{const b=finParseBonus(x.rows);res.items.push(...b.items);});}
+      else if(kind==="onec"){res=finParse1C(sh[0].rows);}
+      out.push({id:fid(),name:f.name,kind,res,opt:{status:"approved",mgr:"Taras"},done:null});}
+    catch(e){out.push({id:fid(),name:f.name,kind:null,res:{errors:[e.message]}});}}
+    setFiles(x=>[...out,...x]);setBusy(false);};
+  const apply=(f)=>{let fn=null;
+    if(f.kind==="journal")fn=FX.impJournal(f.res.items.filter(x=>!f.skip||!f.skip[x.impKey]),crmNums,me);
+    if(f.kind==="ts"||f.kind==="tsPw")fn=FX.impTimesheets([f.res],f.opt.status,me);
+    if(f.kind==="bonus")fn=FX.impBonus(f.res.items,f.opt.mgr,crmNums);
+    if(f.kind==="onec")fn=FX.imp1C(f.res,me);
+    if(!fn)return;FX._last=null;if(F.op(fn)){const r=FX._last||{};setFiles(x=>x.map(y=>y.id===f.id?{...y,done:r}:y));toast("✓ "+fL("Импортировано","Zaimportowano")+(r.added!=null?`: ${r.added}`:""));}};
+  const S=({c,children})=><span style={{fontSize:11.5,fontWeight:800,color:c,background:`${c}1a`,border:`1px solid ${c}55`,borderRadius:8,padding:"2px 8px",whiteSpace:"nowrap"}}>{children}</span>;
+  return <div>
+    <label style={{...fCard({display:"flex",alignItems:"center",justifyContent:"center",gap:14,padding:"26px 16px",borderStyle:"dashed",borderColor:C.accentBorder,cursor:"pointer",flexWrap:"wrap",textAlign:"center"})}} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();load(e.dataTransfer.files);}}>
+      <input type="file" multiple accept=".xlsx,.xls,.xlsm" style={{display:"none"}} onChange={e=>{load(e.target.files);e.target.value="";}}/>
+      <span style={{fontSize:34}}>⇪</span><div><div style={{fontWeight:900,color:C.text,fontSize:15}}>{busy?fL("Читаю файлы…","Czytam…"):fL("Перетащите или выберите XLSX-файлы","Przeciągnij lub wybierz pliki XLSX")}</div>
+      <div style={{fontSize:12,color:C.muted,marginTop:3}}>{fL("Журнал «Учёт операций» · табели сборщиков (можно все сразу) · премии Тараса · 1С «Продажи по оплате». Тип определяется сам. Повторная загрузка того же файла дублей не создаёт.","Dziennik · ewidencje · premie · 1C. Typ wykrywany automatycznie, bez duplikatów.")}</div></div></label>
+    {files.length>1&&files.some(f=>!f.done&&f.kind&&f.kind!=="tsSum")&&<div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}><button onClick={()=>files.filter(f=>!f.done&&f.kind&&f.kind!=="tsSum").forEach(apply)} style={fBtn(C.green,true)}>✓ {fL("Применить всё","Zastosuj wszystko")}</button></div>}
+    {files.map(f=>{const K=FIN_KIND()[f.kind]||["?",fL("Не распознан","Nie rozpoznano")];const R=f.res||{};const errs=R.errors||[];
+      let body=null,summary=null;
+      if(f.kind==="journal"){const inv=R.items.filter(x=>x.flags&&x.flags.invalid).length,dt=R.items.filter(x=>x.flags&&x.flags.date).length,xf=R.items.filter(x=>x.type==="transfer").length,dup=R.items.filter(x=>fin.tx.some(t=>t.impKey===x.impKey)).length;
+        const legacy=new Set(R.items.filter(x=>x.order&&!crmNums.has(x.order)&&!fin.ord[x.order]).map(x=>x.order));
+        summary=<><S c={C.text}>{R.items.length} {fL("строк","wierszy")} · {R.period}</S><S c={C.blue}>⇄ {xf} {fL("переводов","przelewów")}</S>{dt>0&&<S c={C.yellow}>⚠ {dt} {fL("дат проверить","dat do spr.")}</S>}{inv>0&&<S c={C.red}>✕ {inv} {fL("с ошибкой","błędnych")}</S>}{legacy.size>0&&<S c={C.purple}>{legacy.size} {fL("заказов-заглушек (нет в CRM)","zaślepek")}</S>}{dup>0&&<S c={C.dim}>{dup} {fL("уже загружены","już są")}</S>}</>;
+        const bal={};R.items.forEach(x=>{const a=(k,d)=>{if(!k)return;bal[k]=(bal[k]||0)+d;};if(x.type==="transfer"){a(x.acc,-x.amount);a(x.toAcc,x.amount);}else a(x.acc,x.type==="in"?x.amount:-x.amount);});
+        body=<><div style={{fontSize:11.5,color:C.muted,margin:"6px 0"}}>{fL("Движение по счетам за файл","Ruch na kontach")}: {Object.entries(bal).map(([k,v])=>`${(finAcc(fin,k)||{}).name||k} ${v>=0?"+":""}${fmtF(v,2)}`).join(" · ")}</div>
+          <div style={{maxHeight:300,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:10}}><table className="fin-tbl"><thead><tr style={{color:C.muted}}><th>#</th><th>{fL("Дата","Data")}</th><th>{fL("Счёт","Konto")}</th><th>{fL("Тип","Typ")}</th><th className="fin-num">{fL("Сумма","Kwota")}</th><th>{fL("Заказ / кат.","Zam. / kat.")}</th><th>{fL("Описание","Opis")}</th></tr></thead>
+          <tbody>{[...R.items].sort((a,b)=>(b.flags?1:0)-(a.flags?1:0)).slice(0,400).map(x=><tr key={x.impKey} style={{background:x.flags&&x.flags.invalid?`${C.red}1a`:x.flags?`${C.yellow}12`:undefined}}><td style={{color:C.dim}}>{x.row}</td><td style={{color:x.flags&&x.flags.date?C.yellow:C.text,whiteSpace:"nowrap"}}>{fDot(x.date)}{x.flags&&x.flags.date&&<div style={{fontSize:10}}>{fL("было","było")} {fDot(x.flags.date)}</div>}</td>
+            <td style={{color:x.acc?C.text:C.red}}>{x.type==="transfer"?`${(finAcc(fin,x.acc)||{}).name||"?"} → ${(finAcc(fin,x.toAcc)||{}).name||"?"}`:(finAcc(fin,x.acc)||{}).name||"?"}</td><td style={{color:x.type==="in"?C.green:x.type==="out"?C.red:C.blue}}>{x.type==="in"?"+":x.type==="out"?"−":"⇄"}</td>
+            <td className="fin-num" style={{color:C.text}}>{fmtF(x.amount)}</td><td style={{color:C.text}}>{x.order?`№${x.order} · ${finPurpose(x.purpose)}`:x.cat?`${x.cat}. ${finCatName(finCat(fin,x.cat))}`:<b style={{color:C.red}}>{fL("нет заказа/категории","brak")}</b>}</td><td style={{color:C.muted}}>{x.desc}{x.flags&&x.flags.zp&&<span style={{color:C.yellow}}> · {fL("ЗП с заказом?","wynagr. z zam.?")}</span>}</td></tr>)}</tbody></table></div></>;}
+      if(f.kind==="ts"||f.kind==="tsPw"){const h=(R.items||[]).reduce((a,x)=>a+x.hours,0),pw=(R.pw||[]).reduce((a,x)=>a+x.amount,0);const rate=R.rate||40;const calc=h*rate+pw;const ok=R.fileSum==null||Math.abs(R.fileSum-calc)<1;const ex=fin.emps.find(e=>e.name.toLowerCase()===String(R.emp).toLowerCase());
+        summary=<><S c={C.text}>👷 {R.emp}{!ex&&" · "+fL("новый","nowy")}</S>{R.items&&R.items.length>0&&<S c={C.blue}>{r2(h)} {fL("ч","h")} × {rate}</S>}<S c={C.cyan}>{(R.pw||[]).length} {fL("сдельных","akord")} · {fmtF(pw,0)}</S><S c={ok?C.green:C.red}>{ok?"✓":"⚠"} {fL("итого","razem")} {fmtF(calc,2)}{R.fileSum!=null?` · ${fL("в файле","w pliku")} ${fmtF(R.fileSum,2)}`:""}</S>
+          {(R.items||[]).some(x=>x.flag)&&<S c={C.yellow}>{R.items.filter(x=>x.flag).length} {fL("строк без заказа → накладные цеха","bez zam. → warsztat")}</S>}</>;
+        body=<div style={{display:"flex",gap:8,alignItems:"center",marginTop:6,flexWrap:"wrap",fontSize:12,color:C.muted}}>{fL("Статус после импорта","Status po imporcie")}: <div style={{width:300}}><FinSeg value={f.opt.status} onChange={v=>setFiles(x=>x.map(y=>y.id===f.id?{...y,opt:{...y.opt,status:v}}:y))} opts={[["approved",fL("утверждён (история)","zatwierdzony")],["submitted",fL("сдан — Дима проверит","złożony")]]}/></div>
+          <span>{(R.items||[]).length?`${fDot(R.items[0].date)} – ${fDot(R.items[R.items.length-1].date)}`:""}</span></div>;}
+      if(f.kind==="bonus"){summary=<><S c={C.text}>{R.items.length} {fL("заказов","zamówień")}</S><S c={C.accent}>{fL("ср.","śr.")} {R.items.length?r2(R.items.reduce((a,x)=>a+x.pct,0)/R.items.length):0}%</S><S c={C.purple}>{R.items.filter(x=>!crmNums.has(x.order)).length} {fL("нет в CRM → заглушки","poza CRM")}</S></>;
+        body=<div style={{display:"flex",gap:8,alignItems:"center",marginTop:6,fontSize:12,color:C.muted}}>{fL("Менеджер","Menedżer")}: <select value={f.opt.mgr} onChange={e=>setFiles(x=>x.map(y=>y.id===f.id?{...y,opt:{...y.opt,mgr:e.target.value}}:y))} style={fIn({width:140})}>{MANAGERS.map(m=><option key={m}>{m}</option>)}</select><span>{R.items.slice(0,12).map(x=>`№${x.order} ${x.pct}%`).join(" · ")}{R.items.length>12?" …":""}</span></div>;}
+      if(f.kind==="onec"){const nOh=R.overheads.reduce((a,x)=>a+x.amount,0);summary=<><S c={C.text}>{R.orders.length} {fL("заказов 1С","zamówień 1C")}</S><S c={C.yellow}>{R.overheads.length} {fL("статей накладных","pozycji kosztów")} · {fmtF(nOh,0)}</S>{R.period&&<S c={C.muted}>{fDot(R.period.from)} – {fDot(R.period.to)}</S>}<S c={C.dim}>{R.orders.filter(o=>fin.onec.orders[o.no]).length} {fL("обновятся","zaktualizuje")}</S></>;
+        body=<div style={{fontSize:11.5,color:C.muted,marginTop:6}}>{R.orders.slice(0,6).map(o=>`${o.no} · ${o.customer} · ${fmtF(o.sale,0)}`).join("  |  ")}</div>;}
+      return <div key={f.id} style={fCard({marginTop:12,borderColor:errs.length?`${C.red}88`:f.done?`${C.green}88`:C.border})}>
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}><span style={{fontSize:20}}>{K[0]}</span><div style={{flex:"1 1 220px"}}><div style={{fontWeight:900,color:C.text,fontSize:13.5}}>{f.name}</div><div style={{fontSize:11.5,color:C.muted}}>{K[1]}</div></div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{summary}</div>
+          {f.done?<S c={C.green}>✓ {fL("готово","gotowe")} · +{f.done.added||0}{f.done.skipped?` · ${fL("пропущено","pominięto")} ${f.done.skipped}`:""}{f.done.locked?` · 🔒 ${f.done.locked}`:""}</S>:f.kind&&f.kind!=="tsSum"&&!errs.length&&<button onClick={()=>apply(f)} style={fBtn(C.green,true)}>✓ {fL("Применить","Zastosuj")}</button>}
+          <button onClick={()=>setFiles(x=>x.filter(y=>y.id!==f.id))} style={fBtn(C.muted,false,{padding:"6px 10px"})}>✕</button></div>
+        {errs.map(e=><div key={e} style={{color:C.red,fontSize:12,marginTop:6}}>✕ {e}</div>)}{!f.done&&body}</div>;})}
+  </div>;}
+
+function FinSettings({fin,F,me}){const [acc,setAcc]=useState(fin.accounts);const [cats,setCats]=useState(fin.cats);const s=fin.set;const set=p=>F.op(FX.set(p));
+  const box=(t,ch)=><div style={fCard({marginBottom:14})}><div style={{fontWeight:900,color:C.text,marginBottom:10}}>{t}</div>{ch}</div>;
+  return <div style={{maxWidth:980}}>
+    {box(fL("Счета и начальные остатки","Konta i salda początkowe"),<>{acc.map((a,i)=><div key={a.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 140px 150px 90px",gap:8,marginBottom:6,alignItems:"center"}}>
+        <code style={{color:C.dim,fontSize:11}}>{a.id}</code><input value={a.name} onChange={e=>setAcc(l=>l.map((x,k)=>k===i?{...x,name:e.target.value}:x))} style={fIn()}/>
+        <input inputMode="decimal" value={a.opening} onChange={e=>setAcc(l=>l.map((x,k)=>k===i?{...x,opening:e.target.value}:x))} style={fIn({textAlign:"right"})}/>
+        <input type="date" value={a.openingDate||FIN_START} onChange={e=>setAcc(l=>l.map((x,k)=>k===i?{...x,openingDate:e.target.value}:x))} style={fIn()}/>
+        <label style={{fontSize:12,color:C.muted,display:"flex",gap:5,alignItems:"center"}}><input type="checkbox" checked={a.active!==false} onChange={e=>setAcc(l=>l.map((x,k)=>k===i?{...x,active:e.target.checked}:x))}/>{fL("актив.","aktywne")}</label></div>)}
+      <div style={{display:"flex",gap:8,marginTop:8}}><button onClick={()=>{const n=window.prompt(fL("Название нового счёта","Nazwa konta"));if(n)setAcc(l=>[...l,{id:"a"+fid().slice(-5),name:n,opening:0,openingDate:fToday(),active:true,sort:l.length}]);}} style={fBtn(C.muted,false)}>＋ {fL("Счёт","Konto")}</button><div style={{flex:1}}/>
+        <button onClick={()=>F.op(FX.accounts(acc.map(a=>({...a,opening:fNum(a.opening)}))))} style={fBtn(C.accent,true)}>✓ {fL("Сохранить счета","Zapisz konta")}</button></div>
+      <div style={{fontSize:11.5,color:C.dim,marginTop:6}}>{fL("Остаток = начальный остаток на дату + приходы − расходы ± переводы (операции раньше даты не учитываются).","Saldo = saldo początkowe + wpływy − wydatki ± przelewy.")}</div></>)}
+    {box(fL("Категории затрат","Kategorie kosztów"),<>{cats.sort((a,b)=>a.num-b.num).map((c,i)=><div key={c.id} style={{display:"grid",gridTemplateColumns:"64px 1fr 1fr 90px",gap:8,marginBottom:6}}>
+        <input value={c.num} onChange={e=>setCats(l=>l.map(x=>x.id===c.id?{...x,num:+e.target.value||0}:x))} style={fIn({textAlign:"center"})}/><input value={c.name} onChange={e=>setCats(l=>l.map(x=>x.id===c.id?{...x,name:e.target.value}:x))} style={fIn()}/>
+        <input value={c.pl||""} placeholder="PL" onChange={e=>setCats(l=>l.map(x=>x.id===c.id?{...x,pl:e.target.value}:x))} style={fIn()}/><label style={{fontSize:12,color:C.muted,display:"flex",gap:5,alignItems:"center"}}><input type="checkbox" checked={c.active!==false} onChange={e=>setCats(l=>l.map(x=>x.id===c.id?{...x,active:e.target.checked}:x))}/>{fL("актив.","aktywna")}</label></div>)}
+      <div style={{display:"flex",gap:8,marginTop:8}}><button onClick={()=>setCats(l=>[...l,{id:"c"+fid().slice(-5),num:Math.max(0,...l.map(x=>+x.num))+1,name:fL("Новая категория","Nowa kategoria"),scope:"salon",active:true}])} style={fBtn(C.muted,false)}>＋ {fL("Категория","Kategoria")}</button><div style={{flex:1}}/><button onClick={()=>F.op(FX.cats(cats))} style={fBtn(C.accent,true)}>✓ {fL("Сохранить","Zapisz")}</button></div></>)}
+    {box(fL("Правила расчёта","Zasady wyliczeń"),<div style={{display:"grid",gap:12}}>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",fontSize:13,color:C.text}}>{fL("Премия маркетинга по умолчанию","Premia marketingu domyślnie")}: <div style={{width:200}}><FinSeg value={s.mkt.mode} onChange={v=>set({mkt:{...s.mkt,mode:v}})} opts={[["pct","% "+fL("от суммы","od kwoty")],["fix",fL("фикс","stała")]]}/></div>
+        <input key={"mv"+s.mkt.val} defaultValue={s.mkt.val} inputMode="decimal" onBlur={e=>set({mkt:{...s.mkt,val:fNum(e.target.value)}})} style={fIn({width:100})}/>{s.mkt.mode==="pct"?"%":FIN_CUR}</div>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",fontSize:13,color:C.text}}>{fL("Премия менеджера по умолчанию","Premia menedżera domyślnie")}: <input key={"mp"+s.mgrPct} defaultValue={s.mgrPct} inputMode="decimal" onBlur={e=>set({mgrPct:fNum(e.target.value)})} style={fIn({width:80})}/>% <span style={{color:C.dim,fontSize:12}}>({fL("в заказе можно 1/2/3% или своё","w zamówieniu 1/2/3% lub własny")})</span></div>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",fontSize:13,color:C.text}}>{fL("Пороги рентабельности","Progi rentowności")}: <span style={{color:C.red}}>{"<"}</span><input key={"t0"+s.thr[0]} defaultValue={s.thr[0]} onBlur={e=>set({thr:[fNum(e.target.value),s.thr[1]]})} style={fIn({width:64})}/>% <span style={{color:C.yellow}}>…</span><input key={"t1"+s.thr[1]} defaultValue={s.thr[1]} onBlur={e=>set({thr:[s.thr[0],fNum(e.target.value)]})} style={fIn({width:64})}/>% <span style={{color:C.green}}>{">"}</span></div>
+      <label style={{display:"flex",gap:8,alignItems:"center",fontSize:13,color:C.text}}><input type="checkbox" checked={!!s.payrollFromTs} onChange={e=>set({payrollFromTs:e.target.checked})}/>{fL("Категория 2 «ЗП и аванс» в P&L не идёт — стоимость работы берётся из табелей (без двойного счёта)","Kat. 2 poza P&L — koszt pracy z ewidencji")}</label>
+    </div>)}
+  </div>;}
+
+// ═══ ТАБЕЛИ ═════════════════════════════════════════════════════════════════
+function TimesheetsPage({db,F,currentUser,lang,kiosk,onExit}){FIN_LANG=lang==="pl"?"pl":"ru";const fin=F.fin;const me=currentUser||"—";const role=finRole(me);
+  const [per,setPer]=useState(()=>fHalf(fToday()));const [tab,setTab]=useState(role.approve&&!kiosk?"sum":"sheet");const [empId,setEmpId]=useState(null);const [pinOk,setPinOk]=useState({});const [toast,showToast]=useFinToast();
+  const opts=useMemo(()=>fin?finOrderOpts(db.orders,fin):[],[db.orders,fin]);
+  if(!fin)return <div style={{padding:30,color:C.muted}}><FinStyle/>{fL("Загружаю табели…","Ładuję…")}</div>;
+  const mine=fin.emps.find(e=>e.user===me);const canAll=role.approve||role.admin;
+  const emp=fin.emps.find(e=>e.id===(empId||(kiosk?null:mine&&mine.id)));
+  const visEmps=fin.emps.filter(e=>e.active!==false&&(canAll||kiosk||e.user===me));
+  const tabs=kiosk?[]:[["sheet","✍",fL("Табель","Ewidencja")],...(canAll||role.book?[["sum","Σ",fL("Сводка Димы","Zestawienie"),fin.periods.filter(p=>p.status==="submitted").length]]:[]),...(canAll?[["emps","👷",fL("Сотрудники и ставки","Pracownicy i stawki")]]:[])];
+  const needPin=kiosk&&emp&&emp.pin&&!pinOk[emp.id];
+  return <div className="fin-g" style={{padding:kiosk?"14px 12px 40px":"16px 18px 40px",maxWidth:1300,margin:"0 auto"}}><FinStyle/><FinToast msg={toast}/>
+    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:12}}>
+      <div style={{fontFamily:"'Russo One',sans-serif",fontSize:24,color:C.accent}}>{fL("Табели","Ewidencja godzin")}</div><FinSync F={F}/><div style={{flex:1}}/>
+      <div style={{display:"flex",gap:6,alignItems:"center"}}><button onClick={()=>setPer(p=>fHalfShift(p.start,-1))} style={fBtn(C.muted,false,{padding:"6px 12px"})}>◀</button>
+        <div style={{fontWeight:900,color:C.text,minWidth:170,textAlign:"center",fontSize:14}}>{fDot(per.start)} – {fDot(per.end)}</div>
+        <button onClick={()=>setPer(p=>fHalfShift(p.start,1))} style={fBtn(C.muted,false,{padding:"6px 12px"})}>▶</button></div>
+      {kiosk&&<button onClick={()=>{if(empId)setEmpId(null);else onExit&&onExit();}} style={fBtn(C.muted,false)}>{empId?"← "+fL("Сотрудники","Pracownicy"):"✕"}</button>}
+    </div>
+    {tabs.length>1&&<FinTabs tabs={tabs} tab={tab} setTab={setTab}/>}
+    {tab==="sheet"&&<>
+      {(canAll||kiosk)&&!(kiosk&&emp)&&<div style={{display:"grid",gridTemplateColumns:`repeat(auto-fill,minmax(${kiosk?150:140}px,1fr))`,gap:8,marginBottom:14}}>
+        {visEmps.map(e=>{const p=fin.periods.find(x=>x.emp===e.id&&x.start===per.start);const tt=p?finPeriodTotal(fin,p.id):null;const S=FIN_TS_ST[p?p.status:"draft"];const on=emp&&emp.id===e.id;
+          return <button key={e.id} onClick={()=>setEmpId(e.id)} style={{...fCard({padding:kiosk?"16px 12px":"10px 12px",textAlign:"left",cursor:"pointer",borderColor:on?C.accent:C.border,boxShadow:on?`0 0 0 1px ${C.accent}`:"none"})}}>
+            <div style={{fontWeight:900,color:C.text,fontSize:kiosk?16:13}}>{e.role==="manager"?"🏬 ":"👷 "}{e.name}</div>
+            <div style={{fontSize:11,color:p?S[2]:C.dim,fontWeight:800,marginTop:3}}>{p?fL(S[0],S[1]):fL("пусто","pusto")}{tt?` · ${tt.hours} ${fL("ч","h")} · ${fmtF(tt.total,0)}`:""}</div></button>;})}</div>}
+      {needPin?<FinPin emp={emp} onOk={()=>setPinOk(x=>({...x,[emp.id]:true}))}/>
+      :emp?<FinSheet fin={fin} F={F} emp={emp} per={per} me={kiosk?emp.name:me} role={kiosk?{}:role} opts={opts} toast={showToast} kiosk={kiosk}/>
+      :!canAll&&!kiosk?<div style={fCard({color:C.muted,textAlign:"center",padding:30})}>{fL("Вы не привязаны к сотруднику. Попросите Диму/админа во вкладке «Сотрудники» указать ваш логин CRM.","Nie jesteś przypisany do pracownika.")}</div>
+      :<div style={{color:C.dim,fontSize:13,padding:10}}>{fL("Выберите сотрудника","Wybierz pracownika")} ↑</div>}</>}
+    {tab==="sum"&&<FinTsSummary fin={fin} F={F} per={per} me={me} role={role} onOpen={id=>{setEmpId(id);setTab("sheet");}}/>}
+    {tab==="emps"&&<FinEmps fin={fin} F={F}/>}
+  </div>;}
+function FinPin({emp,onOk}){const [v,setV]=useState("");const [bad,setBad]=useState(false);
+  return <div style={fCard({maxWidth:340,margin:"20px auto",textAlign:"center",padding:24})}><div style={{fontSize:16,fontWeight:900,color:C.text,marginBottom:10}}>👷 {emp.name}</div>
+    <input autoFocus type="password" inputMode="numeric" value={v} onChange={e=>{setV(e.target.value);setBad(false);}} onKeyDown={e=>{if(e.key==="Enter"){if(v===emp.pin)onOk();else setBad(true);}}} placeholder="PIN" style={fIn({fontSize:24,textAlign:"center",letterSpacing:8})}/>
+    {bad&&<div style={{color:C.red,fontSize:12,marginTop:6}}>{fL("Неверный PIN","Zły PIN")}</div>}<button onClick={()=>v===emp.pin?onOk():setBad(true)} style={fBtn(C.accent,true,{width:"100%",marginTop:10,padding:12})}>{fL("Войти","Wejdź")}</button></div>;}
+function FinSheet({fin,F,emp,per,me,role,opts,toast,kiosk}){
+  const p=fin.periods.find(x=>x.emp===emp.id&&x.start===per.start);const st=p?p.status:"draft";const locked=st==="approved"||st==="paid";const S=FIN_TS_ST[st];
+  const ents=fin.tse.filter(x=>p&&x.period===p.id).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.from||0)-(b.from||0));const pws=fin.pw.filter(x=>p&&x.period===p.id).sort((a,b)=>a.date<b.date?-1:1);
+  const tot=p?finPeriodTotal(fin,p.id):{hours:0,hoursSum:0,pw:0,total:0};const rate=finRateAt(emp,per.end);const isMgr=emp.role==="manager";
+  const dDef=fToday()>=per.start&&fToday()<=per.end?fToday():per.start;
+  const [e,setE]=useState({date:dDef,from:"8:00",to:"17:00",order:null,stage:isMgr?"salon":"workshop",comment:""});const [w,setW]=useState({date:dDef,order:null,amount:"",note:""});const [payAcc,setPayAcc]=useState("cash");
+  useEffect(()=>{setE(x=>({...x,date:dDef}));setW(x=>({...x,date:dDef}));},[per.start]);
+  const tm=s=>{const m=String(s||"").match(/^(\d{1,2})(?:[:.](\d{1,2}))?$/);return m?+m[1]+(+(m[2]||0))/60:null;};const hrs=(()=>{const a=tm(e.from),b=tm(e.to);return a!=null&&b!=null&&b>a?r2(b-a):0;})();
+  const addE=()=>{if(!hrs){toast("⚠ "+fL("Проверьте время С/До","Sprawdź godziny"));return;}if(e.date<per.start||e.date>per.end){window.alert(fL("Дата вне выбранного периода","Data poza okresem"));return;}
+    if(F.op(FX.tseAdd({emp:emp.id,date:e.date,from:tm(e.from),to:tm(e.to),hours:hrs,order:isMgr?null:e.order,stage:e.stage,comment:e.comment,by:me})))toast(`✓ ${hrs} ${fL("ч","h")}${e.order?" · №"+e.order:""}`);};
+  const addW=()=>{const a=fNum(w.amount);if(!(a>0))return;if(w.date<per.start||w.date>per.end){window.alert(fL("Дата вне периода","Data poza okresem"));return;}if(F.op(FX.pwAdd({emp:emp.id,date:w.date,order:w.order,amount:a,note:w.note,by:me}))){setW(x=>({...x,amount:"",note:""}));toast("✓ "+fmtZ(a));}};
+  const stat=(to,extra)=>p&&F.op(FX.perStatus(p.id,to,me,extra));
+  const hh=v=>v==null?"—":`${Math.floor(v)}:${String(Math.round((v%1)*60)).padStart(2,"0")}`;
+  const days={};ents.forEach(x=>{(days[x.date]=days[x.date]||[]).push(x);});
+  return <div>
+    <div style={{...fCard({display:"flex",gap:14,alignItems:"center",flexWrap:"wrap",marginBottom:12})}}>
+      <div style={{flex:"1 1 200px"}}><div style={{fontSize:18,fontWeight:900,color:C.text}}>{isMgr?"🏬":"👷"} {emp.name}</div><div style={{fontSize:12,color:C.muted}}>{fL("ставка","stawka")} {rate} {FIN_CUR}/{fL("ч","h")}{isMgr?" · "+fL("часы идут в накладные салона","godziny → koszty salonu"):""}</div></div>
+      {[[fL("Часы","Godziny"),tot.hours],[fL("По часам","Za godziny"),fmtF(tot.hoursSum,0)],[fL("Сдельные","Akord"),fmtF(tot.pw,0)],[fL("Итого","Razem"),fmtF(tot.total,2)]].map(([l,v],i)=><div key={l} style={{textAlign:"right"}}><div style={{fontSize:10,color:C.muted,fontWeight:800,textTransform:"uppercase"}}>{l}</div><div style={{fontSize:i===3?20:16,fontWeight:900,color:i===3?C.accent:C.text}}>{v}</div></div>)}
+      <span style={{fontSize:12,fontWeight:900,color:S[2],background:`${S[2]}1f`,border:`1px solid ${S[2]}66`,borderRadius:9,padding:"5px 11px"}}>{fL(S[0],S[1])}{p&&p.approvedBy&&locked?` · ${p.approvedBy}`:""}</span>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {st==="draft"&&ents.length+pws.length>0&&<button onClick={()=>stat("submitted")} style={fBtn(C.blue,true)}>📤 {fL("Сдать табель","Złóż")}</button>}
+        {st==="submitted"&&!role.approve&&<button onClick={()=>stat("draft")} style={fBtn(C.muted,false)}>↩ {fL("Вернуть в черновик","Do szkicu")}</button>}
+        {(st==="submitted"||st==="draft")&&role.approve&&p&&<button onClick={()=>stat("approved")} style={fBtn(C.green,true)}>✓ {fL("Утвердить","Zatwierdź")}</button>}
+        {st==="approved"&&role.approve&&<><select value={payAcc} onChange={x=>setPayAcc(x.target.value)} style={fIn({width:150})}>{fin.accounts.filter(a=>a.active!==false).map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><button onClick={()=>stat("paid",{acc:payAcc})} style={fBtn(C.accent,true)}>💸 {fL("Выплачен","Wypłacono")} {fmtF(tot.total,0)}</button><button onClick={()=>stat("submitted")} style={fBtn(C.muted,false)}>↩</button></>}
+        {st==="paid"&&role.approve&&<button onClick={()=>window.confirm(fL("Отменить выплату? Операция в журнале будет удалена.","Cofnąć wypłatę?"))&&stat("approved")} style={fBtn(C.muted,false)}>↩ {fL("Отменить выплату","Cofnij")}</button>}
+      </div>
+    </div>
+    {!locked&&<div style={{...fCard({marginBottom:12,borderColor:C.accentBorder})}}>
+      <div style={{fontSize:11,color:C.accent,fontWeight:900,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>⏱ {fL("Добавить часы","Dodaj godziny")}</div>
+      <div className="fin-ts" onKeyDown={x=>finEnterNav(x,addE)}>
+        <div><div style={fLbl}>{fL("Дата","Data")}</div><input type="date" min={per.start} max={per.end} value={e.date} onChange={x=>setE(y=>({...y,date:x.target.value}))} style={fIn()}/></div>
+        <div><div style={fLbl}>{fL("С","Od")}</div><input value={e.from} inputMode="decimal" onChange={x=>setE(y=>({...y,from:x.target.value}))} placeholder="8:00" style={fIn({textAlign:"center"})}/></div>
+        <div><div style={fLbl}>{fL("До","Do")}</div><input value={e.to} inputMode="decimal" onChange={x=>setE(y=>({...y,to:x.target.value}))} placeholder="17:00" style={fIn({textAlign:"center"})}/></div>
+        <div><div style={fLbl}>{fL("Часы","Godz.")}</div><div style={fIn({fontWeight:900,color:hrs?C.accent:C.red,textAlign:"center"})}>{hrs||"—"}</div></div>
+        {!isMgr?<><div className="w2"><div style={fLbl}>{fL("Заказ","Zamówienie")}</div><FinOrderPick value={e.order} onChange={v=>setE(y=>({...y,order:v}))} opts={opts} expense placeholder={fL("№ (пусто = цех)","nr (puste = warsztat)")}/></div>
+          <div><div style={fLbl}>{fL("Этап","Etap")}</div><FinSeg value={e.stage} onChange={v=>setE(y=>({...y,stage:v}))} opts={[["workshop",fL("Цех","Warszt.")],["install",fL("Монтаж","Montaż")]]}/></div></>
+          :<div className="w2" style={{fontSize:12,color:C.muted,alignSelf:"center"}}>🏬 {fL("Салон (накладные)","Salon (koszty)")}</div>}
+        <div className="wf" style={{display:"flex",gap:6}}><input value={e.comment} onChange={x=>setE(y=>({...y,comment:x.target.value}))} placeholder={fL("комментарий","komentarz")} style={fIn()}/><button onClick={addE} style={fBtn(C.accent,true,{minWidth:110})}>✓ {fL("Добавить","Dodaj")}</button></div>
+      </div></div>}
+    <div style={fCard({padding:0,overflow:"hidden",marginBottom:12})}>
+      {Object.keys(days).length?Object.entries(days).map(([d,list])=><div key={d} style={{borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",padding:"6px 12px",background:fDk()?"rgba(255,255,255,0.03)":"rgba(0,0,0,0.03)",fontSize:12,fontWeight:900,color:C.text}}><span style={{flex:1}}>{new Date(d+"T12:00").toLocaleDateString(FIN_LANG==="pl"?"pl-PL":"ru-RU",{weekday:"short",day:"2-digit",month:"2-digit"})}</span><span>{r2(list.reduce((a,x)=>a+ +x.hours,0))} {fL("ч","h")}</span></div>
+        {list.map(x=>{const cl=finIsClosed(fin,x.order);return <div key={x.id} style={{display:"flex",gap:10,padding:"7px 12px",alignItems:"center",fontSize:13,flexWrap:"wrap"}}>
+          <span style={{color:C.muted,minWidth:94,fontVariantNumeric:"tabular-nums"}}>{hh(x.from)}–{hh(x.to)}</span><b style={{color:C.text,minWidth:46}}>{x.hours} {fL("ч","h")}</b>
+          <span style={{color:x.order?(cl?C.dim:C.accent):C.muted,fontWeight:800,minWidth:70}}>{x.order?`№${x.order}${cl?" 🔒":""}`:fL("без заказа","bez zam.")}</span>
+          <span style={{fontSize:11,color:x.stage==="install"?C.cyan:x.stage==="salon"?C.purple:C.yellow,fontWeight:800}}>{fL(...(FIN_STAGE.find(s=>s[0]===x.stage)||["","—","—"]).slice(1))}</span>
+          <span style={{flex:1,color:C.dim,fontSize:12}}>{x.comment}</span>{locked&&x.amount!=null&&<span style={{color:C.muted,fontSize:12}}>{fmtF(x.amount,0)}</span>}
+          {!locked&&!cl&&<button onClick={()=>F.op(FX.tseDel(x.id))} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:14}}>✕</button>}</div>;})}</div>)
+      :<div style={{padding:20,color:C.dim,textAlign:"center"}}>{fL("Часов за этот период нет","Brak godzin w tym okresie")}</div>}</div>
+    {!isMgr&&<div style={fCard({borderColor:`${C.cyan}55`})}>
+      <div style={{fontSize:11,color:C.cyan,fontWeight:900,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🚚 {fL("Сдельные работы (погрузка, разгрузка, доставка, порезка, бензин…)","Prace akordowe")}</div>
+      {!locked&&<div className="fin-ts" style={{marginBottom:10}} onKeyDown={x=>finEnterNav(x,addW)}>
+        <div><div style={fLbl}>{fL("Дата","Data")}</div><input type="date" min={per.start} max={per.end} value={w.date} onChange={x=>setW(y=>({...y,date:x.target.value}))} style={fIn()}/></div>
+        <div className="w2"><div style={fLbl}>{fL("Заказ","Zamówienie")}</div><FinOrderPick value={w.order} onChange={v=>setW(y=>({...y,order:v}))} opts={opts} expense placeholder={fL("№ или без заказа","nr lub bez")}/></div>
+        <div><div style={fLbl}>{fL("Сумма","Kwota")}</div><input inputMode="decimal" value={w.amount} onChange={x=>setW(y=>({...y,amount:x.target.value}))} style={fIn({textAlign:"right",fontWeight:900})}/></div>
+        <div className="wf" style={{display:"flex",gap:6,gridColumn:"span 3"}}><input value={w.note} onChange={x=>setW(y=>({...y,note:x.target.value}))} placeholder={fL("пояснение: разгрузка, доставка…","opis")} style={fIn()}/><button onClick={addW} style={fBtn(C.cyan,true,{minWidth:110})}>✓ {fL("Добавить","Dodaj")}</button></div></div>}
+      {pws.map(x=>{const cl=finIsClosed(fin,x.order);return <div key={x.id} style={{display:"flex",gap:10,padding:"5px 0",fontSize:13,alignItems:"center",borderTop:`1px dashed ${C.border}`}}>
+        <span style={{color:C.muted,minWidth:80}}>{fDot(x.date)}</span><span style={{color:x.order?(cl?C.dim:C.accent):C.muted,fontWeight:800,minWidth:70}}>{x.order?`№${x.order}${cl?" 🔒":""}`:"—"}</span><span style={{flex:1,color:C.text}}>{x.note}</span><b style={{color:C.text}}>{fmtF(x.amount)}</b>
+        {!locked&&!cl&&<button onClick={()=>F.op(FX.pwDel(x.id))} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:14}}>✕</button>}</div>;})}
+      {!pws.length&&<div style={{fontSize:12,color:C.dim}}>{fL("Нет сдельных за период","Brak")}</div>}</div>}
+  </div>;}
+function FinTsSummary({fin,F,per,me,role,onOpen}){const [open,setOpen]=useState({});
+  const rows=fin.emps.filter(e=>e.active!==false).map(e=>{const p=fin.periods.find(x=>x.emp===e.id&&x.start===per.start);const tot=p?finPeriodTotal(fin,p.id):null;const by={};
+    if(p){const rt=x=>x.amount!=null&&finPerOk(fin,p.id)?+x.amount:(+x.hours||0)*finRateAt(e,x.date);fin.tse.filter(x=>x.period===p.id).forEach(x=>{const k=x.order||"—";(by[k]=by[k]||{h:0,s:0,pw:0});by[k].h+=+x.hours;by[k].s+=rt(x);});fin.pw.filter(x=>x.period===p.id).forEach(x=>{const k=x.order||"—";(by[k]=by[k]||{h:0,s:0,pw:0});by[k].pw+=+x.amount;});}
+    return {e,p,tot,by};}).filter(r=>r.p);
+  const all=rows.reduce((a,r)=>({h:a.h+r.tot.hours,s:a.s+r.tot.hoursSum,pw:a.pw+r.tot.pw,t:a.t+r.tot.total}),{h:0,s:0,pw:0,t:0});
+  const byOrd={};rows.forEach(r=>Object.entries(r.by).forEach(([k,v])=>{(byOrd[k]=byOrd[k]||{h:0,s:0,pw:0});byOrd[k].h+=v.h;byOrd[k].s+=v.s;byOrd[k].pw+=v.pw;}));
+  const sub=rows.filter(r=>r.p.status==="submitted");
+  return <div>
+    <div className="fin-kpi" style={{marginBottom:12}}>{[[fL("Часы","Godziny"),r2(all.h)],[fL("По часам","Za godziny"),fmtZ(all.s)],[fL("Сдельные","Akord"),fmtZ(all.pw)],[fL("Итого к выплате","Do wypłaty"),fmtZ(all.t)]].map(([l,v])=><div key={l} style={fCard({padding:"11px 13px"})}><div style={{fontSize:10.5,color:C.muted,fontWeight:800,textTransform:"uppercase"}}>{l}</div><div style={{fontSize:20,fontWeight:900,color:C.text}}>{v}</div></div>)}</div>
+    {role.approve&&sub.length>0&&<div style={{...fCard({marginBottom:12,borderColor:`${C.blue}88`,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"})}}><span style={{color:C.blue,fontWeight:900}}>📤 {sub.length} {fL("табелей сдано и ждут утверждения","ewidencji czeka")}</span><span style={{fontSize:12,color:C.muted}}>{sub.map(r=>r.e.name).join(", ")}</span><div style={{flex:1}}/>
+      <button onClick={()=>sub.forEach(r=>F.op(FX.perStatus(r.p.id,"approved",me)))} style={fBtn(C.green,true)}>✓ {fL("Утвердить все","Zatwierdź wszystkie")}</button></div>}
+    <div style={{display:"grid",gridTemplateColumns:"minmax(0,1.4fr) minmax(0,1fr)",gap:14}} className="ga-2"><style>{`@media(max-width:1000px){.ga-2{grid-template-columns:1fr!important}}`}</style>
+      <div style={fCard({padding:0,overflowX:"auto"})}><table className="fin-tbl" style={{minWidth:560}}><thead><tr style={{color:C.muted}}><th>{fL("Сотрудник","Pracownik")}</th><th className="fin-num">{fL("Часы","Godz.")}</th><th className="fin-num">{fL("Сумма","Kwota")}</th><th className="fin-num">{fL("Сдельные","Akord")}</th><th className="fin-num">{fL("Итого","Razem")}</th><th>{fL("Статус","Status")}</th></tr></thead>
+        <tbody>{rows.map(r=>{const S=FIN_TS_ST[r.p.status];return <React.Fragment key={r.e.id}><tr className="cl" onClick={()=>setOpen(o=>({...o,[r.e.id]:!o[r.e.id]}))}><td style={{color:C.text,fontWeight:800}}>{open[r.e.id]?"▾":"▸"} {r.e.name}</td><td className="fin-num" style={{color:C.text}}>{r.tot.hours}</td><td className="fin-num" style={{color:C.text}}>{fmtF(r.tot.hoursSum,0)}</td><td className="fin-num" style={{color:C.text}}>{fmtF(r.tot.pw,0)}</td><td className="fin-num" style={{color:C.accent,fontWeight:900}}>{fmtF(r.tot.total,2)}</td>
+          <td><span style={{color:S[2],fontWeight:800,fontSize:12}}>{fL(S[0],S[1])}</span> <button onClick={ev=>{ev.stopPropagation();onOpen(r.e.id);}} style={{background:"none",border:"none",color:C.blue,cursor:"pointer",fontSize:12}}>{fL("открыть","otwórz")} →</button></td></tr>
+          {open[r.e.id]&&Object.entries(r.by).sort((a,b)=>(parseInt(b[0])||0)-(parseInt(a[0])||0)).map(([k,v])=><tr key={k} style={{fontSize:12}}><td style={{paddingLeft:28,color:k==="—"?C.muted:C.accent}}>{k==="—"?fL("без заказа (цех)","bez zam."):"№"+k}</td><td className="fin-num" style={{color:C.muted}}>{r2(v.h)}</td><td className="fin-num" style={{color:C.muted}}>{fmtF(v.s,0)}</td><td className="fin-num" style={{color:C.muted}}>{fmtF(v.pw,0)}</td><td className="fin-num" style={{color:C.text}}>{fmtF(v.s+v.pw,0)}</td><td/></tr>)}</React.Fragment>;})}</tbody></table>
+        {!rows.length&&<div style={{padding:20,color:C.dim,textAlign:"center"}}>{fL("За период табелей нет","Brak ewidencji w okresie")}</div>}</div>
+      <div style={fCard({padding:0,overflowX:"auto"})}><div style={{padding:"10px 12px",fontWeight:900,color:C.text,fontSize:13}}>{fL("По заказам","Wg zamówień")}</div><table className="fin-tbl"><thead><tr style={{color:C.muted}}><th>{fL("Заказ","Zam.")}</th><th className="fin-num">{fL("Часы","Godz.")}</th><th className="fin-num">{fL("Сумма","Kwota")}</th><th className="fin-num">{fL("Сдельные","Akord")}</th><th className="fin-num">{fL("Итого","Razem")}</th></tr></thead>
+        <tbody>{Object.entries(byOrd).sort((a,b)=>(b[1].s+b[1].pw)-(a[1].s+a[1].pw)).map(([k,v])=><tr key={k}><td style={{color:k==="—"?C.muted:C.accent,fontWeight:800}}>{k==="—"?fL("цех / без заказа","warsztat"):"№"+k}{finIsClosed(fin,k)?" 🔒":""}</td><td className="fin-num" style={{color:C.text}}>{r2(v.h)}</td><td className="fin-num" style={{color:C.text}}>{fmtF(v.s,0)}</td><td className="fin-num" style={{color:C.text}}>{fmtF(v.pw,0)}</td><td className="fin-num" style={{color:C.text,fontWeight:800}}>{fmtF(v.s+v.pw,0)}</td></tr>)}</tbody></table></div>
+    </div></div>;}
+function FinEmps({fin,F}){const [nw,setNw]=useState("");
+  return <div style={fCard({padding:0,overflowX:"auto",maxWidth:1100})}><table className="fin-tbl" style={{minWidth:820}}><thead><tr style={{color:C.muted}}><th>{fL("Сотрудник","Pracownik")}</th><th>{fL("Роль","Rola")}</th><th>{fL("Логин CRM","Login CRM")}</th><th className="fin-num">{fL("Ставка","Stawka")}</th><th>{fL("История ставок","Historia stawek")}</th><th>PIN</th><th/></tr></thead>
+    <tbody>{fin.emps.map(e=><tr key={e.id} style={{opacity:e.active===false?0.5:1}}>
+      <td><input key={"n"+e.name} defaultValue={e.name} onBlur={x=>x.target.value.trim()&&x.target.value!==e.name&&F.op(FX.empUpsert({id:e.id,name:x.target.value.trim()}))} style={fIn({minWidth:140})}/></td>
+      <td><select value={e.role} onChange={x=>F.op(FX.empUpsert({id:e.id,role:x.target.value}))} style={fIn({width:130})}><option value="assembler">👷 {fL("сборщик","montażysta")}</option><option value="manager">🏬 {fL("менеджер салона","menedżer")}</option></select></td>
+      <td><select value={e.user||""} onChange={x=>F.op(FX.empUpsert({id:e.id,user:x.target.value||null}))} style={fIn({width:120})}><option value="">—</option>{USERS.map(u=><option key={u}>{u}</option>)}</select></td>
+      <td className="fin-num" style={{color:C.accent,fontWeight:900,fontSize:14}}>{finRateAt(e,fToday())}</td>
+      <td style={{fontSize:11.5,color:C.muted}}>{(e.rates||[]).map(r=>`${r.rate} ${fL("с","od")} ${fDot(r.from)}`).join(" · ")} <button onClick={()=>{const v=window.prompt(fL("Новая ставка, PLN/ч","Nowa stawka"),finRateAt(e,fToday()));if(!v)return;const d=window.prompt(fL("Действует с даты (ГГГГ-ММ-ДД)","Od daty (RRRR-MM-DD)"),fToday());if(!d||!/^\d{4}-\d{2}-\d{2}$/.test(d))return;F.op(FX.empUpsert({id:e.id,rates:[...(e.rates||[]),{rate:fNum(v),from:d}]}));}} style={fBtn(C.accent,false,{padding:"2px 8px",minHeight:0,fontSize:11})}>＋</button></td>
+      <td><input key={"p"+(e.pin||"")} defaultValue={e.pin||""} placeholder="—" maxLength={6} inputMode="numeric" onBlur={x=>x.target.value!==(e.pin||"")&&F.op(FX.empUpsert({id:e.id,pin:x.target.value}))} style={fIn({width:80,textAlign:"center"})}/></td>
+      <td><button onClick={()=>F.op(FX.empUpsert({id:e.id,active:e.active===false}))} style={fBtn(e.active===false?C.green:C.muted,false,{padding:"4px 8px",minHeight:0,fontSize:11})}>{e.active===false?fL("вернуть","przywróć"):fL("скрыть","ukryj")}</button></td></tr>)}
+      <tr><td colSpan={7}><div style={{display:"flex",gap:8}}><input value={nw} onChange={x=>setNw(x.target.value)} placeholder={fL("Имя нового сотрудника","Imię")} style={fIn({maxWidth:260})}/><button onClick={()=>{if(nw.trim()){F.op(FX.empUpsert({name:nw.trim()}));setNw("");}}} style={fBtn(C.accent,true)}>＋ {fL("Добавить","Dodaj")}</button>
+        <span style={{fontSize:11.5,color:C.dim,alignSelf:"center"}}>{fL("Ставка фиксируется в строке табеля при утверждении. Сборщики вносят часы с телефона по ссылке","Stawka zapisywana przy zatwierdzeniu. Link dla montażystów")} <b>{typeof location!=="undefined"?location.origin+location.pathname:""}#tabel</b></span></div></td></tr></tbody></table></div>;}
+
+
 function SettingsPage({db,updateDb,lang,t,srcList,setDomains,currentUser}){
   const ru=lang!=="pl";
   const [name,setName]=useState("");
@@ -9319,6 +10267,7 @@ const NAV_ANIM=[ // [иконка, часть, анимация, длитель�
   ["salescenter",".gem","Turn",.9,0],["salescenter",".spark","Twinkle",.7,.35],
   ["sales",".line","Draw",.9,0],["sales",".head","Head",.9,0],
   ["orders",".lidl","LidL",1.1,0],["orders",".lidr","LidR",1.1,0],["orders",".pop","Up",1.1,.1],
+  ["finance",".coin","Up",1.1,0],["timesheets",".hand","Gear",.9,0],["timesheets",".hand2","Gear",.9,.1],
   ["tasks",".c1","Check",.35,0],["tasks",".c2","Check",.35,.2],["tasks",".c3","Check",.35,.4],
   ["tests",".b1","Up",1,0],["tests",".b2","Up",1,.25],
   ["settings",".gear","Gear",.9,0],
@@ -9432,13 +10381,17 @@ function useAurumSheen(){
 function GarnoCRM(){
   const {db,status,syncLabel,syncError,refresh,updateDb,setDomains,domainsState}=useDatabase();
   useAurumSheen();
+  const F=useFin(true); // финансы: отдельная строка базы (id=3)
+  const [orderFocus,setOrderFocus]=useState(null);
+  const [kiosk,setKiosk]=useState(()=>typeof location!=="undefined"&&location.hash==="#tabel");
+  useEffect(()=>{const h=()=>setKiosk(location.hash==="#tabel");window.addEventListener("hashchange",h);return()=>window.removeEventListener("hashchange",h);},[]);
   const [page,setPage]=useState("dashboard");
   const [taskPreset,setTaskPreset]=useState(null);
   const [selLead,setSelLead]=useState(null);
   const [lang,setLang]=useState("ru");
   const [mgr,setMgr]=useState("all");
   const [search,setSearch]=useState("");
-  const [collapsed,setCollapsed]=useState(false);
+  const [collapsed,setCollapsed]=useState(()=>typeof window!=="undefined"&&window.innerWidth<700); // телефон: меню свёрнуто, больше места под таблицы
   const [showAdd,setShowAdd]=useState(false);
   const [currentUser,setCurrentUser]=useState(()=>localStorage.getItem("garno_user")||null);
   const [theme,setTheme]=useState(()=>localStorage.getItem("garno_theme")||"dark");
@@ -9598,6 +10551,8 @@ function GarnoCRM(){
     </div>
   );
   if(!db) return null;
+  // Режим «табель с телефона» для сборщиков: ссылка …#tabel — только табель, без CRM
+  if(kiosk) return(<div style={{minHeight:"100vh",background:C.bg,fontFamily:"'DM Sans','Segoe UI',sans-serif",color:C.text}}><TimesheetsPage kiosk db={db} F={F} currentUser={null} lang="ru" onExit={()=>{location.hash="";setKiosk(false);}}/></div>);
 
   // User picker
   if(!currentUser) return(
@@ -9697,7 +10652,9 @@ function GarnoCRM(){
           {page==="dashboard"  && <DashboardPage db={db} updateDb={updateDb} currentUser={currentUser} lang={DASH_LANG||lang} t={T[DASH_LANG||lang]||t} srcList={srcList} onOpenLead={setSelLead}/>}
           {page==="leads"      && <LeadsSection abTests={db.abTests||[]} onOpenTests={()=>setPage("tests")} ldp={{setLeads:setLeadsNow,srcList,onAddSale:addSale,taskTypes:db.taskTypes||[],tasks,orders:db.orders||[]}} lang={lang} funnels={db.funnels||[]} leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
-          {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead} mgr={mgr}/>}
+          {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead} mgr={mgr} F={F} focusNum={orderFocus} onFocused={()=>setOrderFocus(null)}/>}
+          {page==="finance"    && <FinancePage db={db} F={F} currentUser={currentUser} lang={lang} onOpenOrder={n=>{setOrderFocus(n);setPage("orders");}}/>}
+          {page==="timesheets" && <TimesheetsPage db={db} F={F} currentUser={currentUser} lang={lang}/>}
           
           {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
           {(page==="salescenter"||page==="funnel"||page==="analytics")&& <SalesCenterTabs goals={db.goals||[]} initialTab={page==="salescenter"?"center":"funnel"} srcList={srcList} funnels={db.funnels||[]} leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
