@@ -667,14 +667,16 @@ async function authRefresh(force){
     // другая вкладка уже обновила токен — просто берём его, без запроса
     if(!force&&sess.access_token&&sess.access_token!==cur&&(sess.expires_at||0)-now>120){setAuthToken(sess.access_token);return sess;}
     let r,j={};
-    try{r=await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify({refresh_token:sess.refresh_token})});j=await r.json().catch(()=>({}));}
+    try{r=await fetchT(`${SB_URL}/auth/v1/token?grant_type=refresh_token`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify({refresh_token:sess.refresh_token})},15000);j=await r.json().catch(()=>({}));}
     catch{return null;} // нет сети — сессию НЕ сбрасываем
     if(r.ok&&j.access_token){const ns={access_token:j.access_token,refresh_token:j.refresh_token||sess.refresh_token,expires_at:Math.floor(Date.now()/1000)+(j.expires_in||3600),email:sess.email};authSave(ns);return ns;}
     // отказ: вдруг другая вкладка как раз успела обновить — тогда берём её токен
     const s2=authReadSess();if(s2&&s2.refresh_token!==sess.refresh_token&&s2.access_token&&(s2.expires_at||0)-Math.floor(Date.now()/1000)>60){setAuthToken(s2.access_token);return s2;}
     if(r.status>=500||r.status===429)return null; // сбой Supabase — не выкидываем
     authClear();return null;};
-  _authRefP=(async()=>{try{return navigator.locks&&navigator.locks.request?await navigator.locks.request("garno-auth-refresh",run):await run();}finally{_authRefP=null;}})();
+  _authRefP=(async()=>{try{if(navigator.locks&&navigator.locks.request&&typeof AbortController!=="undefined"){const ac=new AbortController();const t=setTimeout(()=>ac.abort(),10000);
+      try{return await navigator.locks.request("garno-auth-refresh",{signal:ac.signal},async()=>{clearTimeout(t);return await run();});}catch(e){if(e&&e.name==="AbortError")return await run();throw e;}}
+    return await run();}finally{_authRefP=null;}})();
   return _authRefP;
 }
 // Восстановить сессию при загрузке. true = авторизован.
@@ -697,12 +699,15 @@ function authKeepAlive(){
 // Запрос к базе с защитой от «чужого/устаревшего» токена (401: JWT не подходит — например, в Supabase
 // сменили ключи подписи). Один раз обновляем токен и повторяем; не вышло — сбрасываем вход и показываем
 // окно логина, а не «режим просмотра».
+function fetchT(url,opts={},ms=30000){if(!ms||typeof AbortController==="undefined")return fetch(url,opts);const ac=new AbortController();const t=setTimeout(()=>ac.abort(),ms);
+  return fetch(url,{...opts,signal:ac.signal}).catch(e=>{if(e&&e.name==="AbortError")throw new Error(`timeout ${Math.round(ms/1000)}s`);throw e;}).finally(()=>clearTimeout(t));}
 async function sbFetch(url,opts={}){
-  const r=await fetch(url,opts);
+  const {timeout=30000,...o}=opts;opts=o;
+  const r=await fetchT(url,opts,timeout);
   if(r.status!==401)return r;
   const ns=await authRefresh();
   if(ns&&ns.access_token){
-    const r2=await fetch(url,{...opts,headers:{...(opts.headers||{}),Authorization:`Bearer ${ns.access_token}`}});
+    const r2=await fetchT(url,{...opts,headers:{...(opts.headers||{}),Authorization:`Bearer ${ns.access_token}`}},timeout);
     if(r2.status!==401)return r2;
   }
   // выкидываем на вход, только если сессия действительно отозвана (refresh отклонён и сессии больше нет)
@@ -726,7 +731,7 @@ async function uploadLeadFile(leadId,file){
   const f=await compressImage(file);
   const safe=(f.name||"plik").normalize("NFKD").replace(/[^\w.\-]+/g,"_").slice(-80)||"plik";
   const path=`${String(leadId).replace(/[^\w.-]/g,"_")}/${Date.now()}_${Math.random().toString(36).slice(2,6)}_${safe}`;
-  const r=await sbFetch(`${SB_URL}/storage/v1/object/${LEAD_BUCKET}/${path}`,{method:"POST",headers:{apikey:SB_KEY,Authorization:SB_HDR.Authorization,"Content-Type":f.type||"application/octet-stream","x-upsert":"false"},body:f});
+  const r=await sbFetch(`${SB_URL}/storage/v1/object/${LEAD_BUCKET}/${path}`,{method:"POST",timeout:180000,headers:{apikey:SB_KEY,Authorization:SB_HDR.Authorization,"Content-Type":f.type||"application/octet-stream","x-upsert":"false"},body:f});
   if(!r.ok){let t="";try{t=await r.text();}catch{} throw new Error(/bucket not found|not.?found/i.test(t)?"BUCKET":(/row-level security|policy|unauthorized|403/i.test(t+r.status)?"POLICY":(t||("HTTP "+r.status)).slice(0,160)));}
   return {path,bucket:LEAD_BUCKET,name:file.name||safe,type:f.type||"",size:f.size||0};
 }
@@ -741,6 +746,7 @@ function deleteLeadFile(path){try{sbFetch(`${SB_URL}/storage/v1/object/${LEAD_BU
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 
+async function sbVer(id=1){const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm?id=eq.${id}&select=updated_at`,{headers:SB_HDR,cache:"no-store",timeout:15000});if(!r.ok)throw new Error(`HTTP ${r.status}`);const j=await r.json();return j&&j[0]?j[0].updated_at:null;}
 async function sbRead(){
   const r=await sbFetch(`${SB_URL}/rest/v1/garnocrm?id=eq.1&select=data`,{headers:SB_HDR,cache:"no-store"});
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
@@ -1102,13 +1108,18 @@ function useDatabase(){
 
   // ── Фоновый авто-мёрдж каждые 25 сек ────────────────────────────────────
   const bgSyncRef=useRef(null);
+  const bgVerRef=useRef({v:null,at:0}); // версия базы при последнем полном чтении
   const startBgSync=()=>{
     if(bgSyncRef.current)clearInterval(bgSyncRef.current);
     const tick=()=>{
       if(savingRef.current||provisionalRef.current)return;
       (async()=>{
         try{
+          // экономим трафик: база не менялась → полностью не качаем (но раз в 3 мин — всё равно)
+          let ver=null;try{ver=await sbVer();}catch{}
+          if(ver&&ver===bgVerRef.current.v&&Date.now()-bgVerRef.current.at<180000)return;
           const remote=await sbRead();
+          bgVerRef.current={v:ver,at:Date.now()};
           // Пока шло чтение мог начаться пользовательский save — не мешаем ему
           if(savingRef.current||provisionalRef.current)return;
           // Always read local AFTER the network call — captures latest deletedLeadIds
@@ -8578,12 +8589,14 @@ async function finWriteCAS(data,ver){const now=new Date().toISOString();
 function useFin(enabled=true){
   const [base,setBase]=useState(null);const [pend,setPend]=useState([]);const [st,setSt]=useState("load");const [err,setErr]=useState("");
   const pendRef=useRef([]);const busy=useRef(false);const curRef=useRef(null);
-  const load=async()=>{try{const {data}=await finRead();setBase(finNorm(data));if(!pendRef.current.length)setSt("ok");}catch(e){setSt("err");setErr(e.message);}};
+  const verRef=useRef(null);
+  const load=async(full)=>{try{if(!full&&verRef.current){const v=await sbVer(FIN_ROW).catch(()=>null);if(v&&v===verRef.current)return;}
+    const {data,ver}=await finRead();verRef.current=ver;setBase(finNorm(data));if(!pendRef.current.length)setSt("ok");}catch(e){setSt("err");setErr(e.message);}};
   const flush=async()=>{if(busy.current)return;busy.current=true;setSt("sync");
     try{while(pendRef.current.length){const batch=[...pendRef.current];let rejected=[],done=false;
         for(let a=0;a<6&&!done;a++){const {data,ver}=await finRead();let s=finNorm(data);rejected=[];
           for(const o of batch){try{s=o.fn(s)||s;}catch(e){rejected.push(e.message);}}
-          if(await finWriteCAS(s,ver)){setBase(s);done=true;}else await new Promise(r=>setTimeout(r,150+Math.random()*250));}
+          if(await finWriteCAS(s,ver)){setBase(s);verRef.current=null;done=true;}else await new Promise(r=>setTimeout(r,150+Math.random()*250));}
         if(!done)throw new Error(fL("Слишком много одновременных правок, повторяю…","Za dużo równoczesnych zmian, ponawiam…"));
         pendRef.current=pendRef.current.slice(batch.length);setPend(pendRef.current);
         if(rejected.length){setErr(rejected.join(" · "));try{window.alert("⚠ "+rejected.join("\n"));}catch{}}}
@@ -10436,6 +10449,13 @@ function LoginGate({onLogin}){
   );
 }
 
+// Подсказка на экране загрузки: если дольше 10 с — показываем, сколько ждём, и кнопки выхода из ситуации
+function SlowHint({what}){const [t,setT]=useState(0);useEffect(()=>{const t0=Date.now();const id=setInterval(()=>setT(Math.floor((Date.now()-t0)/1000)),1000);return()=>clearInterval(id);},[]);
+  if(t<10)return null;const b={background:"rgba(255,255,255,0.08)",border:"1px solid rgba(191,164,126,0.5)",color:"#e3b860",borderRadius:9,padding:"9px 14px",fontSize:13,fontWeight:700,cursor:"pointer"};
+  return <div style={{textAlign:"center",maxWidth:420,padding:"0 16px"}}>
+    <div style={{color:"#f6c453",fontSize:13,marginBottom:10}}>⏳ {what} — {t} с. {t>=30?"Сервер базы (Supabase) не отвечает или отвечает очень медленно.":"Медленно отвечает сервер…"}</div>
+    {t>=20&&<div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}><button style={b} onClick={()=>location.reload()}>↻ Повторить</button><button style={b} onClick={()=>{try{localStorage.removeItem(SB_SESSION_KEY);}catch{}location.reload();}}>Выйти и войти заново</button></div>}</div>;}
+
 function AuthGate(){
   const [authed,setAuthed]=useState(null); // null = проверяем, false = нужен вход, true = ок
   useEffect(()=>{
@@ -10448,7 +10468,7 @@ function AuthGate(){
     return()=>{ alive=false; clearInterval(ka); window.removeEventListener("garno-auth-lost",lost); };
   },[]);
   if(authed===null) return(
-    <div style={{display:"flex",height:"100vh",background:"#00132f",alignItems:"center",justifyContent:"center",color:"#bfa47e",fontFamily:"'DM Sans','Segoe UI',sans-serif",fontSize:14}}>Проверка сессии…</div>
+    <div style={{display:"flex",height:"100vh",background:"#00132f",alignItems:"center",justifyContent:"center",color:"#bfa47e",fontFamily:"'DM Sans','Segoe UI',sans-serif",fontSize:14,flexDirection:"column",gap:16}}>Проверка сессии…<SlowHint what="Проверка входа"/></div>
   );
   if(!authed) return <LoginGate onLogin={()=>setAuthed(true)}/>;
   return <GarnoCRM/>;
@@ -10751,6 +10771,7 @@ function GarnoCRM(){
       <div style={{fontSize:34,fontWeight:900,color:C.accent,letterSpacing:3}}>GARNO<span style={{color:"#fff"}}>CRM</span></div>
       <div style={{color:C.muted,fontSize:13}}>Загрузка базы данных...</div>
       <div style={{display:"flex",gap:6}}>{[0,1,2].map(i=><div key={i} style={{width:8,height:8,borderRadius:"50%",background:C.accent,animation:"pulse 1s infinite",animationDelay:`${i*0.25}s`}}/>)}</div>
+      <SlowHint what="Загрузка базы"/>
     </div>
   );
   // setup screen removed — Supabase credentials are hardcoded
