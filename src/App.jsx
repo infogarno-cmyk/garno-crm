@@ -55,7 +55,7 @@ let C = DARK; // mutable — updated by theme
 function syncColorMaps(){
   MGR_COLOR.Oleh=C.blue;MGR_COLOR.Dmytro=C.green;MGR_COLOR.Mateusz=C.purple;MGR_COLOR.Danya=C.cyan;MGR_COLOR.Taras=C.yellow;
   QUAL_COLOR.unqualified=C.red;QUAL_COLOR.prequalified=C.yellow;QUAL_COLOR.qualified=C.green;QUAL_COLOR.salon=C.blue;QUAL_COLOR.sale=C.accent;
-  ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;ACT_COLOR.push=PUSH_C;ACT_COLOR.waitingInfo="#38bdf8";ACT_COLOR.visit="#f0c040";ACT_COLOR.sale="#22c55e";ACT_COLOR.inWork="#a3e635";
+  ACT_COLOR.thinking=C.blue;ACT_COLOR.missedCall=C.yellow;ACT_COLOR.cancelled=C.red;ACT_COLOR.callback=C.green;ACT_COLOR.quote=C.purple;ACT_COLOR.waitPrice="#f59e0b";ACT_COLOR.push=PUSH_C;ACT_COLOR.waitingInfo="#38bdf8";ACT_COLOR.visit="#f0c040";ACT_COLOR.sale="#22c55e";ACT_COLOR.inWork="#a3e635";
   BUD_COLOR.withinMonth=C.green;BUD_COLOR.within3m=C.cyan;BUD_COLOR.within6m=C.yellow;BUD_COLOR.year=C.purple;BUD_COLOR.justPrice=C.muted;
   EVENT_COLOR.visit=C.blue;EVENT_COLOR.measure=C.accent;EVENT_COLOR.contract=C.green;EVENT_COLOR.phone=C.purple;EVENT_COLOR.delivery=C.cyan;
 }
@@ -79,7 +79,7 @@ const T = {
     podium:"Пьедестал",visits:"Визиты",source_label:"Источник",
     unqualified:"Неквалиф.",prequalified:"Предв. квалиф.",qualified:"Квалифицирован",mwp:"MWP квал",salon:"Визит назначен",sale:"Продажа",
     thinking:"Думает",missedCall:"Недозвон",cancelled:"Отмена",callback:"Повтор",quote:"Просчёт",undefined:"Не определено",waitingInfo:"Ждём инфо",visit:"Визит",inWork:"Лид в работе",
-    kitchenInfo:"Инфо по кухне",kiYes:"Есть",kiNo:"Нет",distance:"Расстояние",dNear:"до 100 км",dFar:"100 км +",apartment:"Квартира",aNew:"Новая",aOld:"Старая",
+    kitchenInfo:"Инфо по кухне",kiYes:"Есть",kiNo:"Нет",kiWait:"Ждём инфу",waitPrice:"Ждёт цену",distance:"Расстояние",dNear:"до 100 км",dFar:"100 км +",apartment:"Квартира",aNew:"Новая",aOld:"Старая",
     qualPairs:"Квалификация (обязательно)",fillPairs:"Заполните все 3 пары",whyNoVisit:"Почему не визит",rPrice:"Цена",rDistance:"Расстояние",rThinking:"Думают",autoScoreHint:"Оценка выставлена автоматически по парам",
     withinMonth:"В теч. месяца",within3m:"В теч. 3 мес.",within6m:"В теч. полугода",year:"Год",
     justPrice:"Только цена",unconfirmed:"Срок не подтвержден",
@@ -149,7 +149,7 @@ const T = {
     podium:"Podium",visits:"Wizyty",source_label:"Źródło",
     unqualified:"Niekwalif.",prequalified:"Wstępnie kwalif.",qualified:"Kwalifikowana",mwp:"MWP kwal",salon:"Wizyta umówiona",sale:"Sprzedaż",
     thinking:"Myśli",missedCall:"Niedozwon",cancelled:"Anulowanie",callback:"Powtórka",quote:"Wycena",undefined:"Nieokreślone",waitingInfo:"Czekamy na info",visit:"Wizyta",inWork:"Lead w pracy",
-    kitchenInfo:"Info o kuchni",kiYes:"Jest",kiNo:"Brak",distance:"Odległość",dNear:"do 100 km",dFar:"100 km +",apartment:"Mieszkanie",aNew:"Nowe",aOld:"Stare",
+    kitchenInfo:"Info o kuchni",kiYes:"Jest",kiNo:"Brak",kiWait:"Czekamy na info",waitPrice:"Czeka na cenę",distance:"Odległość",dNear:"do 100 km",dFar:"100 km +",apartment:"Mieszkanie",aNew:"Nowe",aOld:"Stare",
     qualPairs:"Kwalifikacja (wymagane)",fillPairs:"Uzupełnij wszystkie 3 pary",whyNoVisit:"Dlaczego nie wizyta",rPrice:"Cena",rDistance:"Odległość",rThinking:"Myślą",autoScoreHint:"Ocena ustawiona automatycznie wg par",
     withinMonth:"W ciągu miesiąca",within3m:"W ciągu 3 mies.",within6m:"W ciągu pół roku",year:"Rok",
     justPrice:"Chce tylko cenę",unconfirmed:"Termin niepotwierdzony",
@@ -274,12 +274,12 @@ function treeEval(l){
   if(!l.term){r.next="term";return r;}
   if(l.term==="gt4"){
     r.score=2;
-    if(!l.kitchenInfo){r.next="kitchenInfo";return r;}
+    if(!l.kitchenInfo||l.kitchenInfo==="wait"){r.next="kitchenInfo";r.wait=l.kitchenInfo==="wait";return r;}
     if(l.kitchenInfo==="yes"){r.score=2.5;r.action="quote";r.done=true;return r;}
     r.hint="meters";r.done=true;return r;
   }
   r.score=3;
-  if(!l.kitchenInfo){r.next="kitchenInfo";return r;}
+  if(!l.kitchenInfo||l.kitchenInfo==="wait"){r.next="kitchenInfo";r.wait=l.kitchenInfo==="wait";return r;}
   if(l.kitchenInfo==="no"){r.done=true;return r;}
   r.score=4;r.action="quote";
   if(!l.distance){r.next="distance";return r;}
@@ -295,13 +295,14 @@ function treeIncomplete(l){
   if(!l||l.action==="cancelled"||(parseFloat(l.score)||0)>=5)return false;
   // Менеджер уже назначил следующий шаг (повторный звонок / недозвон / пуш) — ветку дозаполнит при следующем контакте
   if(["callback","missedCall","push"].includes(l.action))return false;
+  if(l.kitchenInfo==="wait")return false; // ждём инфу от клиента — идёт таймер 12 ч, красным не мигаем
   if(leadCreatedMsSafe(l)<TREE_START_MS)return false; // все текущие лиды не мигают — только со следующего
   return !treeEval(l).done;
 }
 // История лида: построчный дифф «что поменялось» с автором
 function leadHistoryDiff(before,after,t,by){
   const ru=true;
-  const V={c1:{yes:t.cYes,no:t.cNo},c2:{yes:t.cYes,no:t.cNo},term:{lt4:t.lt4,gt4:t.gt4},kitchenInfo:{yes:t.kiYes,no:t.kiNo},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld},noVisitReason:{thinking:t.rThinking,price:t.rPrice,distance:t.rDistance,term:t.rTerm}};
+  const V={c1:{yes:t.cYes,no:t.cNo},c2:{yes:t.cYes,no:t.cNo},term:{lt4:t.lt4,gt4:t.gt4},kitchenInfo:{yes:t.kiYes,no:t.kiNo,wait:t.kiWait},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld},noVisitReason:{thinking:t.rThinking,price:t.rPrice,distance:t.rDistance,term:t.rTerm}};
   const F=[["score",t.score||"Оценка"],["erikaScore",t.erikaScore],["action",t.action||"Действие"],["manager",t.manager||"Менеджер"],["c1",t.c1],["c2",t.c2],["term",t.term],["kitchenInfo",t.kitchenInfo],["distance",t.distance],["apartment",t.apartment],["noVisitReason",t.whyNoVisit],["budgetTimeline",t.period||"Срок"],["source",t.source||"Источник"],["name",t.name||"Имя"],["phone",t.phone||"Телефон"],["visitDate",t.visit||"Визит"],["pushDate",t.pushDate||"Push"],["clientLang","Язык"]];
   const show=(k,v)=>{if(v===null||v===undefined||v==="")return "—";if(V[k]&&V[k][v])return V[k][v];if((k==="action"||k==="budgetTimeline")&&t[v])return t[v];if(k==="visitDate"||k==="pushDate")return isoToDot(v);return String(v);};
   const out=[];const d=nowStr();
@@ -486,9 +487,9 @@ function leadSortKey(l){
   const t=new Date(ts);const tod=ts-new Date(t.getFullYear(),t.getMonth(),t.getDate()).getTime();
   return (day||new Date(t.getFullYear(),t.getMonth(),t.getDate()).getTime())+Math.max(0,Math.min(86399999,tod));
 }
-const ACTIONS=["undefined","inWork","waitingInfo","thinking","missedCall","cancelled","callback","quote","push","visit","sale"];
+const ACTIONS=["undefined","inWork","waitingInfo","thinking","missedCall","cancelled","callback","quote","waitPrice","push","visit","sale"];
 const PUSH_C="#f97316";
-const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple,push:PUSH_C,waitingInfo:"#38bdf8",visit:"#f0c040",sale:"#22c55e",inWork:"#a3e635"};
+const ACT_COLOR={undefined:"rgba(255,255,255,0.25)",thinking:C.blue,missedCall:C.yellow,cancelled:C.red,callback:C.green,quote:C.purple,waitPrice:"#f59e0b",push:PUSH_C,waitingInfo:"#38bdf8",visit:"#f0c040",sale:"#22c55e",inWork:"#a3e635"};
 const BUDGETS=["withinMonth","within3m","within6m","year","justPrice","unconfirmed"];
 const BUD_COLOR={withinMonth:C.green,within3m:C.cyan,within6m:C.yellow,year:C.purple,justPrice:C.muted,unconfirmed:"rgba(255,255,255,0.2)"};
 const D_KALK=["Dkalkulator",...Array.from({length:20},(_,i)=>`Dkalkulator${i+1}`)];
@@ -498,7 +499,12 @@ const SOURCES=[...D_KALK,"pl.calculatorkuchni.online","roda.calculatorkuchni.onl
 const DOM_COLORS=["#60a5fa","#34d399","#f59e0b","#a78bfa","#f87171","#22d3ee","#fb923c","#e879f9"];
 const normDom=(d,i=0)=>typeof d==="string"?{name:d,color:DOM_COLORS[i%DOM_COLORS.length]}:{...d,name:d.name||String(d),color:d.color||DOM_COLORS[i%DOM_COLORS.length]};
 // Воронка лида = воронка его домена (настраивается в ⚙ Настройки)
-function leadFunnel(l,domains,funnels){const d=(domains||[]).find(x=>x.name===l.source);if(!d||!d.funnel)return null;return (funnels||[]).find(f=>f.id===d.funnel)||null;}
+const FUNNEL_GOOGLE={id:"_google",name:"Google",color:"#4285F4",auto:true};
+function leadFunnel(l,domains,funnels){const d=(domains||[]).find(x=>x.name===l.source);const f=d&&d.funnel?(funnels||[]).find(x=>x.id===d.funnel):null;if(f)return f;
+  return /^G/.test(String((l&&l.source)||"").trim())?FUNNEL_GOOGLE:null;}
+// 4) Blaty — отдельный продукт: источники из воронки с «blat/столешн» в названии не смешиваются с кухнями в метриках
+const isBlatFunnel=f=>!!f&&/blat|столешн/i.test(f.name||"");
+function blatSources(domains,funnels){const ids=new Set((funnels||[]).filter(isBlatFunnel).map(f=>f.id));return new Set((domains||[]).filter(d=>d.funnel&&ids.has(d.funnel)).map(d=>d.name));}
 const FUNNEL_COLORS=["#38bdf8","#f472b6","#a3e635","#fb923c","#c084fc","#facc15","#2dd4bf","#f87171"];
 const normDoms=(arr)=>(Array.isArray(arr)?arr:[]).map((d,i)=>normDom(d,i));
 // Разовый перенос доменов: добавляет Dkalkulator1-20 и переименовывает старые kalkulatorN → DkalkulatorN
@@ -702,7 +708,8 @@ function authKeepAlive(){
 function fetchT(url,opts={},ms=30000){if(!ms||typeof AbortController==="undefined")return fetch(url,opts);const ac=new AbortController();const t=setTimeout(()=>ac.abort(),ms);
   return fetch(url,{...opts,signal:ac.signal}).catch(e=>{if(e&&e.name==="AbortError")throw new Error(`timeout ${Math.round(ms/1000)}s`);throw e;}).finally(()=>clearTimeout(t));}
 async function sbFetch(url,opts={}){
-  const {timeout=30000,...o}=opts;opts=o;
+  const blen=typeof opts.body==="string"?opts.body.length:0;
+  const {timeout=Math.max(60000,30000+Math.round(blen/1e6*20000)),...o}=opts;opts=o; // GET — 60 с, запись — +20 с на каждый МБ
   const r=await fetchT(url,opts,timeout);
   if(r.status!==401)return r;
   const ns=await authRefresh();
@@ -1087,16 +1094,12 @@ function useDatabase(){
       setTimeout(()=>startBgSync(),5000);
     }catch(e){
       console.error("mergeWrite failed:",e);
-      setSyncLabel("!");
-      setSyncError("⚠️ Sync error / Ошибка синхронизации — данные сохранены локально");
-      retryCount.current=(retryCount.current||0)+1;
-      if(retryCount.current<=3){
-        if(retryTimer.current)clearTimeout(retryTimer.current);
-        retryTimer.current=setTimeout(()=>{retryCount.current=0;mergeWrite();},15000);
-      } else {
-        retryCount.current=0;
-        setSyncError("⚠️ Supabase offline — dane lokalne / данные локально");
-      }
+      // Разовый сбой связи — молча повторяем через 4 с; сообщение показываем, только если не вышло и со второй попытки
+      retryCount.current=(retryCount.current||0)+1;const why=String((e&&e.message)||"").slice(0,60);
+      if(retryCount.current>=2){setSyncLabel("!");setSyncError(`⚠️ Нет связи с базой — данные сохранены на этом компьютере, повторяю автоматически${why?` (${why})`:""}`);}
+      else setSyncLabel("⟳");
+      if(retryTimer.current)clearTimeout(retryTimer.current);
+      retryTimer.current=setTimeout(()=>{mergeWrite();},retryCount.current===1?4000:retryCount.current<=4?10000:20000);
     }finally{
       savingRef.current=false;
       // A change arrived while we were writing — flush it now.
@@ -1714,7 +1717,7 @@ function LeadFileThumb({f,onDelete,pl}){
 }
 function Dot({color}){return <span style={{width:7,height:7,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>;}
 function SrcBadge({source,color}){const c=color||SRC_COLOR[source]||C.muted;return <span className="g-src" style={{fontSize:9,color:c,background:`${c}20`,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",display:"inline-block"}}>{srcShort(source)}</span>;}
-function ScoreBar({score}){const s=parseFloat(score)||0;const c=QUAL_COLOR[scoreToQual(s)]||C.accent;return <div className="g-score" style={{display:"flex",gap:2,alignItems:"center","--c":c}}>{Array.from({length:7}).map((_,i)=>{const half=(s%1!==0)&&(i===Math.ceil(s));return <div key={i} style={{width:7,height:7,borderRadius:2,background:i<Math.ceil(s)?c:"rgba(255,255,255,0.12)",opacity:half?0.5:1}}/>;})}<span style={{fontSize:10,color:c,marginLeft:2,fontWeight:700}}>{s}</span></div>;}
+function ScoreBar({score,far}){const s=parseFloat(score)||0;const c=QUAL_COLOR[scoreToQual(s)]||C.accent;return <div className="g-score" style={{display:"flex",gap:2,alignItems:"center","--c":c}}>{Array.from({length:7}).map((_,i)=>{const half=(s%1!==0)&&(i===Math.ceil(s));return <div key={i} style={{width:7,height:7,borderRadius:2,background:i<Math.ceil(s)?c:"rgba(255,255,255,0.12)",opacity:half?0.5:1}}/>;})}<span style={{fontSize:10,color:far?"#fb923c":c,marginLeft:2,fontWeight:700}} title={far?"4f — квал, но 100 км+ (в дожимы не идёт)":undefined}>{s}{far?"f":""}</span></div>;}
 function Btn({children,onClick,variant="primary",small,disabled}){const s={primary:{background:C.accent,color:"#00132f",border:"none"},ghost:{background:"transparent",color:C.muted,border:`1px solid ${C.border}`},danger:{background:"rgba(248,113,113,0.15)",color:C.red,border:`1px solid ${C.red}44`}};return <button onClick={onClick} disabled={disabled} style={{...s[variant],padding:small?"5px 12px":"8px 18px",borderRadius:8,fontSize:small?12:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:6}}>{children}</button>;}
 function DateRangeBar({range,setRange,t}){return <div style={{display:"flex",gap:2,background:C.card,borderRadius:9,padding:3,border:`1px solid ${C.border}`,flexWrap:"wrap"}}>{DATE_RANGES.map(d=>{const lk=`period${d.key.charAt(0).toUpperCase()+d.key.slice(1)}`;const active=range===d.key;return <button key={d.key} onClick={()=>setRange(d.key)} style={{padding:"4px 9px",borderRadius:7,border:"none",background:active?C.accentDim:"transparent",color:active?C.accent:C.muted,cursor:"pointer",fontSize:10,fontWeight:active?700:500,whiteSpace:"nowrap"}}>{t[lk]||d.key}</button>;})}</div>;}
 
@@ -2156,6 +2159,170 @@ function VisitModal({lead,t,initDate,initTime,onConfirm,onCancel}){
 }
 
 // Быстрое добавление стикера (двойной клик по лиду) + просмотр существующих
+// ═══ ТАЙМЕРЫ ЛИДА · 4f · «ВИЗИТ СОСТОЯЛСЯ?» · ТЕПЛОВАЯ КАРТА · ЖУРНАЛ ДОЖИМОВ ═══════════════
+// График шоурума: Пн–Сб 10:00–21:00. Таймеры и статистика считают только это время.
+const WORK={from:10,to:21,days:[1,2,3,4,5,6]};
+function workMs(a,b){if(!a||!b||b<=a)return 0;let t=0;const d=new Date(a);d.setHours(0,0,0,0);
+  for(let i=0;i<500&&d.getTime()<b;i++){if(WORK.days.includes(d.getDay())){const s=new Date(d).setHours(WORK.from,0,0,0),e=new Date(d).setHours(WORK.to,0,0,0);const x=Math.max(a,s),y=Math.min(b,e);if(y>x)t+=y-x;}d.setDate(d.getDate()+1);}return t;}
+const isWorkNow=(ms)=>{const d=new Date(ms||Date.now());return WORK.days.includes(d.getDay())&&d.getHours()>=WORK.from&&d.getHours()<WORK.to;};
+const TM_C2=5*3600000,TM_INFO=12*3600000;
+const is4f=l=>!!l&&parseFloat(l.score)===4&&l.distance==="far"; // квал, но 100 км+ — в дожимы не идёт
+const fmtHM=ms=>{const m=Math.max(0,Math.floor(ms/60000));return `${Math.floor(m/60)}:${String(m%60).padStart(2,"0")}`;};
+// Какой таймер сейчас идёт по лиду. Менеджер отметил действие → таймер сам меняется или гаснет.
+function leadTimer(l,now){if(!l||l.action==="cancelled"||l.action==="sale")return null;now=now||Date.now();
+  if(l.action==="waitPrice"&&l.quoteReadyAt)return {k:"price",ms:workMs(+l.quoteReadyAt,now)};
+  if(l.action==="quote"&&l.quoteSince)return {k:"quote",ms:workMs(+l.quoteSince,now)};
+  if((parseFloat(l.score)||0)>=5)return null;
+  if(l.kitchenInfo==="wait"&&l.kiWaitAt){const left=TM_INFO-workMs(+l.kiWaitAt,now);return {k:"info",left,over:left<=0};}
+  if(l.c1==="no"&&!l.c2){const c1=firstContactMs(l);if(!c1)return null;const left=TM_C2-workMs(c1,now);return {k:"c2",left,over:left<=0};}
+  if(!l.c1){const a=leadCreatedMsSafe(l);if(!a||a<TREE_START_MS)return null;return {k:"new",ms:workMs(a,now),raw:now-a};}
+  return null;}
+function LeadTimerChip({l,lang,now,onQuoteReady}){const pl=lang==="pl";const tm=leadTimer(l,now);if(!tm)return null;const off=!isWorkNow(now);
+  const P="#a855f7";const chip=(c,solid)=>({display:"inline-flex",alignItems:"center",gap:4,fontSize:10.5,fontWeight:800,color:solid?"#fff":c,background:solid?c:`${c}1c`,border:`1px solid ${c}${solid?"":"66"}`,borderRadius:8,padding:"2px 7px",whiteSpace:"nowrap",marginTop:3,fontVariantNumeric:"tabular-nums"});
+  const moon=off?<span title={pl?"Poza godzinami salonu — nie liczy się do statystyk":"Шоурум закрыт — в статистику это время не идёт"} style={{opacity:.7}}>🌙</span>:null;
+  if(tm.k==="new"){const c=durColor(tm.ms);return <div><span style={chip(c)} title={pl?"Czas od wpadnięcia leada (godziny salonu)":"Сколько лид ждёт первого контакта (в часы шоурума)"}>⏱ {fmtHM(tm.ms)}{moon}</span></div>;}
+  if(tm.k==="c2")return <div><span className={tm.over?"g-tm-p":""} style={chip(P,tm.over)} title={pl?"5 godzin na drugą próbę kontaktu":"5 часов на вторую попытку контакта"}>{tm.over?(pl?"📞 Skontaktuj się 2. raz!":"📞 Свяжись 2-й раз!"):`📞 ${pl?"2. kontakt za":"2-й контакт через"} ${fmtHM(tm.left)}`}{moon}</span></div>;
+  if(tm.k==="info")return <div><span className={tm.over?"g-tm-p":""} style={chip(P,tm.over)} title={pl?"12 godzin na informacje od klienta":"12 часов на инфо от клиента"}>{tm.over?(pl?"❓ Info powinno już być — dopytaj klienta":"❓ Инфа уже должна быть — уточни у клиента"):`⏳ ${pl?"czekamy na info":"ждём инфу"} ${fmtHM(tm.left)}`}{moon}</span></div>;
+  if(tm.k==="quote")return <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}><span style={chip("#c084fc")}>🧮 {fmtHM(tm.ms)}{moon}</span>
+    {onQuoteReady&&<button onClick={e=>{e.stopPropagation();onQuoteReady(l);}} style={{...chip("#22c55e",true),cursor:"pointer"}}>✓ {pl?"Wycena gotowa":"Просчёт готов"}</button>}</div>;
+  if(tm.k==="price")return <div><span style={chip("#f59e0b")} title={pl?"Wycena gotowa — skontaktuj się z klientem":"Просчёт готов — свяжись с клиентом по цене"}>💬 {pl?"czeka na cenę":"ждёт цену"} {fmtHM(tm.ms)}{moon}</span></div>;
+  return null;}
+const quoteReadyPatch=(l,by)=>({...l,action:"waitPrice",quoteReadyAt:Date.now(),quoteReadyBy:by,updatedAt:Date.now(),history:[...(l.history||[]),{date:nowStr(),action:"Просчёт готов → Ждёт цену",by}]});
+
+// Статистика по таймерам: по менеджерам, только рабочее время шоурума
+function TimerStats({leads,lang,days=30}){const pl=lang==="pl";const L=(a,b)=>pl?b:a;const now=Date.now();const from=now-days*86400000;
+  const rows={};const R=m=>rows[m]=rows[m]||{m,fc:[],noC:0,c2ok:0,c2late:0,c2over:0,q:[],pr:[],infoOver:0,n:0,q4:0,f4:0};
+  (leads||[]).forEach(l=>{const a=leadCreatedMsSafe(l);if(!a||a<from)return;const r=R(l.manager||"—");r.n++;const sc=parseFloat(l.score)||0;if(sc>=4){r.q4++;if(is4f(l))r.f4++;}
+    const c1=firstContactMs(l);if(c1)r.fc.push(workMs(a,c1));else if(l.action!=="cancelled"&&sc<5&&a>=TREE_START_MS)r.noC++;
+    if(l.c1==="no"&&c1){if(l.c2){const w=l.c2At?workMs(c1,+l.c2At):0;if(w<=TM_C2)r.c2ok++;else r.c2late++;}else if(l.action!=="cancelled"&&workMs(c1,now)>TM_C2)r.c2over++;}
+    if(l.quoteSince&&l.quoteReadyAt)r.q.push(workMs(+l.quoteSince,+l.quoteReadyAt));if(l.quoteReadyAt&&l.priceContactAt)r.pr.push(workMs(+l.quoteReadyAt,+l.priceContactAt));
+    if(l.kitchenInfo==="wait"&&l.kiWaitAt&&workMs(+l.kiWaitAt,now)>TM_INFO)r.infoOver++;});
+  const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;const list=Object.values(rows).filter(r=>r.m!=="—").sort((a,b)=>b.n-a.n);if(!list.length)return null;
+  const td={padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:13,textAlign:"right",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"};const th={...td,fontSize:10.5,color:C.muted,textTransform:"uppercase",letterSpacing:.6,fontWeight:800};
+  return <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:14,marginBottom:14,overflowX:"auto"}}>
+    <div style={{fontSize:14,fontWeight:900,color:C.text,marginBottom:2}}>⏱ {L("Таймеры по менеджерам","Timery wg menedżerów")} <span style={{fontSize:11.5,color:C.muted,fontWeight:500}}>· {L(`лиды за ${days} дней · считается только время работы шоурума (Пн–Сб 10–21)`,`leady z ${days} dni · tylko godziny salonu (pn–sob 10–21)`)}</span></div>
+    <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,marginTop:6}}><thead><tr><th style={{...th,textAlign:"left"}}>{L("Менеджер","Menedżer")}</th><th style={th}>{L("Лидов","Leady")}</th><th style={th}>{L("До 1-го контакта","Do 1. kontaktu")}</th><th style={th}>{L("Ждут контакта","Bez kontaktu")}</th><th style={th}>{L("2-й контакт вовремя","2. kontakt na czas")}</th><th style={th}>{L("Просрочен 2-й","2. po terminie")}</th><th style={th}>{L("Просчёт","Wycena")}</th><th style={th}>{L("Контакт по цене","Kontakt po wycenie")}</th><th style={th}>{L("Инфо просрочено","Info po terminie")}</th><th style={th}>{L("Квалы / из них 4f","Kwal / w tym 4f")}</th></tr></thead>
+      <tbody>{list.map(r=>{const fc=avg(r.fc),q=avg(r.q),pr=avg(r.pr);const c2t=r.c2ok+r.c2late;return <tr key={r.m}><td style={{...td,textAlign:"left",fontWeight:800,color:C.text}}>{r.m}</td><td style={{...td,color:C.muted}}>{r.n}</td>
+        <td style={{...td,color:durColor(fc),fontWeight:800}}>{fc==null?"—":fmtWait(fc,pl)}</td><td style={{...td,color:r.noC?C.red:C.dim}}>{r.noC||"—"}</td>
+        <td style={{...td,color:C.text}}>{c2t?`${Math.round(r.c2ok/c2t*100)}% (${r.c2ok}/${c2t})`:"—"}</td><td style={{...td,color:r.c2over?"#a855f7":C.dim,fontWeight:r.c2over?800:400}}>{r.c2over||"—"}</td>
+        <td style={{...td,color:C.text}}>{q==null?"—":fmtWait(q,pl)}</td><td style={{...td,color:C.text}}>{pr==null?"—":fmtWait(pr,pl)}</td><td style={{...td,color:r.infoOver?"#a855f7":C.dim}}>{r.infoOver||"—"}</td>
+        <td style={{...td,color:C.text}}>{r.q4}{r.f4?<span style={{color:"#fb923c",fontWeight:800}}> / {r.f4} 4f</span>:""}</td></tr>;})}</tbody></table></div>;}
+
+// «Визит состоялся?» — через 3 часа после времени визита. Окно нельзя закрыть без ответа.
+function visitAskDue(l,now){if(!l||parseFloat(l.score)!==5||!l.visitDate||l.action==="cancelled")return false;const t=new Date(`${l.visitDate}T${l.visitTime||"12:00"}`).getTime();if(isNaN(t))return false;
+  if(l.visitAsked===`${l.visitDate} ${l.visitTime||"12:00"}`)return false;return now>=t+3*3600000&&now-t<21*86400000;}
+function VisitAskPopup({lead,lang,me,updateDb}){const pl=lang==="pl";const [no,setNo]=useState(false);const [why,setWhy]=useState("");const key=`${lead.visitDate} ${lead.visitTime||"12:00"}`;
+  const set=(patch,txt)=>updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,...patch,visitAsked:key,updatedAt:Date.now(),history:[...(l.history||[]),{date:nowStr(),action:txt,by:me}]}:l)}),true);
+  const yes=()=>set({score:5.5,qualification:"visited",scoreTrail:[...(lead.scoreTrail||[5]),5.5]},"Визит состоялся: да → оценка 5.5");
+  const send=()=>{const v=why.trim();if(v.length<3)return;set({visitNoShow:{at:Date.now(),why:v,date:lead.visitDate}},`Визит не состоялся (${isoToDot(lead.visitDate)}): ${v}`);};
+  return <div style={{position:"fixed",inset:0,zIndex:100500,background:"rgba(0,8,24,0.9)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{width:"min(480px,100%)",background:"linear-gradient(165deg,#0a1a3a,#00132f)",border:"1px solid rgba(227,184,96,0.55)",borderRadius:20,padding:24,boxShadow:"0 30px 90px rgba(0,0,0,.7)",textAlign:"center"}}>
+      <div style={{fontSize:40}}>🏠</div><div style={{fontSize:20,fontWeight:900,color:"#fff",margin:"6px 0 4px"}}>{pl?"Czy wizyta się odbyła?":"Визит состоялся?"}</div>
+      <div style={{fontSize:14,color:"#e3b860",fontWeight:800}}>{lead.name||lead.phone}</div><div style={{fontSize:12.5,color:"rgba(255,255,255,.6)",marginBottom:16}}>{isoToDot(lead.visitDate)} · {lead.visitTime||"12:00"} · {lead.phone}</div>
+      {!no?<div style={{display:"flex",gap:10}}><button onClick={yes} style={{flex:1,background:"#22c55e",color:"#00132f",border:"none",borderRadius:12,padding:"14px",fontSize:16,fontWeight:900,cursor:"pointer"}}>✓ {pl?"Tak":"Да"}</button><button onClick={()=>setNo(true)} style={{flex:1,background:"rgba(248,113,113,.15)",color:"#f87171",border:"1px solid rgba(248,113,113,.6)",borderRadius:12,padding:"14px",fontSize:16,fontWeight:900,cursor:"pointer"}}>✕ {pl?"Nie":"Нет"}</button></div>
+      :<div style={{textAlign:"left"}}><div style={{fontSize:12.5,color:"#fff",fontWeight:800,marginBottom:6}}>{pl?"Wpisz powód, dlaczego klient nie przyszedł":"Введите причину, почему визит не состоялся"}</div>
+        <textarea autoFocus value={why} onChange={e=>setWhy(e.target.value)} rows={3} style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.2)",color:"#fff",borderRadius:10,padding:10,fontSize:14,outline:"none",resize:"vertical"}}/>
+        <div style={{display:"flex",gap:8,marginTop:10}}><button onClick={()=>setNo(false)} style={{background:"rgba(255,255,255,.08)",color:"#fff",border:"1px solid rgba(255,255,255,.2)",borderRadius:10,padding:"10px 14px",cursor:"pointer"}}>←</button><button onClick={send} disabled={why.trim().length<3} style={{flex:1,background:"#e3b860",color:"#00132f",border:"none",borderRadius:10,padding:"10px 14px",fontSize:14,fontWeight:900,cursor:why.trim().length<3?"not-allowed":"pointer",opacity:why.trim().length<3?.5:1}}>{pl?"Zapisz":"Сохранить"}</button></div></div>}
+      <div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:14}}>{pl?"Tego okna nie można zamknąć bez odpowiedzi":"Окно нельзя закрыть без ответа"}</div></div></div>;}
+
+// Тепловая карта дозвонов: все отметки «Контакт 1 / Контакт 2» по дню недели и часу
+function callAttempts(leads){const out=[];(leads||[]).forEach(l=>{let got1=false;(l.history||[]).forEach(h=>{const m=String((h&&h.action)||"").match(/^(Контакт|Kontakt) ([12]):.*→\s*(.+)$/);if(!m)return;const v=m[3].trim().toLowerCase();const ok=/^(есть|jest|да|tak)/.test(v)?1:/^(нет|brak|nie)/.test(v)?0:null;if(ok==null)return;const ms=parseHistMs(h.date);if(ms==null)return;if(m[2]==="1")got1=true;out.push({ms,ok,lang:l.clientLang||"pl",mgr:h.by||l.manager});});
+    if(!got1&&l.c1&&l.c1At)out.push({ms:+l.c1At,ok:l.c1==="yes"?1:0,lang:l.clientLang||"pl",mgr:l.c1By||l.manager});});return out;}
+function CallHeatmap({leads,lang}){const pl=lang==="pl";const L=(a,b)=>pl?b:a;const [lg,setLg]=useState("all");const [open,setOpen]=useState(true);
+  const all=useMemo(()=>callAttempts(leads),[leads]);const at=all.filter(a=>lg==="all"||a.lang===lg);const H=[];for(let h=8;h<=21;h++)H.push(h);const D=[1,2,3,4,5,6,0];const dn=pl?["nd","pn","wt","śr","cz","pt","sb"]:["вс","пн","вт","ср","чт","пт","сб"];
+  const g={};at.forEach(a=>{const d=new Date(a.ms);const h=d.getHours();if(h<8||h>21)return;const k=d.getDay()+"_"+h;(g[k]=g[k]||{n:0,ok:0});g[k].n++;g[k].ok+=a.ok;});
+  const tot=at.length,okT=at.reduce((x,a)=>x+a.ok,0);const base=tot?okT/tot:0;const MIN=5;
+  const cells=Object.entries(g).filter(([,v])=>v.n>=MIN).map(([k,v])=>({k,d:+k.split("_")[0],h:+k.split("_")[1],r:v.ok/v.n,n:v.n})).sort((a,b)=>b.r-a.r);
+  const col=(v)=>{if(!v||v.n<MIN)return v&&v.n?"rgba(148,163,184,.12)":"transparent";const r=v.ok/v.n;const hue=Math.round(Math.max(0,Math.min(1,(r-0.2)/0.6))*120);return `hsla(${hue},75%,45%,${0.35+Math.min(0.55,v.n/40)})`;};
+  const slot=c=>`${dn[c.d]} ${c.h}:00–${c.h+1}:00 — ${Math.round(c.r*100)}% (${c.n})`;
+  return <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16,marginBottom:16}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:open?10:0}}><div onClick={()=>setOpen(o=>!o)} style={{cursor:"pointer",fontSize:16,fontWeight:900,color:C.text}}>{open?"▾":"▸"} 🔥 {L("Тепловая карта дозвонов","Mapa cieplna dodzwonień")}</div>
+      <span style={{fontSize:12,color:C.muted}}>{tot} {L("попыток","prób")} · {L("дозвон","dodzwonienie")} {Math.round(base*100)}%</span><div style={{flex:1}}/>
+      {[["all",L("Все","Wszyscy")],["pl","🇵🇱 PL"],["ua","🇺🇦 UA"]].map(([k,l])=><button key={k} onClick={()=>setLg(k)} style={{background:lg===k?C.accent:"transparent",color:lg===k?(C===DARK?"#00132f":"#fff"):C.muted,border:`1px solid ${lg===k?C.accent:C.borderMd}`,borderRadius:8,padding:"4px 10px",fontSize:12,fontWeight:800,cursor:"pointer"}}>{l}</button>)}</div>
+    {open&&(tot<20?<div style={{fontSize:13,color:C.muted}}>{L("Пока мало данных: карта строится по отметкам «Контакт 1 / Контакт 2» в карточках лидов. Нужно хотя бы 20 попыток.","Za mało danych — potrzeba min. 20 prób kontaktu.")}</div>:<>
+      <div style={{overflowX:"auto"}}><table style={{borderCollapse:"separate",borderSpacing:3,fontSize:11.5}}><thead><tr><th/>{H.map(h=><th key={h} style={{color:h>=WORK.from&&h<WORK.to?C.muted:C.dim,fontWeight:700,padding:"0 2px",minWidth:44}}>{h}:00</th>)}</tr></thead>
+        <tbody>{D.map(d=><tr key={d}><td style={{color:C.text,fontWeight:800,paddingRight:8,textTransform:"uppercase"}}>{dn[d]}</td>{H.map(h=>{const v=g[d+"_"+h];return <td key={h} title={v?`${dn[d]} ${h}:00 — ${v.ok}/${v.n}`:""} style={{background:col(v),borderRadius:6,height:34,textAlign:"center",color:"#fff",fontWeight:800,border:`1px solid ${C.border}`}}>{v&&v.n>=MIN?Math.round(v.ok/v.n*100)+"%":v?<span style={{color:C.dim,fontWeight:500}}>{v.n}</span>:""}</td>;})}</tr>)}</tbody></table></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12,marginTop:12}}>
+        <div style={{border:"1px solid rgba(34,197,94,.45)",background:"rgba(34,197,94,.08)",borderRadius:12,padding:"10px 12px"}}><div style={{fontWeight:900,color:"#22c55e",marginBottom:4}}>✅ {L("Лучше всего звонить","Najlepiej dzwonić")}</div>{cells.slice(0,4).map(c=><div key={c.k} style={{fontSize:13,color:C.text}}>{slot(c)}</div>)}{!cells.length&&<div style={{fontSize:12,color:C.dim}}>—</div>}</div>
+        <div style={{border:"1px solid rgba(248,113,113,.45)",background:"rgba(248,113,113,.08)",borderRadius:12,padding:"10px 12px"}}><div style={{fontWeight:900,color:"#f87171",marginBottom:4}}>⛔ {L("Лучше не звонить","Lepiej nie dzwonić")}</div>{cells.length>4?cells.slice(-4).reverse().map(c=><div key={c.k} style={{fontSize:13,color:C.text}}>{slot(c)}</div>):<div style={{fontSize:12,color:C.dim}}>—</div>}</div></div>
+      <div style={{fontSize:11.5,color:C.dim,marginTop:8}}>{L(`Процент — доля дозвонов среди попыток в этот час. Цвет и процент показаны, если попыток ${MIN}+; серые цифры — попыток пока мало. Чем больше данных, тем точнее.`,`Procent — udział dodzwonień. Kolor przy ${MIN}+ próbach.`)}</div></>)}
+  </div>;}
+
+// ═══ ЖУРНАЛ ДОЖИМОВ ═══ каждый вторник — список каждому менеджеру; с последнего вторника месяца — контрольный, каждый день
+const JR_CATS=[["visit","🏠","Визиты без продажи","Wizyty bez sprzedaży"],["qual","⭐","Квалы 4 и 4.5","Kwal 4 i 4.5"],["price","🧮","Просчёт / ждёт цену","Wycena / czeka na cenę"],["push","📣","Просроченные пуши","Zaległe pushe"]];
+function jrCycle(now){const d=new Date(now||Date.now());d.setHours(0,0,0,0);const back=(d.getDay()-2+7)%7;d.setDate(d.getDate()-back);const T=d.getTime();
+  const n=new Date(now||Date.now());const lastDay=new Date(n.getFullYear(),n.getMonth()+1,0);const lt=new Date(lastDay);lt.setDate(lastDay.getDate()-((lastDay.getDay()-2+7)%7));lt.setHours(0,0,0,0);
+  return {T,id:isoLocal(new Date(T)),control:n.getTime()>=lt.getTime(),monthStart:new Date(n.getFullYear(),n.getMonth(),1).getTime()};}
+const jrDone=(l,cat,after)=>{const x=l&&l.jr&&l.jr[cat];return !!x&&x.at>=after;};
+function jrCat(l,cy,now){if(!l||l.action==="cancelled"||l.action==="sale"||parseFloat(l.score)>=6||dzClosed(l))return null;const sc=parseFloat(l.score)||0;const span=cy.control?Math.min(cy.monthStart,cy.T-7*86400000):cy.T-28*86400000;
+  if(sc>=5&&sc<6&&l.visitDate){const v=new Date(l.visitDate+"T12:00").getTime();if(v<now&&v>=span&&!jrDone(l,"visit",v))return "visit";}
+  if(l.action==="push"&&l.pushDate&&l.pushDate<getToday()){const pd=new Date(l.pushDate+"T00:00").getTime();if(!jrDone(l,"push",pd))return "push";}
+  if(l.action==="quote"||l.action==="waitPrice"){if(!jrDone(l,"price",cy.T))return "price";return null;}
+  if((sc===4||sc===4.5)&&!is4f(l)){const a=leadCreatedMsSafe(l);if(a&&a>=span&&a<cy.T+(cy.control?7*86400000:0)&&!jrDone(l,"qual",a))return "qual";}
+  return null;}
+function jrList(leads,mgr,now){const cy=jrCycle(now);const out=[];(leads||[]).forEach(l=>{if(mgr&&mgr!=="all"&&l.manager!==mgr)return;const c=jrCat(l,cy,now||Date.now());if(c)out.push({l,c});});return {cy,items:out};}
+// Лид остался в журнале с прошлого месяца — грустный смайлик в общем списке
+function jrSad(l,now){now=now||Date.now();const n=new Date(now);const ms=new Date(n.getFullYear(),n.getMonth(),1).getTime();if(!l||l.action==="cancelled"||l.action==="sale"||parseFloat(l.score)>=6)return false;const sc=parseFloat(l.score)||0;
+  if(sc>=5&&l.visitDate){const v=new Date(l.visitDate+"T12:00").getTime();return v<ms&&v>ms-45*86400000&&!jrDone(l,"visit",v);}
+  if((sc===4||sc===4.5)&&!is4f(l)){const a=leadCreatedMsSafe(l);return !!a&&a<ms&&a>ms-45*86400000&&!jrDone(l,"qual",a);}return false;}
+// Подсказка для WhatsApp — по тому, что известно о лиде
+const JR_CZ=false; // в чешской сборке — тексты по-чешски
+function jrWhatsAppCz(l,cat,mgr){const nm=String(l.name||"").split(" ")[0]||"";const hi=`Dobrý den${nm?", "+nm:""}! Tady ${mgr} z GARNO.`;const amt=l.quoteAmt?` na ${l.quoteAmt} Kč`:"";
+  if(cat==="visit")return `${hi} Děkujeme za návštěvu našeho showroomu 🙌 Zůstaly nějaké otázky k projektu kuchyně? Mohu upravit kalkulaci nebo navrhnout variantu podle vašeho rozpočtu — a zarezervovat pro vás aktuální cenu a termín výroby.`;
+  if(cat==="price")return `${hi} Vaše kalkulace kuchyně${amt} je připravená. Kdy si můžeme krátce zavolat? Vysvětlím, co je v ceně, a ukážu, kde se dá ušetřit.`;
+  if(cat==="push")return `${hi} Domlouvali jsme se, že se k tématu kuchyně vrátíme. Je to stále aktuální? Mám volný termín zaměření a mohu vám podržet současnou cenu.`;
+  return `${hi} Připravil jsem pro vás varianty kuchyně${amt}. Zvu vás do showroomu v Praze — ukážu dvířka a pracovní desky naživo a za 30 minut uděláme přesnou kalkulaci. Který den se vám hodí?`;}
+function jrWhatsApp(l,cat,mgr){if(JR_CZ&&(l.clientLang||"cz")!=="ua")return jrWhatsAppCz(l,cat,mgr);const ua=(l.clientLang||"pl")==="ua";const nm=String(l.name||"").split(" ")[0]||"";const hi=ua?`Добрий день${nm?", "+nm:""}! Це ${mgr} з GARNO.`:`Dzień dobry${nm?", "+nm:""}! Tu ${mgr} z GARNO.`;
+  const amt=l.quoteAmt?(ua?` на ${l.quoteAmt} zł`:` na ${l.quoteAmt} zł`):"";
+  if(cat==="visit")return ua?`${hi} Дякуємо, що завітали до нашого шоуруму 🙌 Чи залишились питання щодо проєкту кухні? Можу оновити розрахунок або запропонувати варіант під ваш бюджет — і забронювати для вас поточну ціну та термін виготовлення.`:`${hi} Dziękujemy za wizytę w naszym showroomie 🙌 Czy zostały jakieś pytania do projektu kuchni? Mogę zaktualizować wycenę lub zaproponować wariant pod Państwa budżet — i zarezerwować aktualną cenę oraz termin realizacji.`;
+  if(cat==="price")return ua?`${hi} Ваш розрахунок кухні${amt} готовий. Коли вам зручно коротко зідзвонитись, щоб я пояснив, що входить у ціну, і показав, де можна заощадити?`:`${hi} Państwa wycena kuchni${amt} jest gotowa. Kiedy możemy krótko porozmawiać? Wyjaśnię, co wchodzi w cenę i pokażę, gdzie można zaoszczędzić.`;
+  if(cat==="push")return ua?`${hi} Ми домовлялись повернутися до розмови про кухню. Чи актуально ще? Маю для вас вільний термін заміру та можу закріпити поточну ціну.`:`${hi} Umawialiśmy się na powrót do rozmowy o kuchni. Czy temat jest nadal aktualny? Mam wolny termin pomiaru i mogę utrzymać dla Państwa obecną cenę.`;
+  return ua?`${hi} Підготував для вас варіанти кухні${amt}. Запрошую до шоуруму у Варшаві — покажу фасади й стільниці наживо та за 30 хвилин зробимо точний розрахунок. Який день вам зручний?`:`${hi} Przygotowałem dla Państwa warianty kuchni${amt}. Zapraszam do showroomu w Warszawie — pokażę fronty i blaty na żywo i w 30 minut zrobimy dokładną wycenę. Jaki dzień Państwu pasuje?`;}
+function DzJournal({leads,me,lang,updateDb,onOpenLead,onClose}){const pl=lang==="pl";const L=(a,b)=>pl?b:a;const now=Date.now();const {cy,items}=jrList(leads,me,now);
+  const [cur,setCur]=useState(null);const [step,setStep]=useState(null);const [txt,setTxt]=useState("");const [copied,setCopied]=useState(false);const [ask,setAsk]=useState(false);
+  const it=items.find(x=>x.l.id===cur)||null;const mark=(l,cat,act,text,patch={})=>{updateDb(p=>({...p,leads:(p.leads||[]).map(x=>x.id===l.id?{...x,...patch,jr:{...(x.jr||{}),[cat]:{at:Date.now(),by:me,act,text,cycle:cy.id}},updatedAt:Date.now(),history:[...(x.history||[]),{date:nowStr(),action:`Журнал дожимов · ${act}${text?`: ${text}`:""}`,by:me}]}:x)}),true);setCur(null);setStep(null);setTxt("");};
+  const B=(c,solid)=>({background:solid?c:`${c}1c`,color:solid?"#00132f":c,border:`1px solid ${c}88`,borderRadius:10,padding:"10px 14px",fontSize:13.5,fontWeight:800,cursor:"pointer"});
+  const need=txt.trim().length>=3;const wa=it?jrWhatsApp(it.l,it.c,me):"";
+  const ta=<textarea autoFocus value={txt} onChange={e=>setTxt(e.target.value)} rows={3} placeholder={L("обязательно, своими словами","obowiązkowo, własnymi słowami")} style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.2)",color:"#fff",borderRadius:10,padding:10,fontSize:14,outline:"none",resize:"vertical"}}/>;
+  const waBox=<div style={{marginTop:10,border:"1px solid rgba(34,197,94,.45)",background:"rgba(34,197,94,.08)",borderRadius:12,padding:10}}><div style={{fontSize:12,fontWeight:800,color:"#22c55e",marginBottom:4}}>💡 {L("Совет: продублируй сообщением в WhatsApp","Rada: wyślij też wiadomość na WhatsApp")}</div><div style={{fontSize:13,color:"#fff",whiteSpace:"pre-wrap",lineHeight:1.45}}>{wa}</div>
+    <button onClick={()=>{try{navigator.clipboard.writeText(wa);}catch{}setCopied(true);setTimeout(()=>setCopied(false),1500);}} style={{...B("#22c55e"),marginTop:8,padding:"6px 12px",fontSize:12.5}}>{copied?"✓ "+L("Скопировано","Skopiowano"):"📋 "+L("Скопировать","Kopiuj")}</button></div>;
+  const tryClose=()=>{if(cy.control&&items.length)setAsk(true);else onClose(false);};
+  return <div style={{position:"fixed",inset:0,zIndex:5500,background:"rgba(0,8,24,0.9)",backdropFilter:"blur(5px)",display:"flex",justifyContent:"center",alignItems:"flex-start",padding:"28px 12px",overflowY:"auto"}}>
+    <div style={{width:"min(760px,100%)",background:"linear-gradient(165deg,#0a1a3a,#00132f 60%)",border:"1px solid rgba(227,184,96,0.5)",borderRadius:20,padding:20,boxShadow:"0 30px 90px rgba(0,0,0,.7)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}><div style={{fontSize:30}}>📒</div><div style={{flex:1}}><div style={{fontFamily:"'Russo One',sans-serif",fontSize:22,color:"#e3b860"}}>{cy.control?L("Контрольный журнал месяца","Dziennik kontrolny miesiąca"):L("Журнал дожимов","Dziennik domykania")}</div>
+        <div style={{fontSize:12.5,color:"rgba(255,255,255,.6)"}}>{me} · {L("список от","lista z")} {isoToDot(cy.id)} · {items.length} {L("лидов осталось","leadów zostało")}{cy.control?" · "+L("последний шанс сделать продажи в этом месяце","ostatnia szansa na sprzedaż w tym miesiącu"):""}</div></div>
+        <button onClick={tryClose} style={{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.2)",color:"#fff",borderRadius:10,width:38,height:38,fontSize:16,cursor:"pointer"}}>✕</button></div>
+      {ask&&<div style={{margin:"10px 0",border:"1px solid rgba(248,113,113,.6)",background:"rgba(248,113,113,.1)",borderRadius:12,padding:12}}><div style={{color:"#fff",fontWeight:900,marginBottom:8}}>{L("Ты уверен, что хочешь закрыть? Последний шанс сделать продажи в этом месяце","Na pewno chcesz zamknąć? To ostatnia szansa na sprzedaż w tym miesiącu")}</div>
+        <div style={{display:"flex",gap:8}}><button onClick={()=>setAsk(false)} style={B("#22c55e",true)}>{L("Остаться и дожать","Zostaję i domykam")}</button><button onClick={()=>onClose(true)} style={B("#f87171")}>{L("Да, закрыть","Tak, zamknij")}</button></div></div>}
+      {!items.length&&<div style={{textAlign:"center",padding:"30px 0",color:"#47e6a0",fontWeight:800,fontSize:16}}>🎉 {L("Журнал пуст — все лиды отработаны","Dziennik pusty — wszystko zrobione")}</div>}
+      {JR_CATS.map(([k,ic,ru,p2])=>{const list=items.filter(x=>x.c===k);if(!list.length)return null;return <div key={k} style={{marginTop:14}}>
+        <div style={{fontSize:13,fontWeight:900,color:"#fff",marginBottom:6}}>{ic} {L(ru,p2)} <span style={{color:"#e3b860"}}>· {list.length}</span></div>
+        {list.map(({l,c})=>{const on=cur===l.id;return <div key={l.id} style={{border:`1px solid ${on?"rgba(227,184,96,.7)":"rgba(255,255,255,.12)"}`,background:on?"rgba(227,184,96,.06)":"rgba(255,255,255,.03)",borderRadius:12,padding:"10px 12px",marginBottom:6}}>
+          <div onClick={()=>{setCur(on?null:l.id);setStep(null);setTxt("");}} style={{display:"flex",gap:10,alignItems:"center",cursor:"pointer",flexWrap:"wrap"}}><b style={{color:"#fff",fontSize:14}}>{l.name||"—"}</b><span style={{color:"rgba(255,255,255,.6)",fontFamily:"monospace",fontSize:12}}>{l.phone}</span>
+            <span style={{fontSize:11.5,color:"#e3b860",fontWeight:800}}>{L("оценка","ocena")} {l.score}</span>{l.visitDate&&c==="visit"&&<span style={{fontSize:11.5,color:"rgba(255,255,255,.6)"}}>{L("визит","wizyta")} {isoToDot(l.visitDate)}</span>}{c==="push"&&<span style={{fontSize:11.5,color:"#f87171"}}>{L("пуш был","push był")} {isoToDot(l.pushDate)}</span>}{l.quoteAmt?<span style={{fontSize:11.5,color:"rgba(255,255,255,.6)"}}>{l.quoteAmt} zł</span>:null}
+            <div style={{flex:1}}/><button onClick={e=>{e.stopPropagation();onOpenLead(l);}} style={{background:"none",border:"none",color:"#5cb8ff",fontSize:12,cursor:"pointer"}}>{L("карточка","karta")} →</button><span style={{color:"#e3b860"}}>{on?"▾":"▸"}</span></div>
+          {on&&<div style={{marginTop:10}}>
+            {l.notes&&<div style={{fontSize:12,color:"rgba(255,255,255,.55)",marginBottom:8,whiteSpace:"pre-wrap",maxHeight:60,overflow:"hidden"}}>{String(l.notes).slice(0,220)}</div>}
+            {!step&&(c==="price"?<><div style={{fontSize:13.5,color:"#fff",fontWeight:800,marginBottom:8}}>{L("Лид получил цену?","Czy lead dostał cenę?")}</div><div style={{display:"flex",gap:8}}><button onClick={()=>{mark(l,c,L("получил цену: да","dostał cenę: tak"),"");onOpenLead(l,L("Внеси актуальную инфу по лиду","Uzupełnij aktualne informacje"));}} style={B("#22c55e",true)}>{L("Да","Tak")}</button><button onClick={()=>{mark(l,c,L("получил цену: нет","dostał cenę: nie"),"");onOpenLead(l,L("Внеси актуальную инфу по лиду","Uzupełnij aktualne informacje"));}} style={B("#f87171")}>{L("Нет","Nie")}</button></div></>
+              :c==="push"?<><div style={{fontSize:13.5,color:"#fff",fontWeight:800,marginBottom:8}}>{L("Пуш состоялся?","Czy push się odbył?")}</div><div style={{display:"flex",gap:8}}><button onClick={()=>setStep("pushYes")} style={B("#22c55e",true)}>{L("Да — итоги","Tak — wynik")}</button><button onClick={()=>setStep("call")} style={B("#5cb8ff")}>{L("Нет — позвонить","Nie — dzwonię")}</button></div></>
+              :<div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={()=>setStep("call")} style={B("#22c55e",true)}>📞 {L("Позвонить, пропушить","Zadzwonić, dopchnąć")}</button><button onClick={()=>setStep("cancel")} style={B("#f87171")}>✕ {L("Отмена","Anulowanie")}</button><button onClick={()=>setStep("back")} style={B("#5cb8ff")}>↩ {L("Вернул в работу","Wrócił do pracy")}</button></div>)}
+            {step==="call"&&<><div style={{fontSize:13,color:"#fff",fontWeight:800,marginBottom:6}}>📞 {L("Позвони по номеру","Zadzwoń pod")} {l.phone}. {L("Какой результат звонка?","Jaki wynik rozmowy?")}</div>{ta}{waBox}
+              <div style={{display:"flex",gap:8,marginTop:10}}><button disabled={!need} onClick={()=>mark(l,c,L("позвонил","zadzwoniłem"),txt.trim())} style={{...B("#22c55e",true),opacity:need?1:.45}}>✓ {L("Позвонил — записать","Zadzwoniłem — zapisz")}</button><button onClick={()=>setStep(null)} style={B("#94a3b8")}>←</button></div></>}
+            {step==="pushYes"&&<><div style={{fontSize:13,color:"#fff",fontWeight:800,marginBottom:6}}>{L("Итоги пуша","Wynik pushu")}</div>{ta}<div style={{display:"flex",gap:8,marginTop:10}}><button disabled={!need} onClick={()=>mark(l,c,L("пуш состоялся","push odbyty"),txt.trim())} style={{...B("#22c55e",true),opacity:need?1:.45}}>✓ {L("Записать","Zapisz")}</button><button onClick={()=>setStep(null)} style={B("#94a3b8")}>←</button></div></>}
+            {step==="cancel"&&<><div style={{fontSize:13,color:"#fff",fontWeight:800,marginBottom:6}}>{L("Причина отмены","Powód anulowania")}</div>{ta}<div style={{display:"flex",gap:8,marginTop:10}}><button disabled={!need} onClick={()=>mark(l,c,L("отмена","anulowanie"),txt.trim(),{action:"cancelled"})} style={{...B("#f87171"),opacity:need?1:.45}}>✕ {L("Отменить лида","Anuluj leada")}</button><button onClick={()=>setStep(null)} style={B("#94a3b8")}>←</button></div></>}
+            {step==="back"&&<><div style={{fontSize:13,color:"#fff",fontWeight:800,marginBottom:6}}>{L("Что сделано, что дальше","Co zrobiono, co dalej")}</div>{ta}<div style={{display:"flex",gap:8,marginTop:10}}><button disabled={!need} onClick={()=>mark(l,c,L("вернул в работу","wrócił do pracy"),txt.trim(),{action:"inWork"})} style={{...B("#5cb8ff"),opacity:need?1:.45}}>↩ {L("Вернуть в работу","Do pracy")}</button><button onClick={()=>setStep(null)} style={B("#94a3b8")}>←</button></div></>}
+          </div>}</div>;})}</div>;})}
+    </div></div>;}
+// Персонаж-журнал: появляется, если контрольный журнал закрыли, не доделав
+function JournalMascot({lang,count,onOpen}){const pl=lang==="pl";const [show,setShow]=useState(false);
+  useEffect(()=>{const cyc=()=>{setShow(true);setTimeout(()=>setShow(false),9000);};const t0=setTimeout(cyc,20000);const id=setInterval(cyc,7*60000);return()=>{clearTimeout(t0);clearInterval(id);};},[]);
+  if(!show)return null;return <div onClick={onOpen} style={{position:"fixed",right:22,bottom:22,zIndex:5400,cursor:"pointer",display:"flex",alignItems:"flex-end",gap:8,animation:"jrPop .6s cubic-bezier(.2,1.4,.4,1)"}}>
+    <style>{`@keyframes jrPop{from{transform:translateY(120px) rotate(-12deg);opacity:0}}@keyframes jrWig{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(6deg)}}`}</style>
+    <div style={{background:"#fff",color:"#00132f",borderRadius:"14px 14px 2px 14px",padding:"9px 13px",fontWeight:900,fontSize:14,boxShadow:"0 10px 30px rgba(0,0,0,.45)",maxWidth:210}}>{pl?"Otwórz mnie — we mnie jest sprzedaż!":"Открой меня — во мне продажи!"}<div style={{fontSize:11,fontWeight:700,color:"#b45309"}}>{count} {pl?"leadów czeka":"лидов ждут"}</div></div>
+    <div style={{fontSize:64,lineHeight:1,animation:"jrWig 1s ease-in-out infinite",filter:"drop-shadow(0 8px 14px rgba(0,0,0,.5))"}}>📒<span style={{fontSize:22,marginLeft:-26,position:"relative",top:-8}}>👀</span></div></div>;}
+
+const STK_MKT=["Danya","Illia"]; // маркетинг — жёлтый стикер; менеджеры (ответ) — синий
+const stkCol=(by)=>STK_MKT.includes(by)?{c:"#f0c040",bg:"rgba(240,192,64,0.10)",bd:"rgba(240,192,64,0.45)"}:{c:"#5cb8ff",bg:"rgba(92,184,255,0.10)",bd:"rgba(92,184,255,0.45)"};
 function StickerModal({lead,t,currentUser,onSave,onDelete,onClose}){
   const [text,setText]=useState("");
   const stickers=lead.stickers||[];
@@ -2181,10 +2348,10 @@ function StickerModal({lead,t,currentUser,onSave,onDelete,onClose}){
           {stickers.length===0
             ? <div style={{fontSize:12,color:C.dim,textAlign:"center",padding:"10px 0"}}>{t.noStickers}</div>
             : [...stickers].reverse().map((st,i)=>(
-              <div key={st.id||i} style={{background:"rgba(240,192,64,0.08)",border:"1px solid rgba(240,192,64,0.35)",borderRadius:10,padding:"10px 12px",position:"relative"}}>
+              <div key={st.id||i} style={{background:stkCol(st.by).bg,border:`1px solid ${stkCol(st.by).bd}`,borderLeft:`4px solid ${stkCol(st.by).c}`,borderRadius:10,padding:"10px 12px",position:"relative"}}>
                 {onDelete&&<button onClick={()=>onDelete(st)} title={t.delete} style={{position:"absolute",top:8,right:8,background:"transparent",border:"none",color:C.red,fontSize:13,cursor:"pointer",opacity:0.7,padding:2,lineHeight:1}}>🗑</button>}
                 <div style={{fontSize:13,color:C.text,whiteSpace:"pre-wrap",lineHeight:1.5,paddingRight:22}}>{st.text}</div>
-                <div style={{fontSize:10,color:"#f0c040",fontWeight:700,marginTop:6}}>— {st.by||"—"}{st.at?` · ${new Date(st.at).toLocaleDateString("ru-RU")}`:""}</div>
+                <div style={{fontSize:10,color:stkCol(st.by).c,fontWeight:700,marginTop:6}}>— {st.by||"—"}{st.at?` · ${new Date(st.at).toLocaleDateString("ru-RU")}`:""}</div>
               </div>
             ))}
         </div>
@@ -2449,7 +2616,7 @@ function UpdButton({currentUser,page,updateDb,lang}){const pl=lang==="pl";const 
     const cv=await updShot(r);shotRef.current={cv,text:updTextIn(r)};setMode("form");};
   const send=async()=>{const c=txt.trim();if(!c||busy)return;setBusy(true);const id="up"+Date.now().toString(36);const now=Date.now();let shot=null;const S=shotRef.current||{};
     if(S.cv){try{const blob=await new Promise(res=>S.cv.toBlob(res,"image/jpeg",0.75));if(blob){const f=new File([blob],`upd_${id}.jpg`,{type:"image/jpeg"});const meta=await uploadLeadFile(`upd_${id}`,f);shot={path:meta.path};}}
-      catch{try{const k=Math.min(1,520/S.cv.width);const o=document.createElement("canvas");o.width=Math.round(S.cv.width*k);o.height=Math.round(S.cv.height*k);o.getContext("2d").drawImage(S.cv,0,0,o.width,o.height);const d=o.toDataURL("image/jpeg",0.6);if(d.length<160000)shot={data:d};}catch{}}}
+      catch{try{const k=Math.min(1,260/S.cv.width);const o=document.createElement("canvas");o.width=Math.round(S.cv.width*k);o.height=Math.round(S.cv.height*k);o.getContext("2d").drawImage(S.cv,0,0,o.width,o.height);const d=o.toDataURL("image/jpeg",0.5);if(d.length<30000)shot={data:d}; /* в общую базу — только маленькое превью, чтобы не раздувать её */}catch{}}}
     const e={id,by:currentUser||"—",at:now,page:page||"",rect:{x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)},vw:window.innerWidth,vh:window.innerHeight,text:S.text||"",comment:c,shot,status:"open",updatedAt:now};
     updateDb(p=>({...p,updates:[...(p.updates||[]),e]}),true);
     setBusy(false);setMode(null);setR(null);setTxt("");shotRef.current=null;setToast(L("✓ Правка отправлена — видно в Настройки → Update","✓ Uwaga wysłana — widać w Ustawienia → Update"));setTimeout(()=>setToast(null),3500);};
@@ -3898,6 +4065,7 @@ function SalesCenterTabs(props){
   useEffect(()=>{if(initialTab)setTab(initialTab);},[initialTab]);
   return(<div>
     <TabBar tabs={[{key:"center",icon:"◆",label:pl?"Centrum sprzedaży":"Центр продаж"},{key:"funnel",icon:"▼",label:pl?"Lejek sprzedaży":"Воронка продаж"}]} active={tab} onChange={setTab}/>
+    {tab==="center"&&<div style={{padding:"0 18px"}}><TimerStats leads={props.leads} lang={lang}/></div>}
     {tab==="center"?<SalesCenterPage {...props} onGoFunnel={()=>setTab("funnel")}/>:<FunnelPage leads={props.leads} sales={props.sales} srcList={props.srcList} funnels={props.funnels} t={props.t} lang={lang} onOpenLead={props.onOpenLead} currentUser={props.currentUser} goals={props.goals||[]}/>}
   </div>);
 }
@@ -4163,6 +4331,7 @@ function TestsPage({db,updateDb,currentUser,lang,onOpenLead}){const pl=lang==="p
   const btn={height:34,padding:"0 13px",borderRadius:11,border:`1px solid ${C.borderMd}`,background:"transparent",color:C.text,cursor:"pointer",fontFamily:"inherit",fontSize:12};
   const SL={active:[pl?"trwa":"идёт","#47e6a0"],paused:[pl?"pauza":"пауза","#f6c453"],plan:[pl?"zaplanowany":"запланирован","#5cb8ff"],done:[pl?"zakończony":"завершён",C.muted]};
   return <div style={{padding:"18px 22px",display:"flex",flexDirection:"column",gap:14}}>
+    <CallHeatmap leads={leads} lang={lang}/>
     <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><div style={{fontSize:22}}>🧪 {pl?"Testy A/B":"Тесты"}</div>
       <span style={{fontSize:11,padding:"3px 10px",borderRadius:999,border:"1px solid rgba(71,230,160,.45)",color:"#47e6a0"}}>● {pl?"trwa":"идёт"}: {tests.filter(t=>abState(t,now)==="active").length}</span>
       <span style={{fontSize:11,padding:"3px 10px",borderRadius:999,border:`1px solid ${C.borderMd}`,color:C.muted}}>{pl?"zakończone":"завершено"}: {tests.filter(t=>abState(t,now)==="done").length}</span>
@@ -5213,6 +5382,12 @@ function sketchGrid(ctx){ctx.fillStyle="#ffffff";ctx.fillRect(0,0,SKETCH_W,SKETC
 function SketchPad({initialSrc,apiRef,lang,onDirty}){
   const pl=lang==="pl";const cv=useRef(null);const [tool,setTool]=useState("pen");const [color,setColor]=useState("#0b1f4d");const [size,setSize]=useState(3);
   const hist=useRef([]);const drag=useRef(null);const snap=useRef(null);const [,force]=useState(0);const dirty=useRef(false);
+  const [txt,setTxt]=useState(null); // инструмент «Текст»: поле ввода поверх рисунка в точке клика
+  const txtFs=()=>size<=2?20:size<=3?28:42;
+  const txtCommit=(t)=>{t=t||txt;setTxt(null);if(!t||!String(t.v||"").trim())return;const c=cv.current&&cv.current.getContext("2d");if(!c)return;
+    hist.current.push(c.getImageData(0,0,SKETCH_W,SKETCH_H));if(hist.current.length>30)hist.current.shift();
+    c.save();c.font=`600 ${txtFs()}px 'DM Sans','Segoe UI',sans-serif`;c.fillStyle=color;c.textBaseline="middle";String(t.v).split("\n").forEach((ln,i)=>c.fillText(ln,t.x,t.y+i*txtFs()*1.2));c.restore();
+    if(!dirty.current){dirty.current=true;onDirty&&onDirty(true);}force(x=>x+1);};
   const ctx=()=>cv.current&&cv.current.getContext("2d");
   const push=()=>{const c=ctx();if(!c)return;hist.current.push(c.getImageData(0,0,SKETCH_W,SKETCH_H));if(hist.current.length>30)hist.current.shift();force(x=>x+1);};
   const mark=()=>{if(!dirty.current){dirty.current=true;onDirty&&onDirty(true);}};
@@ -5236,6 +5411,7 @@ function SketchPad({initialSrc,apiRef,lang,onDirty}){
     if(pts.current.size>=2){ // второй палец: отменяем начатый штрих и переходим в масштаб
       if(drag.current){const c0=ctx();const h=hist.current.pop();if(c0&&h)c0.putImageData(h,0,0);drag.current=null;snap.current=null;force(x=>x+1);}
       const m=pMid();pinch.current={d0:pDist()||1,z0:zr.current,mx:m.x,my:m.y};return;}
+    if(tool==="text"){pts.current.delete(e.pointerId);const p0=pos(e);if(txt)txtCommit(txt);setTxt({x:p0.x,y:p0.y,cx:e.clientX,cy:e.clientY,v:""});return;}
     const c=ctx();if(!c)return;cv.current.setPointerCapture&&cv.current.setPointerCapture(e.pointerId);push();const p=pos(e);drag.current=p;
     if(tool==="pen"||tool==="eraser"){style(c);c.beginPath();c.moveTo(p.x,p.y);c.lineTo(p.x+.01,p.y+.01);c.stroke();}else snap.current=c.getImageData(0,0,SKETCH_W,SKETCH_H);mark();};
   const move=e=>{if(pts.current.has(e.pointerId))pts.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
@@ -5249,7 +5425,7 @@ function SketchPad({initialSrc,apiRef,lang,onDirty}){
   const undo=()=>{const c=ctx();const h=hist.current.pop();if(c&&h){c.putImageData(h,0,0);force(x=>x+1);mark();}};
   const clear=()=>{const c=ctx();if(!c)return;push();sketchGrid(c);mark();};
   const B=(on)=>({height:32,minWidth:32,padding:"0 10px",borderRadius:9,border:`1px solid ${on?"rgba(227,184,96,.7)":C.borderMd}`,background:on?"rgba(227,184,96,.16)":"transparent",color:C.text,cursor:"pointer",fontSize:12,display:"inline-flex",alignItems:"center",gap:5});
-  const TOOLS=[["pen","✏️",pl?"Ołówek":"Карандаш"],["line","📏",pl?"Linia (Shift — prosta)":"Линия (Shift — ровно)"],["rect","▭",pl?"Prostokąt":"Прямоугольник"],["eraser","🧽",pl?"Gumka":"Ластик"]];
+  const TOOLS=[["pen","✏️",pl?"Ołówek":"Карандаш"],["line","📏",pl?"Linia (Shift — prosta)":"Линия (Shift — ровно)"],["rect","▭",pl?"Prostokąt":"Прямоугольник"],["text","🔤",pl?"Tekst (kliknij na rysunku)":"Текст (нажми на рисунке)"],["eraser","🧽",pl?"Gumka":"Ластик"]];
   return(<div style={{display:"flex",flexDirection:"column",gap:8,height:"100%",minHeight:0}}>
     <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
       {TOOLS.map(([k,ic,t])=><button key={k} title={t} onClick={()=>setTool(k)} style={B(tool===k)}>{ic}<span className="sk-l">{t.split(" (")[0]}</span></button>)}
@@ -5265,7 +5441,9 @@ function SketchPad({initialSrc,apiRef,lang,onDirty}){
     </div>
     <div ref={wrap} style={{flex:1,minHeight:0,display:z>1?"block":"grid",placeItems:"center",overflow:z>1?"auto":"hidden",borderRadius:16,background:"rgba(2,10,30,.25)",border:`1px solid ${C.border}`,padding:8,touchAction:"none",overscrollBehavior:"contain"}}>
       <canvas ref={cv} width={SKETCH_W} height={SKETCH_H} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={e=>{if(drag.current&&!(e.buttons&1))up(e);}}
-        style={{...(z>1?{width:Math.round((base.current||600)*z),height:"auto",maxWidth:"none",maxHeight:"none",display:"block"}:{maxWidth:"100%",maxHeight:"100%",width:"auto",height:"auto"}),borderRadius:10,background:"#fff",touchAction:"none",cursor:tool==="eraser"?"cell":"crosshair",boxShadow:"0 10px 30px rgba(0,0,0,.3)"}}/>
+        style={{...(z>1?{width:Math.round((base.current||600)*z),height:"auto",maxWidth:"none",maxHeight:"none",display:"block"}:{maxWidth:"100%",maxHeight:"100%",width:"auto",height:"auto"}),borderRadius:10,background:"#fff",touchAction:"none",cursor:tool==="eraser"?"cell":tool==="text"?"text":"crosshair",boxShadow:"0 10px 30px rgba(0,0,0,.3)"}}/>
+      {txt&&<input autoFocus value={txt.v} onChange={e=>setTxt(t=>t&&({...t,v:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();txtCommit();}if(e.key==="Escape")setTxt(null);}} onBlur={()=>txtCommit()} placeholder={pl?"tekst → Enter":"текст → Enter"}
+        style={{position:"fixed",left:Math.min(txt.cx,window.innerWidth-230),top:txt.cy-17,zIndex:5000,width:220,height:34,padding:"0 9px",fontSize:15,fontWeight:600,color,background:"#fff",border:"2px solid #e3b860",borderRadius:8,outline:"none",boxShadow:"0 6px 20px rgba(0,0,0,.35)"}}/>}
     </div>
     <div className="hand" style={{fontSize:17,color:C===DARK?"#f6e0aa":C.accent,lineHeight:1}}>{pl?"rysuj palcem, rysikiem albo myszką · 1 kratka = 10 cm, jeśli tak umówicie się na pomiarze":"рисуй пальцем, стилусом или мышкой · сетка — для масштаба (напр. 1 клетка = 10 см)"}</div>
   </div>);
@@ -6075,7 +6253,7 @@ function VisitsPanel({leads,updateDb,t,mgr,search,onOpen}){
                       <td style={{padding:"9px 12px",color:C.muted}}>{l.phone}</td>
                       <td style={{padding:"9px 12px"}}><span style={{color:MGR_COLOR[l.manager]||C.muted,fontWeight:600}}>{l.manager||"—"}</span></td>
                       <td style={{padding:"9px 12px"}}><SrcBadge source={l.source}/></td>
-                      <td style={{padding:"9px 12px"}}><ScoreBar score={l.score}/></td>
+                      <td style={{padding:"9px 12px"}}><ScoreBar score={l.score} far={is4f(l)}/></td>
                       <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
                         <button onClick={()=>setEditing(l.id)} title={t.editVisit}
                           style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>✎</button>
@@ -6210,7 +6388,7 @@ function PushPanel({leads,updateDb,t,mgr,search,onOpen}){
                       <td style={{padding:"9px 12px",color:C.muted}}>{l.phone}</td>
                       <td style={{padding:"9px 12px"}}><span style={{color:MGR_COLOR[l.manager]||C.muted,fontWeight:600}}>{l.manager||"—"}</span></td>
                       <td style={{padding:"9px 12px"}}><SrcBadge source={l.source}/></td>
-                      <td style={{padding:"9px 12px"}}><ScoreBar score={l.score}/></td>
+                      <td style={{padding:"9px 12px"}}><ScoreBar score={l.score} far={is4f(l)}/></td>
                       <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
                         <button onClick={()=>setEditing(l.id)} title={t.editPush}
                           style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>✎</button>
@@ -6262,6 +6440,7 @@ function MultiPick({label,options,selected,onChange,width=200}){
 
 function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onOpen,currentUser,funnels=[],lang="ru",abTests=[],onOpenTests}){
   const [stickerLead,setStickerLead]=useState(null);
+  const [tmNow,setTmNow]=useState(Date.now());useEffect(()=>{const id=setInterval(()=>setTmNow(Date.now()),30000);return()=>clearInterval(id);},[]); // таймеры в строках тикают
   const addSticker=(text)=>{
     if(!stickerLead)return;
     const st={id:Date.now()+Math.floor(Math.random()*1000),text,by:currentUser||"—",at:Date.now()};
@@ -6371,19 +6550,19 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
                 <td style={{padding:"8px 10px",maxWidth:230,minWidth:150}} title={t.dblClickSticker} onClick={e=>e.stopPropagation()} onDoubleClick={e=>{e.stopPropagation();setStickerLead(l);}}>
                   {(l.stickers&&l.stickers.length>0)
                     ? (()=>{const last=l.stickers[l.stickers.length-1];const more=l.stickers.length-1;return(
-                        <div className="g-stk" style={{cursor:"pointer",background:"rgba(240,192,64,0.07)",border:"1px solid rgba(240,192,64,0.28)",borderRadius:8,padding:"5px 8px"}}>
+                        <div className={"g-stk"+(STK_MKT.includes(last.by)?"":" g-stk-b")} style={{cursor:"pointer",background:stkCol(last.by).bg,border:`1px solid ${stkCol(last.by).bd}`,borderLeft:`3px solid ${stkCol(last.by).c}`,borderRadius:8,padding:"5px 8px"}}>
                           <div className="g-stkt hand" style={{fontSize:11,color:C.text,lineHeight:1.35,whiteSpace:"normal",wordBreak:"break-word",display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{last.text}</div>
-                          <div style={{fontSize:9,fontWeight:700,color:"#f0c040",marginTop:3}}>— {last.by||"—"}{last.at?` · ${new Date(last.at).toLocaleDateString("ru-RU")}`:""}{more>0?`  ·  +${more}`:""}</div>
+                          <div style={{fontSize:9,fontWeight:700,color:stkCol(last.by).c,marginTop:3}}>— {last.by||"—"}{last.at?` · ${new Date(last.at).toLocaleDateString("ru-RU")}`:""}{more>0?`  ·  +${more}`:""}</div>
                         </div>);})()
                     : <span style={{color:C.dim,fontSize:15,opacity:0.3,cursor:"pointer"}}>＋</span>}
                 </td>
                 <td style={{padding:"8px 10px",color:C.dim,fontSize:11,whiteSpace:"nowrap"}}>{l.createdAt}</td>
-                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{abTests.length>0&&<AbChip tests={abTests} l={l}/>}<DzChip l={l} lang={lang}/>{(()=>{const n=leadAttachments(l).length+(l.files||[]).filter(f=>f&&typeof f==="object"&&f.path).length;return n>0?<span title="Фото / файлы" style={{marginLeft:6,fontSize:11,color:"#38bdf8",fontWeight:800}}>📎{n}</span>:null;})()}{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<span style={{marginLeft:7,fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",verticalAlign:"middle"}}>▼ {f.name}</span>:null;})()}{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
+                <td style={{padding:"8px 10px"}}><span style={{color:C.text,fontWeight:500}}>{l.score===6?"⭐ ":""}{jrSad(l,tmNow)?<span title={lang==="pl"?"Został w dzienniku domykania z zeszłego miesiąca":"Остался в журнале дожимов с прошлого месяца"}>😢 </span>:""}{l.name||<span style={{color:C.dim}}>—</span>}</span>{abTests.length>0&&<AbChip tests={abTests} l={l}/>}<DzChip l={l} lang={lang}/>{(()=>{const n=leadAttachments(l).length+(l.files||[]).filter(f=>f&&typeof f==="object"&&f.path).length;return n>0?<span title="Фото / файлы" style={{marginLeft:6,fontSize:11,color:"#38bdf8",fontWeight:800}}>📎{n}</span>:null;})()}{(()=>{const f=leadFunnel(l,srcList,funnels);return f?<span style={{marginLeft:7,fontSize:9,fontWeight:800,color:f.color,background:`${f.color}1f`,border:`1px solid ${f.color}66`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",verticalAlign:"middle"}}>▼ {f.name}</span>:null;})()}{snoozeLeft("lead:"+l.id)&&<span title="Отложено — тревога повторится" style={{marginLeft:6,fontSize:10,fontWeight:800,color:"#fb923c",background:"rgba(251,146,60,0.14)",border:"1px solid rgba(251,146,60,0.5)",borderRadius:8,padding:"1px 7px",whiteSpace:"nowrap"}}>⏰ {snoozeLeft("lead:"+l.id)}</span>}</td>
                 <td style={{padding:"8px 10px",color:C.muted,fontFamily:"monospace",fontSize:11}}>{l.phone}</td>
-                <td style={{padding:"8px 10px"}}>{(()=>{const e=erikaEff(l);return e.v!=null?<div title={t.erikaScore} style={{fontSize:9,fontWeight:800,color:"#f472b6",lineHeight:"11px",marginBottom:1,whiteSpace:"nowrap",opacity:1}}>Э {e.v}</div>:null;})()}<ScoreBar score={l.score}/></td>
+                <td style={{padding:"8px 10px"}}>{(()=>{const e=erikaEff(l);return e.v!=null?<div title={t.erikaScore} style={{fontSize:9,fontWeight:800,color:"#f472b6",lineHeight:"11px",marginBottom:1,whiteSpace:"nowrap",opacity:1}}>Э {e.v}</div>:null;})()}<ScoreBar score={l.score} far={is4f(l)}/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={t[l.qualification]} color={QUAL_COLOR[l.qualification]} small/></td>
                 <td style={{padding:"8px 10px"}}><Badge label={(t[l.budgetTimeline]||"").slice(0,14)} color={BUD_COLOR[l.budgetTimeline]} small/></td>
-                <td style={{padding:"8px 10px"}}><Badge label={t[l.action]} color={ACT_COLOR[l.action]} action={l.action} small/></td>
+                <td style={{padding:"8px 10px"}}><Badge label={t[l.action]} color={ACT_COLOR[l.action]} action={l.action} small/><LeadTimerChip l={l} lang={lang} now={tmNow} onQuoteReady={x=>updateDb(p=>({...p,leads:(p.leads||[]).map(y=>y.id===x.id?quoteReadyPatch(y,currentUser||"—"):y)}),true)}/></td>
                 <td style={{padding:"8px 10px"}}>{l.manager?<div style={{display:"flex",alignItems:"center",gap:5}}><Avatar name={l.manager} color={MGR_COLOR[l.manager]} size={18}/><span style={{color:MGR_COLOR[l.manager],fontSize:11}}>{l.manager}</span></div>:<span style={{color:C.dim,fontSize:11}}>—</span>}</td>
                 <td style={{padding:"8px 10px"}}><SrcBadge source={l.source}/></td>
                 <td className="g-ra" style={{padding:"8px 10px",display:"flex",gap:4,alignItems:"center"}}><button className={l.isFavorite?"g-fav on":"g-fav"} onClick={e=>{e.stopPropagation();toggleFav(l.id,e);}} style={{background:l.isFavorite?"rgba(251,191,36,0.2)":"transparent",border:`1px solid ${l.isFavorite?"#fbbf24":C.border}`,color:l.isFavorite?"#fbbf24":C.dim,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}} title={t.favorite}>{l.isFavorite?"★":"☆"}</button><button onClick={e=>{e.stopPropagation();onOpen(l);}} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,color:C.accent,borderRadius:6,padding:"3px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>→</button></td>
@@ -6504,6 +6683,8 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     const u={...form,[k]:v};
     // Первый контакт: момент первой отметки «Контакт 1» (звонок сделан — дозвонились или нет)
     if(k==="c1"&&v!=null&&!form.c1At&&!firstContactMs(form)){u.c1At=Date.now();u.c1By=creatorLD||currentUser||"—";}
+    if(k==="c2"&&v!=null&&!form.c2At)u.c2At=Date.now();
+    if(k==="kitchenInfo"){if(v==="wait")u.kiWaitAt=Date.now();else if(form.kitchenInfo==="wait"&&v)u.kiAnsAt=Date.now();}
     // Первое касание дерева — запоминаем исходную оценку/действие (для старых лидов и отката)
     if(form.preTreeScore==null){u.preTreeScore=parseFloat(form.score)||0;u.preTreeAction=form.action||"undefined";}
     // Смена/снятие ответа сбрасывает все зависимые ответы ниже по ветке
@@ -6541,6 +6722,8 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     if(!entries.length)entries.push({date:nowStr(),action:lang==="ru"?"Сохранено без изменений":"Zapisano bez zmian",by});
     const trail=(form.score!==lead.score)?[...(lead.scoreTrail||(lead.score!=null?[lead.score]:[])),form.score]:(form.scoreTrail||lead.scoreTrail);
     const updated={...form,scoreTrail:trail,leadId:makeLeadId(form.id,form.createdAt),updatedAt:Date.now(),history:[...(form.history||[]),...entries]};
+    if(lead.action==="waitPrice"&&form.action!=="waitPrice"&&!form.priceContactAt)updated.priceContactAt=Date.now(); // связался по просчёту
+    if(lead.action==="quote"&&form.action==="waitPrice"&&!form.quoteReadyAt){updated.quoteReadyAt=Date.now();updated.quoteReadyBy=by;}
     setLeads(p=>p.map(l=>l.id===lead.id?keepE(l,updated):l));setEditing(inline&&autoEdit);setForm(updated);
   };
   // режим дежурного: при переходе к другому лиду несохранённые правки записываются сами
@@ -6633,7 +6816,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           </div>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>◈ Оценка 0–6</div>
-            {(()=>{const e=erikaEff(form);const tr=e.tree||{};const V={c1:{yes:t.cYes,no:t.cNo},c2:{yes:t.cYes,no:t.cNo},term:{lt4:t.lt4,gt4:t.gt4},kitchenInfo:{yes:t.kiYes,no:t.kiNo},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld}};
+            {(()=>{const e=erikaEff(form);const tr=e.tree||{};const V={c1:{yes:t.cYes,no:t.cNo},c2:{yes:t.cYes,no:t.cNo},term:{lt4:t.lt4,gt4:t.gt4},kitchenInfo:{yes:t.kiYes,no:t.kiNo,wait:t.kiWait},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld}};
               const parts=e.v==null&&!e.legacy?[]:[["c1",t.c1],["c2",t.c2],["term",t.term],["kitchenInfo",t.kitchenInfo],["distance",t.distance],["apartment",t.apartment]].filter(([k])=>tr[k]).map(([k,lb])=>`${lb}: ${V[k][tr[k]]}${k==="term"&&e.termFromForm?(lang==="pl"?" (z formularza)":" (из формы)"):""}`);
               return <div style={{fontSize:10,color:"#f472b6",fontWeight:700,marginBottom:4}}>★ {t.erikaScore}: <b style={{fontSize:12}}>{e.v??"—"}</b> <span style={{color:C.muted,fontWeight:500}}>· {parts.length?parts.join(" · "):(e.legacy?(lang==="pl"?"ręczna (stara)":"ручная (старая)"):(lang==="pl"?"Erika jeszcze nie oceniała":"Эрика ещё не оценивала"))}</span></div>;})()}
             {currentUser==="Erika"
@@ -6690,7 +6873,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
                   {show("c1")&&<Row field="c1" label={t.c1} opts={[["yes",t.cYes],["no",t.cNo]]}/>}
                   {show("c2")&&<Row field="c2" label={t.c2} opts={[["yes",t.cYes],["no",t.cNo]]}/>}
                   {show("term")&&<Row field="term" label={t.term} opts={[["lt4",t.lt4],["gt4",t.gt4]]}/>}
-                  {show("kitchenInfo")&&<Row field="kitchenInfo" label={t.kitchenInfo} opts={[["yes",t.kiYes],["no",t.kiNo]]}/>}
+                  {show("kitchenInfo")&&<Row field="kitchenInfo" label={t.kitchenInfo} opts={[["yes",t.kiYes],["no",t.kiNo],["wait",t.kiWait]]}/>}
                   {show("distance")&&<Row field="distance" label={t.distance} opts={[["near",t.dNear],["far",t.dFar]]}/>}
                   {show("apartment")&&<Row field="apartment" label={t.apartment} opts={[["new",t.aNew],["old",t.aOld]]}/>}
                   {show("noVisitReason")&&<Row field="noVisitReason" label={"❓ "+t.whyNoVisit} opts={[["thinking",t.rThinking],["price",t.rPrice],["distance",t.rDistance],["term",t.rTerm]]}/>}
@@ -7572,7 +7755,7 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
   const L=my(leads).filter(l=>l.action!=="cancelled"&&!dzClosed(l));
   const pat=analyzeSalePatterns(leads||[]);
   const attrLabel={budget:t.period||"Срок",hadVisit:ru?"Визит в шоурум":"Wizyta w salonie",hadQuote:ru?"Просчёт":"Wycena",kitchenInfo:t.kitchenInfo,distance:t.distance,apartment:t.apartment};
-  const valLabel=(a,v)=>({kitchenInfo:{yes:t.kiYes,no:t.kiNo},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld},hadVisit:{yes:ru?"был":"była",no:ru?"не было":"nie było"},hadQuote:{yes:ru?"был":"była",no:ru?"не было":"nie było"}}[a]?.[v]||t[v]||v);
+  const valLabel=(a,v)=>({kitchenInfo:{yes:t.kiYes,no:t.kiNo,wait:t.kiWait},distance:{near:t.dNear,far:t.dFar},apartment:{new:t.aNew,old:t.aOld},hadVisit:{yes:ru?"был":"była",no:ru?"не было":"nie było"},hadQuote:{yes:ru?"был":"była",no:ru?"не было":"nie było"}}[a]?.[v]||t[v]||v);
   // Рекомендации: не проданные лиды, совпадающие ≥2 сильных признаков
   const recs=pat.top.length?L.filter(l=>l.score<6&&l.score>=2).map(l=>({l,hits:pat.top.filter(r=>(SALE_ATTR_FN[r.attr]?SALE_ATTR_FN[r.attr](l):l[r.attr])===r.value).length})).filter(x=>x.hits>=Math.min(2,pat.top.length)).sort((a,b)=>b.hits-a.hits).slice(0,12):[];
   // ПРИОРИТЕТ: оценка 2.5 (срок 4м+, инфо по кухне есть), лид пришёл 3+ месяца назад → срок подошёл
@@ -10596,6 +10779,9 @@ const AURUM_CSS=`
 .aurum .g-quote{border-width:1px!important;background:linear-gradient(135deg,rgba(246,224,170,.22),rgba(227,184,96,.1))!important;color:#f6e0aa!important;box-shadow:0 0 0 1px rgba(227,184,96,.5),0 0 14px rgba(227,184,96,.25)}
 .aurum .g-src{border-radius:6px!important;padding:2px 7px!important;font-weight:400!important;font-size:9.5px!important;max-width:110px!important}
 .aurum .g-stk{background:linear-gradient(160deg,rgba(246,224,170,.16),rgba(227,184,96,.06))!important;border-color:rgba(227,184,96,.35)!important;border-radius:12px!important;transform:rotate(-.6deg);box-shadow:0 6px 16px rgba(0,0,0,.25)}
+@keyframes gTmP{50%{box-shadow:0 0 0 4px rgba(168,85,247,.35)}}.g-tm-p{animation:gTmP 1.2s infinite}
+.aurum .g-stk.g-stk-b{background:linear-gradient(160deg,rgba(92,184,255,.18),rgba(92,184,255,.06))!important;border-color:rgba(92,184,255,.5)!important;border-left-color:#5cb8ff!important;transform:rotate(.5deg)}
+.aurum .g-stk:not(.g-stk-b){border-left-color:#f0c040!important}
 .aurum .g-stkt{font-size:16px!important;line-height:1.05!important;color:#f6e0aa!important}
 .aurum .g-ra button{border-radius:9px!important;min-width:28px;height:28px;padding:0 7px!important;transition:background .25s,box-shadow .25s,transform .2s}
 .aurum td.g-ra{display:table-cell!important;white-space:nowrap;vertical-align:middle}.aurum .g-ra button{display:inline-grid;place-items:center;margin-left:4px}.aurum .g-lt tbody tr .g-ra{opacity:.45;transition:opacity .25s}
@@ -10620,6 +10806,9 @@ function GarnoCRM(){
   useAurumSheen();
   const F=useFin(!!db); // финансы: отдельная строка базы (id=3), грузятся после основной
   const [orderFocus,setOrderFocus]=useState(null);
+  const [jrOpen,setJrOpen]=useState(false);const [jrNote,setJrNote]=useState("");const [vaNow,setVaNow]=useState(Date.now());
+  useEffect(()=>{const id=setInterval(()=>setVaNow(Date.now()),60000);return()=>clearInterval(id);},[]);
+  const [seg,setSeg]=useState(()=>{try{return localStorage.getItem("garno_seg")||"kitchen";}catch{return "kitchen";}});const setSegS=v=>{setSeg(v);try{localStorage.setItem("garno_seg",v);}catch{}};
   const [kiosk,setKiosk]=useState(()=>typeof location!=="undefined"&&location.hash==="#tabel");
   useEffect(()=>{const h=()=>setKiosk(location.hash==="#tabel");window.addEventListener("hashchange",h);return()=>window.removeEventListener("hashchange",h);},[]);
   const [page,setPage]=useState("dashboard");
@@ -10765,6 +10954,9 @@ function GarnoCRM(){
     if(changed&&freshCount()===0)stopSiren();
   },[db?.leads,currentUser]);
 
+  // Журнал дожимов открывается сам: по вторникам, а с последнего вторника месяца — каждый день (раз в день)
+  useEffect(()=>{if(!db||!currentUser||!MANAGERS.includes(currentUser))return;const cy=jrCycle(Date.now());if(!(new Date().getDay()===2||cy.control))return;
+    const k="garno_jr_seen_"+currentUser;try{if(localStorage.getItem(k)===getToday())return;if(jrList(db.leads||[],currentUser,Date.now()).items.length){localStorage.setItem(k,getToday());setJrOpen(true);}}catch{}},[!!db,currentUser]);
   if(status==="loading") return(
     <div style={{display:"flex",height:"100vh",background:C.bg,alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
       <style>{`*{box-sizing:border-box;}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
@@ -10804,6 +10996,22 @@ function GarnoCRM(){
   );
 
   const leads   = db.leads   ?? [];
+  // Журнал дожимов (вторник / контрольный в конце месяца) и вопрос «визит состоялся?»
+  const isMgrUser=MANAGERS.includes(currentUser);
+  const jrInfo=isMgrUser?jrList(leads,currentUser,vaNow):{cy:jrCycle(vaNow),items:[]};
+  const vaLead=isMgrUser?leads.find(l=>l.manager===currentUser&&visitAskDue(l,vaNow))||null:null;
+  const jrBtn=isMgrUser&&jrInfo.items.length>0?<button onClick={()=>setJrOpen(true)} title={lang==="pl"?"Dziennik domykania":"Журнал дожимов"} style={{background:jrInfo.cy.control?"rgba(248,113,113,.16)":"rgba(227,184,96,.14)",border:`1px solid ${jrInfo.cy.control?"rgba(248,113,113,.7)":"rgba(227,184,96,.6)"}`,color:jrInfo.cy.control?"#f87171":"#e3b860",borderRadius:10,padding:"6px 11px",fontSize:12.5,fontWeight:900,cursor:"pointer",whiteSpace:"nowrap"}}>📒 {jrInfo.items.length}</button>:null;
+  // Продукт в метриках: кухни и Blaty считаются раздельно (переключатель над дашбордом и центром продаж)
+  const _srcL=domainsState&&domainsState.length?domainsState:normDoms(SOURCES);
+  const blatSet=blatSources(_srcL,db.funnels||[]);const hasBlat=blatSet.size>0;
+  const segOf=(src)=>blatSet.has(src)?"blat":"kitchen";
+  const mLeads=!hasBlat||seg==="all"?leads:leads.filter(l=>segOf(l.source)===seg);
+  const mSalesAll=db.sales??[];const mSales=!hasBlat||seg==="all"?mSalesAll:mSalesAll.filter(x=>{const ld=leads.find(l=>l.leadId===x.leadId||l.id===x.leadId)||leads.find(l=>l.phone&&l.phone===x.phone);return segOf((ld&&ld.source)||x.source)===seg;});
+  const mDb=!hasBlat||seg==="all"?db:{...db,leads:mLeads,sales:mSales};
+  const segBar=hasBlat&&["dashboard","salescenter","funnel","analytics"].includes(page)?<div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 18px 0",flexWrap:"wrap"}}>
+    <span style={{fontSize:11,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:.8}}>{lang==="pl"?"Produkt":"Продукт"}</span>
+    {[["kitchen","🍳 "+(lang==="pl"?"Kuchnie":"Кухни")],["blat","🪨 Blaty"],["all",lang==="pl"?"Razem":"Всё вместе"]].map(([k,l])=><button key={k} onClick={()=>setSegS(k)} style={{background:seg===k?C.accent:"transparent",color:seg===k?(C===DARK?"#00132f":"#fff"):C.muted,border:`1px solid ${seg===k?C.accent:C.borderMd}`,borderRadius:9,padding:"5px 12px",fontSize:12.5,fontWeight:800,cursor:"pointer"}}>{l}{k!=="all"?` · ${leads.filter(x=>segOf(x.source)===k).length}`:""}</button>)}
+    <span style={{fontSize:11,color:C.dim}}>{seg==="all"?(lang==="pl"?"kuchnie i blaty razem":"кухни и столешницы вместе"):seg==="blat"?(lang==="pl"?"tylko lejek Blaty":"только воронка Blaty"):(lang==="pl"?"bez lejka Blaty":"без воронки Blaty")}</span></div>:null;
   const events  = db.events  ?? [];
   const sales   = db.sales   ?? [];
   const tasks    = db.tasks   ?? [];
@@ -10884,10 +11092,12 @@ function GarnoCRM(){
       `}</style>
       <Sidebar page={page} setPage={setPage} lang={lang} collapsed={collapsed} mgr={mgr} setMgr={setMgr} unreadTasks={unreadTasksCount} pushDue={pushDueTodayCount} aiUnread={aiUnreadCount} freshLeads={freshCount()} t={t}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <TopBar updBtn={<UpdButton currentUser={currentUser} page={page} updateDb={updateDb} lang={lang}/>} lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} unreadTasks={unreadTasksCount} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
+        <TopBar updBtn={<>{jrBtn}<UpdButton currentUser={currentUser} page={page} updateDb={updateDb} lang={lang}/></>} lang={lang} setLang={setLang} search={search} setSearch={setSearch} collapsed={collapsed} setCollapsed={setCollapsed} unreadTasks={unreadTasksCount} t={t} onAddLead={()=>setShowAdd(true)} currentUser={currentUser} setCurrentUser={saveUser} syncLabel={syncLabel} syncError={syncError} onRefresh={refresh} theme={theme} toggleTheme={toggleTheme}/>
         {syncError&&<div style={{background:"rgba(248,113,113,0.15)",borderBottom:`1px solid rgba(248,113,113,0.4)`,padding:"8px 16px",fontSize:12,color:"#f87171",display:"flex",alignItems:"center",gap:10,flexShrink:0}}><span style={{fontSize:16}}>⚠️</span><span style={{flex:1}}>{syncError}</span><span style={{fontSize:10,color:"rgba(248,113,113,0.7)"}}>Данные в безопасности — сохранены локально</span></div>}
         <div style={{flex:1,overflowY:"auto"}}>
-          {page==="dashboard"  && <DashboardPage db={db} updateDb={updateDb} currentUser={currentUser} lang={DASH_LANG||lang} t={T[DASH_LANG||lang]||t} srcList={srcList} onOpenLead={setSelLead}/>}
+          {jrNote&&<div style={{position:"fixed",top:70,left:"50%",transform:"translateX(-50%)",zIndex:5600,background:"#e3b860",color:"#00132f",fontWeight:900,borderRadius:12,padding:"10px 18px",boxShadow:"0 10px 40px rgba(0,0,0,.5)"}}>✍ {jrNote}</div>}
+          {segBar}
+          {page==="dashboard"  && <DashboardPage db={mDb} updateDb={updateDb} currentUser={currentUser} lang={DASH_LANG||lang} t={T[DASH_LANG||lang]||t} srcList={srcList} onOpenLead={setSelLead}/>}
           {page==="leads"      && <LeadsSection abTests={db.abTests||[]} onOpenTests={()=>setPage("tests")} ldp={{setLeads:setLeadsNow,srcList,onAddSale:addSale,taskTypes:db.taskTypes||[],tasks,orders:db.orders||[]}} lang={lang} funnels={db.funnels||[]} leads={leads} setLeads={setLeads} setLeadsNow={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} mgr={mgr} search={search} onOpen={setSelLead} currentUser={currentUser}/>}
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead} mgr={mgr} F={F} focusNum={orderFocus} onFocused={()=>setOrderFocus(null)}/>}
@@ -10895,13 +11105,16 @@ function GarnoCRM(){
           {page==="timesheets" && <TimesheetsPage db={db} F={F} currentUser={currentUser} lang={lang}/>}
           
           {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
-          {(page==="salescenter"||page==="funnel"||page==="analytics")&& <SalesCenterTabs goals={db.goals||[]} initialTab={page==="salescenter"?"center":"funnel"} srcList={srcList} funnels={db.funnels||[]} leads={leads} sales={sales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
+          {(page==="salescenter"||page==="funnel"||page==="analytics")&& <SalesCenterTabs goals={db.goals||[]} initialTab={page==="salescenter"?"center":"funnel"} srcList={srcList} funnels={db.funnels||[]} leads={mLeads} sales={mSales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
           {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={setSelLead} currentUser={currentUser}/>}
           {page==="tests"      && <TestsPage db={db} updateDb={updateDb} currentUser={currentUser} lang={lang} onOpenLead={setSelLead}/>}
           {page==="settings"   && <SettingsPage db={db} updateDb={updateDb} lang={lang} t={t} srcList={srcList} setDomains={setDomains} currentUser={currentUser}/>}
           {page==="tasks"      && <TasksPage orders={db.orders||[]} orderTaskTypes={db.orderTaskTypes||[]} tasks={tasks} updateDb={updateDb} currentUser={currentUser} lang={lang} t={t} leads={leads} taskTypes={db.taskTypes||[]} onOpenLead={setSelLead} initialModal={taskPreset} />}
         </div>
       </div>
+      {jrOpen&&<DzJournal leads={leads} me={currentUser} lang={lang} updateDb={updateDb} onOpenLead={(l,note)=>{setJrOpen(false);setSelLead(l);if(note){setJrNote(note);setTimeout(()=>setJrNote(""),7000);}}} onClose={(forced)=>{setJrOpen(false);if(forced){try{localStorage.setItem("garno_jr_masc_"+currentUser,new Date().toISOString().slice(0,7));}catch{}}}}/>}
+      {!jrOpen&&jrInfo.items.length>0&&jrInfo.cy.control&&(()=>{try{return localStorage.getItem("garno_jr_masc_"+currentUser)===new Date().toISOString().slice(0,7);}catch{return false;}})()&&<JournalMascot lang={lang} count={jrInfo.items.length} onOpen={()=>setJrOpen(true)}/>}
+      {!jrOpen&&vaLead&&<VisitAskPopup key={vaLead.id} lead={vaLead} lang={lang} me={currentUser} updateDb={updateDb}/>}
       {activeAlert && <AlertPopup alert={activeAlert} onAccept={alertAccept} onSnooze={alertSnooze} onOpen={alertOpen} onDismiss={alertDismiss} onForward={alertForward} currentUser={currentUser} lang={lang}/>}
       {showToday && currentUser && currentUser!=="all" && <GarnoTodayPopup leads={leads} sales={sales} tasks={db.tasks||[]} currentUser={currentUser} lang={lang} setPage={setPage} onOpenLead={setSelLead} onClose={closeToday}/>}
       {!showToday && currentUser && currentUser!=="all" && <button onClick={()=>setShowToday(true)} title="GARNO TODAY" style={{position:"fixed",right:18,bottom:18,zIndex:900,width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#bfa47e,#d4b896)",border:"none",color:"#00132f",fontSize:20,cursor:"pointer",boxShadow:"0 6px 18px rgba(191,164,126,0.4)"}}>☀</button>}
