@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 // Фото для КП. Импорт «целиком»: если в kpPhotos.js какого-то фото нет — сборка не падает, просто без этого фото.
 import * as KP_PHOTOS from "./kpPhotos.js";
 const IMG_KRONOSPAN=KP_PHOTOS.IMG_KRONOSPAN||"",IMG_FRONTY=KP_PHOTOS.IMG_FRONTY||"",IMG_HETTICH=KP_PHOTOS.IMG_HETTICH||"",IMG_HANDSHAKE=KP_PHOTOS.IMG_HANDSHAKE||"",IMG_SHOWROOM1=KP_PHOTOS.IMG_SHOWROOM1||"",IMG_TEAM=KP_PHOTOS.IMG_TEAM||"",IMG_RODA=KP_PHOTOS.IMG_RODA||"",IMG_MAP=KP_PHOTOS.IMG_MAP||"",IMG_OLEH=KP_PHOTOS.IMG_OLEH||"",IMG_DMYTRO=KP_PHOTOS.IMG_DMYTRO||"",IMG_PATRYK=KP_PHOTOS.IMG_PATRYK||"";
@@ -1021,6 +1022,8 @@ function useDatabase(){
       deletedOrderIds:[...new Set([...(local.deletedOrderIds||[]),...(remote?.deletedOrderIds||[])])],
       // 🎯 Цели: по id, побеждает более свежая правка; удалённые не возвращаются
       goals:(()=>{const dead=new Set([...(local.deletedGoalIds||[]),...(remote?.deletedGoalIds||[])]);const m=new Map();(remote?.goals||[]).forEach(x=>m.set(x.id,x));(local.goals||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()].filter(x=>!dead.has(x.id));})(),
+      penalties:(()=>{const m=new Map();(remote?.penalties||[]).forEach(x=>m.set(x.id,x));(local.penalties||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()];})(),
+      penStartAt:(()=>{const a=local.penStartAt,b=remote?.penStartAt;return a&&b?Math.min(a,b):(b||a||undefined);})(),
       updates:(()=>{const m=new Map();(remote?.updates||[]).forEach(x=>m.set(x.id,x));(local.updates||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()];})(),
       abTests:(()=>{const m=new Map();(remote?.abTests||[]).forEach(x=>m.set(x.id,x));(local.abTests||[]).forEach(x=>{const ex=m.get(x.id);if(!ex||(x.updatedAt||0)>=(ex.updatedAt||0))m.set(x.id,x);});return [...m.values()];})(),
       deletedGoalIds:[...new Set([...(local.deletedGoalIds||[]),...(remote?.deletedGoalIds||[])])],
@@ -2520,6 +2523,7 @@ const NAV_SVG={
   finance:<><ellipse cx="10" cy="17" rx="6.5" ry="2.6"/><path d="M3.5 13.2v3.8M16.5 13.2v3.8"/><ellipse cx="10" cy="13.2" rx="6.5" ry="2.6"/><g className="p coin"><circle cx="17.5" cy="6.5" r="3.6"/><path d="M17.5 5v3"/></g></>,
   timesheets:<><circle cx="12" cy="12.5" r="8.5"/><path className="p hand" d="M12 12.5V7.5"/><path className="p hand2" d="M12 12.5l3.5 2"/><path d="M9.5 2.5h5"/></>,
   tasks:<><path d="M10 6h10M10 12h10M10 18h10"/><path className="p c1" d="M3.5 6l1.5 1.5 2.5-2.5"/><path className="p c2" d="M3.5 12l1.5 1.5 2.5-2.5"/><path className="p c3" d="M3.5 18l1.5 1.5 2.5-2.5"/></>,
+  penalties:<><path d="M12 3v18M7 21h10M5 7h14"/><path className="p c1" d="M5 7l-3 7a3 3 0 0 0 6 0z"/><path className="p c2" d="M19 7l-3 7a3 3 0 0 0 6 0z"/></>,
   tests:<><path d="M9 3h6M10 3v6l-5.5 9.5A2 2 0 0 0 6.2 21.5h11.6a2 2 0 0 0 1.7-3L14 9V3"/><path d="M7 15h10"/><circle className="p b1" cx="10.5" cy="18" r=".9" fill="currentColor" stroke="none"/><circle className="p b2" cx="13.5" cy="17" r=".7" fill="currentColor" stroke="none"/></>,
   settings:<><g className="p gear"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></g><circle cx="12" cy="12" r="2.5"/></>,
 };
@@ -2620,9 +2624,19 @@ function UpdButton({currentUser,page,updateDb,lang}){const pl=lang==="pl";const 
     const e={id,by:currentUser||"—",at:now,page:page||"",rect:{x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h)},vw:window.innerWidth,vh:window.innerHeight,text:S.text||"",comment:c,shot,status:"open",updatedAt:now};
     updateDb(p=>({...p,updates:[...(p.updates||[]),e]}),true);
     setBusy(false);setMode(null);setR(null);setTxt("");shotRef.current=null;setToast(L("✓ Правка отправлена — видно в Настройки → Update","✓ Uwaga wysłana — widać w Ustawienia → Update"));setTimeout(()=>setToast(null),3500);};
-  const ov={position:"fixed",inset:0,zIndex:3900};
+  const ov={position:"fixed",inset:0,zIndex:200010};
+  // кнопка видна поверх любого окна: если её перекрыло модальное окно/меню — показываем плавающую копию на том же месте
+  const btnRef=useRef(null);const[fl,setFl]=useState(null);
+  useEffect(()=>{const chk=()=>{const b=btnRef.current;if(!b||mode){setFl(f=>f?null:f);return;}const q=b.getBoundingClientRect();
+      if(q.width<2||q.bottom<0||q.top>window.innerHeight){setFl(f=>f&&f.far?f:{far:1});return;}
+      const top=(document.elementsFromPoint(q.left+q.width/2,q.top+q.height/2)||[]).find(x=>!(x.closest&&x.closest("[data-upd-fl]")));
+      if(top&&b.contains(top)){setFl(f=>f?null:f);return;}
+      setFl(f=>f&&!f.far&&Math.abs(f.l-q.left)<1&&Math.abs(f.t-q.top)<1?f:{l:q.left,t:q.top});};
+    chk();const iv=setInterval(chk,400);return()=>clearInterval(iv);},[mode]);
   return <>
-    <button onClick={()=>{setMode("sel");setR(null);}} title={L("Выделить область и написать правку для CRM","Zaznacz obszar i napisz uwagę do CRM")} style={{display:"flex",alignItems:"center",gap:6,background:C.card,border:`1px solid ${C.border}`,borderRadius:7,padding:"4px 12px",cursor:"pointer",fontSize:11,fontWeight:600,color:C.muted,whiteSpace:"nowrap"}}><span style={{fontSize:14}}>✍</span>{L("Правка","Uwaga")}</button>
+    {fl&&!mode&&createPortal(<button data-upd-ui="1" data-upd-fl="1" onClick={e=>{e.stopPropagation();setMode("sel");setR(null);}} title={L("Выделить область и написать правку для CRM","Zaznacz obszar i napisz uwagę do CRM")} style={{position:"fixed",...(fl.far?{right:12,bottom:12}:{left:fl.l,top:fl.t}),zIndex:200005,fontFamily:"'DM Sans','Segoe UI',sans-serif",display:"flex",alignItems:"center",gap:6,background:"linear-gradient(135deg,#f6e0aa,#e3b860)",border:"1px solid #c8923a",borderRadius:7,padding:"4px 12px",cursor:"pointer",fontSize:11,fontWeight:800,color:"#08153a",whiteSpace:"nowrap",boxShadow:"0 4px 16px rgba(0,0,0,.45)"}}><span style={{fontSize:14}}>✍</span>{L("Правка","Uwaga")}</button>,document.body)}
+    <button ref={btnRef} onClick={()=>{setMode("sel");setR(null);}} title={L("Выделить область и написать правку для CRM","Zaznacz obszar i napisz uwagę do CRM")} style={{display:"flex",alignItems:"center",gap:6,background:C.card,border:`1px solid ${C.border}`,borderRadius:7,padding:"4px 12px",cursor:"pointer",fontSize:11,fontWeight:600,color:C.muted,whiteSpace:"nowrap"}}><span style={{fontSize:14}}>✍</span>{L("Правка","Uwaga")}</button>
+    {createPortal(<div data-upd-ui="1" style={{fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
     {mode==="sel"&&<div data-upd-ui="1" onPointerDown={down} onPointerMove={move} onPointerUp={up} style={{...ov,cursor:"crosshair",background:r&&r.w?"transparent":"rgba(0,8,24,.35)",touchAction:"none"}}>
       {!r||!r.w?<div style={{position:"absolute",top:70,left:"50%",transform:"translateX(-50%)",background:"rgba(10,26,58,.95)",border:"1px solid rgba(227,184,96,.6)",borderRadius:12,padding:"10px 16px",color:"#fff",fontSize:13,fontWeight:700,whiteSpace:"nowrap"}}>✍ {L("Выдели мышкой или пальцем область, которую надо поправить · Esc — отмена","Zaznacz obszar do poprawy · Esc — anuluj")}</div>:null}
       {r&&r.w>0&&<div style={{position:"absolute",left:r.x,top:r.y,width:r.w,height:r.h,border:"2px solid #e3b860",boxShadow:"0 0 0 9999px rgba(0,8,24,.45)",borderRadius:6}}/>}
@@ -2640,7 +2654,8 @@ function UpdButton({currentUser,page,updateDb,lang}){const pl=lang==="pl";const 
         </div>
       </div>
     </div>}
-    {toast&&<div data-upd-ui="1" style={{position:"fixed",left:"50%",bottom:24,transform:"translateX(-50%)",zIndex:3950,background:"rgba(10,26,58,.97)",border:"1px solid rgba(71,230,160,.6)",color:"#fff",borderRadius:12,padding:"10px 16px",fontSize:13,fontWeight:700}}>{toast}</div>}
+    {toast&&<div data-upd-ui="1" style={{position:"fixed",left:"50%",bottom:24,transform:"translateX(-50%)",zIndex:200020,background:"rgba(10,26,58,.97)",border:"1px solid rgba(71,230,160,.6)",color:"#fff",borderRadius:12,padding:"10px 16px",fontSize:13,fontWeight:700}}>{toast}</div>}
+    </div>,document.body)}
   </>;}
 function UpdShot({u,onOpen}){const [src,setSrc]=useState(u.shot&&u.shot.data||null);
   useEffect(()=>{let ok=true;if(u.shot&&u.shot.path&&!u.shot.data)leadFileUrl(u.shot.path).then(x=>{if(ok)setSrc(x);}).catch(()=>{});return()=>{ok=false;};},[u.shot]);
@@ -4320,6 +4335,137 @@ function AbTestModal({init,onSave,onClose,lang,leads}){const pl=lang==="pl";
     </div></div>;}
 
 // Раздел «Тесты»
+// ─── ⚖ БАЛЛЫ: штрафные баллы менеджеров ───────────────────────────────────────
+// Авто-нарушения CRM находит сама (в рабочих часах шоурума) и записывает в db.penalties один раз — навсегда.
+const PEN_LIMIT=150; // одно правило: 150 баллов за месяц — штраф
+const PEN_ADMIN=["Danya","Dmytro"]; // ручные баллы, разбор оспариваний
+const PEN_RULES={
+  calc:{pts:15,h:24,ic:"🧮",ru:"Просчёт висит больше 24 раб. часов",pl:"Wycena wisi ponad 24 godz. robocze"},
+  notif:{pts:20,h:24,ic:"🔔",ru:"Уведомление от маркетинга или системы без ответа больше 24 раб. часов",pl:"Powiadomienie od marketingu lub systemu bez odpowiedzi ponad 24 godz. robocze"},
+  tree:{pts:15,h:35,ic:"🌿",ru:"Ветка не закрыта больше 35 раб. часов",pl:"Gałąź niezamknięta ponad 35 godz. roboczych"},
+  dress:{pts:5,manual:1,ic:"👔",ru:"Не в фирменной одежде",pl:"Bez stroju firmowego"},
+  complaint:{pts:60,manual:1,ic:"😠",ru:"Жалоба от клиента (подтверждённая)",pl:"Skarga klienta (potwierdzona)"},
+};
+// момент, когда от a набежит dur рабочего времени
+function workAdd(a,dur){let left=dur;const d=new Date(a);d.setHours(0,0,0,0);
+  for(let i=0;i<500;i++){if(WORK.days.includes(d.getDay())){const s=new Date(d).setHours(WORK.from,0,0,0),e=new Date(d).setHours(WORK.to,0,0,0);const x=Math.max(a,s);if(e>x){if(e-x>=left)return x+left;left-=e-x;}}d.setDate(d.getDate()+1);}return a+dur;}
+const penMonth=ms=>{const d=new Date(ms);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;};
+const penTier=p=>p<PEN_LIMIT?0:1;
+const penRemAt=m=>{if(m.at)return +m.at;const d=m.data||{};const iso=d.date||((d.items||[])[0]||{}).date||(String(m.key||"").match(/\d{4}-\d{2}-\d{2}/)||[])[0];if(!iso)return 0;const t=new Date(iso+"T10:00:00").getTime();return isNaN(t)?0:t;};
+// Все авто-нарушения, которые уже наступили к моменту now. start — момент включения системы: часы до него не считаются.
+function penDetect(db,now,start){const out=[];if(!db||!start)return out;const H=3600000;
+  const push=(kind,key,mgr,at,l,note)=>{if(!mgr||at>now)return;out.push({id:`${kind}:${key}`,kind,mgr,pts:PEN_RULES[kind].pts,at,leadId:l?l.id:null,leadName:l?(l.name||l.phone||""):"",note:note||"",by:"auto",status:"ok",updatedAt:at});};
+  (db.leads||[]).forEach(l=>{if(!l)return;const mgr=l.manager;
+    // 1. просчёт
+    if(l.quoteSince){const qs=+l.quoteSince;const end=l.action==="quote"?now:(l.quoteReadyAt&&+l.quoteReadyAt>qs?+l.quoteReadyAt:0);
+      if(end){const at=workAdd(Math.max(qs,start),PEN_RULES.calc.h*H);if(at<=end)push("calc",`${l.id}:${qs}`,mgr,at,l,"");}}
+    // 2. ветка
+    if(treeIncomplete(l)){const c=leadCreatedMsSafe(l);if(c){const at=workAdd(Math.max(c,start),PEN_RULES.tree.h*H);push("tree",String(l.id),mgr,at,l,"");}}
+    // 3а. жёлтый стикер маркетинга без ответа менеджера (ответ = стикер менеджера после него)
+    const st=l.stickers||[];if(st.length&&l.action!=="cancelled"){const isAns=s=>s&&s.at&&(s.by===mgr||!STK_MKT.includes(s.by));
+      for(let i=0;i<st.length;i++){const s=st[i];if(!s||!s.at||!STK_MKT.includes(s.by)||s.by===mgr)continue;
+        if(i>0&&st[i-1]&&STK_MKT.includes(st[i-1].by)&&st[i-1].by!==mgr)continue; // серия подряд — считаем один раз
+        const ans=st.slice(i+1).find(isAns);const at=workAdd(Math.max(+s.at,start),PEN_RULES.notif.h*H);
+        if(at<=(ans?+ans.at:now))push("notif",`mkt:${l.id}:${s.id||s.at}`,mgr,at,l,"📝 "+String(s.text||"").slice(0,80));}}
+  });
+  // 3б. системные напоминания (визит / пуш / просчёт), которые никто не принял
+  (db.chat||[]).forEach(m=>{if(!m||m.kind!=="reminder"||!m.key)return;const s0=penRemAt(m);if(!s0)return;
+    const at=workAdd(Math.max(s0,start),PEN_RULES.notif.h*H);if(at>(m.ackBy?(+m.ackAt||0):now))return;
+    const d=m.data||{};const mgrs=[...new Set(m.rtype==="push"?(d.items||[]).map(x=>x.mgr):[d.mgr])].filter(Boolean);
+    const nm=m.rtype==="push"?"🚀 Push":m.rtype==="quote"?"💰":"📅";
+    mgrs.forEach(g=>push("notif",`sys:${m.key}:${g}`,g,at,null,`${nm} ${d.name||((d.items||[]).find(x=>x.mgr===g)||{}).name||""}`.trim()));});
+  return out;}
+function penTotals(list,month){const r={};(list||[]).forEach(p=>{if(!p||p.status==="void"||penMonth(p.at)!==month)return;r[p.mgr]=(r[p.mgr]||0)+(+p.pts||0);});return r;}
+
+function PenaltiesPage({db,updateDb,currentUser,lang,onOpenLead,embedded}){const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;
+  const admin=PEN_ADMIN.includes(currentUser);const now=Date.now();
+  const [month,setMonth]=useState(penMonth(now));const [who,setWho]=useState(admin?"all":currentUser);
+  const [add,setAdd]=useState(null);const [dsp,setDsp]=useState(null);const [rules,setRules]=useState(false);
+  const all=db.penalties||[];const tot=penTotals(all,month);
+  const mgrs=[...new Set([...MANAGERS,...all.filter(p=>penMonth(p.at)===month).map(p=>p.mgr)])].filter(Boolean);
+  const months=[...new Set([penMonth(now),...all.map(p=>penMonth(p.at))])].sort().reverse();
+  const canSee=m=>admin||m===currentUser;
+  const list=all.filter(p=>penMonth(p.at)===month&&(who==="all"?canSee(p.mgr):p.mgr===who&&canSee(p.mgr))).sort((a,b)=>b.at-a.at);
+  const patch=(id,fn)=>updateDb(p=>({...p,penalties:(p.penalties||[]).map(x=>x.id===id?{...fn(x),updatedAt:Date.now()}:x)}),true);
+  const fmt=ms=>{const d=new Date(ms);return `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
+  const tierTxt=t=>t===0?L("в норме","w normie"):L("ШТРАФ","KARA");
+  const tierCol=(t,p)=>t?C.red:p>=PEN_LIMIT*0.66?"#f59e0b":C.green;
+  const saveAdd=()=>{if(!add||!add.mgr)return;const R=PEN_RULES[add.kind];const pts=add.kind==="other"?Math.max(1,Math.round(+add.pts||0)):R.pts;if(add.kind!=="dress"&&!String(add.note||"").trim())return;
+    const e={id:`man:${Date.now()}:${Math.floor(Math.random()*1e4)}`,kind:add.kind,mgr:add.mgr,pts,at:Date.now(),leadId:null,leadName:"",note:String(add.note||"").trim(),by:currentUser,status:"ok",updatedAt:Date.now()};
+    updateDb(p=>({...p,penalties:[...(p.penalties||[]),e]}),true);setAdd(null);};
+  const card={background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:16};
+  const btn=(c)=>({background:"transparent",border:`1px solid ${c}`,color:c,borderRadius:8,padding:"4px 10px",fontSize:11.5,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"});
+  const inp={background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"};
+  const kindName=k=>k==="other"?L("Другое","Inne"):(PEN_RULES[k]?L(PEN_RULES[k].ru,PEN_RULES[k].pl):k);
+  return <div style={{display:"flex",flexDirection:"column",gap:16,padding:embedded?"4px 0 0":"20px 24px 40px"}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      <div style={{fontSize:22,fontWeight:800,color:C.text}}>⚖ {L("Баллы","Punkty")}</div>
+      <select value={month} onChange={e=>setMonth(e.target.value)} style={inp}>{months.map(m=><option key={m} value={m}>{m.slice(5)}.{m.slice(0,4)}</option>)}</select>
+      <div style={{fontSize:12,color:C.muted}}>{L(`${PEN_LIMIT} баллов за месяц — штраф · считаются рабочие часы пн–сб ${WORK.from}:00–${WORK.to}:00`,`${PEN_LIMIT} pkt w miesiącu — kara · liczą się godziny pracy pon–sob ${WORK.from}:00–${WORK.to}:00`)}</div>
+      <div style={{flex:1}}/>
+      <button onClick={()=>setRules(v=>!v)} style={btn(C.muted)}>📋 {L("Правила","Zasady")}</button>
+      {admin&&<button onClick={()=>setAdd({mgr:mgrs[0]||"",kind:"dress",note:"",pts:10})} style={{...btn("#e3b860"),background:"rgba(227,184,96,.12)"}}>＋ {L("Начислить вручную","Dodaj ręcznie")}</button>}
+    </div>
+    {rules&&<div style={card}>
+      {Object.entries(PEN_RULES).map(([k,r])=><div key={k} style={{display:"flex",gap:10,alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${C.border}`,fontSize:13,color:C.text}}>
+        <span style={{fontSize:17}}>{r.ic}</span><span style={{flex:1}}>{L(r.ru,r.pl)}</span><span style={{fontSize:11,color:C.muted}}>{r.manual?L("вручную","ręcznie"):L("авто","auto")}</span><b style={{color:C.red,minWidth:44,textAlign:"right"}}>{r.pts}</b></div>)}
+      <div style={{fontSize:12,color:C.muted,marginTop:10,lineHeight:1.6}}>{L(`Правило одно: ${PEN_LIMIT} баллов за месяц — штраф. Каждый месяц счёт начинается с нуля. Не согласен с баллом — нажми «Оспорить» и напиши причину; решение принимает руководитель.`,`Zasada jest jedna: ${PEN_LIMIT} pkt w miesiącu — kara. Co miesiąc licznik startuje od zera. Nie zgadzasz się — kliknij „Odwołaj się” i napisz powód; decyduje kierownik.`)}</div>
+    </div>}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:12}}>
+      {mgrs.map(m=>{const p=tot[m]||0;const t=penTier(p);const col=tierCol(t,p);const mine=canSee(m);return <div key={m} onClick={()=>mine&&setWho(w=>w===m&&admin?"all":m)} style={{...card,cursor:mine?"pointer":"default",borderColor:who===m?col:C.border,boxShadow:who===m?`0 0 0 1px ${col}`:"none"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><Avatar name={m} color={MGR_COLOR[m]} size={30} noMedal/><div style={{fontSize:14,fontWeight:800,color:C.text,flex:1}}>{m}</div>
+          <div style={{fontSize:24,fontWeight:900,color:col,fontVariantNumeric:"tabular-nums"}}>{p}<span style={{fontSize:12,color:C.muted,fontWeight:600}}> / {PEN_LIMIT}</span></div></div>
+        <div style={{height:7,borderRadius:4,background:C.surface,marginTop:10,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,p/PEN_LIMIT*100)}%`,background:col,borderRadius:4}}/></div>
+        <div style={{fontSize:11.5,color:col,fontWeight:700,marginTop:7}}>{tierTxt(t)}{t===0&&p>0?` · ${L("до штрафа","do kary")} ${PEN_LIMIT-p}`:""}</div>
+      </div>;})}
+    </div>
+    <div style={card}>
+      <div style={{fontSize:14,fontWeight:800,color:C.text,marginBottom:10}}>{who==="all"?L("Все начисления","Wszystkie naliczenia"):`${L("Начисления","Naliczenia")} · ${who}`} <span style={{color:C.muted,fontWeight:600,fontSize:12}}>({list.length})</span></div>
+      {list.length===0?<div style={{fontSize:13,color:C.muted,padding:"14px 0"}}>{L("За этот месяц баллов нет 👍","W tym miesiącu brak punktów 👍")}</div>:
+      list.map(p=>{const R=PEN_RULES[p.kind]||{ic:"•"};const v=p.status==="void";const d=p.status==="dispute";const lead=p.leadId!=null?(db.leads||[]).find(l=>l.id===p.leadId):null;
+        return <div key={p.id} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"10px 0",borderTop:`1px solid ${C.border}`,opacity:v?.5:1}}>
+          <div style={{fontSize:20,lineHeight:1.1}}>{R.ic}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.text,textDecoration:v?"line-through":"none"}}>{kindName(p.kind)}</div>
+            <div style={{fontSize:11.5,color:C.muted,marginTop:2}}>{fmt(p.at)} · <b style={{color:MGR_COLOR[p.mgr]||C.text}}>{p.mgr}</b> · {p.by==="auto"?L("авто","auto"):`${L("начислил","naliczył")} ${p.by}`}
+              {p.leadName?<> · <span onClick={()=>lead&&onOpenLead&&onOpenLead(lead)} style={{color:lead?"#5cb8ff":C.muted,cursor:lead?"pointer":"default"}}>{p.leadName}{lead?" →":""}</span></>:null}</div>
+            {p.note?<div style={{fontSize:12,color:C.text,marginTop:3,opacity:.85}}>{p.note}</div>:null}
+            {p.dispute?<div style={{fontSize:12,marginTop:5,padding:"6px 9px",borderRadius:8,background:"rgba(245,158,11,.10)",border:"1px solid rgba(245,158,11,.4)",color:C.text}}>✋ {L("Оспорено","Odwołanie")} ({fmt(p.dispute.at)}): {p.dispute.text}</div>:null}
+            {p.resolve?<div style={{fontSize:12,marginTop:5,color:v?C.green:C.muted}}>{v?"✓ "+L("Снято","Anulowano"):"✕ "+L("Оставлено","Utrzymano")} · {p.resolve.by} · {fmt(p.resolve.at)}{p.resolve.text?`: ${p.resolve.text}`:""}</div>:null}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>
+            <div style={{fontSize:17,fontWeight:900,color:v?C.muted:C.red,textDecoration:v?"line-through":"none"}}>+{p.pts}</div>
+            {!v&&!d&&!p.resolve&&p.mgr===currentUser&&<button onClick={()=>setDsp({id:p.id,text:"",mode:"dispute"})} style={btn("#f59e0b")}>✋ {L("Оспорить","Odwołaj się")}</button>}
+            {admin&&!v&&(d||p.mgr!==currentUser||currentUser==="Danya")&&<div style={{display:"flex",gap:6}}>
+              <button onClick={()=>setDsp({id:p.id,text:"",mode:"void"})} style={btn(C.green)}>{L("Снять","Anuluj")}</button>
+              {d&&<button onClick={()=>setDsp({id:p.id,text:"",mode:"keep"})} style={btn(C.red)}>{L("Оставить","Utrzymaj")}</button>}</div>}
+            {admin&&v&&<button onClick={()=>patch(p.id,x=>({...x,status:"ok",resolve:null}))} style={btn(C.muted)}>↺ {L("Вернуть","Przywróć")}</button>}
+          </div>
+        </div>;})}
+    </div>
+    {(add||dsp)&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:4300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{setAdd(null);setDsp(null);}}>
+      <div onClick={e=>e.stopPropagation()} style={{...card,width:420,maxWidth:"100%",display:"flex",flexDirection:"column",gap:10,background:C.surface}}>
+        {add&&<>
+          <div style={{fontSize:16,fontWeight:800,color:C.text}}>＋ {L("Начислить баллы","Nalicz punkty")}</div>
+          <select value={add.mgr} onChange={e=>setAdd({...add,mgr:e.target.value})} style={inp}>{mgrs.map(m=><option key={m} value={m}>{m}</option>)}</select>
+          <select value={add.kind} onChange={e=>setAdd({...add,kind:e.target.value})} style={inp}>
+            {Object.entries(PEN_RULES).filter(([,r])=>r.manual).map(([k,r])=><option key={k} value={k}>{r.ic} {L(r.ru,r.pl)} — {r.pts}</option>)}
+            <option value="other">• {L("Другое (свои баллы)","Inne (własne punkty)")}</option></select>
+          {add.kind==="other"&&<input type="number" min="1" value={add.pts} onChange={e=>setAdd({...add,pts:e.target.value})} style={inp} placeholder={L("Баллы","Punkty")}/>}
+          <textarea rows={3} value={add.note} onChange={e=>setAdd({...add,note:e.target.value})} style={{...inp,resize:"vertical"}} placeholder={add.kind==="dress"?L("Комментарий (необязательно)","Komentarz (opcjonalnie)"):L("Что произошло — обязательно","Co się stało — wymagane")}/>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={()=>setAdd(null)} style={btn(C.muted)}>{L("Отмена","Anuluj")}</button>
+            <button onClick={saveAdd} style={{...btn("#e3b860"),background:"linear-gradient(135deg,#f6e0aa,#e3b860)",color:"#08153a",border:"none",padding:"7px 16px"}}>{L("Начислить","Nalicz")}</button></div>
+        </>}
+        {dsp&&<>
+          <div style={{fontSize:16,fontWeight:800,color:C.text}}>{dsp.mode==="dispute"?"✋ "+L("Почему балл несправедлив?","Dlaczego punkt jest niesłuszny?"):dsp.mode==="void"?L("Снять балл — причина","Anulować — powód"):L("Оставить балл — причина","Utrzymać — powód")}</div>
+          <textarea autoFocus rows={3} value={dsp.text} onChange={e=>setDsp({...dsp,text:e.target.value})} style={{...inp,resize:"vertical"}}/>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={()=>setDsp(null)} style={btn(C.muted)}>{L("Отмена","Anuluj")}</button>
+            <button onClick={()=>{const tx=dsp.text.trim();if(dsp.mode==="dispute"){if(!tx)return;patch(dsp.id,x=>({...x,status:"dispute",dispute:{text:tx,at:Date.now(),by:currentUser}}));}
+              else patch(dsp.id,x=>({...x,status:dsp.mode==="void"?"void":"ok",resolve:{by:currentUser,at:Date.now(),text:tx,res:dsp.mode}}));setDsp(null);}} style={{...btn("#e3b860"),background:"linear-gradient(135deg,#f6e0aa,#e3b860)",color:"#08153a",border:"none",padding:"7px 16px"}}>OK</button></div>
+        </>}
+      </div></div>}
+  </div>;}
+
 function TestsPage({db,updateDb,currentUser,lang,onOpenLead}){const pl=lang==="pl";const now=Date.now();
   const tests=(db.abTests||[]).filter(t=>!t.deleted).sort((a,b)=>{const o={active:0,paused:1,plan:2,done:3};return (o[abState(a,now)]-o[abState(b,now)])||(b.startAt-a.startAt);});
   const canEdit=GOAL_EDITORS.includes(currentUser)||currentUser==="all";const [edit,setEdit]=useState(null);const [open,setOpen]=useState(null);const [arm,setArm]=useState(null);
@@ -5487,12 +5633,19 @@ function planCornerHit(wa,xa,wwa,lya,wb,xb,wwb,lyb,walls){if(!walls||wa==null||w
   const hit=(i,x1,w1,l1,x2,l2)=>{const W=walls[i];return W&&W.c1&&walls[i+1]&&walls[i+1].c0&&x1+w1>W.len-PLAN_DEPTH[l2]+0.5&&x2<PLAN_DEPTH[l1]-0.5;};
   if(wb===wa+1)return hit(wa,xa,wwa,lya,xb,lyb);if(wa===wb+1)return hit(wb,xb,wwb,lyb,xa,lya);return false;}
 function planFits(items,uid,wall,x,w,ly,len,walls){if(x<-0.5||x+w>len+0.5)return false;return !(items||[]).some(o=>o.uid!==uid&&o.wall!=null&&((o.wall===wall&&planClash(planLayer(o),ly)&&x<o.x+o.w-0.5&&o.x<x+w-0.5)||planCornerHit(wall,x,w,ly,o.wall,o.x,o.w,planLayer(o),walls)));}
+// угол занят соседней стеной: на сколько надо отступить от начала (s) и от конца (e) этой стены
+function planCornerNeed(items,walls,wi,ly,uid){let s=0,e=0;const W=walls&&walls[wi];if(!W)return{s,e};
+  (items||[]).forEach(o=>{if(o.uid===uid||o.wall==null)return;const lo=planLayer(o);if(!planClash(lo,ly))return;
+    if(W.c0&&o.wall===wi-1&&walls[wi-1]&&walls[wi-1].c1&&o.x+o.w>walls[wi-1].len-PLAN_DEPTH[ly]+0.5)s=Math.max(s,PLAN_DEPTH[lo]);
+    if(W.c1&&o.wall===wi+1&&walls[wi+1]&&walls[wi+1].c0&&o.x<PLAN_DEPTH[ly]-0.5)e=Math.max(e,PLAN_DEPTH[lo]);});
+  return{s,e};}
 function planAutoX(items,walls,wi,item){const W=walls[wi];if(!W)return null;const ly=planLayer(item);const w=item.w||60;
-  const st=W.c0?planCornerOff(ly):0;const cands=[st,0,...(items||[]).filter(o=>o.wall===wi&&planClash(planLayer(o),ly)).map(o=>o.x+o.w)].filter(v=>v>=0).sort((a,b)=>a-b);
+  const cn=planCornerNeed(items,walls,wi,ly,item.uid);
+  const st=W.c0?planCornerOff(ly):0;const cands=[st,0,cn.s,...(items||[]).filter(o=>o.wall===wi&&planClash(planLayer(o),ly)).map(o=>o.x+o.w)].filter(v=>v>=0).sort((a,b)=>a-b);
   for(const x of cands)if(planFits(items,item.uid,wi,x,w,ly,W.len,walls))return x;return null;}
 // после броска: если место занято — ближайшее свободное на этой стене, иначе null
 function planResolve(items,walls,it){const W=walls[it.wall];if(!W)return null;const ly=planLayer(it);if(planFits(items,it.uid,it.wall,it.x,it.w,ly,W.len,walls))return it.x;
-  const c=[0,W.len-it.w,PLAN_DEPTH[ly],W.len-PLAN_DEPTH[ly]-it.w];(items||[]).forEach(o=>{if(o.uid!==it.uid&&o.wall===it.wall){c.push(o.x+o.w,o.x-it.w);}});
+  const cn=planCornerNeed(items,walls,it.wall,ly,it.uid);const c=[0,W.len-it.w,PLAN_DEPTH[ly],W.len-PLAN_DEPTH[ly]-it.w,cn.s,W.len-cn.e-it.w];(items||[]).forEach(o=>{if(o.uid!==it.uid&&o.wall===it.wall){c.push(o.x+o.w,o.x-it.w);}});
   c.sort((a,b)=>Math.abs(a-it.x)-Math.abs(b-it.x));for(const x of c)if(x>=0&&planFits(items,it.uid,it.wall,x,it.w,ly,W.len,walls))return x;return null;}
 // растягивание мышкой: свободно (шаг 5 мм), магнит к соседям, краю стены, углу и стандартным ширинам
 function planResizeSnap(items,it,W,mode,u,x0,w0){const ly=planLayer(it);const pts=[];const std=calcStdW(it);
@@ -5500,8 +5653,11 @@ function planResizeSnap(items,it,W,mode,u,x0,w0){const ly=planLayer(it);const pt
   if(mode==="r"){pts.push(W.len);if(W.c1)pts.push(W.len-PLAN_DEPTH[ly]);std.forEach(v=>pts.push(x0+v));}else{pts.push(0);if(W.c0)pts.push(PLAN_DEPTH[ly]);std.forEach(v=>pts.push(x0+w0-v));}
   let e=Math.round(u*2)/2,bd=3;pts.forEach(p=>{const d=Math.abs(p-u);if(d<bd){bd=d;e=p;}});
   let w=mode==="r"?e-x0:x0+w0-e;w=Math.max(10,Math.min(w,W.len));w=Math.round(w*10)/10;return{w,x:mode==="r"?x0:Math.round((x0+w0-w)*10)/10};}
-function planSnap(items,uid,wi,x,w,ly,W){
-  const off=planCornerOff(ly);const pts=[0,W.len-w];if(W.c0)pts.push(off);if(W.c1)pts.push(W.len-off-w);
+function planSnap(items,uid,wi,x,w,ly,W,walls){
+  const off=planCornerOff(ly);const cn=walls?planCornerNeed(items,walls,wi,ly,uid):{s:0,e:0};
+  if(cn.s||cn.e){const a=cn.s||0,b=W.len-(cn.e||0)-w;const pp=[a,b];(items||[]).forEach(o=>{if(o.uid===uid||o.wall!==wi||!planClash(planLayer(o),ly))return;pp.push(o.x+o.w,o.x-w);});
+    let best=Math.min(Math.max(x,a),Math.max(a,b)),bd=9;pp.forEach(q=>{if(q<a-0.01||q>b+0.01)return;const d=Math.abs(q-x);if(d<bd){bd=d;best=q;}});return Math.round(Math.min(Math.max(best,0),Math.max(0,W.len-w))*2)/2;}
+  const pts=[0,W.len-w];if(W.c0)pts.push(off);if(W.c1)pts.push(W.len-off-w);
   (items||[]).forEach(o=>{if(o.uid===uid||o.wall!==wi||!planClash(planLayer(o),ly))return;pts.push(o.x+o.w,o.x-w);});
   if(W.c0)pts.push(PLAN_DEPTH[ly]);if(W.c1)pts.push(W.len-PLAN_DEPTH[ly]-w);
   let best=x,bd=9;pts.forEach(p=>{const d=Math.abs(p-x);if(d<bd){bd=d;best=p;}});return Math.round(Math.min(Math.max(best,0),Math.max(0,W.len-w))*2)/2;}
@@ -5532,7 +5688,7 @@ function KitchenPlan({items,walls,sel,setSel,msel=[],onToggle,active,setActive,o
       if(w!==it.w||x!==it.x){if(!D.moved){D.moved=true;onDragStart&&onDragStart();}onResize&&onResize(it.uid,w,x);}return;}
     let best=null;walls.forEach((W,wi)=>{const q=proj(p,W);if(q.u<-60||q.u>W.len+60||q.v<-50||q.v>dep+110)return;const sc=Math.abs(q.v-dep/2)+(wi===it.wall?0:8);if(!best||sc<best.sc)best={wi,W,q,sc};});
     if(!best)return;if(!D.moved){D.moved=true;onDragStart&&onDragStart();}
-    const x=planSnap(items,it.uid,best.wi,best.q.u-D.grab,it.w,ly,best.W);if(x!==it.x||best.wi!==it.wall){onMove(it.uid,{wall:best.wi,x});if(best.wi!==it.wall)setActive(best.wi);}};
+    const x=planSnap(items,it.uid,best.wi,best.q.u-D.grab,it.w,ly,best.W,walls);if(x!==it.x||best.wi!==it.wall){onMove(it.uid,{wall:best.wi,x});if(best.wi!==it.wall)setActive(best.wi);}};
   const up=()=>{const D=drag.current;drag.current=null;if(!D||!D.moved||D.mode)return;const it=items.find(x=>x.uid===D.uid);if(!it)return;const x=planResolve(items,walls,it);
     if(x==null){onMove(it.uid,D.from);setActive(D.from.wall);}else if(x!==it.x)onMove(it.uid,{x});};
   const rect=(W,x,w,dep)=>{const o=[W.P[0]+W.d[0]*x,W.P[1]+W.d[1]*x];const a=[o[0]+W.d[0]*w,o[1]+W.d[1]*w];const b=[a[0]+W.n[0]*dep,a[1]+W.n[1]*dep];const c=[o[0]+W.n[0]*dep,o[1]+W.n[1]*dep];return[o,a,b,c];};
@@ -5580,7 +5736,7 @@ function WallElevation({items,wi,W,walls,sel,setSel,msel=[],onToggle,onDragStart
     if(D.mode){const u=toX(e);const {w,x}=planResizeSnap(items,it,W,D.mode,u,D.x0,D.w0);
       if(w!==it.w||x!==it.x){if(!D.moved){D.moved=true;onDragStart&&onDragStart();}onResize&&onResize(it.uid,w,x);}return;}
     if(!D.moved){D.moved=true;onDragStart&&onDragStart();}
-    const x=planSnap(items,it.uid,wi,toX(e)-D.grab,it.w,planLayer(it),W);if(x!==it.x)onMove(it.uid,{wall:wi,x});};
+    const x=planSnap(items,it.uid,wi,toX(e)-D.grab,it.w,planLayer(it),W,walls);if(x!==it.x)onMove(it.uid,{wall:wi,x});};
   const up=()=>{const D=drag.current;drag.current=null;if(!D||!D.moved||D.mode)return;const it=items.find(x=>x.uid===D.uid);if(!it)return;const all=walls||(()=>{const a=[];a[wi]=W;return a;})();const x=planResolve(walls?items:items.filter(o=>o.wall===wi),all,it);
     if(x==null)onMove(it.uid,D.from);else if(x!==it.x)onMove(it.uid,{x});};
   const lowRun=its.filter(x=>planLayer(x)==="low");
@@ -8720,7 +8876,7 @@ function TaskReport({tasks,taskTypes,lang,t}){
 // Каждое действие — чистая функция над свежими данными с сервера → параллельные правки не теряются.
 const FIN_ROW=3;
 const FIN_CUR="PLN",FIN_SYM=" zł";
-const FIN_ADMIN=["Danya"];               // Garno: всё, переоткрытие заказов, начальные остатки
+const FIN_ADMIN=["Danya","Oleh","Dmytro"];               // Garno: всё, переоткрытие заказов, начальные остатки
 const FIN_APPROVE=["Danya","Dmytro"];    // утверждение табелей
 const FIN_CLOSE=["Danya","Dmytro","Oleh"]; // закрытие заказов
 const FIN_BOOK=["Danya","Dmytro","Oleh"];  // видят весь журнал, остатки, отчёты
@@ -9695,14 +9851,14 @@ function FinSettings({fin,F,me}){const [acc,setAcc]=useState(fin.accounts);const
   </div>;}
 
 // ═══ ТАБЕЛИ ═════════════════════════════════════════════════════════════════
-function TimesheetsPage({db,F,currentUser,lang,kiosk,onExit}){FIN_LANG=lang==="pl"?"pl":"ru";const fin=F.fin;const me=currentUser||"—";const role=finRole(me);
+function TimesheetsPage({db,F,currentUser,lang,kiosk,onExit,updateDb,onOpenLead}){FIN_LANG=lang==="pl"?"pl":"ru";const fin=F.fin;const me=currentUser||"—";const role=finRole(me);
   const [per,setPer]=useState(()=>fHalf(fToday()));const [tab,setTab]=useState(role.approve&&!kiosk?"sum":"sheet");const [empId,setEmpId]=useState(null);const [pinOk,setPinOk]=useState({});const [toast,showToast]=useFinToast();
   const opts=useMemo(()=>fin?finOrderOpts(db.orders,fin):[],[db.orders,fin]);
   if(!fin)return <div style={{padding:30,color:C.muted}}><FinStyle/>{fL("Загружаю табели…","Ładuję…")}</div>;
   const mine=fin.emps.find(e=>e.user===me);const canAll=role.approve||role.admin;
   const emp=fin.emps.find(e=>e.id===(empId||(kiosk?null:mine&&mine.id)));
   const visEmps=fin.emps.filter(e=>e.active!==false&&(canAll||kiosk||e.user===me));
-  const tabs=kiosk?[]:[["sheet","✍",fL("Табель","Ewidencja")],...(canAll||role.book?[["sum","Σ",fL("Сводка Димы","Zestawienie"),fin.periods.filter(p=>p.status==="submitted").length]]:[]),...(canAll?[["emps","👷",fL("Сотрудники и ставки","Pracownicy i stawki")]]:[])];
+  const tabs=kiosk?[]:[["sheet","✍",fL("Табель","Ewidencja")],...(canAll||role.book?[["sum","Σ",fL("Сводка Димы","Zestawienie"),fin.periods.filter(p=>p.status==="submitted").length]]:[]),...(canAll?[["emps","👷",fL("Сотрудники и ставки","Pracownicy i stawki")]]:[]),...(updateDb?[["pen","⚖",fL("Баллы","Punkty"),(db.penalties||[]).filter(p=>p.status==="dispute"&&PEN_ADMIN.includes(me)).length]]:[])];
   const needPin=kiosk&&emp&&emp.pin&&!pinOk[emp.id];
   return <div className="fin-g" style={{padding:kiosk?"14px 12px 40px":"16px 18px 40px",maxWidth:1300,margin:"0 auto"}}><FinStyle/><FinToast msg={toast}/>
     <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:12}}>
@@ -9725,6 +9881,7 @@ function TimesheetsPage({db,F,currentUser,lang,kiosk,onExit}){FIN_LANG=lang==="p
       :<div style={{color:C.dim,fontSize:13,padding:10}}>{fL("Выберите сотрудника","Wybierz pracownika")} ↑</div>}</>}
     {tab==="sum"&&<FinTsSummary fin={fin} F={F} per={per} me={me} role={role} onOpen={id=>{setEmpId(id);setTab("sheet");}}/>}
     {tab==="emps"&&<FinEmps fin={fin} F={F}/>}
+    {tab==="pen"&&updateDb&&<PenaltiesPage db={db} updateDb={updateDb} currentUser={currentUser} lang={lang} onOpenLead={onOpenLead} embedded/>}
   </div>;}
 function FinPin({emp,onOk}){const [v,setV]=useState("");const [bad,setBad]=useState(false);
   return <div style={fCard({maxWidth:340,margin:"20px auto",textAlign:"center",padding:24})}><div style={{fontSize:16,fontWeight:900,color:C.text,marginBottom:10}}>👷 {emp.name}</div>
@@ -10831,6 +10988,13 @@ function GarnoCRM(){
   // ── Планировщик напоминаний AI ──────────────────────────────────────────
   const dbRef=useRef(db);      dbRef.current=db;
   const updRef=useRef(updateDb); updRef.current=updateDb;
+  // ⚖ Баллы: раз в 5 минут ищем новые авто-нарушения и записываем их в общую базу (без дублей)
+  useEffect(()=>{if(!currentUser)return;
+    const run=()=>{const d=dbRef.current;if(!d||!d.treeStartAt||!Array.isArray(d.leads))return; // база ещё не загружена
+      if(!d.penStartAt){updRef.current(p=>p.penStartAt?p:{...p,penStartAt:Date.now()},true);return;}
+      const have=new Set((d.penalties||[]).map(x=>x.id));const add=penDetect(d,Date.now(),d.penStartAt).filter(x=>!have.has(x.id));
+      if(add.length)updRef.current(p=>{const h=new Set((p.penalties||[]).map(x=>x.id));const n=add.filter(x=>!h.has(x.id));return n.length?{...p,penalties:[...(p.penalties||[]),...n]}:p;},true);};
+    const t=setTimeout(run,20000+Math.random()*40000);const iv=setInterval(run,5*60000);return()=>{clearTimeout(t);clearInterval(iv);};},[currentUser]);
   const langRef=useRef(lang);  langRef.current=lang;
   const currentUserRef=useRef(currentUser); currentUserRef.current=currentUser;
   // 🚨 Тревога новых заявок: стробоскоп заголовка вкладки + переход в Лиды из пуша
@@ -10914,7 +11078,7 @@ function GarnoCRM(){
       const cutoff=isoLocal(new Date(Date.now()-60*86400000));
       updRef.current(prev=>({
         ...prev,
-        chat:[...(prev.chat||[]).map(m=>(m.kind==="reminder"&&!m.ackBy&&staleKeys.has(m.key))?{...m,ackBy:"auto",ackAt:Date.now()}:m),...rems.filter(r=>!(prev.chat||[]).some(m=>m.kind==="reminder"&&m.key===r.key)).map(r=>({role:"assistant",kind:"reminder",rtype:r.rtype,key:r.key,data:r.data,ackBy:null,ackAt:null}))],
+        chat:[...(prev.chat||[]).map(m=>(m.kind==="reminder"&&!m.ackBy&&staleKeys.has(m.key))?{...m,ackBy:"auto",ackAt:Date.now()}:m),...rems.filter(r=>!(prev.chat||[]).some(m=>m.kind==="reminder"&&m.key===r.key)).map(r=>({role:"assistant",kind:"reminder",rtype:r.rtype,key:r.key,data:r.data,at:Date.now(),ackBy:null,ackAt:null}))],
         sentReminders:[...new Set([...(prev.sentReminders||[]),...rems.map(r=>r.key)])]
           .filter(k=>{const m=String(k).match(/(\d{4}-\d{2}-\d{2})/);return !m||m[1]>=cutoff;}),
       }),true);
@@ -11102,7 +11266,7 @@ function GarnoCRM(){
           {page==="calendar"   && <CalendarPage events={events} setEvents={setEvents} setEventsNow={setEventsNow} updateDb={updateDb} t={t} lang={lang}/>}
           {page==="orders"     && <OrdersPage db={db} updateDb={updateDb} leads={leads} sales={sales} tasks={tasks} currentUser={currentUser} lang={lang} t={t} onOpenLead={setSelLead} mgr={mgr} F={F} focusNum={orderFocus} onFocused={()=>setOrderFocus(null)}/>}
           {page==="finance"    && <FinancePage db={db} F={F} currentUser={currentUser} lang={lang} onOpenOrder={n=>{setOrderFocus(n);setPage("orders");}}/>}
-          {page==="timesheets" && <TimesheetsPage db={db} F={F} currentUser={currentUser} lang={lang}/>}
+          {page==="timesheets" && <TimesheetsPage db={db} F={F} currentUser={currentUser} lang={lang} updateDb={updateDb} onOpenLead={setSelLead}/>}
           
           {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
           {(page==="salescenter"||page==="funnel"||page==="analytics")&& <SalesCenterTabs goals={db.goals||[]} initialTab={page==="salescenter"?"center":"funnel"} srcList={srcList} funnels={db.funnels||[]} leads={mLeads} sales={mSales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
