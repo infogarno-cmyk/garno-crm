@@ -201,10 +201,11 @@ const T = {
 };
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const MANAGERS = ["Oleh","Dmytro","Mateusz","Danya","Taras"];
+const MANAGERS = ["Oleh","Dmytro","Mateusz","Danya","Taras","Ilya"];
 const USERS = [...MANAGERS,"Erika","Robert"]; // Эрика — предоценка, не менеджер (нет в KPI/пьедестале); Robert — дожимщик
 const MGR_COLOR = {Oleh:C.blue,Dmytro:C.green,Mateusz:C.purple,Danya:C.cyan,Taras:C.yellow,Erika:"#f472b6"};
 MGR_COLOR.Robert="#fb923c"; // дожимщик
+MGR_COLOR.Ilya="#2dd4bf";
 // Лидер продаж — обновляется в GarnoCRM на каждом рендере (как тема C).
 // Аватар этого менеджера получает медаль везде, где он отрисован.
 let SALES_LEADER = null;
@@ -2557,7 +2558,8 @@ function SearchBox({value,onChange,placeholder,style}){
   },[value]);
   useEffect(()=>()=>clearTimeout(tm.current),[]);
   const set=v=>{setQ(v);clearTimeout(tm.current);tm.current=setTimeout(()=>{tm.current=null;onChange(v);},v?200:0);};
-  return <input value={q} onChange={e=>set(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){clearTimeout(tm.current);tm.current=null;onChange(q);}}} placeholder={placeholder} style={style}/>;
+  // автозаполнение браузера (почта из сохранённого логина) в поиск не пускаем: принимаем только ввод в поле с фокусом
+  return <input type="search" name="garno-find" autoComplete="off" autoCorrect="off" spellCheck={false} data-lpignore="true" data-1p-ignore="true" data-form-type="other" value={q} onChange={e=>{if(document.activeElement!==e.target)return;set(e.target.value);}} onKeyDown={e=>{if(e.key==="Enter"){clearTimeout(tm.current);tm.current=null;onChange(q);}}} placeholder={placeholder} style={style}/>;
 }
 // ─── ПРОСМОТР КАРТИНОК: щипок двумя пальцами, двойной тап, колесо, кнопки ─────
 function ImgViewer({src,onClose,title}){
@@ -4219,6 +4221,104 @@ function AbBanner({tests,leads,lang,onOpen}){const pl=lang==="pl";const now=Date
     </div>);})}</div>;}
 
 // Блок в карточке лида: инструкция по переменной теста + отметки
+// ─── 💬 WHATSAPP-ДРАФТЫ под карточку лида ─────────────────────────────────────
+// Сценарий выбирается сам: нет 1-го контакта → по воронке (3D с фото / 3D без фото / обычный калькулятор);
+// контакт был и ждём инфу по кухне → напоминание после звонка. Данные берутся из карточки, чего нет — ‹в скобках›.
+const WA_VOC={adam:"Adamie",adrian:"Adrianie",aleksander:"Aleksandrze",andrzej:"Andrzeju",arkadiusz:"Arkadiuszu",arek:"Arku",artur:"Arturze",bartosz:"Bartoszu",bartek:"Bartku",błażej:"Błażeju",bogdan:"Bogdanie",bogusław:"Bogusławie",cezary:"Cezary",damian:"Damianie",daniel:"Danielu",dariusz:"Dariuszu",darek:"Darku",dawid:"Dawidzie",denis:"Denisie",dominik:"Dominiku",edward:"Edwardzie",emil:"Emilu",filip:"Filipie",grzegorz:"Grzegorzu",henryk:"Henryku",hubert:"Hubercie",igor:"Igorze",iwan:"Iwanie",ivan:"Ivanie",jacek:"Jacku",jakub:"Jakubie",kuba:"Kubo",jan:"Janie",janusz:"Januszu",jarosław:"Jarosławie",jerzy:"Jerzy",kacper:"Kacprze",kamil:"Kamilu",karol:"Karolu",kazimierz:"Kazimierzu",konrad:"Konradzie",krystian:"Krystianie",krzysztof:"Krzysztofie",leszek:"Leszku",łukasz:"Łukaszu",maciej:"Macieju",maksym:"Maksymie",marcel:"Marcelu",marcin:"Marcinie",marek:"Marku",marian:"Marianie",mariusz:"Mariuszu",mateusz:"Mateuszu",michał:"Michale",mikołaj:"Mikołaju",mirosław:"Mirosławie",norbert:"Norbercie",oleg:"Olegu",oskar:"Oskarze",patryk:"Patryku",paweł:"Pawle",piotr:"Piotrze",przemysław:"Przemysławie",przemek:"Przemku",radosław:"Radosławie",radek:"Radku",rafał:"Rafale",remigiusz:"Remigiuszu",robert:"Robercie",roman:"Romanie",ryszard:"Ryszardzie",sebastian:"Sebastianie",seweryn:"Sewerynie",sławomir:"Sławomirze",stanisław:"Stanisławie",szymon:"Szymonie",tadeusz:"Tadeuszu",tomasz:"Tomaszu",tomek:"Tomku",waldemar:"Waldemarze",wiesław:"Wiesławie",wiktor:"Wiktorze",wojciech:"Wojciechu",wojtek:"Wojtku",zbigniew:"Zbigniewie",zdzisław:"Zdzisławie",zenon:"Zenonie",
+  kasia:"Kasiu",ania:"Aniu",basia:"Basiu",gosia:"Gosiu",asia:"Asiu",zosia:"Zosiu",ola:"Olu",ala:"Alu",ela:"Elu",ula:"Ulu",jola:"Jolu",marysia:"Marysiu",zuzia:"Zuziu",hania:"Haniu",madzia:"Madziu",sonia:"Soniu",tosia:"Tosiu",kasieńka:"Kasieńko"};
+const WA_MALE_A=/^(kuba|barnaba|kosma|bonawentura|jarema|nikita|mykyta|ilya|illia|ilia|luka|sava|kola|микола|ілля|илья|никита|микита|лука|сава|миша|паша|вова|дима|коля|толя|гоша|лёша|леша|костя|петя|вася|юра|серёжа|сережа|слава|данила|кузьма|фома)$/i;
+const WA_AMBIG=/^(sasza|sasha|саша|женя|валя|żenia|zhenya)$/i;
+// имя → {nm, g:"m"|"f"|null, voc} ; voc — польский звательный падеж (только для латиницы)
+function waName(raw){const nm=String(raw||"").trim().split(/\s+/)[0]||"";if(nm.length<2||/\d/.test(nm)||!/^[\p{L}'’-]+$/u.test(nm))return{nm:"",g:null,voc:""};
+  const lo=nm.toLowerCase();const cyr=/[а-яёіїєґ]/i.test(nm);const cap=nm[0].toUpperCase()+nm.slice(1);
+  if(WA_AMBIG.test(lo))return{nm:cap,g:null,voc:""};
+  const g=WA_MALE_A.test(lo)?"m":/[aаяa]$/i.test(lo)?"f":"m";
+  if(cyr)return{nm:cap,g,voc:""};
+  const voc=WA_VOC[lo]||(g==="f"&&/a$/.test(lo)?cap.slice(0,-1)+"o":cap);
+  return{nm:cap,g,voc};}
+// что можно вытащить из описания лида (заявка с калькулятора): диапазон цены, форма, стороны, материал, строки «ключ: значение»
+function waParse(l){const n=String((l&&l.notes)||"");const o={range:"",shape:"",sides:{},material:"",info:""};
+  const rm=n.match(/(\d[\d  .,]{2,9}\d)\s*(?:zł|pln|kč|czk)?\s*[-–—]\s*(\d[\d  .,]{2,9}\d)\s*(zł|pln|kč|czk)/i);if(rm)o.range=`${rm[1].trim()} – ${rm[2].trim()} ${rm[3]}`;
+  const sm=n.match(/(?:kształt\w*|форма|tvar)\s*(?:kuchni|кухни|кухні|kuchyně)?\s*[:\-–]\s*([^\n;|,]{1,40})/i)||n.match(/(?:w kształcie|układ|typ)\s*(?:litery\s*)?([LUI])(?![\p{L}\d])/iu);if(sm)o.shape=sm[1].trim();
+  const map={"А":"A","Б":"B","В":"C","1":"A","2":"B","3":"C"};let m;
+  const re1=/(?:strona|ściana|bok|сторона|стена|стіна|strana|stěna)\s*([ABCАБВ1-3])\s*[:=\-–]?\s*(\d{2,4}(?:[.,]\d+)?)(?:[ \t]*(cm|mm|m|см|мм|м)(?![\p{L}]))?/giu;
+  while((m=re1.exec(n))){const k=map[m[1].toUpperCase()]||m[1].toUpperCase();if(!o.sides[k])o.sides[k]=`${m[2]} ${m[3]||"cm"}`;}
+  const re2=/(?:^|[\n;,|])\s*([ABC])\s*[:=]\s*(\d{2,4}(?:[.,]\d+)?)(?:[ \t]*(cm|mm|m)(?![\p{L}]))?/gu;
+  while((m=re2.exec(n))){if(!o.sides[m[1]])o.sides[m[1]]=`${m[2]} ${m[3]||"cm"}`;}
+  const mm=n.match(/(?:materiał\w*|fronty?|material|материал\w*|матеріал\w*|фасад\w*|materiál\w*)\s*[:\-–]\s*([^\n;|]{1,60})/i);if(mm)o.material=mm[1].trim();
+  const KEY=/(kszta|wymiar|stron|ścian|materia|front|blat|agd|termin|budżet|przedzia|cena|wycen|miasto|lokal|zabudow|wysoko|długo|форма|размер|розмір|сторон|материал|матеріал|фасад|столешн|стільниц|срок|термін|бюджет|цена|ціна|город|місто|tvar|rozměr|stran|deska|termín|rozpočet|město)/i;
+  o.info=n.split(/\n|;/).map(x=>x.trim()).filter(x=>{const i=x.indexOf(":");return i>1&&i<32&&x.length>i+1&&KEY.test(x.slice(0,i));}).join("\n");
+  return o;}
+const waIsImg=f=>!!f&&(/^image\//.test(f.type||"")||/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(f.name||""));
+function waIs3d(l,srcList,funnels){const f=leadFunnel(l,srcList,funnels);return /3\s*d/i.test(String((l&&l.source)||""))||!!(f&&/3\s*d/i.test(f.name||""));}
+// авто-сценарий: after — после звонка ждём инфу; 3dp — 3D с фото; 3d — 3D без фото; calc — обычный калькулятор
+function waScenario(l,srcList,funnels){if(l.c1==="yes"||l.c2==="yes")return "after";if(waIs3d(l,srcList,funnels))return (l.files||[]).some(waIsImg)?"3dp":"3d";return "calc";}
+const waShouldOpen=l=>!(l.c1==="yes"||l.c2==="yes")||l.kitchenInfo==="wait"||(l.term==="lt4"&&!l.kitchenInfo);
+const WA_SCN={"3dp":{ru:"3D · есть фото",pl:"3D · jest zdjęcie"},"3d":{ru:"3D · без фото",pl:"3D · bez zdjęcia"},calc:{ru:"Калькулятор (не 3D)",pl:"Kalkulator (nie 3D)"},after:{ru:"После звонка · ждём инфу",pl:"Po rozmowie · czekamy na info"}};
+// тексты: tl — "pl" | "ua" | "cz"
+function waDrafts(l,scn,tl,mgr){const P=waParse(l);const N=waName(l.name);const me=mgr&&mgr!=="all"?mgr:"‹IMIĘ›";const q=(v,ph)=>v||`‹${ph}›`;
+  const sides=(lbl)=>{const ks=["A","B","C"].filter((k,i)=>P.sides[k]||i<2);return ks.map(k=>`${lbl} ${k}: ${q(P.sides[k],tl==="pl"?"wymiar":tl==="cz"?"rozměr":"розмір")}`).join("\n");};
+  if(tl==="cz"){const hi="Dobrý den.";
+    if(scn==="3dp")return[`${hi} Dostal jsem Vaši kalkulaci z kalkulátoru kuchyní a vidím několik bodů, kde lze cenu optimalizovat.\nJmenuji se ${me} a jsem manažer v Garno Furniture. Kalkulaci můžeme probrat telefonicky — zabere to asi 5 minut — nebo můžeme pokračovat písemně zde. Která možnost Vám vyhovuje více?`,
+      `V poptávce jste přiložili fotografii — podle ní mám připravenou kalkulaci.${P.info?`\nÚdaje z poptávky — prosím o potvrzení:\n${P.info}`:""}`];
+    if(scn==="3d")return[`${hi} Z naší kalkulačky Vám vyšla kalkulace kuchyně a všiml jsem si, že se zobrazilo příliš široké cenové rozpětí (${q(P.range,"cenové rozpětí")}). Jmenuji se ${me} a jsem manažer ve firmě Garno Furniture. Pokud mi odpovíte na několik otázek, mohu Vám rychle a zdarma sdělit přesnější cenu.`,
+      `Obdrželi jsme Vaši poptávku:\n${q(P.info,"údaje o kuchyni z poptávky")}\nKalkulaci můžeme probrat telefonicky — zabere to asi 5 minut — nebo můžeme pokračovat písemně zde. Která možnost Vám vyhovuje více? Dejte mi prosím vědět, zda je poptávka stále aktuální.`];
+    if(scn==="calc")return[`${hi} Poslali jste poptávku na kalkulaci kuchyně ve tvaru ${q(P.shape,"tvar")} o rozměrech:\n${sides("Strana")}\nMateriál: ${q(P.material,"materiál")}\nDejte mi prosím vědět, zda je poptávka stále aktuální.`];
+    return[`${hi} V návaznosti na náš telefonický rozhovor čekám na podklady pro kalkulaci kuchyně (rozměry, půdorys nebo fotografie místnosti).\nPřipomínám: pokud mi podklady pošlete do 2 hodin, kalkulace bude hotová ještě dnes, nejpozději zítra.`];}
+  if(tl==="ua"){const hi="Добрий день.";
+    if(scn==="3dp")return[`${hi} Я отримав Ваш розрахунок із калькулятора кухні й бачу кілька моментів, де можна оптимізувати ціну.\nМене звати ${me}, я менеджер Garno Furniture. Можемо обговорити розрахунок телефоном — це займе близько 5 хвилин — або продовжити листування тут. Як Вам зручніше?`,
+      `Ви додали до заявки фото — на його основі я підготував розрахунок.${P.info?`\nДані із заявки — прошу підтвердити:\n${P.info}`:""}`];
+    if(scn==="3d")return[`${hi} Ви отримали розрахунок кухні з нашого калькулятора, і я помітив, що він показав надто широкий діапазон цін (${q(P.range,"діапазон цін")}). Мене звати ${me}, я менеджер компанії Garno Furniture. Якщо Ви відповісте на кілька запитань, я зможу швидко й безкоштовно назвати точнішу ціну.`,
+      `Ми отримали Ваш запит:\n${q(P.info,"інформація про кухню із заявки")}\nМожемо обговорити розрахунок телефоном — це займе близько 5 хвилин — або продовжити листування тут. Як Вам зручніше? І підкажіть, будь ласка, чи запит ще актуальний?`];
+    if(scn==="calc")return[`${hi} Ви залишили запит на розрахунок кухні форми ${q(P.shape,"форма")} з розмірами:\n${sides("Сторона")}\nМатеріал: ${q(P.material,"матеріал")}\nПідкажіть, будь ласка, чи запит ще актуальний?`];
+    return[`${hi} Після нашої телефонної розмови чекаю від Вас інформацію для розрахунку кухні (розміри, план або фото приміщення).\nНагадую: якщо надішлете інформацію протягом 2 годин, розрахунок буде готовий уже сьогодні, найпізніше завтра.`];}
+  const G=N.g==="m"?{gen:"Pana",dla:"dla Pana",got:"Otrzymał Pan",ans:"odpowie Pan",sub:"Złożył Pan",att:"Załączył Pan",snd:"prześle Pan"}:N.g==="f"?{gen:"Pani",dla:"dla Pani",got:"Otrzymała Pani",ans:"odpowie Pani",sub:"Złożyła Pani",att:"Załączyła Pani",snd:"prześle Pani"}:{gen:"Państwa",dla:"dla Państwa",got:"Otrzymali Państwo",ans:"odpowiedzą Państwo",sub:"Złożyli Państwo",att:"Załączyli Państwo",snd:"prześlą Państwo"};
+  const hi=N.g&&N.voc?`Dzień dobry, ${N.g==="m"?"Panie":"Pani"} ${N.voc}.`:"Dzień dobry.";
+  const talk=`Możemy omówić wycenę telefonicznie — zajmie to około 5 minut — albo kontynuować rozmowę pisemnie tutaj. Która opcja jest ${G.dla} wygodniejsza?`;
+  if(scn==="3dp")return[`${hi} Otrzymałem ${G.gen} wycenę z kalkulatora kuchni i widzę kilka punktów, w których można zoptymalizować cenę.\nNazywam się ${me} i jestem menedżerem w Garno Furniture. ${talk}`,
+    `${G.att} zdjęcie, na podstawie którego przygotowałem wycenę.${P.info?`\nDane ze zgłoszenia — proszę o potwierdzenie:\n${P.info}`:""}`];
+  if(scn==="3d")return[`${hi} ${G.got} wycenę kuchni z naszego kalkulatora i zauważyłem, że pokazał się zbyt szeroki przedział cenowy (${q(P.range,"przedział cenowy")}). Nazywam się ${me} i jestem menedżerem w firmie Garno Furniture. Jeśli ${G.ans} na kilka pytań, będę mógł szybko i bezpłatnie podać dokładniejszą cenę.`,
+    `Otrzymaliśmy ${G.gen} zapytanie:\n${q(P.info,"informacje o kuchni ze zgłoszenia")}\n${talk} Proszę też o informację, czy zapytanie jest nadal aktualne.`];
+  if(scn==="calc")return[`${hi} ${G.sub} zapytanie o wycenę kuchni w kształcie ${q(P.shape,"kształt")} o wymiarach:\n${sides("Strona")}\nMateriał: ${q(P.material,"materiał")}\nProszę o informację, czy zapytanie jest nadal aktualne.`];
+  return[`${hi} W nawiązaniu do naszej rozmowy telefonicznej — czekam na informacje potrzebne do wyceny kuchni (wymiary, rzut lub zdjęcia pomieszczenia).\nPrzypominam: jeśli ${G.snd} informacje w ciągu 2 godzin, wycena będzie gotowa jeszcze dzisiaj, najpóźniej jutro.`];}
+function WaDraftBox({form,lang,currentUser,srcList,funnels}){const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;
+  const auto=waScenario(form,srcList,funnels);const autoTl=(form.clientLang==="ua")?"ua":(JR_CZ?"cz":"pl");
+  const [open,setOpen]=useState(()=>waShouldOpen(form));const [scnS,setScn]=useState(null);const [tlS,setTl]=useState(null);const [ed,setEd]=useState({});const [cp,setCp]=useState(null);
+  const scn=scnS||auto;const tl=tlS||autoTl;const base=waDrafts(form,scn,tl,currentUser);
+  const hasImg=(form.files||[]).some(waIsImg);const phone=String(form.phone||"").replace(/\D/g,"");
+  const copy=(k,txt)=>{const done=()=>{setCp(k);setTimeout(()=>setCp(c=>c===k?null:c),1600);};
+    try{navigator.clipboard.writeText(txt).then(done,()=>{});}catch{try{const ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();done();}catch{}}};
+  const chip=(on,c)=>({padding:"4px 10px",borderRadius:8,border:`1.5px solid ${on?c:C.borderMd}`,background:on?`${c}22`:"transparent",color:on?c:C.muted,fontSize:11.5,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"});
+  const G="#22c55e";
+  return <div style={{border:`1px solid ${G}66`,background:"rgba(34,197,94,.06)",borderRadius:12,padding:"10px 12px",marginBottom:14}}>
+    <div onClick={()=>setOpen(v=>!v)} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+      <span style={{fontSize:15}}>💬</span><span style={{fontSize:13,fontWeight:800,color:G,flex:1}}>{L("Сообщение в WhatsApp","Wiadomość na WhatsApp")} <span style={{color:C.muted,fontWeight:600}}>· {L(WA_SCN[scn].ru,WA_SCN[scn].pl)}</span></span>
+      <span style={{color:C.muted,fontSize:12}}>{open?"▲":"▼"}</span></div>
+    {open&&<div style={{marginTop:10,display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+        {Object.keys(WA_SCN).map(k=><button key={k} onClick={()=>{setScn(k===auto?null:k);}} style={chip(scn===k,G)}>{L(WA_SCN[k].ru,WA_SCN[k].pl)}{k===auto?" ●":""}</button>)}
+        <span style={{flex:1}}/>
+        {[JR_CZ?"cz":"pl","ua"].map(k=><button key={k} onClick={()=>setTl(k===autoTl?null:k)} style={chip(tl===k,"#5cb8ff")}>{k.toUpperCase()}</button>)}
+      </div>
+      {base.map((b,i)=>{const k=`${scn}:${tl}:${i}`;const txt=ed[k]!=null?ed[k]:b;const miss=/‹[^›]*›/.test(txt);
+        return <div key={k}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+            <span style={{fontSize:11.5,fontWeight:800,color:C.text}}>{base.length>1?L(`${i+1}-е сообщение`,`${i+1}. wiadomość`):L("Сообщение","Wiadomość")}</span>
+            {miss&&<span style={{fontSize:11,color:"#f59e0b",fontWeight:700}}>⚠ {L("заполни то, что в ‹скобках›","uzupełnij to, co w ‹nawiasach›")}</span>}
+            <span style={{flex:1}}/>
+            {ed[k]!=null&&ed[k]!==b&&<button onClick={()=>setEd(e=>{const n={...e};delete n[k];return n;})} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer"}}>↺ {L("сбросить","resetuj")}</button>}
+          </div>
+          <textarea value={txt} onChange={e=>setEd(x=>({...x,[k]:e.target.value}))} rows={Math.min(12,Math.max(3,Math.ceil(txt.length/62)+(txt.match(/\n/g)||[]).length))} style={{width:"100%",boxSizing:"border-box",background:C.surface,border:`1px solid ${miss?"#f59e0b":C.borderMd}`,color:C.text,borderRadius:9,padding:"8px 10px",fontSize:13,lineHeight:1.45,outline:"none",resize:"vertical",fontFamily:"inherit"}}/>
+          {scn==="3dp"&&i===1&&<div style={{fontSize:11.5,color:hasImg?G:"#f59e0b",marginTop:3}}>📎 {hasImg?L("К этому сообщению приложи фото из заявки — оно в блоке файлов этой карточки","Do tej wiadomości dołącz zdjęcie ze zgłoszenia — jest w plikach tej karty"):L("В карточке нет фото — если клиент его не присылал, выбери «3D · без фото»","W karcie nie ma zdjęcia — jeśli klient go nie przysłał, wybierz „3D · bez zdjęcia”")}</div>}
+          <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap"}}>
+            <button onClick={()=>copy(k,txt)} style={{background:cp===k?G:`${G}22`,color:cp===k?"#00132f":G,border:`1px solid ${G}`,borderRadius:8,padding:"6px 14px",fontSize:12.5,fontWeight:800,cursor:"pointer"}}>{cp===k?"✓ "+L("Скопировано","Skopiowano"):"📋 "+L("Копировать","Kopiuj")}</button>
+            {phone.length>=9&&<a href={`https://wa.me/${phone}?text=${encodeURIComponent(txt)}`} target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",background:"transparent",color:G,border:`1px solid ${G}88`,borderRadius:8,padding:"6px 14px",fontSize:12.5,fontWeight:800}}>WhatsApp ↗</a>}
+          </div>
+        </div>;})}
+      <div style={{fontSize:11,color:C.muted}}>{L("Текст можно править прямо здесь. Перед отправкой проверь имя, обращение и данные.","Tekst można edytować tutaj. Przed wysłaniem sprawdź imię, zwrot i dane.")}</div>
+    </div>}
+  </div>;}
+
 function AbLeadBox({tests,form,lang,onLog}){const pl=lang==="pl";const xs=abLeadTests(tests,form);const [,tick]=useState(0);const [cp,setCp]=useState(null);const [,rf]=useState(0);
   useEffect(()=>{if(!xs.length)return;const id=setInterval(()=>tick(x=>x+1),30000);return()=>clearInterval(id);},[xs.length]);
   if(!xs.length)return null;const now=Date.now();
@@ -6735,7 +6835,7 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
 }
 
 // ─── LEAD DETAIL ──────────────────────────────────────────────────────────────
-function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,currentUser,taskTypes=[],tasks=[],orders=[],abTests=[],inline=false,autoEdit=false,saveRef=null}){
+function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,currentUser,taskTypes=[],tasks=[],orders=[],abTests=[],funnels=[],inline=false,autoEdit=false,saveRef=null}){
   const notesRef=useRef(null);
   useEffect(()=>{
     unmarkFresh(lead.id);
@@ -6933,6 +7033,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
             {fc!=null?<span>📞 {pl?"1. kontakt":"1-й контакт"}: <b style={{color:C.text}}>{fmtDT(fc)}</b>{form.c1By?<span style={{color:MGR_COLOR[form.c1By]||C.muted}}> · {form.c1By}</span>:null}{d!=null&&<> · <b style={{color:durColor(d)}}>{pl?"po":"через"} {fmtWait(d,pl)}</b></>}</span>
               :<span>📞 {pl?"1. kontakt":"1-й контакт"}: <b style={{color:waiting!=null?durColor(waiting):C.muted}}>{pl?"jeszcze nie":"ещё не было"}{waiting!=null?` · ${pl?"minęło":"прошло"} ${fmtWait(waiting,pl)}`:""}</b></span>}
           </div>;})()}
+        <WaDraftBox form={form} lang={lang} currentUser={currentUser} srcList={srcList} funnels={funnels}/>
         {abTests.length>0&&<AbLeadBox tests={abTests} form={form} lang={lang} onLog={abLog}/>}
         <DzLeadBox form={form} lang={lang} currentUser={currentUser} onSend={note=>{const now=Date.now();const me=currentUser&&currentUser!=="all"?currentUser:"—";const dz={st:"open",notes:[],tries:0,sentBy:me,sentAt:now,sentNote:note||"",startAt:now};const h={date:nowStr(),action:`🦅 Dożym: przekazany${note?` — ${note}`:""}`,by:me};
           setForm(f=>({...f,dz,history:[...(f.history||[]),h]}));updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,dz,updatedAt:now,history:[...(l.history||[]),h]}:l)}),true);}}/>
@@ -7313,7 +7414,7 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
   const curSales=filterByCustomRange(sales||[],dateFrom,dateTo).filter(x=>fm==="all"||x.manager===fm).filter(x=>{if(fLang==="all")return true;const l=(leads||[]).find(y=>y.leadId===x.leadId||y.id===x.leadId)||(leads||[]).find(y=>y.phone===x.phone);const cl=l&&l.clientLang;return fLang==="none"?!cl:cl===fLang;}).filter(x=>buyerMatch(x.source,fBuy));
   return(
     <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
-      <FunnelAnalysis leads={leads} sales={sales} goals={goals} lang={lang}/>
+      {currentUser==="Danya"&&<FunnelAnalysis leads={leads} sales={sales} goals={goals} lang={lang}/>}
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <div style={{fontSize:18,fontWeight:800,color:C.text}}>▼ {ru?"Воронка продаж":"Lejek sprzedaży"} <span style={{fontSize:12,color:C.muted}}>({cur.length})</span></div>
         <select value={fm} onChange={e=>setFm(e.target.value)} style={ss}><option value="all">{ru?"Все менеджеры":"Wszyscy"}</option>{MANAGERS.map(m=><option key={m} value={m}>{m}</option>)}</select>
@@ -9104,7 +9205,7 @@ function fCellIso(v){if(v==null||v==="")return null;if(typeof v==="number"){if(v
 const FIN_MON_RX=[/^(січ|янв|sty|jan)/i,/^(лют|фев|lut|feb)/i,/^(бер|мар|mar)/i,/^(квіт|апр|kwi|apr)/i,/^(трав|ма[йя]|maj|may)/i,/^(черв|июн|cze|jun)/i,/^(лип|июл|lip|jul)/i,/^(серп|авг|sie|aug)/i,/^(верес|сен|wrz|sep)/i,/^(жовт|окт|pa[źz]|oct)/i,/^(листоп|ноя|lis|nov)/i,/^(груд|дек|gru|dec)/i];
 const finMonthOf=s=>{s=fStr(s).toLowerCase();for(let i=0;i<12;i++)if(FIN_MON_RX[i].test(s))return i+1;return null;};
 function finAccGuess(s){s=fStr(s).toLowerCase();if(/stukanova|стуканова/.test(s))return "stukanova";if(/stukanov|стуканов/.test(s))return "stukanov";if(/paun|паун/.test(s))return "paun";if(/garno|гарно|фирм/.test(s))return "garno";if(/касс|кеш|готів|готув|налич|cash|kasa/.test(s))return "cash";return null;}
-const FIN_WHO={"олег":"Oleh","дима":"Dmytro","даня":"Danya","тарас":"Taras","матеуш":"Mateusz","эрика":"Erika","роберт":"Robert"};
+const FIN_WHO={"олег":"Oleh","дима":"Dmytro","даня":"Danya","тарас":"Taras","илья":"Ilya","матеуш":"Mateusz","эрика":"Erika","роберт":"Robert"};
 function finDetect(name,sheets){const txt=sheets.map(sh=>sh.rows.slice(0,40).map(r=>(r||[]).map(fStr).join("|")).join("\n")).join("\n").toLowerCase();
   if(/заказ покупателя|сумма продажи/.test(txt))return "onec";if(/кто ввёл|кто ввел|учёт операций|учет операций/.test(txt))return "journal";
   if(/(^|[-_ ])сумма/i.test(fStr(name).replace(/\.[^.]+$/,""))&&/замовлен/.test(txt))return "tsSum";
@@ -9228,7 +9329,7 @@ function useFinLock(){const [ok,setOk]=useState(FIN_UNLOCKED);useEffect(()=>{con
 function FinPinGate({onOk,compact,dark}){const [v,setV]=useState("");const [bad,setBad]=useState(false);
   const go=(x)=>{if(x===FIN_PIN){onOk();}else{setBad(true);setV("");}};
   const ch=x=>{const d=x.replace(/\D/g,"").slice(0,4);setV(d);setBad(false);if(d.length===4)go(d);};
-  const inp=<input autoFocus={!compact} type="password" inputMode="numeric" autoComplete="off" value={v} onChange={e=>ch(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go(v)} placeholder="• • • •"
+  const inp=<input autoFocus={!compact} type="text" className="g-pin" name="garno-code-a" data-lpignore="true" data-1p-ignore="true" data-form-type="other" inputMode="numeric" autoComplete="off" value={v} onChange={e=>ch(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go(v)} placeholder="• • • •"
     style={{...fIn({fontSize:compact?18:30,textAlign:"center",letterSpacing:compact?8:14,fontWeight:900,width:compact?130:"100%",borderColor:bad?C.red:C.accentBorder}),...(dark?{background:"rgba(255,255,255,0.06)",color:"#fff"}:{})}}/>;
   if(compact)return <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",padding:"12px 14px",border:"1px solid rgba(191,164,126,0.3)",borderRadius:14,marginBottom:16,background:"rgba(255,255,255,0.03)"}}>
     <span style={{fontSize:13,fontWeight:800,color:dark?"#fff":C.text,flex:"1 1 200px"}}>🔒 {fL("Финансы заказа скрыты — введите PIN","Finanse ukryte — wpisz PIN")}</span>{inp}{bad&&<span style={{color:C.red,fontSize:12,fontWeight:800}}>{fL("неверный PIN","zły PIN")}</span>}</div>;
@@ -9885,7 +9986,7 @@ function TimesheetsPage({db,F,currentUser,lang,kiosk,onExit,updateDb,onOpenLead}
   </div>;}
 function FinPin({emp,onOk}){const [v,setV]=useState("");const [bad,setBad]=useState(false);
   return <div style={fCard({maxWidth:340,margin:"20px auto",textAlign:"center",padding:24})}><div style={{fontSize:16,fontWeight:900,color:C.text,marginBottom:10}}>👷 {emp.name}</div>
-    <input autoFocus type="password" inputMode="numeric" value={v} onChange={e=>{setV(e.target.value);setBad(false);}} onKeyDown={e=>{if(e.key==="Enter"){if(v===emp.pin)onOk();else setBad(true);}}} placeholder="PIN" style={fIn({fontSize:24,textAlign:"center",letterSpacing:8})}/>
+    <input autoFocus type="text" className="g-pin" name="garno-code-b" data-lpignore="true" data-1p-ignore="true" data-form-type="other" autoComplete="off" inputMode="numeric" value={v} onChange={e=>{setV(e.target.value);setBad(false);}} onKeyDown={e=>{if(e.key==="Enter"){if(v===emp.pin)onOk();else setBad(true);}}} placeholder="PIN" style={fIn({fontSize:24,textAlign:"center",letterSpacing:8})}/>
     {bad&&<div style={{color:C.red,fontSize:12,marginTop:6}}>{fL("Неверный PIN","Zły PIN")}</div>}<button onClick={()=>v===emp.pin?onOk():setBad(true)} style={fBtn(C.accent,true,{width:"100%",marginTop:10,padding:12})}>{fL("Войти","Wejdź")}</button></div>;}
 function FinSheet({fin,F,emp,per,me,role,opts,toast,kiosk}){
   const p=fin.periods.find(x=>x.emp===emp.id&&x.start===per.start);const st=p?p.status:"draft";const locked=st==="approved"||st==="paid";const S=FIN_TS_ST[st];
@@ -10937,6 +11038,8 @@ const AURUM_CSS=`
 .aurum .g-src{border-radius:6px!important;padding:2px 7px!important;font-weight:400!important;font-size:9.5px!important;max-width:110px!important}
 .aurum .g-stk{background:linear-gradient(160deg,rgba(246,224,170,.16),rgba(227,184,96,.06))!important;border-color:rgba(227,184,96,.35)!important;border-radius:12px!important;transform:rotate(-.6deg);box-shadow:0 6px 16px rgba(0,0,0,.25)}
 @keyframes gTmP{50%{box-shadow:0 0 0 4px rgba(168,85,247,.35)}}.g-tm-p{animation:gTmP 1.2s infinite}
+.g-pin{-webkit-text-security:disc;text-security:disc}
+input[name="garno-find"]{-webkit-appearance:none;appearance:none}
 .aurum .g-stk.g-stk-b{background:linear-gradient(160deg,rgba(92,184,255,.18),rgba(92,184,255,.06))!important;border-color:rgba(92,184,255,.5)!important;border-left-color:#5cb8ff!important;transform:rotate(.5deg)}
 .aurum .g-stk:not(.g-stk-b){border-left-color:#f0c040!important}
 .aurum .g-stkt{font-size:16px!important;line-height:1.05!important;color:#f6e0aa!important}
@@ -11282,7 +11385,7 @@ function GarnoCRM(){
       {activeAlert && <AlertPopup alert={activeAlert} onAccept={alertAccept} onSnooze={alertSnooze} onOpen={alertOpen} onDismiss={alertDismiss} onForward={alertForward} currentUser={currentUser} lang={lang}/>}
       {showToday && currentUser && currentUser!=="all" && <GarnoTodayPopup leads={leads} sales={sales} tasks={db.tasks||[]} currentUser={currentUser} lang={lang} setPage={setPage} onOpenLead={setSelLead} onClose={closeToday}/>}
       {!showToday && currentUser && currentUser!=="all" && <button onClick={()=>setShowToday(true)} title="GARNO TODAY" style={{position:"fixed",right:18,bottom:18,zIndex:900,width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#bfa47e,#d4b896)",border:"none",color:"#00132f",fontSize:20,cursor:"pointer",boxShadow:"0 6px 18px rgba(191,164,126,0.4)"}}>☀</button>}
-      {selLead  && <LeadDetail abTests={db.abTests||[]} lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser} taskTypes={db.taskTypes||[]} tasks={tasks} orders={db.orders||[]}/>}
+      {selLead  && <LeadDetail abTests={db.abTests||[]} funnels={db.funnels||[]} lead={selLead} setLeads={setLeadsNow} updateDb={updateDb} srcList={srcList} t={t} lang={lang} onClose={()=>setSelLead(null)} onAddSale={addSale} currentUser={currentUser} taskTypes={db.taskTypes||[]} tasks={tasks} orders={db.orders||[]}/>}
       {showAdd  && <AddLeadModal onClose={()=>setShowAdd(false)} onAdd={addLead} srcList={srcList} t={t} lang={lang} nextNum={nextNum} currentUser={currentUser}/>}
     </div>
   );
