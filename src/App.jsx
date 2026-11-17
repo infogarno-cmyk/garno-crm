@@ -1831,7 +1831,6 @@ const KP_TRUST_CEIDG="https://www.biznes.gov.pl/pl/wyszukiwarka-firm/wpis/ceidg/
 function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=null,vatOn=true}){
   const isUa = kpLang==="ua";
   const isEn = kpLang==="en";
-  const [kpB2B,setKpB2B]=useState(false); // false — физлицо (CEIDG), true — юрлицо (KRS)
   // L(pl, ua, en) — picks string by KP language
   const L=(pl,ua,en)=>isEn?(en!==undefined?en:pl):(isUa?ua:pl);
   // Срок акции: своя дата из мастера КП, иначе +14 дней от сегодня
@@ -1890,10 +1889,6 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:5000,overflowY:"auto"}} onClick={onClose}>
       <div className="no-print" onClick={e=>e.stopPropagation()} style={{position:"fixed",top:14,right:14,display:"flex",gap:8,zIndex:5001}}>
-        {/* тип клиента: физлицо → кнопка реестра CEIDG (JDG), юрлицо → KRS (sp. z o.o.) */}
-        <div style={{display:"flex",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:8,overflow:"hidden"}}>
-          {[[false,"👤 "+(kpLang==="pl"?"Osoba prywatna":"Физлицо")],[true,"🏢 "+(kpLang==="pl"?"Firma":"Юрлицо")]].map(([v,lb])=><button key={String(v)} onClick={()=>setKpB2B(v)} style={{background:kpB2B===v?"#bfa47e":"transparent",color:kpB2B===v?"#00132f":"#fff",border:"none",padding:"9px 14px",fontSize:13,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>{lb}</button>)}
-        </div>
         <button onClick={()=>{
           const doc=document.getElementById("kp-doc");
           if(!doc)return;
@@ -1950,18 +1945,18 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=
             <div style={{fontSize:11,color:"#999",marginTop:4}}>ID: <b style={{color:"#bfa47e"}}>{lead.leadId}</b></div>
           </div>
           <div>
-            {/* TRUST — справа от клиента: «Можно нам доверять» + отзывы Google + запись фирмы в реестре CEIDG */}
+            {/* TRUST — справа от клиента: «Можно нам доверять» + отзывы Google + реестры: CEIDG (для физлиц) и KRS (для юрлиц).
+                Высота блока не больше колонки клиента — иначе в PDF первая страница не помещается и обрезаются фото внизу. */}
             <div style={{fontSize:10,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>GARNO Custom Furniture · garnofurniture.com</div>
-            <div style={{fontSize:15,fontWeight:800,color:"#00132f",marginBottom:8}}>🛡️ {L("Można nam zaufać","Нам можна довіряти","You can trust us")}</div>
-            <div style={{display:"flex",gap:8,flexWrap:"nowrap"}}>
-              <a href={KP_TRUST_REVIEWS} target="_blank" rel="noopener noreferrer" style={{display:"block",padding:"7px 12px",background:"#fbf6ec",border:"1px solid #bfa47e",borderRadius:8,textDecoration:"none"}}>
-                <div style={{fontSize:12.5,fontWeight:800,color:"#00132f",whiteSpace:"nowrap"}}>⭐ {L("Opinie klientów","Відгуки клієнтів","Customer reviews")}</div>
-                <div style={{fontSize:10,color:"#8a7350",textDecoration:"underline"}}>Google →</div>
-              </a>
-              <a href={kpB2B?KP_TRUST_KRS:KP_TRUST_CEIDG} target="_blank" rel="noopener noreferrer" style={{display:"block",padding:"7px 12px",background:"#fbf6ec",border:"1px solid #bfa47e",borderRadius:8,textDecoration:"none"}}>
-                <div style={{fontSize:12.5,fontWeight:800,color:"#00132f",whiteSpace:"nowrap"}}>🏛️ {L("Nasza firma","Наша фірма","Our company")}</div>
-                <div style={{fontSize:10,color:"#8a7350",textDecoration:"underline"}}>{kpB2B?L("Rejestr KRS","Реєстр KRS","KRS register"):L("Rejestr CEIDG","Реєстр CEIDG","CEIDG register")} →</div>
-              </a>
+            <div style={{fontSize:15,fontWeight:800,color:"#00132f",marginBottom:6,lineHeight:1.2}}>🛡️ {L("Można nam zaufać","Нам можна довіряти","You can trust us")}</div>
+            <div style={{display:"flex",gap:6,flexWrap:"nowrap"}}>
+              {[[KP_TRUST_REVIEWS,"⭐ "+L("Opinie","Відгуки","Reviews"),"Google →"],
+                [KP_TRUST_CEIDG,"🏛️ "+L("Nasza firma","Наша фірма","Our company"),L("osoby prywatne","фіз. особи","individuals")+" · CEIDG →"],
+                [KP_TRUST_KRS,"🏢 "+L("Nasza firma","Наша фірма","Our company"),L("firmy","юр. особи","companies")+" · KRS →"]].map(([href,ttl,sub])=>
+                <a key={sub} href={href} target="_blank" rel="noopener noreferrer" style={{display:"block",padding:"4px 8px",background:"#fbf6ec",border:"1px solid #bfa47e",borderRadius:7,textDecoration:"none",whiteSpace:"nowrap",lineHeight:1.25}}>
+                  <span style={{display:"block",fontSize:11.5,fontWeight:800,color:"#00132f"}}>{ttl}</span>
+                  <span style={{display:"block",fontSize:9.5,color:"#8a7350",textDecoration:"underline"}}>{sub}</span>
+                </a>)}
             </div>
           </div>
         </div>
