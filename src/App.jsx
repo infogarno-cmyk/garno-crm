@@ -1826,11 +1826,12 @@ function CalPopup({initDate,initEvent,onSave,onDelete,onClose,t,lang}){
 // ─── KP MODAL ─────────────────────────────────────────────────────────────────
 // Блок доверия в КП: отзывы и запись фирмы в реестре. Ссылки меняются здесь.
 const KP_TRUST_REVIEWS="https://www.google.com/maps/place/Garno+Furniture+-+meble+na+wymiar/@52.1824998,21.0026176,580m/data=!3m1!1e3!4m8!3m7!1s0x47193338e2428b81:0x5e5b34424309721f!8m2!3d52.1819041!4d21.0067713!9m1!1b1!16s%2Fg%2F11vst5fdf0"; // сразу вкладка отзывов
-const KP_TRUST_NIP="5214054266";
+const KP_TRUST_KRS="https://www.biznes.gov.pl/pl/wyszukiwarka-firm/wpis/krs/0001262834"; // юрлица: GARNO FURNITURE sp. z o.o., KRS 0001262834
 const KP_TRUST_CEIDG="https://www.biznes.gov.pl/pl/wyszukiwarka-firm/wpis/ceidg/3E2A1C29-F4AF-479E-98B0-A252914D7B86"; // прямая запись RODA-PL Oleh Stukanov
 function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=null,vatOn=true}){
   const isUa = kpLang==="ua";
   const isEn = kpLang==="en";
+  const [kpB2B,setKpB2B]=useState(false); // false — физлицо (CEIDG), true — юрлицо (KRS)
   // L(pl, ua, en) — picks string by KP language
   const L=(pl,ua,en)=>isEn?(en!==undefined?en:pl):(isUa?ua:pl);
   // Срок акции: своя дата из мастера КП, иначе +14 дней от сегодня
@@ -1889,6 +1890,10 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:5000,overflowY:"auto"}} onClick={onClose}>
       <div className="no-print" onClick={e=>e.stopPropagation()} style={{position:"fixed",top:14,right:14,display:"flex",gap:8,zIndex:5001}}>
+        {/* тип клиента: физлицо → кнопка реестра CEIDG (JDG), юрлицо → KRS (sp. z o.o.) */}
+        <div style={{display:"flex",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:8,overflow:"hidden"}}>
+          {[[false,"👤 "+(kpLang==="pl"?"Osoba prywatna":"Физлицо")],[true,"🏢 "+(kpLang==="pl"?"Firma":"Юрлицо")]].map(([v,lb])=><button key={String(v)} onClick={()=>setKpB2B(v)} style={{background:kpB2B===v?"#bfa47e":"transparent",color:kpB2B===v?"#00132f":"#fff",border:"none",padding:"9px 14px",fontSize:13,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>{lb}</button>)}
+        </div>
         <button onClick={()=>{
           const doc=document.getElementById("kp-doc");
           if(!doc)return;
@@ -1953,9 +1958,9 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=
                 <div style={{fontSize:12.5,fontWeight:800,color:"#00132f",whiteSpace:"nowrap"}}>⭐ {L("Opinie klientów","Відгуки клієнтів","Customer reviews")}</div>
                 <div style={{fontSize:10,color:"#8a7350",textDecoration:"underline"}}>Google →</div>
               </a>
-              <a href={KP_TRUST_CEIDG} target="_blank" rel="noopener noreferrer" style={{display:"block",padding:"7px 12px",background:"#fbf6ec",border:"1px solid #bfa47e",borderRadius:8,textDecoration:"none"}}>
+              <a href={kpB2B?KP_TRUST_KRS:KP_TRUST_CEIDG} target="_blank" rel="noopener noreferrer" style={{display:"block",padding:"7px 12px",background:"#fbf6ec",border:"1px solid #bfa47e",borderRadius:8,textDecoration:"none"}}>
                 <div style={{fontSize:12.5,fontWeight:800,color:"#00132f",whiteSpace:"nowrap"}}>🏛️ {L("Nasza firma","Наша фірма","Our company")}</div>
-                <div style={{fontSize:10,color:"#8a7350",textDecoration:"underline"}}>{L("Rejestr CEIDG","Реєстр CEIDG","CEIDG register")} →</div>
+                <div style={{fontSize:10,color:"#8a7350",textDecoration:"underline"}}>{kpB2B?L("Rejestr KRS","Реєстр KRS","KRS register"):L("Rejestr CEIDG","Реєстр CEIDG","CEIDG register")} →</div>
               </a>
             </div>
           </div>
