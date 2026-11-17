@@ -1825,9 +1825,9 @@ function CalPopup({initDate,initEvent,onSave,onDelete,onClose,t,lang}){
 
 // ─── KP MODAL ─────────────────────────────────────────────────────────────────
 // Блок доверия в КП: отзывы и запись фирмы в реестре. Ссылки меняются здесь.
-const KP_TRUST_REVIEWS="https://www.google.com/maps/place/Garno+Furniture+-+meble+na+wymiar/@52.1819041,21.0041964,17z";
+const KP_TRUST_REVIEWS="https://www.google.com/maps/place/Garno+Furniture+-+meble+na+wymiar/@52.1824998,21.0026176,580m/data=!3m1!1e3!4m8!3m7!1s0x47193338e2428b81:0x5e5b34424309721f!8m2!3d52.1819041!4d21.0067713!9m1!1b1!16s%2Fg%2F11vst5fdf0"; // сразу вкладка отзывов
 const KP_TRUST_NIP="5214054266";
-const KP_TRUST_CEIDG="https://www.biznes.gov.pl/pl/wyszukiwarka-firm/"; // официальный поиск по реестру (вписать NIP); заменить на прямую ссылку записи, когда будет
+const KP_TRUST_CEIDG="https://www.biznes.gov.pl/pl/wyszukiwarka-firm/wpis/ceidg/3E2A1C29-F4AF-479E-98B0-A252914D7B86"; // прямая запись RODA-PL Oleh Stukanov
 function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=null,vatOn=true}){
   const isUa = kpLang==="ua";
   const isEn = kpLang==="en";
@@ -1922,19 +1922,6 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=
           </div>
         )}
 
-        {/* TRUST — «Можно нам доверять»: отзывы Google + запись фирмы в государственном реестре CEIDG */}
-        <div style={{background:"#fbf6ec",borderBottom:"1px solid #e6d7b8",padding:"12px 48px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-          <div style={{fontSize:15,fontWeight:800,color:"#00132f",marginRight:"auto"}}>🛡️ {L("Można nam zaufać","Нам можна довіряти","You can trust us")}</div>
-          <a href={KP_TRUST_REVIEWS} target="_blank" rel="noopener noreferrer" style={{display:"block",padding:"7px 14px",background:"#fff",border:"1px solid #bfa47e",borderRadius:8,textDecoration:"none"}}>
-            <div style={{fontSize:13,fontWeight:800,color:"#00132f"}}>⭐ {L("Opinie klientów","Відгуки клієнтів","Customer reviews")}</div>
-            <div style={{fontSize:10.5,color:"#8a7350",textDecoration:"underline"}}>Google →</div>
-          </a>
-          <a href={KP_TRUST_CEIDG} target="_blank" rel="noopener noreferrer" style={{display:"block",padding:"7px 14px",background:"#fff",border:"1px solid #bfa47e",borderRadius:8,textDecoration:"none"}}>
-            <div style={{fontSize:13,fontWeight:800,color:"#00132f"}}>🏛️ {L("Nasza firma","Наша фірма","Our company")}</div>
-            <div style={{fontSize:10.5,color:"#8a7350",textDecoration:"underline"}}>{L("Rejestr CEIDG","Реєстр CEIDG","CEIDG register")} · RODA-PL Oleh Stukanov · NIP {KP_TRUST_NIP} →</div>
-          </a>
-        </div>
-
         {/* HEADER */}
         <div style={{background:"#00132f",padding:"36px 48px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div>
@@ -1958,8 +1945,19 @@ function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=
             <div style={{fontSize:11,color:"#999",marginTop:4}}>ID: <b style={{color:"#bfa47e"}}>{lead.leadId}</b></div>
           </div>
           <div>
-            <div style={{fontSize:10,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>GARNO Custom Furniture</div>
-            <div style={{fontSize:12,color:"#555",lineHeight:2}}>garnofurniture.com<br/>Warszawa, Polska</div>
+            {/* TRUST — справа от клиента: «Можно нам доверять» + отзывы Google + запись фирмы в реестре CEIDG */}
+            <div style={{fontSize:10,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>GARNO Custom Furniture · garnofurniture.com</div>
+            <div style={{fontSize:15,fontWeight:800,color:"#00132f",marginBottom:8}}>🛡️ {L("Można nam zaufać","Нам можна довіряти","You can trust us")}</div>
+            <div style={{display:"flex",gap:8,flexWrap:"nowrap"}}>
+              <a href={KP_TRUST_REVIEWS} target="_blank" rel="noopener noreferrer" style={{display:"block",padding:"7px 12px",background:"#fbf6ec",border:"1px solid #bfa47e",borderRadius:8,textDecoration:"none"}}>
+                <div style={{fontSize:12.5,fontWeight:800,color:"#00132f",whiteSpace:"nowrap"}}>⭐ {L("Opinie klientów","Відгуки клієнтів","Customer reviews")}</div>
+                <div style={{fontSize:10,color:"#8a7350",textDecoration:"underline"}}>Google →</div>
+              </a>
+              <a href={KP_TRUST_CEIDG} target="_blank" rel="noopener noreferrer" style={{display:"block",padding:"7px 12px",background:"#fbf6ec",border:"1px solid #bfa47e",borderRadius:8,textDecoration:"none"}}>
+                <div style={{fontSize:12.5,fontWeight:800,color:"#00132f",whiteSpace:"nowrap"}}>🏛️ {L("Nasza firma","Наша фірма","Our company")}</div>
+                <div style={{fontSize:10,color:"#8a7350",textDecoration:"underline"}}>{L("Rejestr CEIDG","Реєстр CEIDG","CEIDG register")} →</div>
+              </a>
+            </div>
           </div>
         </div>
         <div style={{margin:"0 48px",height:1,background:"#e8e0d4"}}/>
