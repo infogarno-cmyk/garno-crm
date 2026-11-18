@@ -504,6 +504,12 @@ const normDom=(d,i=0)=>typeof d==="string"?{name:d,color:DOM_COLORS[i%DOM_COLORS
 const FUNNEL_GOOGLE={id:"_google",name:"Google",color:"#4285F4",auto:true};
 function leadFunnel(l,domains,funnels){const d=(domains||[]).find(x=>x.name===l.source);const f=d&&d.funnel?(funnels||[]).find(x=>x.id===d.funnel):null;if(f)return f;
   return /^G/.test(String((l&&l.source)||"").trim())?FUNNEL_GOOGLE:null;}
+// Google как источник: все источники на «G…». Можно выбрать в фильтрах «Источник» и «Воронка» и найти поиском по слову google / гугл.
+const isGoogleSrc=s=>/^G/.test(String(s||"").trim());
+const SRC_GOOGLE="__google";const SRC_GOOGLE_OPT={value:SRC_GOOGLE,label:"Google · все источники G…",color:"#4285F4"};
+const srcPickMatch=(sel,src)=>!sel||sel.length===0||sel.includes(src)||(sel.includes(SRC_GOOGLE)&&isGoogleSrc(src));
+const funMatch=(l,v,domains,funnels)=>{if(v==="all")return true;if(v==="_google")return isGoogleSrc(l&&l.source);const f=leadFunnel(l,domains,funnels);return v==="none"?!f:!!(f&&String(f.id)===v);};
+const srcSearchMatch=(src,q)=>{q=String(q||"").trim().toLowerCase();if(q.length<2)return false;return String(src||"").toLowerCase().includes(q)||(/^(google|гугл|gugl|goog|гуг)/.test(q)&&isGoogleSrc(src));};
 // 4) Blaty — отдельный продукт: источники из воронки с «blat/столешн» в названии не смешиваются с кухнями в метриках
 const isBlatFunnel=f=>!!f&&/blat|столешн/i.test(f.name||"");
 function blatSources(domains,funnels){const ids=new Set((funnels||[]).filter(isBlatFunnel).map(f=>f.id));return new Set((domains||[]).filter(d=>d.funnel&&ids.has(d.funnel)).map(d=>d.name));}
@@ -6650,7 +6656,7 @@ function PushPanel({leads,updateDb,t,mgr,search,onOpen}){
 
   const list=leadsToPush(leads)
     .filter(l=>mgr==="all"||l.manager===mgr)
-    .filter(l=>!search||(l.name||"").toLowerCase().includes(search.toLowerCase())||String(l.phone||"").includes(search)||String(l.leadId||"").includes(search))
+    .filter(l=>!search||(l.name||"").toLowerCase().includes(search.toLowerCase())||String(l.phone||"").includes(search)||String(l.leadId||"").includes(search)||srcSearchMatch(l.source,search))
     .filter(l=>{
       if(!dateFrom&&!dateTo)return true;
       if(!l.pushDate)return false;
@@ -6826,11 +6832,11 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
   const ss={background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:6,padding:"5px 8px",fontSize:11,cursor:"pointer"};
   // фильтр+сортировка пересчитываются только когда меняются лиды или фильтры (а не на каждый ререндер CRM)
   const [fl,_langCnt]=useMemo(()=>{const _langCnt={all:0}; // сколько лидов каждого языка при остальных фильтрах
-  const fl=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||String(l.name||"").toLowerCase().includes(search.toLowerCase())||String(l.phone||"").includes(search)||String(l.leadId||"").includes(search))
+  const fl=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>mgr==="all"||l.manager===mgr).filter(l=>!search||String(l.name||"").toLowerCase().includes(search.toLowerCase())||String(l.phone||"").includes(search)||String(l.leadId||"").includes(search)||srcSearchMatch(l.source,search))
     .filter(l=>fSc.length===0||fSc.includes(String(parseFloat(l.score)||0)))
     .filter(l=>fA==="all"||l.action===fA)
-    .filter(l=>fS.length===0||fS.includes(l.source))
-    .filter(l=>{if(fFun==="all")return true;const f=leadFunnel(l,srcList,funnels);return fFun==="none"?!f:(f&&String(f.id)===fFun);})
+    .filter(l=>srcPickMatch(fS,l.source))
+    .filter(l=>funMatch(l,fFun,srcList,funnels))
     .filter(l=>fWhy==="all"||(fWhy==="none"?!l.noVisitReason:(l.noVisitReason||"")===fWhy))
     .filter(l=>buyerMatch(l.source,fBuy))
     .filter(l=>{_langCnt[l.clientLang||"none"]=(_langCnt[l.clientLang||"none"]||0)+1;_langCnt.all++;return fLang==="all"||(fLang==="none"?!l.clientLang:l.clientLang===fLang);})
@@ -6891,8 +6897,8 @@ function LeadsPage({leads,setLeads,setLeadsNow,updateDb,srcList,t,mgr,search,onO
       <div className="g-lf" style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         <MultiPick label={`◈ ${t.score}`} selected={fSc} onChange={setFSc} width={230} options={SCORES.map(x=>({value:String(x),label:`${x} · ${scoreLbl(x,lang)}`,color:QUAL_COLOR[scoreToQual(x)]}))}/>
         <select value={fA} onChange={e=>setFA(e.target.value)} style={ss}><option value="all">{t.action}</option>{ACTIONS.map(a=><option key={a} value={a}>{t[a]}</option>)}</select>
-        <MultiPick label={t.source} selected={fS} onChange={setFS} width={260} options={normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=>({value:d.name,label:d.name,color:d.color}))}/>
-        <select value={fFun} onChange={e=>setFFun(e.target.value)} style={ss}><option value="all">▼ {lang==="pl"?"Lejek":"Воронка"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— {lang==="pl"?"bez lejka":"без воронки"}</option></select>
+        <MultiPick label={t.source} selected={fS} onChange={setFS} width={260} options={[SRC_GOOGLE_OPT,...normDoms(srcList&&srcList.length?srcList:SOURCES).map(d=>({value:d.name,label:d.name,color:d.color}))]}/>
+        <select value={fFun} onChange={e=>setFFun(e.target.value)} style={ss}><option value="all">▼ {lang==="pl"?"Lejek":"Воронка"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="_google">Google (G…)</option><option value="none">— {lang==="pl"?"bez lejka":"без воронки"}</option></select>
         <select value={fWhy} onChange={e=>setFWhy(e.target.value)} style={ss}><option value="all">{t.whyNoVisit}</option><option value="thinking">{t.rThinking}</option><option value="price">{t.rPrice}</option><option value="distance">{t.rDistance}</option><option value="term">{t.rTerm}</option><option value="none">—</option></select>
         <select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {lang==="pl"?"Język klienta":"Язык клиента"} ({_langCnt.all})</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()} ({_langCnt[v]||0})</option>)}<option value="none">— {lang==="pl"?"bez języka":"без языка"} ({_langCnt.none||0})</option></select>
         {currentUser==="Danya"&&<BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={ss}/>}
@@ -7505,7 +7511,7 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
   const [showMore,setShowMore]=useState(false);
   // прошлый период такой же длины, сразу перед текущим
   const prevRange=(()=>{if(!dateFrom||!dateTo)return [null,null];const a=new Date(dateFrom+"T00:00:00"),b=new Date(dateTo+"T00:00:00");const len=Math.round((b-a)/86400000)+1;const pe=new Date(a);pe.setDate(pe.getDate()-1);const ps=new Date(pe);ps.setDate(ps.getDate()-len+1);const iso=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;return [iso(ps),iso(pe)];})();
-  const scope=(arr)=>(arr||[]).filter(l=>fm==="all"||l.manager===fm).filter(l=>{if(ff==="all")return true;const f=leadFunnel(l,srcList,funnels);return ff==="none"?!f:(f&&String(f.id)===ff);}).filter(l=>fLang==="all"||(fLang==="none"?!l.clientLang:l.clientLang===fLang)).filter(l=>buyerMatch(l.source,fBuy));
+  const scope=(arr)=>(arr||[]).filter(l=>fm==="all"||l.manager===fm).filter(l=>funMatch(l,ff,srcList,funnels)).filter(l=>fLang==="all"||(fLang==="none"?!l.clientLang:l.clientLang===fLang)).filter(l=>buyerMatch(l.source,fBuy));
   const cur=scope(filterByCustomRange(leads,dateFrom,dateTo));
   const prev=prevRange[0]?scope(filterByCustomRange(leads,prevRange[0],prevRange[1])):[];
   const at=(arr,x)=>arr.filter(l=>(parseFloat(l.score)||0)===x);
@@ -7528,8 +7534,8 @@ function FunnelPage({leads,sales,srcList,funnels=[],t,lang,onOpenLead,currentUse
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <div style={{fontSize:18,fontWeight:800,color:C.text}}>▼ {ru?"Воронка продаж":"Lejek sprzedaży"} <span style={{fontSize:12,color:C.muted}}>({cur.length})</span></div>
         <select value={fm} onChange={e=>setFm(e.target.value)} style={ss}><option value="all">{ru?"Все менеджеры":"Wszyscy"}</option>{MANAGERS.map(m=><option key={m} value={m}>{m}</option>)}</select>
-        <select value={ff} onChange={e=>setFf(e.target.value)} style={ss}><option value="all">{ru?"Все воронки":"Wszystkie lejki"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="none">— {ru?"без воронки":"bez lejka"}</option></select>
-        {(()=>{const base=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>fm==="all"||l.manager===fm).filter(l=>{if(ff==="all")return true;const f=leadFunnel(l,srcList,funnels);return ff==="none"?!f:(f&&String(f.id)===ff);}).filter(l=>buyerMatch(l.source,fBuy));const cnt=(v)=>base.filter(l=>v==="none"?!l.clientLang:l.clientLang===v).length;
+        <select value={ff} onChange={e=>setFf(e.target.value)} style={ss}><option value="all">{ru?"Все воронки":"Wszystkie lejki"}</option>{funnels.map(f=><option key={f.id} value={String(f.id)}>{f.name}</option>)}<option value="_google">Google (G…)</option><option value="none">— {ru?"без воронки":"bez lejka"}</option></select>
+        {(()=>{const base=filterByCustomRange(leads,dateFrom,dateTo).filter(l=>fm==="all"||l.manager===fm).filter(l=>funMatch(l,ff,srcList,funnels)).filter(l=>buyerMatch(l.source,fBuy));const cnt=(v)=>base.filter(l=>v==="none"?!l.clientLang:l.clientLang===v).length;
           return <>{currentUser==="Danya"&&<BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={ss}/>}<select value={fLang} onChange={e=>setFLang(e.target.value)} style={ss}><option value="all">🌐 {ru?"Все языки":"Wszystkie języki"} ({base.length})</option>{LANG_OPTS.map(([v,fl])=><option key={v} value={v}>{fl} {v.toUpperCase()} ({cnt(v)})</option>)}<option value="none">— {ru?"без языка":"bez języka"} ({cnt("none")})</option></select></>;})()}
         <div style={{marginLeft:"auto"}}><DashboardDatePicker dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} t={t} lang={lang}/></div>
       </div>
@@ -10949,7 +10955,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead,
   };
   const [confirmId,setConfirmId]=useState(null);
   const [fMgr,setFMgr]=useState("all");const [sortBy,setSortBy]=useState("date");const [fSrc,setFSrc]=useState([]);const [fBuy,setFBuy]=useState("all");
-  const fs=filterByCustomRange(sales,dateFrom,dateTo).filter(x=>fMgr==="all"||x.manager===fMgr).filter(x=>fSrc.length===0||fSrc.includes(x.source||"—")).filter(x=>buyerMatch(x.source,fBuy));
+  const fs=filterByCustomRange(sales,dateFrom,dateTo).filter(x=>fMgr==="all"||x.manager===fMgr).filter(x=>srcPickMatch(fSrc,x.source||"—")).filter(x=>buyerMatch(x.source,fBuy));
   const srcOpts=[...new Set(filterByCustomRange(sales,dateFrom,dateTo).map(x=>x.source||"—"))].sort((a,b)=>String(a).localeCompare(String(b)));const totalRev=fs.reduce((a,s)=>a+s.saleAmount,0);
   const mRev=MANAGERS.map(m=>({name:m,rev:fs.filter(s=>s.manager===m).reduce((a,s)=>a+s.saleAmount,0),count:fs.filter(s=>s.manager===m).length}));
   // ── Допродажа: дописать сумму к существующей продаже с датой ──
@@ -10996,7 +11002,7 @@ function SalesPage({sales,setSales,setSalesNow,updateDb,t,lang,leads,onOpenLead,
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
         <span style={{fontSize:11,color:C.muted}}>{lang==="pl"?"Menedżer":"Менеджер"}:</span>
         {["all",...MANAGERS].map(m=>{const on=fMgr===m;const c=m==="all"?C.accent:(MGR_COLOR[m]||C.accent);return <button key={m} onClick={()=>setFMgr(m)} style={{background:on?`${c}26`:"transparent",border:`1px solid ${on?c:C.border}`,color:on?c:C.muted,borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:on?800:500,cursor:"pointer"}}>{m==="all"?(lang==="pl"?"Wszyscy":"Все"):m}</button>;})}
-        <MultiPick label={lang==="pl"?"Źródło":"Источник"} selected={fSrc} onChange={setFSrc} width={260} options={srcOpts.map(x=>({value:x,label:x}))}/>
+        <MultiPick label={lang==="pl"?"Źródło":"Источник"} selected={fSrc} onChange={setFSrc} width={260} options={[SRC_GOOGLE_OPT,...srcOpts.map(x=>({value:x,label:x}))]}/>
         {currentUser==="Danya"&&<BuyerPick value={fBuy} onChange={setFBuy} lang={lang} style={{background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 10px",fontSize:12,colorScheme:"dark"}}/>}
         <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{marginLeft:"auto",background:C.card,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:7,padding:"5px 10px",fontSize:12,colorScheme:"dark"}}>
           <option value="date">{lang==="pl"?"Wg daty ↓":"По дате ↓"}</option><option value="amount">{lang==="pl"?"Wg kwoty ↓":"По сумме ↓"}</option><option value="manager">{lang==="pl"?"Wg menedżera":"По менеджеру"}</option><option value="source">{lang==="pl"?"Wg źródła":"По источнику"}</option>
