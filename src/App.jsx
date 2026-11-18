@@ -4241,16 +4241,44 @@ function AbBanner({tests,leads,lang,onOpen}){const pl=lang==="pl";const now=Date
 // контакт был и ждём инфу по кухне → напоминание после звонка. Данные берутся из карточки, чего нет — ‹в скобках›.
 const WA_VOC={adam:"Adamie",adrian:"Adrianie",aleksander:"Aleksandrze",andrzej:"Andrzeju",arkadiusz:"Arkadiuszu",arek:"Arku",artur:"Arturze",bartosz:"Bartoszu",bartek:"Bartku",błażej:"Błażeju",bogdan:"Bogdanie",bogusław:"Bogusławie",cezary:"Cezary",damian:"Damianie",daniel:"Danielu",dariusz:"Dariuszu",darek:"Darku",dawid:"Dawidzie",denis:"Denisie",dominik:"Dominiku",edward:"Edwardzie",emil:"Emilu",filip:"Filipie",grzegorz:"Grzegorzu",henryk:"Henryku",hubert:"Hubercie",igor:"Igorze",iwan:"Iwanie",ivan:"Ivanie",jacek:"Jacku",jakub:"Jakubie",kuba:"Kubo",jan:"Janie",janusz:"Januszu",jarosław:"Jarosławie",jerzy:"Jerzy",kacper:"Kacprze",kamil:"Kamilu",karol:"Karolu",kazimierz:"Kazimierzu",konrad:"Konradzie",krystian:"Krystianie",krzysztof:"Krzysztofie",leszek:"Leszku",łukasz:"Łukaszu",maciej:"Macieju",maksym:"Maksymie",marcel:"Marcelu",marcin:"Marcinie",marek:"Marku",marian:"Marianie",mariusz:"Mariuszu",mateusz:"Mateuszu",michał:"Michale",mikołaj:"Mikołaju",mirosław:"Mirosławie",norbert:"Norbercie",oleg:"Olegu",oskar:"Oskarze",patryk:"Patryku",paweł:"Pawle",piotr:"Piotrze",przemysław:"Przemysławie",przemek:"Przemku",radosław:"Radosławie",radek:"Radku",rafał:"Rafale",remigiusz:"Remigiuszu",robert:"Robercie",roman:"Romanie",ryszard:"Ryszardzie",sebastian:"Sebastianie",seweryn:"Sewerynie",sławomir:"Sławomirze",stanisław:"Stanisławie",szymon:"Szymonie",tadeusz:"Tadeuszu",tomasz:"Tomaszu",tomek:"Tomku",waldemar:"Waldemarze",wiesław:"Wiesławie",wiktor:"Wiktorze",wojciech:"Wojciechu",wojtek:"Wojtku",zbigniew:"Zbigniewie",zdzisław:"Zdzisławie",zenon:"Zenonie",
   kasia:"Kasiu",ania:"Aniu",basia:"Basiu",gosia:"Gosiu",asia:"Asiu",zosia:"Zosiu",ola:"Olu",ala:"Alu",ela:"Elu",ula:"Ulu",jola:"Jolu",marysia:"Marysiu",zuzia:"Zuziu",hania:"Haniu",madzia:"Madziu",sonia:"Soniu",tosia:"Tosiu",kasieńka:"Kasieńko"};
-const WA_MALE_A=/^(kuba|barnaba|kosma|bonawentura|jarema|nikita|mykyta|ilya|illia|ilia|luka|sava|kola|микола|ілля|илья|никита|микита|лука|сава|миша|паша|вова|дима|коля|толя|гоша|лёша|леша|костя|петя|вася|юра|серёжа|сережа|слава|данила|кузьма|фома)$/i;
+const WA_MALE_A=/^(mykola|kuba|barnaba|kosma|bonawentura|jarema|nikita|mykyta|ilya|illia|ilia|luka|sava|kola|микола|ілля|илья|никита|микита|лука|сава|миша|паша|вова|дима|коля|толя|гоша|лёша|леша|костя|петя|вася|юра|серёжа|сережа|слава|данила|кузьма|фома)$/i;
 const WA_AMBIG=/^(sasza|sasha|саша|женя|валя|żenia|zhenya)$/i;
-// имя → {nm, g:"m"|"f"|null, voc} ; voc — польский звательный падеж (только для латиницы)
-function waName(raw){const nm=String(raw||"").trim().split(/\s+/)[0]||"";if(nm.length<2||/\d/.test(nm)||!/^[\p{L}'’-]+$/u.test(nm))return{nm:"",g:null,voc:""};
-  const lo=nm.toLowerCase();const cyr=/[а-яёіїєґ]/i.test(nm);const cap=nm[0].toUpperCase()+nm.slice(1);
-  if(WA_AMBIG.test(lo))return{nm:cap,g:null,voc:""};
-  const g=WA_MALE_A.test(lo)?"m":/[aаяa]$/i.test(lo)?"f":"m";
-  if(cyr)return{nm:cap,g,voc:""};
-  const voc=WA_VOC[lo]||(g==="f"&&/a$/.test(lo)?cap.slice(0,-1)+"o":cap);
-  return{nm:cap,g,voc};}
+const WA_FEM_X=/^(nicole?|ines|miriam|beatrice|carmen|ruth|ester|noemi|rachel|abigail|jennifer|elizabeth|karen|sharon|iris|doris|agnes|margaret|любов|любовь|нінель|нинель|рахіль|эстер|естер)$/i;
+// кириллица → польская латиница (для обращения в польском тексте)
+function waTranslit(s){const ukr=/[іїєґ]/i.test(s);const M={а:"a",б:"b",в:"w",г:ukr?"h":"g",ґ:"g",д:"d",е:"e",є:"je",ё:"jo",ж:"ż",з:"z",и:ukr?"y":"i",і:"i",ї:"ji",й:"j",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"ch",ц:"c",ч:"cz",ш:"sz",щ:"szcz",ъ:"",ы:"y",ь:"",э:"e",ю:"ju",я:"ja","'":"","’":""};
+  let x=s.toLowerCase().replace(/[іи]я/g,"ia").replace(/[іи]ю/g,"iu").replace(/[іи]є/g,"ie").replace(/ь([яює])/g,(m,c)=>"j"+({я:"a",ю:"u",є:"e"})[c]);let out="";
+  for(let i=0;i<x.length;i++){const c=x[i];const prev=x[i-1]||"";const afterCons=prev&&/[бвгґджзклмнпрстфхцчшщ]/.test(prev);
+    if(afterCons&&c==="я")out+="ia";else if(afterCons&&c==="ю")out+="iu";else if(afterCons&&c==="є")out+="ie";else out+=(M[c]!=null?M[c]:c);}
+  return out?out[0].toUpperCase()+out.slice(1):"";}
+// польский звательный падеж по правилам (если имени нет в словаре WA_VOC)
+function waVocPl(cap,g){const lo=cap.toLowerCase();if(WA_VOC[lo])return WA_VOC[lo];
+  if(g==="f"){if(!/a$/.test(lo))return cap;if(/(sia|zia|cia|dzia|unia|usia)$/.test(lo)||/^.la$/.test(lo))return cap.slice(0,-1)+"u";return cap.slice(0,-1)+"o";}
+  if(/(ia|ja|ya)$/.test(lo))return cap;if(/a$/.test(lo))return cap.slice(0,-1)+"o";
+  if(/[eiouyx]$/.test(lo))return cap;
+  if(/ek$/.test(lo)&&lo.length>3)return cap.slice(0,-2)+"ku";
+  if(/ś$/.test(lo))return cap.slice(0,-1)+"siu";if(/ń$/.test(lo))return cap.slice(0,-1)+"niu";if(/ć$/.test(lo))return cap.slice(0,-1)+"ciu";if(/ź$/.test(lo))return cap.slice(0,-1)+"ziu";
+  if(/(sz|cz|rz|dz|dż|ch|[kghjlcż])$/.test(lo))return cap+"u";
+  if(/ł$/.test(lo))return cap.slice(0,-1)+"le";
+  if(/r$/.test(lo))return cap+"ze";
+  if(/st$/.test(lo))return cap.slice(0,-2)+"ście";if(/t$/.test(lo))return cap.slice(0,-1)+"cie";
+  if(/d$/.test(lo))return cap+"zie";
+  if(/[nmbpwfsz]$/.test(lo))return cap+"ie";
+  return cap;}
+// украинский звательный падеж (имя кириллицей)
+function waVocUa(cap,g){const lo=cap.toLowerCase();
+  if(/ія$/.test(lo))return cap.slice(0,-1)+"є";if(/[аеиіоу]я$/.test(lo))return cap.slice(0,-1)+"є";if(/я$/.test(lo))return cap.slice(0,-1)+(g==="f"&&lo.length<=4?"ю":"е");
+  if(/а$/.test(lo))return cap.slice(0,-1)+"о";
+  if(g!=="m")return cap;
+  if(/[іи]й$/.test(lo))return cap.slice(0,-1)+"ю";if(/й$/.test(lo))return cap.slice(0,-1)+"ю";if(/ь$/.test(lo))return cap.slice(0,-1)+"ю";
+  if(/о$/.test(lo))return cap.slice(0,-1)+"е";if(/г$/.test(lo))return cap.slice(0,-1)+"же";if(/к$/.test(lo))return cap+"у";if(/[ео]$/.test(lo))return cap;
+  if(/[бвдзлмнпрстфхцчшщжґ]$/.test(lo))return cap+"е";return cap;}
+// имя → {nm, g:"m"|"f"|null, voc (польское обращение латиницей), vocUa (украинское, если имя кириллицей)}
+function waName(raw){const nm=String(raw||"").trim().split(/\s+/)[0]||"";if(nm.length<2||/\d/.test(nm)||!/^[\p{L}'’-]+$/u.test(nm))return{nm:"",g:null,voc:"",vocUa:""};
+  const lo=nm.toLowerCase();const cyr=/[а-яёіїєґ]/i.test(nm);const cap=nm[0].toUpperCase()+nm.slice(1).toLowerCase();
+  if(WA_AMBIG.test(lo))return{nm:cap,g:null,voc:"",vocUa:""};
+  const g=WA_MALE_A.test(lo)?"m":(/[aая]$/i.test(lo)||WA_FEM_X.test(lo))?"f":"m";
+  const lat=cyr?waTranslit(cap):cap;
+  return{nm:cap,g,voc:lat?waVocPl(lat,g):"",vocUa:cyr?waVocUa(cap,g):""};}
 // что можно вытащить из описания лида (заявка с калькулятора): диапазон цены, форма, стороны, материал и все строки «ключ: значение».
 // Заявка может быть записана строками, через « | », « · » или «;» — разбираем все варианты. tl — язык сообщения (pl/ua/cz).
 const WA_TERM={pl:{withinMonth:"W tym miesiącu",within3m:"W ciągu 3 miesięcy",within6m:"W ciągu 6 miesięcy",year:"W ciągu roku"},ua:{withinMonth:"Цього місяця",within3m:"Протягом 3 місяців",within6m:"Протягом 6 місяців",year:"Протягом року"},cz:{withinMonth:"Tento měsíc",within3m:"Do 3 měsíců",within6m:"Do 6 měsíců",year:"Do roka"}};
@@ -4276,6 +4304,8 @@ function waParse(l,tl){const n=String((l&&l.notes)||"");const o={range:"",shape:
   while((m=re1.exec(n)))put(m[1],m[2],m[3]);
   const re2=/(?:^|[\n;,|·])\s*([ABC])\s*[:=]\s*(\d{2,4}(?:[.,]\d+)?)(?:[ \t]*(cm|mm|m)(?![\p{L}]))?/gu;
   while((m=re2.exec(n)))put(m[1],m[2],m[3]);
+  if(!Object.keys(o.sides).length){const reA=/(?:^|[\s,;|·(])([ABC])\s*[:=]?\s*(\d{2,4}(?:[.,]\d+)?)(?![\d\p{L}])/gu;while((m=reA.exec(n)))put(m[1],m[2],"");}
+  if(!Object.keys(o.sides).length){const dm=n.match(/(\d{2,4}(?:[.,]\d+)?)\s*[x×*хХ]\s*(\d{2,4}(?:[.,]\d+)?)(?:\s*[x×*хХ]\s*(\d{1,4}(?:[.,]\d+)?))?\s*(cm|mm|см|мм)?/i);if(dm)[dm[1],dm[2],dm[3]].forEach((v,i)=>v&&put("ABC"[i],v,dm[4]));}
   // материал
   o.material=find(/(materia|front|fasad|фасад|матеріал|материал|materiál)/i);
   if(!o.material){const mm=n.match(/(płyta wiórowa|płyta meblowa|mdf|plastik|lakier\w*|fornir|laminat\w*|дсп|мдф|пластик|lamino|dýha)/i);if(mm)o.material=mm[1];}
@@ -4311,7 +4341,7 @@ function waDrafts(l,scn,tl,mgr){const P=waParse(l,tl);const N=waName(l.name);con
       `Obdrželi jsme Vaši poptávku:\n${q(P.info,"údaje o kuchyni z poptávky")}\nKalkulaci můžeme probrat telefonicky — zabere to asi 5 minut — nebo můžeme pokračovat písemně zde. Která možnost Vám vyhovuje více? Dejte mi prosím vědět, zda je poptávka stále aktuální.`];
     if(scn==="calc")return[`${hi} Poslali jste poptávku na kalkulaci kuchyně (tvar: ${q(P.shape,"tvar")}) o rozměrech:\n${sides("Strana")}\nMateriál: ${q(P.material,"materiál")}\nDejte mi prosím vědět, zda je poptávka stále aktuální.`];
     return[`${hi} V návaznosti na náš telefonický rozhovor čekám na podklady pro kalkulaci kuchyně (rozměry, půdorys nebo fotografie místnosti).\nPřipomínám: pokud mi podklady pošlete do 2 hodin, kalkulace bude hotová ještě dnes, nejpozději zítra.`];}
-  if(tl==="ua"){const hi="Добрий день.";
+  if(tl==="ua"){const hi=N.vocUa?`Добрий день, ${N.vocUa}.`:"Добрий день.";
     if(scn==="3dp")return[`${hi} Я отримав Ваш розрахунок із калькулятора кухні й бачу кілька моментів, де можна оптимізувати ціну.\nМене звати ${me}, я менеджер Garno Furniture. Можемо обговорити розрахунок телефоном — це займе близько 5 хвилин — або продовжити листування тут. Як Вам зручніше?`,
       `Ви додали до заявки фото — на його основі я підготував розрахунок.${P.info?`\nДані із заявки — прошу підтвердити:\n${P.info}`:""}`];
     if(scn==="3d")return[`${hi} Ви отримали розрахунок кухні з нашого калькулятора, і я помітив, що він показав надто широкий діапазон цін (${q(P.range,"діапазон цін")}). Мене звати ${me}, я менеджер компанії Garno Furniture. Якщо Ви відповісте на кілька запитань, я зможу швидко й безкоштовно назвати точнішу ціну.`,
@@ -8598,36 +8628,102 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
         </div>
       </div>}
       {newOrd&&<NewOrderModal orders={orders} me={me} people={[...new Set([...MANAGERS,...leadAssignees()])]} legacy={F&&F.fin?F.fin.ord:{}} onClose={()=>setNewOrd(false)} onCreate={d=>{createManual(d);setNewOrd(false);}}/>}
-      {showTpl&&<OrderTemplateEditor tpl={tpl} onSave={(stages)=>{updateDb(p=>({...p,orderTemplate:{stages,updatedAt:Date.now()}}),true);setShowTpl(false);}} onClose={()=>setShowTpl(false)}/>}
+      {showTpl&&<OrderTemplateEditor tpl={tpl} onSave={({stages,fields})=>{updateDb(p=>({...p,orderTemplate:{...(p.orderTemplate||{}),stages,fields,updatedAt:Date.now()}}),true);setShowTpl(false);}} onClose={()=>setShowTpl(false)}/>}
     </div>
   );
 }
 
+// Поля блока «Данные заказа». Шаблон может скрыть любое поле, переименовать его и добавить своё.
+const ORDER_DATA_FIELDS=[["amount","Сумма продажи","num"],["measureDate","Дата замера","date"],["sendToWork","Дедлайн отправки в работу","date"],["assemblyPlan","Дедлайн сборки на производстве","date"],["montagePlan","Плановая дата монтажа","date"]];
+// scope — "data" (блок «Данные заказа») или ключ этапа. Возвращает поля с учётом шаблона: [key,label,type,isCustom]
+function tplFields(tpl,scope,base){const c=(tpl&&tpl.fields&&tpl.fields[scope])||{};const hide=c.hide||[];const lb=c.labels||{};
+  return [...base.filter(fd=>!hide.includes(fd[0])).map(fd=>lb[fd[0]]?[fd[0],lb[fd[0]],fd[2]]:fd),...(c.add||[]).filter(a=>a&&a.k&&a.label).map(a=>[a.k,a.label,a.type||"text",true])];}
+const tplHidden=(tpl,scope,k)=>(((tpl&&tpl.fields&&tpl.fields[scope])||{}).hide||[]).includes(k);
+const tplLabel=(tpl,scope,k,def)=>((((tpl&&tpl.fields&&tpl.fields[scope])||{}).labels)||{})[k]||def;
 function OrderTemplateEditor({tpl,onSave,onClose}){
-  const ED=ORDER_STAGES.flatMap(s=>s.key==="technolog"?[{...s,key:"technolog_v",name:"Технолог / фабрика → Вияр",icon:"🏭",items:TECH_V},{...s,key:"technolog_f",name:"Технолог / фабрика → Фабрика",icon:"🏗",items:TECH_F}]:[s]);
+  const oT=(ru,pl)=>ORD_LANG==="pl"?pl:ru;
+  const ED=ORDER_STAGES.flatMap(s=>s.key==="technolog"?[{...s,key:"technolog_v",fkey:"technolog",name:"Технолог / фабрика → Вияр",icon:"🏭",items:TECH_V},{...s,key:"technolog_f",fkey:null,name:"Технолог / фабрика → Фабрика",icon:"🏗",items:TECH_F}]:[{...s,fkey:s.key}]);
   const [st,setSt]=useState(()=>{const m={};ED.forEach(s=>{m[s.key]=[...((tpl&&tpl.stages&&tpl.stages[s.key])||s.items)];});if(tpl&&tpl.stages&&tpl.stages.technolog)m.technolog=[...tpl.stages.technolog];return m;});
-  const [add,setAdd]=useState({});
-  const ins={background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:7,padding:"5px 8px",fontSize:12,outline:"none"};
+  const [fl,setFl]=useState(()=>JSON.parse(JSON.stringify((tpl&&tpl.fields)||{})));
+  const [add,setAdd]=useState({});const [nf,setNf]=useState({});
+  const ins={background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:9,padding:"7px 10px",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box",colorScheme:"dark"};
+  const TYPES=[["text",oT("текст","tekst")],["num",oT("число","liczba")],["date",oT("дата","data")],["time",oT("время","godzina")]];
+  const typeName=t=>String(t).startsWith("select:")?oT("список","lista"):(TYPES.find(x=>x[0]===t)||["",t])[1];
+  const cfg=sc=>fl[sc]||{};
+  const upd=(sc,fn)=>setFl(m=>{const c={hide:[],labels:{},add:[],...(m[sc]||{})};return {...m,[sc]:fn(c)};});
+  const setLabel=(sc,k,def,v)=>upd(sc,c=>{const l={...c.labels};if(!v.trim()||v===oL(def))delete l[k];else l[k]=v;return {...c,labels:l};});
+  const toggleHide=(sc,k)=>upd(sc,c=>({...c,hide:c.hide.includes(k)?c.hide.filter(x=>x!==k):[...c.hide,k]}));
+  const setCustom=(sc,k,p)=>upd(sc,c=>({...c,add:c.add.map(a=>a.k===k?{...a,...p}:a)}));
+  const delCustom=(sc,k)=>upd(sc,c=>({...c,add:c.add.filter(a=>a.k!==k)}));
+  const addCustom=sc=>{const v=(nf[sc]||{});const label=(v.label||"").trim();if(!label)return;upd(sc,c=>({...c,add:[...c.add,{k:"c_"+Date.now().toString(36)+Math.floor(Math.random()*1e3),label,type:v.type||"text"}]}));setNf(a=>({...a,[sc]:{label:"",type:v.type||"text"}}));};
+  const lbl={fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3,display:"flex",alignItems:"center",gap:6};
+  const xb={background:"transparent",border:"none",cursor:"pointer",fontSize:11,padding:0};
+  // плитка поля — выглядит как поле в заказе: сверху подпись (её можно править), снизу «окно» поля
+  const tile=(sc,k,def,type,o={})=>{const hid=!o.locked&&!o.custom&&(cfg(sc).hide||[]).includes(k);const val=o.custom?def:((cfg(sc).labels||{})[k]??oL(def));
+    return <div key={sc+k} style={{opacity:hid?.4:1}}>
+      <div style={lbl}><span style={{flex:1}}>{typeName(type)}{o.locked?" · 🔒":o.custom?" · "+oT("своё поле","własne pole"):""}</span>
+        {!o.locked&&(o.custom?<button title={oT("Удалить поле","Usuń pole")} onClick={()=>delCustom(sc,k)} style={{...xb,color:"#ef4444"}}>✕</button>
+          :<button title={hid?oT("Вернуть поле","Przywróć pole"):oT("Убрать поле","Usuń pole")} onClick={()=>toggleHide(sc,k)} style={{...xb,color:hid?"#bfa47e":"#ef4444"}}>{hid?"↺ "+oT("вернуть","przywróć"):"✕"}</button>)}</div>
+      {o.locked?<div style={{...ins,color:"rgba(255,255,255,0.6)"}}>{oL(def)}</div>
+        :<input value={val} disabled={hid} onChange={e=>o.custom?setCustom(sc,k,{label:e.target.value}):setLabel(sc,k,def,e.target.value)} style={{...ins,fontWeight:700,textDecoration:hid?"line-through":"none"}}/>}
+    </div>;};
+  const addTile=sc=>{const v=nf[sc]||{};return <div key={"add"+sc}>
+      <div style={lbl}><span>＋ {oT("новое поле","nowe pole")}</span></div>
+      <div style={{display:"flex",gap:5}}>
+        <input value={v.label||""} onChange={e=>setNf(a=>({...a,[sc]:{...v,label:e.target.value}}))} onKeyDown={e=>e.key==="Enter"&&addCustom(sc)} placeholder={oT("Название","Nazwa")} style={{...ins,flex:1,minWidth:0,borderStyle:"dashed"}}/>
+        <select value={v.type||"text"} onChange={e=>setNf(a=>({...a,[sc]:{...v,type:e.target.value}}))} style={{...ins,width:86,padding:"7px 4px"}}>{TYPES.map(([k,n])=><option key={k} value={k}>{n}</option>)}</select>
+        <button onClick={()=>addCustom(sc)} style={{background:"#bfa47e",border:"none",color:"#00132f",borderRadius:9,padding:"0 11px",fontWeight:900,cursor:"pointer"}}>＋</button>
+      </div></div>;};
+  const grid={display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10};
+  const save=()=>{const fields={};Object.entries(fl).forEach(([sc,c])=>{const hide=(c.hide||[]);const labels=c.labels||{};const ad=(c.add||[]).map(a=>({...a,label:String(a.label||"").trim()})).filter(a=>a.label);if(hide.length||Object.keys(labels).length||ad.length)fields[sc]={hide,labels,add:ad};});
+    onSave({stages:Object.fromEntries(Object.entries(st).map(([k,v])=>[k,v.map(x=>x.trim()).filter(Boolean)])),fields});};
   return(
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.86)",zIndex:2600,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div onClick={e=>e.stopPropagation()} style={{width:"min(760px,100%)",maxHeight:"90vh",overflowY:"auto",background:"linear-gradient(165deg,#0a1a3a,#00132f)",border:"1px solid rgba(191,164,126,0.45)",borderRadius:18,padding:22}}>
-        <div style={{display:"flex",alignItems:"center",marginBottom:6}}><div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{oL("⚙ Шаблон этапов заказа")}</div><button onClick={onClose} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#aaa",fontSize:20,cursor:"pointer"}}>✕</button></div>
-        <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:14}}>{oL("Пункты применяются ко всем заказам. Переименование пункта сбросит его отметку в уже начатых заказах. Для «Комплектующих» — это стартовый список позиций новых заказов.")}</div>
-        {ED.map((s,i)=>(
-          <div key={s.key} style={{marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(191,164,126,0.2)",borderRadius:11,padding:"10px 12px"}}>
-            <div style={{fontSize:12,fontWeight:800,color:"#bfa47e",marginBottom:6}}>{ORDER_STAGES.findIndex(x=>x.key===s.key.replace(/_[vf]$/,""))+1}. {s.icon} {oL(s.name)}</div>
-            {st[s.key].map((it,j)=>(
-              <div key={j} style={{display:"flex",gap:6,marginBottom:4}}>
-                <input value={it} onChange={e=>setSt(m=>({...m,[s.key]:m[s.key].map((x,k)=>k===j?e.target.value:x)}))} style={{...ins,flex:1}}/>
-                <button onClick={()=>setSt(m=>({...m,[s.key]:m[s.key].filter((_,k)=>k!==j)}))} style={{background:"transparent",border:"1px solid rgba(239,68,68,0.4)",color:"#ef4444",borderRadius:7,padding:"0 9px",cursor:"pointer"}}>✕</button>
-              </div>))}
-            <div style={{display:"flex",gap:6,marginTop:4}}>
-              <input value={add[s.key]||""} onChange={e=>setAdd(a=>({...a,[s.key]:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"&&(add[s.key]||"").trim()){setSt(m=>({...m,[s.key]:[...m[s.key],add[s.key].trim()]}));setAdd(a=>({...a,[s.key]:""}));}}} placeholder={oL("＋ новый пункт (Enter)")} style={{...ins,flex:1}}/>
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,8,24,0.88)",backdropFilter:"blur(4px)",zIndex:2600,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 16px",overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"min(900px,100%)",background:"linear-gradient(165deg,#0a1a3a 0%,#00132f 55%,#000d22 100%)",border:"1px solid rgba(191,164,126,0.45)",borderRadius:22,boxShadow:"0 30px 90px rgba(0,0,0,0.65)",overflow:"hidden"}}>
+        <div style={{height:4,background:"linear-gradient(90deg,#bfa47e,#e2c996,#bfa47e)"}}/>
+        <div style={{padding:22}}>
+          <div style={{display:"flex",alignItems:"center",marginBottom:6}}><div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{oL("⚙ Шаблон этапов заказа")}</div><button onClick={onClose} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#aaa",fontSize:20,cursor:"pointer"}}>✕</button></div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:14,lineHeight:1.5}}>{oT("Шаблон выглядит как сам заказ. Здесь можно переименовать любое поле, убрать его (✕) или добавить своё — в «Данные заказа» и в каждый этап; так же правятся пункты чек-листов. Изменения применяются ко всем заказам. Убранное поле просто не показывается — то, что в нём уже записано, не стирается.","Szablon wygląda jak zamówienie. Można tu zmienić nazwę pola, usunąć je (✕) lub dodać własne — w „Danych zamówienia” i w każdym etapie; tak samo edytuje się punkty list kontrolnych. Zmiany dotyczą wszystkich zamówień. Usunięte pole tylko się nie wyświetla — wpisane dane zostają.")}</div>
+          {/* ДАННЫЕ ЗАКАЗА */}
+          <div style={{background:"rgba(255,255,255,0.035)",border:"1px solid rgba(191,164,126,0.22)",borderRadius:14,padding:14,marginBottom:16}}>
+            <div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,marginBottom:10}}>{oL("Данные заказа")}</div>
+            <div style={grid}>
+              {tile("data","num","Номер заказа","text",{locked:true})}
+              {ORDER_DATA_FIELDS.map(fd=>tile("data",fd[0],fd[1],fd[2]))}
+              {ORDER_RESP.map(([k,l])=>tile("data","resp_"+k,oL("Ответственный:")+" "+oL(l),"text"))}
+              {tile("data","status","Статус заказа","text",{locked:true})}
+              {(cfg("data").add||[]).map(a=>tile("data",a.k,a.label,a.type,{custom:true}))}
+              {addTile("data")}
             </div>
-          </div>))}
-        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-          <button onClick={onClose} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.2)",color:"#aaa",borderRadius:9,padding:"9px 18px",cursor:"pointer"}}>{oL("Отмена")}</button>
-          <button onClick={()=>onSave(Object.fromEntries(Object.entries(st).map(([k,v])=>[k,v.map(x=>x.trim()).filter(Boolean)])))} style={{background:"#bfa47e",border:"none",color:"#00132f",borderRadius:9,padding:"9px 22px",fontWeight:900,cursor:"pointer"}}>{oL("Сохранить шаблон")}</button>
+          </div>
+          {/* ЭТАПЫ */}
+          {ED.map(s=>{const idx=ORDER_STAGES.findIndex(x=>x.key===s.key.replace(/_[vf]$/,""));const sc=s.fkey;return(
+            <div key={s.key} style={{marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:13,overflow:"hidden"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px"}}>
+                <div style={{width:26,height:26,borderRadius:"50%",background:"rgba(255,255,255,0.08)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900,flexShrink:0}}>{idx+1}</div>
+                <div style={{fontSize:13,fontWeight:900,color:"#bfa47e",textTransform:"uppercase",letterSpacing:0.6}}>{s.icon} {oL(s.name)}</div>
+              </div>
+              <div style={{padding:"0 14px 12px"}}>
+                {sc&&<div style={{...grid,gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:10}}>
+                  {s.fields.map(fd=>tile(sc,fd[0],fd[1],fd[2]))}
+                  {(cfg(sc).add||[]).map(a=>tile(sc,a.k,a.label,a.type,{custom:true}))}
+                  {addTile(sc)}
+                </div>}
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  {st[s.key].map((it,j)=>(
+                    <div key={j} style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{width:20,height:20,borderRadius:5,border:"2px solid rgba(255,255,255,0.3)",flexShrink:0}}/>
+                      <input value={it} onChange={e=>setSt(m=>({...m,[s.key]:m[s.key].map((x,k)=>k===j?e.target.value:x)}))} style={{...ins,flex:1,padding:"5px 8px",fontSize:12}}/>
+                      <button onClick={()=>setSt(m=>({...m,[s.key]:m[s.key].filter((_,k)=>k!==j)}))} style={{...xb,color:"#ef4444"}}>✕</button>
+                    </div>))}
+                  <input value={add[s.key]||""} onChange={e=>setAdd(a=>({...a,[s.key]:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"&&(add[s.key]||"").trim()){setSt(m=>({...m,[s.key]:[...m[s.key],add[s.key].trim()]}));setAdd(a=>({...a,[s.key]:""}));}}} placeholder={oL("＋ новый пункт (Enter)")} style={{...ins,marginTop:4,background:"transparent",border:"1px dashed rgba(255,255,255,0.15)",fontSize:12,padding:"5px 8px"}}/>
+                </div>
+              </div>
+            </div>);})}
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",position:"sticky",bottom:0,padding:"10px 0 0",background:"linear-gradient(180deg,transparent,#000d22 40%)"}}>
+            <button onClick={onClose} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.2)",color:"#aaa",borderRadius:9,padding:"9px 18px",cursor:"pointer"}}>{oL("Отмена")}</button>
+            <button onClick={save} style={{background:"#bfa47e",border:"none",color:"#00132f",borderRadius:9,padding:"9px 22px",fontWeight:900,cursor:"pointer"}}>{oL("Сохранить шаблон")}</button>
+          </div>
         </div>
       </div>
     </div>);
@@ -8713,8 +8809,8 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
             <div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1.4,fontWeight:800,marginBottom:10}}>{oL("Данные заказа")}</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
               <div><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL("Номер заказа")}</div><input key={"num"+o.num} defaultValue={o.num} onBlur={e=>{const v=e.target.value.trim();if(v&&v!==o.num)commit(o.id,x=>({...x,num:v}),`✎ ${oL("Номер заказа")}: ${o.num} → ${v}`);}} style={ins}/></div>
-              {[["amount",oL("Сумма продажи"),"num"],["measureDate",oL("Дата замера"),"date"],["sendToWork",oL("Дедлайн отправки в работу"),"date"],["assemblyPlan",oL("Дедлайн сборки на производстве"),"date"],["montagePlan",oL("Плановая дата монтажа"),"date"]].map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL(fd[1])}</div>{renderField(fd)}</div>)}
-              {ORDER_RESP.map(([k,l])=><div key={k}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL("Ответственный:")} {oL(l)}</div><input key={k+((o.resp||{})[k]||"")} list="order-people" defaultValue={(o.resp||{})[k]||""} onBlur={e=>{const v=e.target.value.trim();if(v!==((o.resp||{})[k]||""))setResp(k,v,l);}} style={ins}/></div>)}
+              {tplFields(tpl,"data",ORDER_DATA_FIELDS).map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL(fd[1])}</div>{renderField(fd)}</div>)}
+              {ORDER_RESP.filter(([k])=>!tplHidden(tpl,"data","resp_"+k)).map(([k,l])=><div key={k}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{tplLabel(tpl,"data","resp_"+k,oL("Ответственный:")+" "+oL(l))}</div><input key={k+((o.resp||{})[k]||"")} list="order-people" defaultValue={(o.resp||{})[k]||""} onBlur={e=>{const v=e.target.value.trim();if(v!==((o.resp||{})[k]||""))setResp(k,v,l);}} style={ins}/></div>)}
               <div><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL("Статус заказа")}</div><div style={{...ins,fontWeight:800,color:info.color}}>{info.emoji} {o.status==="done"?oL("ЗАКАЗ ЗАВЕРШЁН"):info.st?oL(info.st.name):"—"}</div></div>
             </div>
             <datalist id="order-people">{MANAGERS.map(m=><option key={m} value={m}/>)}</datalist>
@@ -8751,7 +8847,7 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
                     <input type="date" key={"sdl"+((o.sdl||{})[st.key]||"")} defaultValue={(o.sdl||{})[st.key]||""} onChange={e=>setStageDl(st,e.target.value)} style={{...ins,width:150}}/>
                     <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>👤 {respOf(o,st)}</span>
                   </div>
-                  {st.fields.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:10}}>{st.fields.filter(fd=>{if(st.key!=="technolog")return true;const r=orderRoute(o);if(fd[0]==="viyarReady")return r!=="f";if(fd[0]==="factoryNum"||fd[0]==="factoryReady")return r!=="v";return true;}).map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL(fd[1])}</div>{renderField(fd)}</div>)}</div>}
+                  {tplFields(tpl,st.key,st.fields).length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:10}}>{tplFields(tpl,st.key,st.fields).filter(fd=>{if(st.key!=="technolog")return true;const r=orderRoute(o);if(fd[0]==="viyarReady")return r!=="f";if(fd[0]==="factoryNum"||fd[0]==="factoryReady")return r!=="v";return true;}).map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL(fd[1])}</div>{renderField(fd)}</div>)}</div>}
                   {st.key==="prepay"&&<div style={{fontSize:12,color:"#fff",marginBottom:10,display:"flex",gap:14,flexWrap:"wrap"}}><span>{oL("Общая стоимость:")} <b>{fmtM(+f.amount||o.amount||0)}</b></span><span>{oL("Задаток:")} <b>{fmtM(+f.deposit||0)}</b></span><span>{oL("Остаток к оплате:")} <b style={{color:info.rem?"#f87171":"#22c55e"}}>{fmtM(info.rem)}</b></span></div>}
                   {st.key==="protocol"&&<button onClick={()=>printProtocol(o)} style={{background:"#818cf8",border:"none",color:"#00132f",borderRadius:9,padding:"8px 14px",fontSize:12,fontWeight:800,cursor:"pointer",marginBottom:10}}>{oL("📝 Сгенерировать протокол odbioru")}</button>}
                   {st.key==="components"
