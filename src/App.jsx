@@ -2321,7 +2321,7 @@ function DzJournal({leads,me,lang,updateDb,onOpenLead,onClose}){const pl=lang===
             <span style={{fontSize:11.5,color:"#e3b860",fontWeight:800}}>{L("оценка","ocena")} {l.score}</span>{l.visitDate&&c==="visit"&&<span style={{fontSize:11.5,color:"rgba(255,255,255,.6)"}}>{L("визит","wizyta")} {isoToDot(l.visitDate)}</span>}{c==="push"&&<span style={{fontSize:11.5,color:"#f87171"}}>{L("пуш был","push był")} {isoToDot(l.pushDate)}</span>}{l.quoteAmt?<span style={{fontSize:11.5,color:"rgba(255,255,255,.6)"}}>{l.quoteAmt} zł</span>:null}
             <div style={{flex:1}}/><button onClick={e=>{e.stopPropagation();onOpenLead(l);}} style={{background:"none",border:"none",color:"#5cb8ff",fontSize:12,cursor:"pointer"}}>{L("карточка","karta")} →</button><span style={{color:"#e3b860"}}>{on?"▾":"▸"}</span></div>
           {on&&<div style={{marginTop:10}}>
-            {l.notes&&<div style={{fontSize:12,color:"rgba(255,255,255,.55)",marginBottom:8,whiteSpace:"pre-wrap",maxHeight:60,overflow:"hidden"}}>{String(l.notes).slice(0,220)}</div>}
+            {l.notes&&<div style={{fontSize:12,color:"rgba(255,255,255,.55)",marginBottom:8,whiteSpace:"pre-wrap",maxHeight:60,overflow:"hidden"}}>{notePlain(l.notes).slice(0,220)}</div>}
             {!step&&(c==="price"?<><div style={{fontSize:13.5,color:"#fff",fontWeight:800,marginBottom:8}}>{L("Лид получил цену?","Czy lead dostał cenę?")}</div><div style={{display:"flex",gap:8}}><button onClick={()=>{mark(l,c,L("получил цену: да","dostał cenę: tak"),"");onOpenLead(l,L("Внеси актуальную инфу по лиду","Uzupełnij aktualne informacje"));}} style={B("#22c55e",true)}>{L("Да","Tak")}</button><button onClick={()=>{mark(l,c,L("получил цену: нет","dostał cenę: nie"),"");onOpenLead(l,L("Внеси актуальную инфу по лиду","Uzupełnij aktualne informacje"));}} style={B("#f87171")}>{L("Нет","Nie")}</button></div></>
               :c==="push"?<><div style={{fontSize:13.5,color:"#fff",fontWeight:800,marginBottom:8}}>{L("Пуш состоялся?","Czy push się odbył?")}</div><div style={{display:"flex",gap:8}}><button onClick={()=>setStep("pushYes")} style={B("#22c55e",true)}>{L("Да — итоги","Tak — wynik")}</button><button onClick={()=>setStep("call")} style={B("#5cb8ff")}>{L("Нет — позвонить","Nie — dzwonię")}</button></div></>
               :<div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={()=>setStep("call")} style={B("#22c55e",true)}>📞 {L("Позвонить, пропушить","Zadzwonić, dopchnąć")}</button><button onClick={()=>setStep("cancel")} style={B("#f87171")}>✕ {L("Отмена","Anulowanie")}</button><button onClick={()=>setStep("back")} style={B("#5cb8ff")}>↩ {L("Вернул в работу","Wrócił do pracy")}</button></div>)}
@@ -4282,7 +4282,7 @@ function waName(raw){const nm=String(raw||"").trim().split(/\s+/)[0]||"";if(nm.l
 // что можно вытащить из описания лида (заявка с калькулятора): диапазон цены, форма, стороны, материал и все строки «ключ: значение».
 // Заявка может быть записана строками, через « | », « · » или «;» — разбираем все варианты. tl — язык сообщения (pl/ua/cz).
 const WA_TERM={pl:{withinMonth:"W tym miesiącu",within3m:"W ciągu 3 miesięcy",within6m:"W ciągu 6 miesięcy",year:"W ciągu roku"},ua:{withinMonth:"Цього місяця",within3m:"Протягом 3 місяців",within6m:"Протягом 6 місяців",year:"Протягом року"},cz:{withinMonth:"Tento měsíc",within3m:"Do 3 měsíců",within6m:"Do 6 měsíců",year:"Do roka"}};
-function waParse(l,tl){const n=String((l&&l.notes)||"");const o={range:"",shape:"",sides:{},material:"",info:""};const cyr=x=>/[а-яёіїєґ]/i.test(x);
+function waParse(l,tl){const n=notePlain((l&&l.notes)||"");const o={range:"",shape:"",sides:{},material:"",info:""};const cyr=x=>/[а-яёіїєґ]/i.test(x);
   const segs=n.split(/\n|\s[|·•]\s|;/).map(x=>x.trim()).filter(Boolean);
   const kv=segs.map(x=>{const i=x.indexOf(":");return i>1&&i<40&&x.length>i+1&&!/^https?$/i.test(x.slice(0,i).trim())?[x.slice(0,i).trim(),x.slice(i+1).trim()]:null;}).filter(Boolean);
   const find=re=>{const p=kv.find(([k,v])=>re.test(k)&&v);return p?p[1]:"";};
@@ -4310,8 +4310,24 @@ function waParse(l,tl){const n=String((l&&l.notes)||"");const o={range:"",shape:
   o.material=find(/(materia|front|fasad|фасад|матеріал|материал|materiál)/i);
   if(!o.material){const mm=n.match(/(płyta wiórowa|płyta meblowa|mdf|plastik|lakier\w*|fornir|laminat\w*|дсп|мдф|пластик|lamino|dýha)/i);if(mm)o.material=mm[1];}
   // вся инфа из заявки: все «ключ: значение», кроме служебных; для польского/чешского текста — без кириллицы (это заметки менеджера)
-  const TECH=/^(tel|telefon|phone|телефон|imi[eę]|name|им[яь]|ім'?я|e-?mail|fbp|fbc|utm\w*|url|strona www|page|ip|ua|id|źródło|source|источник|джерело|kana[łl]|channel|канал|język|language|мова|язык)\b/i;
+  const TECH=/^(індекс|индекс|index|зв'?язок|зв’язок|связь|kontakt|tel|telefon|phone|телефон|imi[eę]|name|им[яь]|ім'?я|e-?mail|fbp|fbc|utm\w*|url|strona www|page|ip|ua|id|źródło|source|источник|джерело|kana[łl]|channel|канал|język|language|мова|язык)\b/i;
   let rows=kv.filter(([k])=>!TECH.test(k)).map(([k,v])=>`${k}: ${v}`);
+  // Заявка с калькулятора приходит одной строкой через « · »: «Z wyspą 340 · Fornir · Kwarc · od 82 000 do 107 500 zł · Індекс: 4 · Зв'язок: WhatsApp · Bez AGD», дальше менеджер дописывает своё.
+  const dot=n.split(/\n/)[0].split(/\s·\s/).map(x=>x.trim()).filter(Boolean);
+  if(dot.length>=3){const SH=/^(prost\w*|naro[żz]n\w*|z wysp[ąa]|w kształcie litery\s*[ul]|u-kształt\w*|[lui]\b|прям\S*|кутов\S*|углов\S*|з остров\S*|с остров\S*|u-подібн\S*|п-образн\S*|rovn\S*|rohov\S*|s ostrůvk\S*|do u|do l)/i;
+    const BL=/(kwarc|konglomerat|granit|spiek|kamie[nń]|marmur|blat|standard|laminowan|кварц|камін|камен|столешн|стільниц|kámen|deska)/i;const AG=/^(bez agd|z agd|agd[^,]{0,30}|w zabudowie|częściowo[^,]{0,25}|без техн\S*|з техн\S*|с техн\S*|bez spotřebič\S*|se spotřebič\S*)/i;
+    const app=[];let gotShape=false;
+    dot.forEach((sg,ix)=>{if(sg.indexOf(":")>0&&sg.indexOf(":")<40)return; // «Індекс: 4», «Зв'язок: …» — служебное
+      const sm=sg.match(SH);
+      if(ix===0&&sm){gotShape=true;const nums=(sg.slice(sm[0].length).match(/\d{2,4}(?:[.,]\d+)?/g)||[]).slice(0,3);if(!o.shape)o.shape=sm[0];nums.forEach((v,i)=>put("ABC"[i],v,""));
+        app.push(`${tl==="ua"?"Форма":tl==="cz"?"Tvar":"Kształt"}: ${sm[0]}`);if(nums.length)app.push(`${tl==="ua"?"Розміри":tl==="cz"?"Rozměry":"Wymiary"}: ${nums.join(" × ")} cm`);return;}
+      if(R.test(sg)){const r2=sg.match(R);if(!o.range)o.range=`${r2[1].trim()}${r2[2]?" "+r2[2]:""} – ${r2[3].trim()}${r2[4]?" "+r2[4]:""} ${r2[5]}`;app.push(`${tl==="ua"?"Попередня оцінка":tl==="cz"?"Předběžný odhad":"Wstępna wycena"}: ${sg}`);return;}
+      const ag=sg.match(AG);if(ag){app.push(`AGD: ${ag[0]}`);return;}
+      if(sg.length>40)return; // длинный кусок — это уже заметки менеджера
+      if(BL.test(sg)){app.push(`${tl==="ua"?"Стільниця":tl==="cz"?"Pracovní deska":"Blat"}: ${sg}`);return;}
+      if(ix<=2&&(!o.material||o.material.toLowerCase()===sg.toLowerCase())){o.material=sg;app.push(`${tl==="ua"?"Фасади":tl==="cz"?"Dvířka":"Fronty"}: ${sg}`);return;}
+      if(ix<=4)app.push(sg);});
+    if(gotShape||app.length>=3)rows=app;}
   if(!rows.length){const first=(n.split(/\n\s*\n/)[0]||"").trim();if(first&&first.length<=400)rows=first.split(/\n/).map(x=>x.trim()).filter(Boolean);} // заявка одной строкой без «ключ: значение»
   if(tl!=="ua")rows=rows.filter(x=>!cyr(x));
   const bt=l&&l.budgetTimeline;const TT=(WA_TERM[tl]||WA_TERM.pl)[bt];
@@ -4333,7 +4349,7 @@ const waShouldOpen=l=>!(l.c1==="yes"||l.c2==="yes")||l.kitchenInfo==="wait"||(l.
 const WA_SCN={"3dp":{ru:"3D · есть фото",pl:"3D · jest zdjęcie"},"3d":{ru:"3D · без фото",pl:"3D · bez zdjęcia"},calc:{ru:"Калькулятор (не 3D)",pl:"Kalkulator (nie 3D)"},after:{ru:"После звонка · ждём инфу",pl:"Po rozmowie · czekamy na info"}};
 // тексты: tl — "pl" | "ua" | "cz"
 function waDrafts(l,scn,tl,mgr){const P=waParse(l,tl);const N=waName(l.name);const me=mgr&&mgr!=="all"?mgr:"‹IMIĘ›";const q=(v,ph)=>v||`‹${ph}›`;
-  const sides=(lbl)=>{const ks=["A","B","C"].filter((k,i)=>P.sides[k]||i<2);return ks.map(k=>`${lbl} ${k}: ${q(P.sides[k],tl==="pl"?"wymiar":tl==="cz"?"rozměr":"розмір")}`).join("\n");};
+  const sides=(lbl)=>{let ks=["A","B","C"].filter(k=>P.sides[k]);if(!ks.length)ks=["A","B"];return ks.map(k=>`${lbl} ${k}: ${q(P.sides[k],tl==="pl"?"wymiar":tl==="cz"?"rozměr":"розмір")}`).join("\n");};
   if(tl==="cz"){const hi="Dobrý den.";
     if(scn==="3dp")return[`${hi} Dostal jsem Vaši kalkulaci z kalkulátoru kuchyní a vidím několik bodů, kde lze cenu optimalizovat.\nJmenuji se ${me} a jsem manažer v Garno Furniture. Kalkulaci můžeme probrat telefonicky — zabere to asi 5 minut — nebo můžeme pokračovat písemně zde. Která možnost Vám vyhovuje více?`,
       `V poptávce jste přiložili fotografii — podle ní mám připravenou kalkulaci.${P.info?`\nÚdaje z poptávky — prosím o potvrzení:\n${P.info}`:""}`];
@@ -4395,6 +4411,14 @@ function WaDraftBox({form,lang,currentUser,srcList,funnels}){const pl=lang==="pl
     </div>}
   </div>;}
 
+// Ctrl+B в описании лида: оборачивает выделенный текст в **…** (жирное выделение); повторное нажатие снимает
+function noteBoldKey(e,apply){if(!((e.ctrlKey||e.metaKey)&&/^[bBиИ]$/.test(e.key)))return;e.preventDefault();const el=e.target;const a=el.selectionStart,b=el.selectionEnd;if(a==null||a===b)return;
+  const v=el.value;const sel=v.slice(a,b);const un=/^\*\*[\s\S]+\*\*$/.test(sel);apply(v.slice(0,a)+(un?sel.slice(2,-2):`**${sel}**`)+v.slice(b));
+  setTimeout(()=>{try{el.setSelectionRange(a,un?b-4:b+4);}catch{}},0);}
+const NOTE_B=/(\*\*[^*\n][^*]*?\*\*)/g;
+const noteMarks=t=>(String(t||"").match(NOTE_B)||[]).map(x=>x.slice(2,-2));
+const notePlain=t=>String(t||"").replace(/\*\*/g,"");
+function NoteRich({text}){return <>{String(text||"").split(NOTE_B).map((p,i)=>/^\*\*[^*]+\*\*$/.test(p)?<b key={i} style={{color:"#f6e0aa",background:"rgba(227,184,96,.18)",borderRadius:4,padding:"0 3px",fontWeight:800}}>{p.slice(2,-2)}</b>:p)}</>;}
 function AbLeadBox({tests,form,lang,onLog}){const pl=lang==="pl";const xs=abLeadTests(tests,form);const [,tick]=useState(0);const [cp,setCp]=useState(null);const [,rf]=useState(0);
   useEffect(()=>{if(!xs.length)return;const id=setInterval(()=>tick(x=>x+1),30000);return()=>clearInterval(id);},[xs.length]);
   if(!xs.length)return null;const now=Date.now();
@@ -5659,15 +5683,18 @@ const calcCatLbl=x=>`K${calcHasCat(x.code,x.cat||0)?(x.cat||0):0}`;
 const calcSizeFor=(code,w)=>{const b=CALC_BY_CODE[code];if(!b)return null;const ss=[...b.g.sizes].sort((a,c)=>a[1]-c[1]);return ss.find(s=>s[1]>=w-0.05)||ss[ss.length-1];};
 const calcStdW=x=>{const b=CALC_BY_CODE[x.code];return b?[...new Set(b.g.sizes.map(s=>s[1]))].sort((a,b)=>a-b):[x.w];};
 // Доп. позиции: фикс. цена за единицу (из бланка) и ручные (кол-во × цена)
+// сумма доп. позиции: sumOnly/direct — в поле «цена» сразу сумма; direct со старым количеством — по-старому (кол-во × цена)
+const calcExOnly=(e,v)=>!!(e.sumOnly||(e.direct&&!calcNum((v||{}).qty)));
+const calcExSum=(e,v)=>{v=v||{};return calcExOnly(e,v)?calcNum(v.price):calcNum(v.qty)*(e.price!=null?e.price:calcNum(v.price));};
 const CALC_EXTRAS=[
   {k:"ledPas", ru:"LED в витрину",        pl:"LED do witryny",          uRu:"полоса",uPl:"pas", price:180},
   {k:"ledSen", ru:"Датчик LED",           pl:"Czujnik LED",             uRu:"шт",    uPl:"szt",price:210},
   {k:"fronts", ru:"Фасады (нестандарт)",  pl:"Fronty (niestandard)",    uRu:"м²",    uPl:"m²", price:340},
   {k:"witBok", ru:"Бок угловой витрины",  pl:"Bok do witryny narożnej", uRu:"м²",    uPl:"m²", price:1600},
-  {k:"blat",   ru:"Столешница",           pl:"Blat",                    uRu:"м",     uPl:"m",  price:null},
-  {k:"blendy", ru:"Бленды",               pl:"Blendy",                  uRu:"м",     uPl:"m",  price:null},
-  {k:"cokol",  ru:"Цоколь",               pl:"Cokół",                   uRu:"м",     uPl:"m",  price:null},
-  {k:"led",    ru:"LED подсветка",        pl:"Oświetlenie LED",         uRu:"м",     uPl:"m",  price:null},
+  {k:"blat",   ru:"Столешница",           pl:"Blat",                    uRu:"м",     uPl:"m",  price:null,direct:true},
+  {k:"blendy", ru:"Бленды",               pl:"Blendy",                  uRu:"м",     uPl:"m",  price:null,direct:true},
+  {k:"cokol",  ru:"Цоколь",               pl:"Cokół",                   uRu:"м",     uPl:"m",  price:null,direct:true},
+  {k:"led",    ru:"LED подсветка",        pl:"Oświetlenie LED",         uRu:"м",     uPl:"m",  price:null,direct:true},
   {k:"ledFrez",ru:"LED фрезерованный",    pl:"LED frezowany",           uRu:"м",     uPl:"m",  price:220},
   {k:"listwa", ru:"Профиль-ручка (listwa podchwytowa)",pl:"Listwa podchwytowa",uRu:"шт",uPl:"szt",price:500},
   {k:"tipon",  ru:"Tip-on",               pl:"Tip-on",                  uRu:"шт",    uPl:"szt",price:40},
@@ -5681,7 +5708,7 @@ const calcNum=v=>{const n=parseFloat(String(v??"").replace(",","."));return isNa
 function calcTotals(c){
   const items=c.items||[];
   const sec=items.reduce((a,x)=>a+(x.price||0)*(x.qty||1),0);
-  const ex=CALC_EXTRAS.reduce((a,e)=>{const v=(c.extras||{})[e.k]||{};const p=e.price!=null?e.price:calcNum(v.price);return a+(e.sumOnly?calcNum(v.price):calcNum(v.qty)*p);},0);
+  const ex=CALC_EXTRAS.reduce((a,e)=>a+calcExSum(e,(c.extras||{})[e.k]),0);
   const cus=(c.custom||[]).reduce((a,x)=>a+calcNum(x.sum),0);
   const ns=(c.nonstd||[]).reduce((a,x)=>a+calcNonStd(x.mat)*(calcNum(x.qty)||1),0);
   const total=Math.round(sec+ex+cus+ns);const d=Math.min(90,Math.max(0,calcNum(c.discount)));
@@ -6046,7 +6073,7 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
   const specText=()=>{const L=[];L.push(`${pl?"Wycena":"Просчёт"}: ${c.name||""} — ${lead.name||lead.phone||""}`);
     if(c.plan)L.push(`${pl?"Kuchnia":"Кухня"}: ${(PLAN_SHAPES.find(s=>s.k===c.plan.shape)||{})[pl?"pl":"ru"]||""} · ${walls.map((W,i)=>`${pl?"ściana":"стена"} ${i+1} — ${mmT(W.len)} ${pl?"mm":"мм"}`).join(", ")}`);
     CALC_ZONES.slice(0,3).forEach(z=>{const it=groups.filter(x=>x.zone===z.k);if(!it.length)return;L.push("",`${pl?z.pl:z.ru}:`);it.forEach(x=>L.push(`${x.code}${x.ns?` (${pl?"niestandard":"нестандарт"} ${mmT(x.w)} ${pl?"mm":"мм"})`:""} · ${pl?"kat.":"кат."} ${calcCatLbl(x).slice(1)} × ${x.qty} — ${fmtM(x.price*x.qty)}`));});
-    const ex=CALC_EXTRAS.map(e=>{const v=(c.extras||{})[e.k]||{};const sum=e.sumOnly?calcNum(v.price):calcNum(v.qty)*(e.price!=null?e.price:calcNum(v.price));return sum?`${pl?e.pl:e.ru}${e.sumOnly?"":` ${v.qty} ${pl?e.uPl:e.uRu}`} — ${fmtM(Math.round(sum))}`:null;}).filter(Boolean);
+    const ex=CALC_EXTRAS.map(e=>{const v=(c.extras||{})[e.k]||{};const sum=calcExSum(e,v);return sum?`${pl?e.pl:e.ru}${calcExOnly(e,v)?"":` ${v.qty} ${pl?e.uPl:e.uRu}`} — ${fmtM(Math.round(sum))}`:null;}).filter(Boolean);
     (c.nonstd||[]).forEach(x=>{const v=calcNonStd(x.mat)*(calcNum(x.qty)||1);if(v)ex.push(`${x.name||(pl?"Sekcja niestandardowa":"Нестандартная секция")} — ${fmtM(v)}`);});
     (c.custom||[]).forEach(x=>{if(calcNum(x.sum))ex.push(`${x.name||"—"} — ${fmtM(calcNum(x.sum))}`);});
     if(ex.length)L.push("",`${pl?"Dodatki":"Доп."}:`,...ex);
@@ -6255,8 +6282,16 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
                 </div>}
               </div>
               <div style={{...glass,padding:12,display:"flex",flexDirection:"column",gap:8,minHeight:0}}>
-                <div style={lbl}>{pl?"pomysły i uwagi do wyceny":"идеи и заметки к просчёту"}</div>
-                <textarea value={c.notes||""} onChange={e=>upd({notes:e.target.value})} placeholder={pl?"Np. wyspa, złote uchwyty, blat kamienny, bez górnych szafek…":"Напр. остров, золотые ручки, каменная столешница, без верхних шкафов…"} style={{...inp,flex:1,minHeight:90,resize:"none",fontSize:12.5,lineHeight:1.45}}/>
+                <div style={lbl}>{pl?"dodatki":"доп. позиции"}</div>
+                <div style={{flex:1,minHeight:0,overflowY:"auto",marginRight:-4,paddingRight:4}}>
+                {CALC_EXTRAS.map(e=>{const v=(c.extras||{})[e.k]||{};const only=calcExOnly(e,v);const sum=calcExSum(e,v);return(
+                  <div key={e.k} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 58px 84px",gap:6,alignItems:"center",padding:"5px 0",borderTop:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:12,minWidth:0}}>{pl?e.pl:e.ru}{e.price!=null&&<span style={{fontSize:10,color:C.muted}}> · {e.price} zł/{pl?e.uPl:e.uRu}</span>}{e.presets&&e.presets.map(pv=><button key={pv} className="calc-b" onClick={()=>setEx(e.k,"price",String(pv))} style={{marginLeft:5,background:String(v.price)===String(pv)?"rgba(227,184,96,.18)":"transparent",border:`1px solid ${String(v.price)===String(pv)?"rgba(227,184,96,.7)":C.border}`,color:C.accent,borderRadius:7,padding:"0 7px",fontSize:10.5,cursor:"pointer"}}>{pv}</button>)}
+                      {e.price!=null&&sum>0&&<span style={{fontSize:10.5,color:C.text}}> = {fmtM(Math.round(sum))}</span>}</div>
+                    {only?<span/>:<input value={v.qty||""} onChange={ev=>setEx(e.k,"qty",ev.target.value)} placeholder={pl?e.uPl:e.uRu} inputMode="decimal" style={{...inp,padding:"4px 6px",textAlign:"center"}}/>}
+                    {e.price!=null?<span style={{fontSize:11,color:C.muted,textAlign:"right"}}>× {e.price}</span>:<input value={v.price||""} onChange={ev=>setEx(e.k,"price",ev.target.value)} placeholder={only?(pl?"cena zł":"цена zł"):(pl?`zł/${e.uPl}`:`zł/${e.uRu}`)} inputMode="decimal" style={{...inp,padding:"4px 6px",textAlign:"right"}}/>}
+                  </div>);})}
+                </div>
                 <div style={{display:"flex",flexDirection:"column",gap:5,fontSize:12,color:C.muted}}>
                   <div style={{display:"flex",justifyContent:"space-between"}}><span>{pl?"Sekcje":"Секции"}</span><span style={{color:C.text}}>{fmtM(tot.sec)}</span></div>
                   <div style={{display:"flex",justifyContent:"space-between"}}><span>{pl?"Dodatki":"Доп."}</span><span style={{color:C.text}}>{fmtM(tot.ex+tot.ns+tot.cus)}</span></div>
@@ -6269,13 +6304,7 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
             {main==="extra"&&<div style={{flex:1,minHeight:0,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
               <div style={{...glass,padding:14}}>
                 <div style={{...lbl,marginBottom:10}}>{pl?"dodatki":"доп. позиции"}</div>
-                {CALC_EXTRAS.map(e=>{const v=(c.extras||{})[e.k]||{};const sum=e.sumOnly?calcNum(v.price):calcNum(v.qty)*(e.price!=null?e.price:calcNum(v.price));return(
-                  <div key={e.k} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 84px 96px 92px",gap:8,alignItems:"center",padding:"6px 0",borderTop:`1px solid ${C.border}`}}>
-                    <div style={{fontSize:12.5}}>{pl?e.pl:e.ru}{e.price!=null&&<span style={{fontSize:10.5,color:C.muted}}> · {e.price} zł/{pl?e.uPl:e.uRu}</span>}{e.presets&&e.presets.map(pv=><button key={pv} className="calc-b" onClick={()=>setEx(e.k,"price",String(pv))} style={{marginLeft:6,background:String(v.price)===String(pv)?"rgba(227,184,96,.18)":"transparent",border:`1px solid ${String(v.price)===String(pv)?"rgba(227,184,96,.7)":C.border}`,color:C.accent,borderRadius:7,padding:"1px 8px",fontSize:10.5,cursor:"pointer"}}>{pv}</button>)}{e.k==="blat"&&tot.run.low>0&&!v.qty&&<button onClick={()=>setEx("blat","qty",String(Math.round((tot.run.low||0))/100))} style={{marginLeft:8,background:"transparent",border:`1px solid ${C.border}`,color:C.accent,borderRadius:7,padding:"1px 7px",fontSize:10.5,cursor:"pointer"}}>= {pl?"długość dołu":"длина низа"} {(tot.run.low/100).toFixed(2)}</button>}{e.k==="cokol"&&tot.run.low>0&&!v.qty&&<button onClick={()=>setEx("cokol","qty",String(Math.round(((tot.run.low||0)+(tot.run.tall||0)))/100))} style={{marginLeft:8,background:"transparent",border:`1px solid ${C.border}`,color:C.accent,borderRadius:7,padding:"1px 7px",fontSize:10.5,cursor:"pointer"}}>= {pl?"dół + słupki":"низ + пеналы"}</button>}</div>
-                    {e.sumOnly?<span/>:<input value={v.qty||""} onChange={ev=>setEx(e.k,"qty",ev.target.value)} placeholder={pl?e.uPl:e.uRu} inputMode="decimal" style={inp}/>}
-                    {e.price!=null?<span style={{fontSize:11,color:C.muted,textAlign:"center"}}>× {e.price}</span>:<input value={v.price||""} onChange={ev=>setEx(e.k,"price",ev.target.value)} placeholder={e.sumOnly?(pl?"kwota zł":"сумма zł"):(pl?`zł/${e.uPl}`:`zł/${e.uRu}`)} inputMode="decimal" style={inp}/>}
-                    <div style={{textAlign:"right",fontSize:12.5,color:sum?C.text:C.dim}}>{sum?fmtM(Math.round(sum)):"—"}</div>
-                  </div>);})}
+                <div style={{fontSize:11.5,color:C.muted}}>{pl?"Dodatki wpisuje się w „Specyfikacji” — po prawej stronie.":"Доп. позиции вписываются в «Спецификации» — справа."} <button className="calc-b" onClick={()=>setMain("list")} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.accent,borderRadius:7,padding:"2px 9px",fontSize:11,cursor:"pointer"}}>→ {pl?"Specyfikacja":"Спецификация"}</button></div>
               </div>
               <div style={{...glass,padding:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                 <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:12.5}}><input type="checkbox" checked={!!(c.stone&&c.stone.on)} onChange={e=>upd(p=>({stone:{...(p.stone||{}),on:e.target.checked}}))}/>🪨 {pl?"Blat kamienny — promocja w ofercie":"Каменная столешница — акция в КП"}</label>
@@ -6302,6 +6331,10 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
                   <button className="calc-b" onClick={()=>upd(p=>({custom:p.custom.filter(y=>y.uid!==x.uid)}))} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button>
                 </div>)}
                 <button className="calc-b" onClick={()=>upd(p=>({custom:[...(p.custom||[]),{uid:Date.now(),name:"",sum:""}]}))} style={{...btn(false),height:32,fontSize:11.5}}>＋ {pl?"Dodaj pozycję":"Добавить позицию"}</button>
+              </div>
+              <div style={{...glass,padding:14}}>
+                <div style={{...lbl,marginBottom:8}}>{pl?"pomysły i uwagi do wyceny":"идеи и заметки к просчёту"}</div>
+                <textarea value={c.notes||""} onChange={e=>upd({notes:e.target.value})} placeholder={pl?"Np. wyspa, złote uchwyty, blat kamienny, bez górnych szafek…":"Напр. остров, золотые ручки, каменная столешница, без верхних шкафов…"} style={{...inp,width:"100%",boxSizing:"border-box",minHeight:80,resize:"vertical",fontSize:12.5,lineHeight:1.45}}/>
               </div>
             </div>}
             {/* РИСУНОК */}
@@ -7224,13 +7257,14 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📝 {t.notes}</div>
             <div style={{marginBottom:10}}><div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>{t.period}</div>{editing?<select value={form.budgetTimeline||"unconfirmed"} onChange={e=>set("budgetTimeline",e.target.value)} style={{background:C.surface,border:`1px solid ${BUD_COLOR[form.budgetTimeline]||C.borderMd}`,color:BUD_COLOR[form.budgetTimeline]||C.text,borderRadius:6,padding:"6px 10px",fontSize:12,width:"100%"}}>{BUDGETS.map(b=><option key={b} value={b}>{t[b]||b}</option>)}</select>:<Badge label={t[form.budgetTimeline]||"—"} color={BUD_COLOR[form.budgetTimeline]||C.muted} small/>}</div>
-            {(editing&&!inline)?<textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"8px 10px",fontSize:12,width:"100%",minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>
+            {(editing&&!inline)?<textarea value={form.notes} onChange={e=>set("notes",e.target.value)} onKeyDown={e=>noteBoldKey(e,v=>set("notes",v))} title="Ctrl+B — выделить жирным" style={{background:C.surface,border:`1px solid ${C.borderMd}`,color:C.text,borderRadius:6,padding:"8px 10px",fontSize:12,width:"100%",minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>
               :inline?(()=>{const pl=lang==="pl";const dirty=(form.notes||"")!==(lead.notes||"");const saveN=()=>{const v=form.notes||"";if(v===(lead.notes||""))return;updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,notes:v,updatedAt:Date.now(),history:[...(l.history||[]),{date:nowStr(),action:`${t.notes}: ${v.slice(0,80)}`,by:currentUser||"—"}]}:l)}),true);};
                 const addLine=()=>{const d=new Date();const stamp=`${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} ${currentUser&&currentUser!=="all"?currentUser:""}: `;setForm(f=>({...f,notes:(f.notes?String(f.notes).replace(/\s+$/,"")+"\n":"")+stamp}));setTimeout(()=>{const el=notesRef.current;if(el){el.focus();el.selectionStart=el.selectionEnd=el.value.length;}},30);};
-                return <div><textarea ref={notesRef} value={form.notes||""} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} onBlur={saveN} placeholder={pl?"Opis klienta — wpisz albo dopisz…":"Описание клиента — впиши или допиши…"} style={{background:C.surface,border:`1px solid ${dirty?"rgba(227,184,96,.6)":C.borderMd}`,color:C.text,borderRadius:10,padding:"9px 11px",fontSize:12.5,width:"100%",minHeight:96,resize:"vertical",boxSizing:"border-box",lineHeight:1.5}}/>
+                return <div>{noteMarks(form.notes).length>0&&<div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:6}}>{noteMarks(form.notes).map((m,i)=><span key={i} style={{fontSize:12,fontWeight:800,color:"#f6e0aa",background:"rgba(227,184,96,.18)",border:"1px solid rgba(227,184,96,.45)",borderRadius:6,padding:"2px 8px"}}>{m}</span>)}</div>}
+                  <textarea ref={notesRef} value={form.notes||""} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} onKeyDown={e=>noteBoldKey(e,v=>setForm(f=>({...f,notes:v})))} onBlur={saveN} placeholder={pl?"Opis klienta — wpisz albo dopisz…":"Описание клиента — впиши или допиши…"} style={{background:C.surface,border:`1px solid ${dirty?"rgba(227,184,96,.6)":C.borderMd}`,color:C.text,borderRadius:10,padding:"9px 11px",fontSize:12.5,width:"100%",minHeight:96,resize:"vertical",boxSizing:"border-box",lineHeight:1.5}}/>
                   <div style={{display:"flex",gap:8,alignItems:"center",marginTop:6}}><button onClick={addLine} style={{background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>＋ {pl?"Dopisz wpis":"Добавить запись"}</button>
-                  {dirty?<button onClick={saveN} style={{background:C.accent,border:"none",color:"#00132f",borderRadius:8,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>✓ {t.save}</button>:<span style={{fontSize:10.5,color:C.dim}}>{pl?"zapisuje się samo po wyjściu z pola":"сохраняется само, когда выходишь из поля"}</span>}</div></div>;})()
-              :<div style={{fontSize:12,color:form.notes?C.text:C.dim,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{form.notes||"—"}</div>}
+                  {dirty?<button onClick={saveN} style={{background:C.accent,border:"none",color:"#00132f",borderRadius:8,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>✓ {t.save}</button>:<span style={{fontSize:10.5,color:C.dim}}>{pl?"zapisuje się samo po wyjściu z pola · Ctrl+B — pogrubienie":"сохраняется само, когда выходишь из поля · Ctrl+B — выделить жирным"}</span>}</div></div>;})()
+              :<div style={{fontSize:12,color:form.notes?C.text:C.dim,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{form.notes?<NoteRich text={form.notes}/>:"—"}</div>}
           </div>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>◷ {t.history}</div>
@@ -8402,6 +8436,10 @@ function makeOrder({sale,lead,num,by,tpl}){
     resp:{manager:sale?.manager||lead?.manager||by||""},f:{amount:+(sale?.saleAmount||0)},checks:{deposit:{"Продажа подтверждена":{by:by||"—",at:now}}},components:comps,files:[],extra:{},sdl:{},forced:{},routeV2:true,
     history:[{date:nowStr(),by:by||"—",action:oL("Заказ создан из продажи")}],status:"active",createdAt:nowStr(),createdMs:now,updatedAt:now};
 }
+function OrdDate({value,onCommit,style}){const ref=useRef(null);const last=useRef(value||"");
+  useEffect(()=>{last.current=value||"";const el=ref.current;if(el&&document.activeElement!==el&&el.value!==(value||""))el.value=value||"";},[value]);
+  const go=el=>{const x=el.value;if(x&&(+x.split("-")[0]<1900||+x.split("-")[0]>2100)){el.value=last.current;return;}if(x!==last.current){last.current=x;onCommit(x);}};
+  return <input ref={ref} type="date" defaultValue={value||""} onBlur={e=>go(e.target)} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} style={style}/>;}
 function NOL({t,children}){return <label style={{display:"block"}}><div style={{fontSize:10,color:"#bfa47e",textTransform:"uppercase",letterSpacing:1,fontWeight:800,marginBottom:4}}>{t}</div>{children}</label>;}
 function NewOrderModal({orders,me,people,legacy,onClose,onCreate}){
   const [d,setD]=useState({num:nextOrderNum(orders),client:"",phone:"",amount:"",manager:people.includes(me)?me:(people[0]||""),comment:""});const [err,setErr]=useState("");
@@ -8450,6 +8488,7 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
   const [openId,setOpenId]=useState(null);
   useEffect(()=>{if(!focusNum)return;const o=orders.find(x=>String(x.num)===String(focusNum));if(o)setOpenId(o.id);onFocused&&onFocused();},[focusNum]);
   const finClosed=(o)=>!!(F&&F.fin&&finIsClosed(F.fin,String(o.num)));
+  const [finUnl]=useFinLock();const showProf=!!(F&&F.fin&&finUnl&&(finRole(me).close||finRole(me).book||finRole(me).admin));
   const [showTpl,setShowTpl]=useState(false);
   const [fResp,setFResp]=useState("all");const [fStage,setFStage]=useState("all");const [fOver,setFOver]=useState(false);
   const [fDl,setFDl]=useState("");const [fClient,setFClient]=useState("");const [fNum,setFNum]=useState("");const [fNumTo,setFNumTo]=useState("");const [kpi,setKpi]=useState(null);const [showDone,setShowDone]=useState(false);
@@ -8600,7 +8639,7 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
               <div style={{flex:1}}/>
               <button onClick={e=>{e.stopPropagation();setDelId(o.id);}} title={oL("Удалить заказ")} style={{background:"rgba(248,113,113,0.12)",border:`1px solid ${C.red}44`,color:C.red,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}}>🗑</button>
             </div>
-            <div className="ord-grid" style={{display:"grid",gridTemplateColumns:"minmax(150px,1.3fr) minmax(130px,1fr) minmax(140px,1.2fr) 112px minmax(130px,1fr) 104px minmax(90px,.8fr) 110px",gap:12,alignItems:"start",fontSize:12}}>
+            <div className="ord-grid" style={{display:"grid",gridTemplateColumns:`minmax(150px,1.3fr) minmax(130px,1fr) minmax(140px,1.2fr) 112px minmax(130px,1fr) 104px minmax(90px,.8fr) 110px${showProf?" 92px":""}`,gap:12,alignItems:"start",fontSize:12}}>
               <div><H>{oL("Клиент")}</H><div style={{fontWeight:800,color:C.text}}>{o.client||"—"}</div><div style={{fontSize:10.5,color:C.muted}}>{o.phone}</div></div>
               <div><H>{oL("Этап")}</H><div style={{color:C.text}}>{i.st?`${i.st.icon} ${oL(i.st.name)}`:oL("🏁 Завершён")}</div></div>
               <div><H>{oL("Следующий шаг")}</H><div style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis"}}>{i.next}</div></div>
@@ -8609,6 +8648,7 @@ function OrdersPage({db,updateDb,leads,sales,tasks,currentUser,lang,t,onOpenLead
               <div><H>{ORD_LANG==="pl"?"Data montażu":"Дата монтажа"}</H><div style={{color:C.text,fontWeight:700}}>{mDate?isoToDot(mDate):"—"}</div></div>
               <div><H>{oL("Ответственный")}</H><div style={{fontWeight:800,color:MGR_COLOR[resp]||C.text}}>{resp}</div></div>
               <div><H>{oL("Готовность")}</H><div style={{height:7,background:"rgba(255,255,255,0.08)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${i.prog}%`,height:"100%",background:i.prog===100?C.green:C.accent}}/></div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{i.prog}%</div></div>
+              {showProf&&(()=>{let c=null;try{c=finOrderCalc(F.fin,String(o.num),o);}catch{}const pr=c?c.prof:null;return <div><H>{ORD_LANG==="pl"?"Rentowność":"Рентаб."}</H><div title={c?`${ORD_LANG==="pl"?"Zysk":"Прибыль"}: ${fmtM(c.profit)}`:""} style={{fontWeight:900,fontSize:14,color:pr==null?C.dim:finProfColor(pr,F.fin.set.thr)}}>{pr==null?"—":pr.toFixed(1)+"%"}</div></div>;})()}
             </div>
           </div>);})}
         {rows.length===0&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,textAlign:"center",color:C.dim}}>{orders.length?oL("По фильтрам ничего"):oL("Заказов пока нет — создай из продажи (кнопка справа вверху). Новые продажи создают заказ автоматически.")}</div>}
@@ -8844,7 +8884,7 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
                   {!unl&&!done&&<div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:9,padding:"8px 10px",marginBottom:10,fontSize:12,color:"#fca5a5",display:"flex",alignItems:"center",gap:10}}>{oL("🔒 Этап закрыт — сначала завершите предыдущие этапы.")}{isAdmin&&<button onClick={()=>force(i)} style={{marginLeft:"auto",background:"#fb923c",border:"none",color:"#00132f",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>{oL("Открыть вручную (с причиной)")}</button>}</div>}
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
                     <span style={{fontSize:10,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:0.6,fontWeight:700}}>{oL("📅 Срок этапа → задача")}</span>
-                    <input type="date" key={"sdl"+((o.sdl||{})[st.key]||"")} defaultValue={(o.sdl||{})[st.key]||""} onChange={e=>setStageDl(st,e.target.value)} style={{...ins,width:150}}/>
+                    <OrdDate value={(o.sdl||{})[st.key]||""} onCommit={v=>setStageDl(st,v)} style={{...ins,width:150}}/>
                     <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>👤 {respOf(o,st)}</span>
                   </div>
                   {tplFields(tpl,st.key,st.fields).length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:10}}>{tplFields(tpl,st.key,st.fields).filter(fd=>{if(st.key!=="technolog")return true;const r=orderRoute(o);if(fd[0]==="viyarReady")return r!=="f";if(fd[0]==="factoryNum"||fd[0]==="factoryReady")return r!=="v";return true;}).map(fd=><div key={fd[0]}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:3}}>{oL(fd[1])}</div>{renderField(fd)}</div>)}</div>}
@@ -8859,7 +8899,7 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
                             <td style={{padding:"4px 5px",width:60}}><input key={"q"+c.qty} defaultValue={c.qty} onBlur={e=>e.target.value!==String(c.qty)&&comp(c.id,{qty:e.target.value},`🔩 ${oL(c.name)}: ${oL("кол-во")} ${e.target.value}`)} style={ins}/></td>
                             <td style={{padding:"4px 5px",minWidth:100}}><input key={"s"+c.supplier} defaultValue={c.supplier} onBlur={e=>e.target.value!==c.supplier&&comp(c.id,{supplier:e.target.value},`🔩 ${oL(c.name)}: ${oL("поставщик")} ${e.target.value}`)} style={ins}/></td>
                             <td style={{padding:"4px 5px",textAlign:"center"}}><input type="checkbox" checked={!!c.ordered} onChange={e=>comp(c.id,{ordered:e.target.checked,orderDate:e.target.checked&&!c.orderDate?td:c.orderDate},`🔩 ${oL(c.name)}: ${e.target.checked?oL("заказано"):oL("не заказано")}`)}/></td>
-                            <td style={{padding:"4px 5px",width:125}}><input type="date" key={"d"+c.orderDate} defaultValue={c.orderDate||""} onChange={e=>comp(c.id,{orderDate:e.target.value},`🔩 ${oL(c.name)}: ${oL("дата заказа")} ${e.target.value}`)} style={ins}/></td>
+                            <td style={{padding:"4px 5px",width:125}}><OrdDate value={c.orderDate||""} onCommit={v=>comp(c.id,{orderDate:v},`🔩 ${oL(c.name)}: ${oL("дата заказа")} ${v}`)} style={ins}/></td>
                             <td style={{padding:"4px 5px",textAlign:"center"}}><input type="checkbox" checked={!!c.received} onChange={e=>comp(c.id,{received:e.target.checked},`🔩 ${oL(c.name)}: ${e.target.checked?oL("получено"):oL("не получено")}`)}/></td>
                             <td style={{padding:"4px 5px",minWidth:110}}><input key={"c"+c.comment} defaultValue={c.comment} onBlur={e=>e.target.value!==c.comment&&comp(c.id,{comment:e.target.value},`🔩 ${oL(c.name)}: ${oL("комментарий")}`)} style={ins}/></td>
                             <td style={{padding:"4px 5px",whiteSpace:"nowrap"}}><button title={oL("В задачи")} onClick={()=>itemToTask(st,c.name)} style={{background:"transparent",border:"none",color:"#38bdf8",cursor:"pointer"}}>→☰</button><button title={oL("Удалить")} onClick={()=>commit(o.id,x=>({...x,components:(x.components||[]).filter(y=>y.id!==c.id)}),`🔩 ${oL("Удалено")}: ${oL(c.name)}`)} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer"}}>✕</button></td>
