@@ -1826,7 +1826,7 @@ function CalPopup({initDate,initEvent,onSave,onDelete,onClose,t,lang}){
 // ─── KP MODAL ─────────────────────────────────────────────────────────────────
 // Блок доверия в КП: отзывы и запись фирмы в реестре. Ссылки меняются здесь.
 const KP_TRUST_REVIEWS="https://www.google.com/maps/place/Garno+Furniture+-+meble+na+wymiar/@52.1824998,21.0026176,580m/data=!3m1!1e3!4m8!3m7!1s0x47193338e2428b81:0x5e5b34424309721f!8m2!3d52.1819041!4d21.0067713!9m1!1b1!16s%2Fg%2F11vst5fdf0"; // сразу вкладка отзывов
-const KP_TRUST_KRS="https://www.biznes.gov.pl/pl/wyszukiwarka-firm/wpis/krs/0001262834"; // юрлица: GARNO FURNITURE sp. z o.o., KRS 0001262834
+const KP_TRUST_KRS="https://wyszukiwarka-krs.ms.gov.pl/dane-szczegolowe-podmiotu;numerKRS=Lo0mL87bP1ReBoGLXAUr%2BQ%3D%3D;typ=P"; // юрлица: GARNO FURNITURE sp. z o.o., KRS 0001262834
 const KP_TRUST_CEIDG="https://www.biznes.gov.pl/pl/wyszukiwarka-firm/wpis/ceidg/3E2A1C29-F4AF-479E-98B0-A252914D7B86"; // прямая запись RODA-PL Oleh Stukanov
 function KPModal({lead,amount,stoneAmt,stoneLabel,lang:kpLang,onClose,promoDate=null,vatOn=true}){
   const isUa = kpLang==="ua";
@@ -4251,19 +4251,50 @@ function waName(raw){const nm=String(raw||"").trim().split(/\s+/)[0]||"";if(nm.l
   if(cyr)return{nm:cap,g,voc:""};
   const voc=WA_VOC[lo]||(g==="f"&&/a$/.test(lo)?cap.slice(0,-1)+"o":cap);
   return{nm:cap,g,voc};}
-// что можно вытащить из описания лида (заявка с калькулятора): диапазон цены, форма, стороны, материал, строки «ключ: значение»
-function waParse(l){const n=String((l&&l.notes)||"");const o={range:"",shape:"",sides:{},material:"",info:""};
-  const rm=n.match(/(\d[\d  .,]{2,9}\d)\s*(?:zł|pln|kč|czk)?\s*[-–—]\s*(\d[\d  .,]{2,9}\d)\s*(zł|pln|kč|czk)/i);if(rm)o.range=`${rm[1].trim()} – ${rm[2].trim()} ${rm[3]}`;
-  const sm=n.match(/(?:kształt\w*|форма|tvar)\s*(?:kuchni|кухни|кухні|kuchyně)?\s*[:\-–]\s*([^\n;|,]{1,40})/i)||n.match(/(?:w kształcie|układ|typ)\s*(?:litery\s*)?([LUI])(?![\p{L}\d])/iu);if(sm)o.shape=sm[1].trim();
-  const map={"А":"A","Б":"B","В":"C","1":"A","2":"B","3":"C"};let m;
+// что можно вытащить из описания лида (заявка с калькулятора): диапазон цены, форма, стороны, материал и все строки «ключ: значение».
+// Заявка может быть записана строками, через « | », « · » или «;» — разбираем все варианты. tl — язык сообщения (pl/ua/cz).
+const WA_TERM={pl:{withinMonth:"W tym miesiącu",within3m:"W ciągu 3 miesięcy",within6m:"W ciągu 6 miesięcy",year:"W ciągu roku"},ua:{withinMonth:"Цього місяця",within3m:"Протягом 3 місяців",within6m:"Протягом 6 місяців",year:"Протягом року"},cz:{withinMonth:"Tento měsíc",within3m:"Do 3 měsíců",within6m:"Do 6 měsíců",year:"Do roka"}};
+function waParse(l,tl){const n=String((l&&l.notes)||"");const o={range:"",shape:"",sides:{},material:"",info:""};const cyr=x=>/[а-яёіїєґ]/i.test(x);
+  const segs=n.split(/\n|\s[|·•]\s|;/).map(x=>x.trim()).filter(Boolean);
+  const kv=segs.map(x=>{const i=x.indexOf(":");return i>1&&i<40&&x.length>i+1&&!/^https?$/i.test(x.slice(0,i).trim())?[x.slice(0,i).trim(),x.slice(i+1).trim()]:null;}).filter(Boolean);
+  const find=re=>{const p=kv.find(([k,v])=>re.test(k)&&v);return p?p[1]:"";};
+  // диапазон цены
+  const R=/(\d[\d  .,]*\d)\s*(tys\.?|тыс\.?|тис\.?|k)?\s*(?:zł|pln|kč|czk)?\s*(?:[-–—]|do|до)\s*(\d[\d  .,]*\d)\s*(tys\.?|тыс\.?|тис\.?|k)?\s*(zł|pln|kč|czk)/i;
+  const rm=(find(/(przedzia|wycen|cena|koszt|szacun|цена|ціна|вартість|стоимост|rozpětí|odhad|estimate|price)/i).match(R))||n.match(R);
+  if(rm)o.range=`${rm[1].trim()}${rm[2]?" "+rm[2]:""} – ${rm[3].trim()}${rm[4]?" "+rm[4]:""} ${rm[5]}`;
+  // форма
+  o.shape=find(/(kszta|układ|uklad|форма|tvar|shape|typ kuchni|rodzaj kuchni)/i);
+  if(!o.shape){const sm=n.match(/(w kształcie litery\s*[UL]|u-подібн[а-яіїє]*|п-образн[а-я]*|naro[żz]n[a-ząęł]*|кутов[а-яіїє]*|углов[а-я]*|rohov[a-zá-ž]*|z wysp[ąa]|з остров[а-яіїє]*|с остров[а-я]*|s ostrůvk[a-zá-ž]*|prost[aąey][a-z]*|прям[а-яіїє]+|rovn[áa][a-zá-ž]*)/i);if(sm)o.shape=sm[1];}
+  // стороны
+  const map={"А":"A","Б":"B","В":"C","1":"A","2":"B","3":"C"};const put=(k,num,u)=>{k=map[k.toUpperCase()]||k.toUpperCase();if(+String(num).replace(",",".")>0&&!o.sides[k])o.sides[k]=`${num} ${u||"cm"}`;};let m;
+  kv.forEach(([k,v])=>{const km=k.match(/^(?:strona|ściana|bok|сторона|стена|стіна|strana|stěna|dim|wymiar)\s*([ABCАБВ1-3])$/i);const vm=v.match(/(\d{2,4}(?:[.,]\d+)?)\s*(cm|mm|m|см|мм|м)?/i);if(km&&vm)put(km[1],vm[1],vm[2]);});
+  const dv=find(/(wymiar|розмір|размер|rozměr|dimension|габарит)/i);
+  if(dv){const u=(dv.match(/(cm|mm|см|мм)(?![\p{L}])/iu)||[])[1];const reL=/([ABCАБВ])\s*[:=]?\s*(\d{2,4}(?:[.,]\d+)?)/gi;let any=false;
+    while((m=reL.exec(dv))){any=true;put(m[1],m[2],u);}
+    if(!any)(dv.match(/\d{2,4}(?:[.,]\d+)?/g)||[]).slice(0,3).forEach((x,i)=>put("ABC"[i],x,u));}
   const re1=/(?:strona|ściana|bok|сторона|стена|стіна|strana|stěna)\s*([ABCАБВ1-3])\s*[:=\-–]?\s*(\d{2,4}(?:[.,]\d+)?)(?:[ \t]*(cm|mm|m|см|мм|м)(?![\p{L}]))?/giu;
-  while((m=re1.exec(n))){const k=map[m[1].toUpperCase()]||m[1].toUpperCase();if(!o.sides[k])o.sides[k]=`${m[2]} ${m[3]||"cm"}`;}
-  const re2=/(?:^|[\n;,|])\s*([ABC])\s*[:=]\s*(\d{2,4}(?:[.,]\d+)?)(?:[ \t]*(cm|mm|m)(?![\p{L}]))?/gu;
-  while((m=re2.exec(n))){if(!o.sides[m[1]])o.sides[m[1]]=`${m[2]} ${m[3]||"cm"}`;}
-  const mm=n.match(/(?:materiał\w*|fronty?|material|материал\w*|матеріал\w*|фасад\w*|materiál\w*)\s*[:\-–]\s*([^\n;|]{1,60})/i);if(mm)o.material=mm[1].trim();
-  const KEY=/(kszta|wymiar|stron|ścian|materia|front|blat|agd|termin|budżet|przedzia|cena|wycen|miasto|lokal|zabudow|wysoko|długo|форма|размер|розмір|сторон|материал|матеріал|фасад|столешн|стільниц|срок|термін|бюджет|цена|ціна|город|місто|tvar|rozměr|stran|deska|termín|rozpočet|město)/i;
-  o.info=n.split(/\n|;/).map(x=>x.trim()).filter(x=>{const i=x.indexOf(":");return i>1&&i<32&&x.length>i+1&&KEY.test(x.slice(0,i));}).join("\n");
+  while((m=re1.exec(n)))put(m[1],m[2],m[3]);
+  const re2=/(?:^|[\n;,|·])\s*([ABC])\s*[:=]\s*(\d{2,4}(?:[.,]\d+)?)(?:[ \t]*(cm|mm|m)(?![\p{L}]))?/gu;
+  while((m=re2.exec(n)))put(m[1],m[2],m[3]);
+  // материал
+  o.material=find(/(materia|front|fasad|фасад|матеріал|материал|materiál)/i);
+  if(!o.material){const mm=n.match(/(płyta wiórowa|płyta meblowa|mdf|plastik|lakier\w*|fornir|laminat\w*|дсп|мдф|пластик|lamino|dýha)/i);if(mm)o.material=mm[1];}
+  // вся инфа из заявки: все «ключ: значение», кроме служебных; для польского/чешского текста — без кириллицы (это заметки менеджера)
+  const TECH=/^(tel|telefon|phone|телефон|imi[eę]|name|им[яь]|ім'?я|e-?mail|fbp|fbc|utm\w*|url|strona www|page|ip|ua|id|źródło|source|источник|джерело|kana[łl]|channel|канал|język|language|мова|язык)\b/i;
+  let rows=kv.filter(([k])=>!TECH.test(k)).map(([k,v])=>`${k}: ${v}`);
+  if(!rows.length){const first=(n.split(/\n\s*\n/)[0]||"").trim();if(first&&first.length<=400)rows=first.split(/\n/).map(x=>x.trim()).filter(Boolean);} // заявка одной строкой без «ключ: значение»
+  if(tl!=="ua")rows=rows.filter(x=>!cyr(x));
+  const bt=l&&l.budgetTimeline;const TT=(WA_TERM[tl]||WA_TERM.pl)[bt];
+  if(TT&&!kv.some(([k])=>/(termin|kiedy|срок|термін|коли|когда|termín|kdy)/i.test(k)))rows.push(`${tl==="ua"?"Термін":tl==="cz"?"Termín":"Termin"}: ${TT}`);
+  o.info=[...new Set(rows)].join("\n");
   return o;}
+// форма кухни фразой для польского текста: «kuchni w kształcie litery L», «kuchni prostej», «kuchni z wyspą»
+function waShapePl(raw){const s=String(raw||"").trim();if(!s)return "w kształcie ‹kształt›";
+  if(/(\bU\b|liter[ya]\s*u|u-подібн|п-образн)/i.test(s))return "w kształcie litery U";
+  if(/(^L$|liter[ya]\s*l|naro[żz]n|кутов|углов|rohov)/i.test(s))return "w kształcie litery L";
+  if(/(wysp|остров|ostrůvk)/i.test(s))return "z wyspą";
+  if(/(^I$|prost|прям|rovn|jednorz)/i.test(s))return "prostej (w jednej linii)";
+  return `w kształcie: ${s}`;}
 const waIsImg=f=>!!f&&(/^image\//.test(f.type||"")||/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(f.name||""));
 function waIs3d(l,srcList,funnels){const f=leadFunnel(l,srcList,funnels);return /3\s*d/i.test(String((l&&l.source)||""))||!!(f&&/3\s*d/i.test(f.name||""));}
 // авто-сценарий: after — после звонка ждём инфу; 3dp — 3D с фото; 3d — 3D без фото; calc — обычный калькулятор
@@ -4271,21 +4302,21 @@ function waScenario(l,srcList,funnels){if(l.c1==="yes"||l.c2==="yes")return "aft
 const waShouldOpen=l=>!(l.c1==="yes"||l.c2==="yes")||l.kitchenInfo==="wait"||(l.term==="lt4"&&!l.kitchenInfo);
 const WA_SCN={"3dp":{ru:"3D · есть фото",pl:"3D · jest zdjęcie"},"3d":{ru:"3D · без фото",pl:"3D · bez zdjęcia"},calc:{ru:"Калькулятор (не 3D)",pl:"Kalkulator (nie 3D)"},after:{ru:"После звонка · ждём инфу",pl:"Po rozmowie · czekamy na info"}};
 // тексты: tl — "pl" | "ua" | "cz"
-function waDrafts(l,scn,tl,mgr){const P=waParse(l);const N=waName(l.name);const me=mgr&&mgr!=="all"?mgr:"‹IMIĘ›";const q=(v,ph)=>v||`‹${ph}›`;
+function waDrafts(l,scn,tl,mgr){const P=waParse(l,tl);const N=waName(l.name);const me=mgr&&mgr!=="all"?mgr:"‹IMIĘ›";const q=(v,ph)=>v||`‹${ph}›`;
   const sides=(lbl)=>{const ks=["A","B","C"].filter((k,i)=>P.sides[k]||i<2);return ks.map(k=>`${lbl} ${k}: ${q(P.sides[k],tl==="pl"?"wymiar":tl==="cz"?"rozměr":"розмір")}`).join("\n");};
   if(tl==="cz"){const hi="Dobrý den.";
     if(scn==="3dp")return[`${hi} Dostal jsem Vaši kalkulaci z kalkulátoru kuchyní a vidím několik bodů, kde lze cenu optimalizovat.\nJmenuji se ${me} a jsem manažer v Garno Furniture. Kalkulaci můžeme probrat telefonicky — zabere to asi 5 minut — nebo můžeme pokračovat písemně zde. Která možnost Vám vyhovuje více?`,
       `V poptávce jste přiložili fotografii — podle ní mám připravenou kalkulaci.${P.info?`\nÚdaje z poptávky — prosím o potvrzení:\n${P.info}`:""}`];
     if(scn==="3d")return[`${hi} Z naší kalkulačky Vám vyšla kalkulace kuchyně a všiml jsem si, že se zobrazilo příliš široké cenové rozpětí (${q(P.range,"cenové rozpětí")}). Jmenuji se ${me} a jsem manažer ve firmě Garno Furniture. Pokud mi odpovíte na několik otázek, mohu Vám rychle a zdarma sdělit přesnější cenu.`,
       `Obdrželi jsme Vaši poptávku:\n${q(P.info,"údaje o kuchyni z poptávky")}\nKalkulaci můžeme probrat telefonicky — zabere to asi 5 minut — nebo můžeme pokračovat písemně zde. Která možnost Vám vyhovuje více? Dejte mi prosím vědět, zda je poptávka stále aktuální.`];
-    if(scn==="calc")return[`${hi} Poslali jste poptávku na kalkulaci kuchyně ve tvaru ${q(P.shape,"tvar")} o rozměrech:\n${sides("Strana")}\nMateriál: ${q(P.material,"materiál")}\nDejte mi prosím vědět, zda je poptávka stále aktuální.`];
+    if(scn==="calc")return[`${hi} Poslali jste poptávku na kalkulaci kuchyně (tvar: ${q(P.shape,"tvar")}) o rozměrech:\n${sides("Strana")}\nMateriál: ${q(P.material,"materiál")}\nDejte mi prosím vědět, zda je poptávka stále aktuální.`];
     return[`${hi} V návaznosti na náš telefonický rozhovor čekám na podklady pro kalkulaci kuchyně (rozměry, půdorys nebo fotografie místnosti).\nPřipomínám: pokud mi podklady pošlete do 2 hodin, kalkulace bude hotová ještě dnes, nejpozději zítra.`];}
   if(tl==="ua"){const hi="Добрий день.";
     if(scn==="3dp")return[`${hi} Я отримав Ваш розрахунок із калькулятора кухні й бачу кілька моментів, де можна оптимізувати ціну.\nМене звати ${me}, я менеджер Garno Furniture. Можемо обговорити розрахунок телефоном — це займе близько 5 хвилин — або продовжити листування тут. Як Вам зручніше?`,
       `Ви додали до заявки фото — на його основі я підготував розрахунок.${P.info?`\nДані із заявки — прошу підтвердити:\n${P.info}`:""}`];
     if(scn==="3d")return[`${hi} Ви отримали розрахунок кухні з нашого калькулятора, і я помітив, що він показав надто широкий діапазон цін (${q(P.range,"діапазон цін")}). Мене звати ${me}, я менеджер компанії Garno Furniture. Якщо Ви відповісте на кілька запитань, я зможу швидко й безкоштовно назвати точнішу ціну.`,
       `Ми отримали Ваш запит:\n${q(P.info,"інформація про кухню із заявки")}\nМожемо обговорити розрахунок телефоном — це займе близько 5 хвилин — або продовжити листування тут. Як Вам зручніше? І підкажіть, будь ласка, чи запит ще актуальний?`];
-    if(scn==="calc")return[`${hi} Ви залишили запит на розрахунок кухні форми ${q(P.shape,"форма")} з розмірами:\n${sides("Сторона")}\nМатеріал: ${q(P.material,"матеріал")}\nПідкажіть, будь ласка, чи запит ще актуальний?`];
+    if(scn==="calc")return[`${hi} Ви залишили запит на розрахунок кухні (форма: ${q(P.shape,"форма")}) з розмірами:\n${sides("Сторона")}\nМатеріал: ${q(P.material,"матеріал")}\nПідкажіть, будь ласка, чи запит ще актуальний?`];
     return[`${hi} Після нашої телефонної розмови чекаю від Вас інформацію для розрахунку кухні (розміри, план або фото приміщення).\nНагадую: якщо надішлете інформацію протягом 2 годин, розрахунок буде готовий уже сьогодні, найпізніше завтра.`];}
   const G=N.g==="m"?{gen:"Pana",dla:"dla Pana",got:"Otrzymał Pan",ans:"odpowie Pan",sub:"Złożył Pan",att:"Załączył Pan",snd:"prześle Pan"}:N.g==="f"?{gen:"Pani",dla:"dla Pani",got:"Otrzymała Pani",ans:"odpowie Pani",sub:"Złożyła Pani",att:"Załączyła Pani",snd:"prześle Pani"}:{gen:"Państwa",dla:"dla Państwa",got:"Otrzymali Państwo",ans:"odpowiedzą Państwo",sub:"Złożyli Państwo",att:"Załączyli Państwo",snd:"prześlą Państwo"};
   const hi=N.g&&N.voc?`Dzień dobry, ${N.g==="m"?"Panie":"Pani"} ${N.voc}.`:"Dzień dobry.";
@@ -4294,7 +4325,7 @@ function waDrafts(l,scn,tl,mgr){const P=waParse(l);const N=waName(l.name);const 
     `${G.att} zdjęcie, na podstawie którego przygotowałem wycenę.${P.info?`\nDane ze zgłoszenia — proszę o potwierdzenie:\n${P.info}`:""}`];
   if(scn==="3d")return[`${hi} ${G.got} wycenę kuchni z naszego kalkulatora i zauważyłem, że pokazał się zbyt szeroki przedział cenowy (${q(P.range,"przedział cenowy")}). Nazywam się ${me} i jestem menedżerem w firmie Garno Furniture. Jeśli ${G.ans} na kilka pytań, będę mógł szybko i bezpłatnie podać dokładniejszą cenę.`,
     `Otrzymaliśmy ${G.gen} zapytanie:\n${q(P.info,"informacje o kuchni ze zgłoszenia")}\n${talk} Proszę też o informację, czy zapytanie jest nadal aktualne.`];
-  if(scn==="calc")return[`${hi} ${G.sub} zapytanie o wycenę kuchni w kształcie ${q(P.shape,"kształt")} o wymiarach:\n${sides("Strona")}\nMateriał: ${q(P.material,"materiał")}\nProszę o informację, czy zapytanie jest nadal aktualne.`];
+  if(scn==="calc")return[`${hi} ${G.sub} zapytanie o wycenę kuchni ${waShapePl(P.shape)} o wymiarach:\n${sides("Strona")}\nMateriał: ${q(P.material,"materiał")}\nProszę o informację, czy zapytanie jest nadal aktualne.`];
   return[`${hi} W nawiązaniu do naszej rozmowy telefonicznej — czekam na informacje potrzebne do wyceny kuchni (wymiary, rzut lub zdjęcia pomieszczenia).\nPrzypominam: jeśli ${G.snd} informacje w ciągu 2 godzin, wycena będzie gotowa jeszcze dzisiaj, najpóźniej jutro.`];}
 function WaDraftBox({form,lang,currentUser,srcList,funnels}){const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;
   const auto=waScenario(form,srcList,funnels);const autoTl=(form.clientLang==="ua")?"ua":(JR_CZ?"cz":"pl");
@@ -8309,9 +8340,11 @@ const techLists=(tpl)=>({v:(tpl&&tpl.stages&&tpl.stages.technolog_v)||TECH_V,f:(
 function orderItems(o,tpl,st){if(st.key==="components")return [];
   let base=(tpl&&tpl.stages&&tpl.stages[st.key])||st.items;
   if(st.key==="technolog"&&!orderLegacyTech(o)){const L=techLists(tpl),r=orderRoute(o);base=r==="f"?L.f:r==="vf"?[...new Set([...L.v,...L.f])]:L.v;}
-  return [...base,...((o.extra||{})[st.key]||[])];}
+  const hid=(o.hide||{})[st.key]||[]; // пункты шаблона, убранные именно из этого заказа
+  return [...base,...((o.extra||{})[st.key]||[])].filter(x=>!hid.includes(x));}
 function stageDone(o,tpl,st){
   // Пустой этап (нет комплектующих / все пункты убраны из шаблона) — проходной, иначе заказ застрянет
+  if((o.skip||{})[st.key])return true; // этап убран из этого заказа
   if(st.key==="components"){const c=o.components||[];return c.every(x=>x.received);}
   if(st.key==="blat"&&orderLegacyBlat(o))return true;
   // только фабрика — этапы Вияра проходные
@@ -8320,7 +8353,7 @@ function stageDone(o,tpl,st){
 }
 function stagePassed(o,tpl,st){return stageDone(o,tpl,st)||!!(o.forced||{})[st.key];}
 function orderCur(o,tpl){const i=ORDER_STAGES.findIndex(st=>!stagePassed(o,tpl,st));return i<0?ORDER_STAGES.length:i;}
-function orderProgress(o,tpl){let tot=0,dn=0;ORDER_STAGES.forEach(st=>{if(st.key==="components"){(o.components||[]).forEach(c=>{tot++;if(c.received)dn++;});return;}const it=orderItems(o,tpl,st);const ch=(o.checks||{})[st.key]||{};it.forEach(x=>{tot++;if(ch[x])dn++;});});return tot?Math.round(dn/tot*100):0;}
+function orderProgress(o,tpl){let tot=0,dn=0;ORDER_STAGES.forEach(st=>{if((o.skip||{})[st.key])return;if(st.key==="components"){(o.components||[]).forEach(c=>{tot++;if(c.received)dn++;});return;}const it=orderItems(o,tpl,st);const ch=(o.checks||{})[st.key]||{};it.forEach(x=>{tot++;if(ch[x])dn++;});});return tot?Math.round(dn/tot*100):0;}
 function orderRemaining(o){const f=o.f||{};const total=+f.amount||+o.amount||0;const paid=(+f.deposit||0)+(f.payFact?(+f.payAmount||0):0)+(f.finalPaid?(+f.finalAmount||0):0);return Math.max(0,total-paid);}
 function stageDeadline(o,st){if(!st)return null;return (o.sdl||{})[st.key]||(st.date&&(o.f||{})[st.date])||null;}
 function orderStatus(o,tpl){
@@ -8624,6 +8657,11 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
       return {...x,checks:c};},`${was?oL("☐ Снята отметка"):oL("☑ Выполнено")}: ${oL(st.name)} → ${oL(it)}`,
       trig?(n,all)=>[buildNewTask({title:`📦 №${n.num} · ${trig.title}`,comment:`${oL("Авто: отмечено")} «${oL(it)}» (${me})`,status:"all",priority:"MID",assignee:respOf(n,st),deadline:(trig.dateField&&(n.f||{})[trig.dateField])||oPlus(trig.days),orderId:n.id,orderNum:n.num,orderStage:trig.stage,leadId:n.leadId,leadName:n.client},me==="—"?null:me,all)]:null);};
   const addItem=(st)=>{const v=(newItem[st.key]||"").trim();if(!v)return;commit(o.id,x=>({...x,extra:{...(x.extra||{}),[st.key]:[...((x.extra||{})[st.key]||[]),v]}}),`＋ ${oL("Пункт в")} «${oL(st.name)}»: ${v}`);setNewItem(a=>({...a,[st.key]:""}));};
+  const oT=(ru,pl)=>ORD_LANG==="pl"?pl:ru;
+  const hideItem=(st,it)=>commit(o.id,x=>({...x,hide:{...(x.hide||{}),[st.key]:[...new Set([...((x.hide||{})[st.key]||[]),it])]}}),`− ${oL("Пункт убран из")} «${oL(st.name)}»: ${oL(it)}`);
+  const restoreItems=(st)=>commit(o.id,x=>({...x,hide:{...(x.hide||{}),[st.key]:[]}}),`↺ ${oT("Возвращены убранные пункты в","Przywrócono usunięte punkty w")} «${oL(st.name)}»`);
+  const skipStage=(st,on)=>{if(on&&!window.confirm(oT("Убрать этап «","Usunąć etap «")+oL(st.name)+oT("» из этого заказа? Его можно вернуть.","» z tego zamówienia? Można go przywrócić.")))return;
+    commit(o.id,x=>{const sk={...(x.skip||{})};if(on)sk[st.key]={by:me,at:Date.now()};else delete sk[st.key];return {...x,skip:sk};},on?`⊘ ${oT("Этап убран из заказа","Etap usunięty z zamówienia")}: ${oL(st.name)}`:`↺ ${oT("Этап возвращён в заказ","Etap przywrócony")}: ${oL(st.name)}`);};
   const delExtra=(st,it)=>commit(o.id,x=>({...x,extra:{...(x.extra||{}),[st.key]:((x.extra||{})[st.key]||[]).filter(y=>y!==it)}}),`− ${oL("Пункт убран из")} «${oL(st.name)}»: ${oL(it)}`);
   // Срок этапа → задача (создаёт или обновляет задачу этого этапа)
   const setStageDl=(st,v)=>commit(o.id,x=>({...x,sdl:{...(x.sdl||{}),[st.key]:v}}),`📅 ${oL("Срок этапа")} «${oL(st.name)}»: ${(o.sdl||{})[st.key]?isoToDot((o.sdl||{})[st.key]):"—"} → ${v?isoToDot(v):"—"}`,(n,all)=>{
@@ -8700,6 +8738,7 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:13,fontWeight:900,color:col,textTransform:"uppercase",letterSpacing:0.6}}>{st.icon} {oL(st.name)}{!unl&&!done&&" 🔒"}</div>
                     {forced&&<div style={{fontSize:10,color:"#fb923c"}}>{oL("пропущен вручную (")}{forced.by}): {forced.reason}</div>}
+                    {(o.skip||{})[st.key]&&<div style={{fontSize:10,color:"#94a3b8"}}>⊘ {oT("этап убран из этого заказа","etap usunięty z tego zamówienia")} ({(o.skip||{})[st.key].by})</div>}
                   </div>
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.55)",fontWeight:700}}>{cnt}</span>
                   {dl&&<span style={{fontSize:10,fontWeight:800,color:done?"#22c55e":dd<0?"#ef4444":dd<=3?"#facc15":"#22c55e"}}>{done?"✓":dd<0?"🔴":dd<=3?"🟡":"🟢"} {isoToDot(dl)}</span>}
@@ -8741,10 +8780,14 @@ function OrderCard({o,tpl,isAdmin,me,commit,tasks,leads,onOpenLead,onClose,onDel
                             <span style={{flex:1,fontSize:12,color:c?"#86efac":"#fff",textDecoration:c?"line-through":"none"}}>{oL(it)}</span>
                             {c&&<span style={{fontSize:9,color:"rgba(255,255,255,0.4)"}}>{c.by} · {new Date(c.at).toLocaleDateString("ru-RU")}</span>}
                             {!c&&<button title={oL("Создать задачу из пункта")} onClick={()=>itemToTask(st,it)} style={{background:"transparent",border:"none",color:"#38bdf8",cursor:"pointer",fontSize:11}}>→☰</button>}
-                            {isExtra&&<button onClick={()=>delExtra(st,it)} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer",fontSize:11}}>✕</button>}
+                            <button title={oT("Убрать пункт из этого заказа","Usuń punkt z tego zamówienia")} onClick={()=>isExtra?delExtra(st,it):hideItem(st,it)} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer",fontSize:11,opacity:isExtra?1:.65}}>✕</button>
                           </div></div>);})}
                         <input value={newItem[st.key]||""} onChange={e=>setNewItem(a=>({...a,[st.key]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addItem(st)} placeholder={oL("＋ свой пункт для этого заказа (Enter)")} style={{...ins,marginTop:4,background:"transparent",border:"1px dashed rgba(255,255,255,0.15)"}}/>
+                        {((o.hide||{})[st.key]||[]).length>0&&<button onClick={()=>restoreItems(st)} style={{alignSelf:"flex-start",marginTop:4,background:"transparent",border:"none",color:"#bfa47e",cursor:"pointer",fontSize:11,padding:0,textDecoration:"underline"}}>↺ {oT("Вернуть убранные пункты","Przywróć usunięte punkty")} ({((o.hide||{})[st.key]||[]).length})</button>}
                       </div>}
+                  <div style={{display:"flex",justifyContent:"flex-end",marginBottom:2}}>{(o.skip||{})[st.key]
+                    ?<button onClick={()=>skipStage(st,false)} style={{background:"transparent",border:"1px solid rgba(191,164,126,0.5)",color:"#bfa47e",borderRadius:7,padding:"3px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>↺ {oT("Вернуть этап в заказ","Przywróć etap")}</button>
+                    :<button onClick={()=>skipStage(st,true)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.5)",borderRadius:7,padding:"3px 10px",fontSize:11,cursor:"pointer"}}>⊘ {oT("Убрать этап из этого заказа","Usuń etap z tego zamówienia")}</button>}</div>
                   {/* Файлы/ссылки этапа */}
                   <div style={{marginTop:6}}>
                     {files.map(x=><div key={x.id} style={{fontSize:11,marginBottom:2,display:"flex",alignItems:"center",gap:6}}>📎 {x.path?<span onClick={()=>openOrderFile(x)} style={{color:"#38bdf8",cursor:"pointer",textDecoration:"underline"}}>{x.name}</span>:<a href={x.url} target="_blank" rel="noopener noreferrer" style={{color:"#38bdf8"}}>{x.name}</a>} <span style={{color:"rgba(255,255,255,0.35)"}}>· {x.by}</span><button onClick={()=>delOrderFile(x)} title={oL("Удалить")} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer",fontSize:11,padding:0}}>✕</button></div>)}
@@ -9358,7 +9401,7 @@ const fLbl={fontSize:10,color:"var(--fin-muted)",textTransform:"uppercase",lette
 const FIN_CSS=`.fin-g{--fin-muted:${"rgba(214,232,255,0.62)"}}
 .fin-row{display:grid;grid-template-columns:84px 70px 120px 92px 112px minmax(140px,1.2fr) minmax(160px,2fr) 54px;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--fin-b);font-size:12.5px;cursor:pointer}
 .fin-row:hover{background:var(--fin-h)}
-.fin-form{display:grid;grid-template-columns:130px 150px 130px minmax(170px,1fr) minmax(190px,1.1fr) minmax(170px,1.4fr) auto;gap:8px;align-items:end}
+.fin-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end}.fin-form>.wf{grid-column:1/-1}
 .fin-ts{display:grid;grid-template-columns:120px 78px 78px 70px minmax(150px,1fr) 150px minmax(120px,1fr) auto;gap:8px;align-items:end}
 .fin-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .fin-tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--fin-b);margin:0 -2px 14px}
@@ -9419,7 +9462,9 @@ function FinPeriod({from,to,set}){const ym=from.slice(0,7);const full=fMonthRang
 
 // ── форма операции (inline) ──
 function FinTxForm({fin,opts,me,role,init,onSave,onCancel,lockOrder,compact}){
-  const [t,setT]=useState(()=>({date:fToday(),by:me,acc:(fin.accounts[0]||{}).id,type:"out",order:null,cat:null,purpose:"",desc:"",toAcc:"",...init,amount:init&&init.amount!=null?String(init.amount).replace(".",","):""}));
+  const [t,setT]=useState(()=>{const o={date:fToday(),by:me,acc:"",type:"out",order:null,cat:null,purpose:"",desc:"",toAcc:"",...init,amount:init&&init.amount!=null?String(init.amount).replace(".",","):""};
+    if(!o.acc)o.acc=(fin.accounts.find(x=>x.active!==false)||fin.accounts[0]||{}).id||""; // счёт по умолчанию = тот, что показан первым в списке (раньше поле выглядело выбранным, а было пустым)
+    return o;});
   const [mode,setMode]=useState(()=>init&&init.order?"order":init&&init.cat?"salon":"order");
   const [err,setErr]=useState("");const amtRef=useRef(null);
   useEffect(()=>{if(amtRef.current&&!compact)amtRef.current.focus();},[t.type]);
@@ -9452,8 +9497,10 @@ function FinTxForm({fin,opts,me,role,init,onSave,onCancel,lockOrder,compact}){
       :(out&&mode==="salon")?<div className="w2"><div style={fLbl}>{fL("Категория затрат","Kategoria")} *</div><select value={t.cat||""} onChange={e=>S("cat",e.target.value?+e.target.value:null)} style={fIn({borderColor:t.cat?C.borderMd:`${C.red}aa`})}><option value="">— {fL("выберите","wybierz")} —</option>{cats.map(c=><option key={c.id} value={c.num}>{c.num}. {finCatName(c)}</option>)}</select></div>
       :<><div><div style={fLbl}>{fL("№ заказа","Nr zamówienia")}{out?" *":""}</div>{lockOrder?<div style={fIn({fontWeight:800,color:C.accent})}>№{t.order}</div>:<FinOrderPick value={t.order} onChange={v=>S("order",v)} opts={opts} expense={out}/>}</div>
         <div><div style={fLbl}>{fL("Цель","Cel")} *</div><select value={t.purpose||""} onChange={e=>S("purpose",e.target.value)} style={fIn({borderColor:t.purpose||(!out&&!t.order)?C.borderMd:`${C.red}aa`})}><option value="">— {fL("выберите","wybierz")} —</option>{purposes.map(([k,ru,pl])=><option key={k} value={k}>{fL(ru,pl)}</option>)}</select></div></>}
-      <div className={tr||(out&&mode==="salon")?"wf":"wf"}><div style={fLbl}>{fL("Описание","Opis")}</div><input value={t.desc} onChange={e=>S("desc",e.target.value)} onKeyDown={kd} placeholder={tr?fL("напр. внесение наличных на Паун","np. wpłata gotówki"):fL("что и за что","co i za co")} style={fIn()}/></div>
-      <div className="wf" style={{display:"flex",gap:6}}><button onClick={save} style={fBtn(typeC,true,{flex:1,minHeight:40})}>{init&&init.id?fL("✓ Сохранить","✓ Zapisz"):fL("✓ Добавить","✓ Dodaj")}</button>{onCancel&&<button onClick={onCancel} style={fBtn(C.muted,false)}>✕</button>}</div>
+      <div className="wf" style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
+        <div style={{flex:"1 1 240px",minWidth:0}}><div style={fLbl}>{fL("Описание","Opis")}</div><input value={t.desc} onChange={e=>S("desc",e.target.value)} onKeyDown={kd} placeholder={tr?fL("напр. внесение наличных на Паун","np. wpłata gotówki"):fL("что и за что","co i za co")} style={fIn()}/></div>
+        <div style={{display:"flex",gap:6,flex:"1 1 200px",maxWidth:340}}><button onClick={save} style={fBtn(typeC,true,{flex:1,minHeight:40})}>{init&&init.id?fL("✓ Сохранить","✓ Zapisz"):fL("✓ Добавить","✓ Dodaj")}</button>{onCancel&&<button onClick={onCancel} style={fBtn(C.muted,false)}>✕</button>}</div>
+      </div>
     </div>
     {(err||hint)&&<div style={{marginTop:8,fontSize:12,color:err?C.red:C.yellow,fontWeight:700}}>{err?"⚠ "+err:"💡 "+hint}</div>}
   </div>;}
