@@ -359,12 +359,35 @@ function BuyerPick({value,onChange,lang,style}){const pl=lang==="pl";return(
   </select>);}
 const buyerMatch=(source,f)=>f==="all"||(f==="none"?!buyerOf(source):buyerOf(source)===f);
 // ─── ЯЗЫК ОБСЛУЖИВАНИЯ ───────────────────────────────────────────────────────
-// Если язык не выбран вручную: украинский источник (ukr / .ua / ukrain…) или кириллица в ИМЕНИ клиента → 🇺🇦.
+// Если язык не выбран вручную, смотрим по порядку: 1) источник, 2) на каком языке клиент пишет Эрике, 3) имя.
 // Описание/заметки не смотрим: их пишут менеджеры и Эрика по-русски — из-за этого раньше почти всем ставился UA.
+// 1) язык в названии источника: отдельное слово/кусок UA·UK·UKR → 🇺🇦, PL → 🇵🇱, CZ·CS → 🇨🇿; связки PLUA / PLPL / CZUA / CZCZ — язык во второй паре.
+//    У Илли (источники с маленькой «i») знак стопроцентный и может быть приклеен в конце: «…pl» — польский калькулятор, «…uk» — украинская посадка.
+function srcLang(source){const s=String(source||"").trim();if(!s)return null;
+  if(/(ukrain|украї|україн|\.ua(\b|\/|$))/i.test(s))return "ua";
+  const toks=s.replace(/([a-ząęłńóśźż0-9])([A-Z])/g,"$1 $2").replace(/([A-Z]{2,})([A-Z][a-z])/g,"$1 $2").split(/[^A-Za-zА-Яа-яІЇЄҐіїєґ]+/).map(x=>x.toLowerCase()).filter(Boolean);
+  for(const t of toks){const m=t.match(/^(?:pl|cz)(pl|ua|uk|cz)$/);if(m)return m[1]==="uk"?"ua":m[1];}
+  const has=re=>toks.some(t=>re.test(t));
+  if(has(/^(ua|uk|ukr|ukraina|ukraine|укр|україна)$/))return "ua";
+  if(has(/^(cz|cs|cze|czech|cesky|česky)$/))return "cz";
+  if(has(/^(pl|pol|polska|polski|polish)$/))return "pl";
+  if(/^i/.test(s)){const m=s.toLowerCase().match(/(uk|ua|pl|cz)\d*$/);if(m)return m[1]==="uk"?"ua":m[1];}
+  return null;}
+// 2) язык переписки с Эрикой: берём реплики клиента (если роли подписаны), иначе весь диалог
+function chatLang(l){const ms=(l&&Array.isArray(l.messages))?l.messages:[];if(!ms.length)return null;
+  const txt=m=>typeof m==="string"?m:String((m&&(m.text||m.content||m.msg||m.message))||"");
+  const isCl=m=>m&&typeof m==="object"&&/^(user|client|customer|klient|lead|human)$/i.test(String(m.role||m.from||m.sender||m.who||m.author||""));
+  const mine=ms.filter(isCl);const t=(mine.length?mine:ms).map(txt).join(" ").toLowerCase();if(t.replace(/\s/g,"").length<6)return null;
+  const cnt=re=>(t.match(re)||[]).length;const cyr=cnt(/[а-яёіїєґ]/g),lat=cnt(/[a-ząćęłńóśźżěščřžýáíéúůťďň]/g);
+  if(cyr>=6&&cyr>=lat)return "ua";
+  const pl=cnt(/[ąćęłńśźż]/g)+2*cnt(/(^|[^a-ząćęłńóśźż])(się|jest|nie|tak|kuchni[aęy]?|chcę|proszę|dzień|dobry|czy|mam|jak|ile|dziękuję|cześć|witam|mieszkani[ea]|blat|wycen[aęy])(?![a-ząćęłńóśźż])/g);
+  const cz=cnt(/[ěřůčšžýáíéúťďň]/g)+2*cnt(/(^|[^a-zěščřžýáíéúůťďň])(je|se|kuchyň|kuchyně|kuchyni|chci|prosím|dobrý|den|děkuji|ahoj|kolik|byt|cena|ano)(?![a-zěščřžýáíéúůťďň])/g);
+  if(pl>=3&&pl>cz)return "pl";if(cz>=3&&cz>pl)return "cz";
+  return null;}
 function detectLang(l){
-  const src=String((l&&l.source)||"").toLowerCase();
-  if(/(ukr|ukrain|украї|україн|\.ua(\b|\/|$)|(^|[./-])ua([./-]|$))/.test(src))return "ua";
-  if(/[а-яА-ЯёЁіїєґІЇЄҐ]/.test(String((l&&l.name)||"")))return "ua";
+  const s=srcLang(l&&l.source);if(s)return s;
+  const c=chatLang(l);if(c)return c;
+  if(/[а-яА-ЯёЁіїєґІЇЄҐ]/.test(String((l&&l.name)||"")))return "ua"; // 3) имя кириллицей
   return null;
 }
 const LANG_OPTS=[["pl","🇵🇱"],["ua","🇺🇦"],["en","🇬🇧"]];
@@ -405,7 +428,8 @@ function withLang(l){
   else{raw=l.clientLangRaw||null;if(l.clientLangCalc&&l.clientLang&&l.clientLang!==l.clientLangCalc)raw=l.clientLang;}
   const base=raw?normLang(raw):null;
   const tl=textLang(l);const en=tl&&LANG_OPTS.some(o=>o[0]===tl)?tl:null;
-  const g=en||base||detectLang(l)||LANG_OPTS[0][0];// нет сигнала → язык страны (так он и показывался флагом)
+  const det=detectLang(l); // источник → переписка с Эрикой → имя; только потом язык, который прислал сайт
+  const g=en||(det?normLang(det):null)||base||LANG_OPTS[0][0];// нет сигнала → язык страны (так он и показывался флагом)
   const auto=g!==base;
   const want={clientLang:g,clientLangAuto:auto||undefined,clientLangCalc:auto?g:undefined,clientLangRaw:raw&&raw!==g?raw:undefined};
   if(Object.keys(want).every(k=>(l[k]===undefined?undefined:l[k])===want[k]))return l;
@@ -2532,7 +2556,8 @@ function AddLeadModal({onClose,onAdd,srcList,t,lang,nextNum,currentUser}){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"finance",icon:"💰",ru:"Финансы",pl:"Finanse"},{key:"timesheets",icon:"⏱",ru:"Табели",pl:"Ewidencja"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"tests",icon:"🧪",ru:"Тесты",pl:"Testy"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}];
+const ALERTS_PAGE_ON=false; // раздел «Аллерты» временно убран (попап о новом лиде остаётся)
+const NAV=[{key:"dashboard",icon:"⊞",ru:"Дашборд",pl:"Panel"},{key:"leads",icon:"◈",ru:"Лиды",pl:"Leady"},{key:"calendar",icon:"◷",ru:"Календарь",pl:"Kalendarz"},{key:"alerts",icon:"🔔",ru:"Аллерты",pl:"Alerty"},{key:"salescenter",icon:"◆",ru:"Центр продаж",pl:"Centrum sprzedaży"},{key:"sales",icon:"★",ru:"Продажи",pl:"Sprzedaże"},{key:"orders",icon:"📦",ru:"Заказы",pl:"Zamówienia"},{key:"finance",icon:"💰",ru:"Финансы",pl:"Finanse"},{key:"timesheets",icon:"⏱",ru:"Табели",pl:"Ewidencja"},{key:"tasks",icon:"☰",ru:"Задачи",pl:"Zadania"},{key:"tests",icon:"🧪",ru:"Тесты",pl:"Testy"},{key:"settings",icon:"⚙",ru:"Настройки",pl:"Ustawienia"}].filter(x=>ALERTS_PAGE_ON||x.key!=="alerts");
 // Анимированные иконки меню: части с классом .p играют свою анимацию при открытии раздела / наведении / старте
 const NAV_SVG={
   dashboard:<><rect className="p p1" x="3" y="3" width="7" height="9" rx="2"/><rect className="p p2" x="14" y="3" width="7" height="5" rx="2"/><rect className="p p3" x="14" y="12" width="7" height="9" rx="2"/><rect className="p p4" x="3" y="16" width="7" height="5" rx="2"/></>,
@@ -4547,7 +4572,7 @@ const PEN_LIMIT=150; // одно правило: 150 баллов за меся�
 const PEN_ADMIN=["Danya","Dmytro"]; // ручные баллы, разбор оспариваний
 const PEN_RULES={
   calc:{pts:15,h:24,ic:"🧮",ru:"Просчёт висит больше 24 раб. часов",pl:"Wycena wisi ponad 24 godz. robocze"},
-  notif:{pts:20,h:24,ic:"🔔",ru:"Уведомление от маркетинга или системы без ответа больше 24 раб. часов",pl:"Powiadomienie od marketingu lub systemu bez odpowiedzi ponad 24 godz. robocze"},
+  notif:{pts:20,h:24,ic:"🔔",ru:"Стикер от маркетинга без ответа больше 24 раб. часов",pl:"Notatka od marketingu bez odpowiedzi ponad 24 godz. robocze"},
   tree:{pts:15,h:35,ic:"🌿",ru:"Ветка не закрыта больше 35 раб. часов",pl:"Gałąź niezamknięta ponad 35 godz. roboczych"},
   dress:{pts:5,manual:1,ic:"👔",ru:"Не в фирменной одежде",pl:"Bez stroju firmowego"},
   complaint:{pts:60,manual:1,ic:"😠",ru:"Жалоба от клиента (подтверждённая)",pl:"Skarga klienta (potwierdzona)"},
@@ -4559,35 +4584,41 @@ const penMonth=ms=>{const d=new Date(ms);return `${d.getFullYear()}-${String(d.g
 const penTier=p=>p<PEN_LIMIT?0:1;
 const penRemAt=m=>{if(m.at)return +m.at;const d=m.data||{};const iso=d.date||((d.items||[])[0]||{}).date||(String(m.key||"").match(/\d{4}-\d{2}-\d{2}/)||[])[0];if(!iso)return 0;const t=new Date(iso+"T10:00:00").getTime();return isNaN(t)?0:t;};
 // Все авто-нарушения, которые уже наступили к моменту now. start — момент включения системы: часы до него не считаются.
-function penDetect(db,now,start){const out=[];if(!db||!start)return out;const H=3600000;
-  const push=(kind,key,mgr,at,l,note)=>{if(!mgr||at>now)return;out.push({id:`${kind}:${key}`,kind,mgr,pts:PEN_RULES[kind].pts,at,leadId:l?l.id:null,leadName:l?(l.name||l.phone||""):"",note:note||"",by:"auto",status:"ok",updatedAt:at});};
-  (db.leads||[]).forEach(l=>{if(!l)return;const mgr=l.manager;
-    // 1. просчёт
-    if(l.quoteSince){const qs=+l.quoteSince;const end=l.action==="quote"?now:(l.quoteReadyAt&&+l.quoteReadyAt>qs?+l.quoteReadyAt:0);
-      if(end){const at=workAdd(Math.max(qs,start),PEN_RULES.calc.h*H);if(at<=end)push("calc",`${l.id}:${qs}`,mgr,at,l,"");}}
-    // 2. ветка
-    if(treeIncomplete(l)){const c=leadCreatedMsSafe(l);if(c){const at=workAdd(Math.max(c,start),PEN_RULES.tree.h*H);push("tree",String(l.id),mgr,at,l,"");}}
-    // 3а. жёлтый стикер маркетинга без ответа менеджера (ответ = стикер менеджера после него)
-    const st=l.stickers||[];if(st.length&&l.action!=="cancelled"){const isAns=s=>s&&s.at&&(s.by===mgr||!STK_MKT.includes(s.by));
+// Всё, что было до 20.11.2026, списано: счёт баллов идёт с этой даты.
+const PEN_EPOCH=new Date(2026,10,20,0,0,0).getTime();
+const PEN_WARN=0.75; // предупреждение менеджеру, когда прошло 75% срока
+// Один клиент — одно нарушение каждого вида. Возвращает {hit:[начисления], warn:[на грани]}.
+function penScan(db,now,start){const hit=[],warn=[];if(!db||!start)return{hit,warn};start=Math.max(start,PEN_EPOCH);const H=3600000;
+  const mk=(kind,l,at,note)=>({id:`${kind}:L${l.id}`,kind,mgr:l.manager,pts:PEN_RULES[kind].pts,at,leadId:l.id,leadName:l.name||l.phone||"",note:note||"",by:"auto",status:"ok",updatedAt:at});
+  const chk=(kind,l,s,end,note)=>{if(!l.manager)return false;const dur=PEN_RULES[kind].h*H;const at=workAdd(s,dur);
+    if(at<=(end==null?now:end)){hit.push(mk(kind,l,at,note));return true;}
+    if(end==null&&now>=workAdd(s,dur*PEN_WARN))warn.push({...mk(kind,l,at,note),left:workMs(now,at)});return false;};
+  (db.leads||[]).forEach(l=>{if(!l)return;
+    // 1. просчёт висит (или сделан с опозданием)
+    if(l.quoteSince){const qs=+l.quoteSince;const open=l.action==="quote";const end=open?null:(l.quoteReadyAt&&+l.quoteReadyAt>qs?+l.quoteReadyAt:-1);if(end!==-1)chk("calc",l,Math.max(qs,start),end,"");}
+    // 2. ветка не закрыта
+    if(treeIncomplete(l)){const c=leadCreatedMsSafe(l);if(c)chk("tree",l,Math.max(c,start),null,"");}
+    // 3. жёлтый стикер маркетинга без ответа менеджера — на клиента считается один раз (первый просроченный)
+    const st=l.stickers||[];if(st.length&&l.action!=="cancelled"){const mgr=l.manager;const isAns=s=>s&&s.at&&(s.by===mgr||!STK_MKT.includes(s.by));
       for(let i=0;i<st.length;i++){const s=st[i];if(!s||!s.at||!STK_MKT.includes(s.by)||s.by===mgr)continue;
-        if(i>0&&st[i-1]&&STK_MKT.includes(st[i-1].by)&&st[i-1].by!==mgr)continue; // серия подряд — считаем один раз
-        const ans=st.slice(i+1).find(isAns);const at=workAdd(Math.max(+s.at,start),PEN_RULES.notif.h*H);
-        if(at<=(ans?+ans.at:now))push("notif",`mkt:${l.id}:${s.id||s.at}`,mgr,at,l,"📝 "+String(s.text||"").slice(0,80));}}
+        if(i>0&&st[i-1]&&STK_MKT.includes(st[i-1].by)&&st[i-1].by!==mgr)continue;
+        const ans=st.slice(i+1).find(isAns);if(ans&&+ans.at<start)continue;
+        if(chk("notif",l,Math.max(+s.at,start),ans?+ans.at:null,"📝 "+String(s.text||"").slice(0,80)))break;if(!ans)break;}}
   });
-  // 3б. системные напоминания (визит / пуш / просчёт), которые никто не принял
-  (db.chat||[]).forEach(m=>{if(!m||m.kind!=="reminder"||!m.key)return;const s0=penRemAt(m);if(!s0)return;
-    const at=workAdd(Math.max(s0,start),PEN_RULES.notif.h*H);if(at>(m.ackBy?(+m.ackAt||0):now))return;
-    const d=m.data||{};const mgrs=[...new Set(m.rtype==="push"?(d.items||[]).map(x=>x.mgr):[d.mgr])].filter(Boolean);
-    const nm=m.rtype==="push"?"🚀 Push":m.rtype==="quote"?"💰":"📅";
-    mgrs.forEach(g=>push("notif",`sys:${m.key}:${g}`,g,at,null,`${nm} ${d.name||((d.items||[]).find(x=>x.mgr===g)||{}).name||""}`.trim()));});
-  return out;}
+  return{hit,warn};}
+// ключ «вид + клиент»: по нему нарушение не начисляется повторно
+const penKey=p=>p&&p.leadId!=null?`${p.kind}:L${p.leadId}`:(p?p.id:"");
+// действующие начисления: с 20.11, без старых системных напоминаний и без повторов по одному клиенту
+function penActive(list){const seen=new Set();return (list||[]).filter(p=>p&&p.at>=PEN_EPOCH&&!String(p.id||"").startsWith("notif:sys:")).sort((a,b)=>a.at-b.at).filter(p=>{if(p.by!=="auto")return true;const k=penKey(p);if(seen.has(k))return false;seen.add(k);return true;});}
+function penDetect(db,now,start){return penScan(db,now,start).hit;}
 function penTotals(list,month){const r={};(list||[]).forEach(p=>{if(!p||p.status==="void"||penMonth(p.at)!==month)return;r[p.mgr]=(r[p.mgr]||0)+(+p.pts||0);});return r;}
 
 function PenaltiesPage({db,updateDb,currentUser,lang,onOpenLead,embedded}){const pl=lang==="pl";const L=(ru,p)=>pl?p:ru;
   const admin=PEN_ADMIN.includes(currentUser);const now=Date.now();
   const [month,setMonth]=useState(penMonth(now));const [who,setWho]=useState(admin?"all":currentUser);
   const [add,setAdd]=useState(null);const [dsp,setDsp]=useState(null);const [rules,setRules]=useState(false);
-  const all=db.penalties||[];const tot=penTotals(all,month);
+  const all=penActive(db.penalties);const tot=penTotals(all,month);
+  const risk=useMemo(()=>{try{return penScan(db,Date.now(),db.penStartAt||PEN_EPOCH).warn.filter(w=>admin||w.mgr===currentUser).sort((a,b)=>a.left-b.left);}catch{return [];}},[db.leads,db.penStartAt,admin,currentUser]);
   const mgrs=[...new Set([...MANAGERS,...all.filter(p=>penMonth(p.at)===month).map(p=>p.mgr)])].filter(Boolean);
   const months=[...new Set([penMonth(now),...all.map(p=>penMonth(p.at))])].sort().reverse();
   const canSee=m=>admin||m===currentUser;
@@ -4612,10 +4643,16 @@ function PenaltiesPage({db,updateDb,currentUser,lang,onOpenLead,embedded}){const
       <button onClick={()=>setRules(v=>!v)} style={btn(C.muted)}>📋 {L("Правила","Zasady")}</button>
       {admin&&<button onClick={()=>setAdd({mgr:mgrs[0]||"",kind:"dress",note:"",pts:10})} style={{...btn("#e3b860"),background:"rgba(227,184,96,.12)"}}>＋ {L("Начислить вручную","Dodaj ręcznie")}</button>}
     </div>
+    {risk.length>0&&<div style={{...card,borderColor:"rgba(245,158,11,.55)",background:"rgba(245,158,11,.07)"}}>
+      <div style={{fontSize:13,fontWeight:800,color:"#f59e0b",marginBottom:6}}>⏳ {L("На грани — баллы ещё не начислены","Na granicy — punkty jeszcze nienaliczone")} ({risk.length})</div>
+      {risk.slice(0,12).map(w=>{const lead=(db.leads||[]).find(l=>l.id===w.leadId);const R=PEN_RULES[w.kind];return <div key={w.id} style={{display:"flex",gap:10,alignItems:"center",padding:"5px 0",borderTop:`1px solid ${C.border}`,fontSize:12.5,color:C.text}}>
+        <span>{R.ic}</span><span style={{flex:1,minWidth:0}}><b style={{color:MGR_COLOR[w.mgr]||C.text}}>{w.mgr}</b> · <span onClick={()=>lead&&onOpenLead&&onOpenLead(lead)} style={{color:"#5cb8ff",cursor:"pointer"}}>{w.leadName||"—"} →</span> · {L(R.ru,R.pl)}</span>
+        <span style={{color:"#f59e0b",fontWeight:800,whiteSpace:"nowrap"}}>{L("осталось","zostało")} {Math.max(0,w.left/3600000).toFixed(1).replace(".",",")} {L("раб. ч","godz.")} · +{w.pts}</span></div>;})}
+    </div>}
     {rules&&<div style={card}>
       {Object.entries(PEN_RULES).map(([k,r])=><div key={k} style={{display:"flex",gap:10,alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${C.border}`,fontSize:13,color:C.text}}>
         <span style={{fontSize:17}}>{r.ic}</span><span style={{flex:1}}>{L(r.ru,r.pl)}</span><span style={{fontSize:11,color:C.muted}}>{r.manual?L("вручную","ręcznie"):L("авто","auto")}</span><b style={{color:C.red,minWidth:44,textAlign:"right"}}>{r.pts}</b></div>)}
-      <div style={{fontSize:12,color:C.muted,marginTop:10,lineHeight:1.6}}>{L(`Правило одно: ${PEN_LIMIT} баллов за месяц — штраф. Каждый месяц счёт начинается с нуля. Не согласен с баллом — нажми «Оспорить» и напиши причину; решение принимает руководитель.`,`Zasada jest jedna: ${PEN_LIMIT} pkt w miesiącu — kara. Co miesiąc licznik startuje od zera. Nie zgadzasz się — kliknij „Odwołaj się” i napisz powód; decyduje kierownik.`)}</div>
+      <div style={{fontSize:12,color:C.muted,marginTop:10,lineHeight:1.6}}>{L(`Правило одно: ${PEN_LIMIT} баллов за месяц — штраф. Каждый месяц счёт начинается с нуля. Счёт идёт с 20.11.2026 — всё, что было раньше, списано. По одному клиенту каждое нарушение считается один раз. Когда до баллов остаётся четверть срока, CRM присылает предупреждение. Не согласен с баллом — нажми «Оспорить» и напиши причину; решение принимает руководитель.`,`Zasada jest jedna: ${PEN_LIMIT} pkt w miesiącu — kara. Co miesiąc licznik startuje od zera. Nie zgadzasz się — kliknij „Odwołaj się” i napisz powód; decyduje kierownik.`)}</div>
     </div>}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:12}}>
       {mgrs.map(m=>{const p=tot[m]||0;const t=penTier(p);const col=tierCol(t,p);const mine=canSee(m);return <div key={m} onClick={()=>mine&&setWho(w=>w===m&&admin?"all":m)} style={{...card,cursor:mine?"pointer":"default",borderColor:who===m?col:C.border,boxShadow:who===m?`0 0 0 1px ${col}`:"none"}}>
@@ -8264,7 +8301,7 @@ function SalesCenterPage({leads,sales,tasks,chatHistory,currentUser,t,lang,onOpe
           {pushes.length?pushes.map(l=><Row key={l.id} l={l} tag={l.pushDate<today?(ru?"просрочен":"zaległy"):(ru?"сегодня":"dziś")} tagColor={l.pushDate<today?"#ef4444":"#f97316"}/>):empty}
         </Section>
         <Section icon="⚠️" title={ru?"Пропущенные аллерты":"Pominięte alerty"} count={missed.length} color="#ef4444">
-          {missed.length?missed.map(m=><div key={m.key} onClick={()=>setPage("alerts")} style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}`,fontSize:11,color:C.text,cursor:"pointer",whiteSpace:"pre-wrap"}}>{formatReminder(m,t).split("\n")[0]} <span style={{color:C.muted}}>· {isoToDot(m.data.date)}</span></div>):empty}
+          {missed.length?missed.map(m=><div key={m.key} onClick={()=>{if(ALERTS_PAGE_ON)setPage("alerts");}} style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}`,fontSize:11,color:C.text,cursor:"pointer",whiteSpace:"pre-wrap"}}>{formatReminder(m,t).split("\n")[0]} <span style={{color:C.muted}}>· {isoToDot(m.data.date)}</span></div>):empty}
         </Section>
       </div>
 
@@ -10163,7 +10200,7 @@ function TimesheetsPage({db,F,currentUser,lang,kiosk,onExit,updateDb,onOpenLead}
   const mine=fin.emps.find(e=>e.user===me);const canAll=role.approve||role.admin;
   const emp=fin.emps.find(e=>e.id===(empId||(kiosk?null:mine&&mine.id)));
   const visEmps=fin.emps.filter(e=>e.active!==false&&(canAll||kiosk||e.user===me));
-  const tabs=kiosk?[]:[["sheet","✍",fL("Табель","Ewidencja")],...(canAll||role.book?[["sum","Σ",fL("Сводка Димы","Zestawienie"),fin.periods.filter(p=>p.status==="submitted").length]]:[]),...(canAll?[["emps","👷",fL("Сотрудники и ставки","Pracownicy i stawki")]]:[]),...(updateDb?[["pen","⚖",fL("Баллы","Punkty"),(db.penalties||[]).filter(p=>p.status==="dispute"&&PEN_ADMIN.includes(me)).length]]:[])];
+  const tabs=kiosk?[]:[["sheet","✍",fL("Табель","Ewidencja")],...(canAll||role.book?[["sum","Σ",fL("Сводка Димы","Zestawienie"),fin.periods.filter(p=>p.status==="submitted").length]]:[]),...(canAll?[["emps","👷",fL("Сотрудники и ставки","Pracownicy i stawki")]]:[]),...(updateDb?[["pen","⚖",fL("Баллы","Punkty"),penActive(db.penalties).filter(p=>p.status==="dispute"&&PEN_ADMIN.includes(me)).length]]:[])];
   const needPin=kiosk&&emp&&emp.pin&&!pinOk[emp.id];
   return <div className="fin-g" style={{padding:kiosk?"14px 12px 40px":"16px 18px 40px",maxWidth:1300,margin:"0 auto"}}><FinStyle/><FinToast msg={toast}/>
     <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:12}}>
@@ -11295,12 +11332,20 @@ function GarnoCRM(){
   // ── Планировщик напоминаний AI ──────────────────────────────────────────
   const dbRef=useRef(db);      dbRef.current=db;
   const updRef=useRef(updateDb); updRef.current=updateDb;
+  const [penWarn,setPenWarn]=useState([]);
   // ⚖ Баллы: раз в 5 минут ищем новые авто-нарушения и записываем их в общую базу (без дублей)
   useEffect(()=>{if(!currentUser)return;
     const run=()=>{const d=dbRef.current;if(!d||!d.treeStartAt||!Array.isArray(d.leads))return; // база ещё не загружена
       if(!d.penStartAt){updRef.current(p=>p.penStartAt?p:{...p,penStartAt:Date.now()},true);return;}
-      const have=new Set((d.penalties||[]).map(x=>x.id));const add=penDetect(d,Date.now(),d.penStartAt).filter(x=>!have.has(x.id));
-      if(add.length)updRef.current(p=>{const h=new Set((p.penalties||[]).map(x=>x.id));const n=add.filter(x=>!h.has(x.id));return n.length?{...p,penalties:[...(p.penalties||[]),...n]}:p;},true);};
+      const sc=penScan(d,Date.now(),d.penStartAt);
+      const have=new Set(penActive(d.penalties).map(penKey));const add=sc.hit.filter(x=>!have.has(penKey(x)));
+      if(add.length)updRef.current(p=>{const h=new Set(penActive(p.penalties).map(penKey));const n=add.filter(x=>!h.has(penKey(x)));return n.length?{...p,penalties:[...(p.penalties||[]),...n]}:p;},true);
+      // предупреждение менеджеру «на грани»: один раз на клиента и вид нарушения
+      try{const mine=sc.warn.filter(w=>w.mgr===currentUserRef.current);let seen=[];try{seen=JSON.parse(localStorage.getItem("garno_pen_warned")||"[]");}catch{}
+        const fresh=mine.filter(w=>!seen.includes(w.id+":"+w.at));
+        if(fresh.length){const pl=langRef.current==="pl";fresh.slice(0,3).forEach(w=>{const R=PEN_RULES[w.kind];const hrs=Math.max(0,w.left/3600000).toFixed(1).replace(".",",");
+            showDesktopNotif(pl?"⚠ Zaraz punkty karne":"⚠ Скоро штрафные баллы",`${w.leadName||""} — ${pl?R.pl:R.ru}. ${pl?"Zostało":"Осталось"} ~${hrs} ${pl?"godz. roboczych":"раб. ч"} · +${w.pts}`);});
+          setPenWarn(fresh.slice(0,5));try{localStorage.setItem("garno_pen_warned",JSON.stringify([...seen,...fresh.map(w=>w.id+":"+w.at)].slice(-400)));}catch{}}}catch{}};
     const t=setTimeout(run,20000+Math.random()*40000);const iv=setInterval(run,5*60000);return()=>{clearTimeout(t);clearInterval(iv);};},[currentUser]);
   const langRef=useRef(lang);  langRef.current=lang;
   const currentUserRef=useRef(currentUser); currentUserRef.current=currentUser;
@@ -11353,7 +11398,7 @@ function GarnoCRM(){
   const alertOpen=()=>{const a=activeAlert;if(!a)return;markPopped(a.key);
     if(a.kind==="lead"){a.ids.forEach(unmarkFresh);setPage("leads");setSelLead(a.lead);}
     else if(a.kind==="task"){setPage("tasks");}
-    else {setPage("alerts");}
+    else if(ALERTS_PAGE_ON){setPage("alerts");}
     alertTick(x=>x+1);};
   // Разрешение на системные уведомления: пробуем сразу и по первому клику (часть браузеров требует жест)
   useEffect(()=>{
@@ -11575,7 +11620,7 @@ function GarnoCRM(){
           {page==="finance"    && <FinancePage db={db} F={F} currentUser={currentUser} lang={lang} onOpenOrder={n=>{setOrderFocus(n);setPage("orders");}}/>}
           {page==="timesheets" && <TimesheetsPage db={db} F={F} currentUser={currentUser} lang={lang} updateDb={updateDb} onOpenLead={setSelLead}/>}
           
-          {page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
+          {ALERTS_PAGE_ON&&page==="alerts"     && <AlertsPage chatHistory={chatHist} setChatHistory={setChatHistory} tasks={tasks} updateDb={updateDb} currentUser={currentUser} t={t} lang={lang} leads={leads} onOpenLead={setSelLead} onGoTasks={()=>setPage("tasks")}/>}
           {(page==="salescenter"||page==="funnel"||page==="analytics")&& <SalesCenterTabs goals={db.goals||[]} initialTab={page==="salescenter"?"center":"funnel"} srcList={srcList} funnels={db.funnels||[]} leads={mLeads} sales={mSales} tasks={tasks} chatHistory={chatHist} currentUser={currentUser} t={t} lang={lang} onOpenLead={setSelLead} updateDb={updateDb} setPage={setPage} setSales={setSales} setSalesNow={setSalesNow}/>}
           {page==="sales"      && <SalesSection leads={leads} sales={sales} setSales={setSales} setSalesNow={setSalesNow} updateDb={updateDb} t={t} lang={lang} onOpenLead={setSelLead} currentUser={currentUser}/>}
           {page==="tests"      && <TestsPage db={db} updateDb={updateDb} currentUser={currentUser} lang={lang} onOpenLead={setSelLead}/>}
@@ -11586,6 +11631,11 @@ function GarnoCRM(){
       {jrOpen&&<DzJournal leads={leads} me={currentUser} lang={lang} updateDb={updateDb} onOpenLead={(l,note)=>{setJrOpen(false);setSelLead(l);if(note){setJrNote(note);setTimeout(()=>setJrNote(""),7000);}}} onClose={(forced)=>{setJrOpen(false);if(forced){try{localStorage.setItem("garno_jr_masc_"+currentUser,new Date().toISOString().slice(0,7));}catch{}}}}/>}
       {!jrOpen&&jrInfo.items.length>0&&jrInfo.cy.control&&(()=>{try{return localStorage.getItem("garno_jr_masc_"+currentUser)===new Date().toISOString().slice(0,7);}catch{return false;}})()&&<JournalMascot lang={lang} count={jrInfo.items.length} onOpen={()=>setJrOpen(true)}/>}
       {!jrOpen&&vaLead&&<VisitAskPopup key={vaLead.id} lead={vaLead} lang={lang} me={currentUser} updateDb={updateDb}/>}
+      {penWarn.length>0&&<div style={{position:"fixed",right:16,bottom:16,zIndex:9500,width:360,maxWidth:"calc(100vw - 32px)",background:"#1a1405",border:"1px solid #f59e0b",borderRadius:14,boxShadow:"0 14px 40px rgba(0,0,0,.6)",padding:"12px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",marginBottom:6}}><b style={{color:"#f59e0b",fontSize:13.5,flex:1}}>⚠ {lang==="pl"?"Zaraz punkty karne":"Скоро штрафные баллы"}</b><button onClick={()=>setPenWarn([])} style={{background:"none",border:"none",color:"#aaa",cursor:"pointer",fontSize:16}}>✕</button></div>
+        {penWarn.map(w=>{const R=PEN_RULES[w.kind];const lead=(db.leads||[]).find(l=>l.id===w.leadId);return <div key={w.id} onClick={()=>{if(lead){setSelLead(lead);setPenWarn(x=>x.filter(y=>y.id!==w.id));}}} style={{padding:"7px 0",borderTop:"1px solid rgba(245,158,11,.25)",cursor:"pointer",fontSize:12.5,color:"#fff",lineHeight:1.4}}>
+          <b>{w.leadName||"—"}</b> — {lang==="pl"?R.pl:R.ru}<div style={{color:"#f59e0b",fontWeight:700}}>{lang==="pl"?"zostało":"осталось"} ~{Math.max(0,w.left/3600000).toFixed(1).replace(".",",")} {lang==="pl"?"godz. roboczych":"раб. ч"} · +{w.pts} →</div></div>;})}
+      </div>}
       {activeAlert && <AlertPopup alert={activeAlert} onAccept={alertAccept} onSnooze={alertSnooze} onOpen={alertOpen} onDismiss={alertDismiss} onForward={alertForward} currentUser={currentUser} lang={lang}/>}
       {showToday && currentUser && currentUser!=="all" && <GarnoTodayPopup leads={leads} sales={sales} tasks={db.tasks||[]} currentUser={currentUser} lang={lang} setPage={setPage} onOpenLead={setSelLead} onClose={closeToday}/>}
       {!showToday && currentUser && currentUser!=="all" && <button onClick={()=>setShowToday(true)} title="GARNO TODAY" style={{position:"fixed",right:18,bottom:18,zIndex:900,width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#bfa47e,#d4b896)",border:"none",color:"#00132f",fontSize:20,cursor:"pointer",boxShadow:"0 6px 18px rgba(191,164,126,0.4)"}}>☀</button>}
