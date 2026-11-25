@@ -10,7 +10,7 @@ const MODEL = process.env.DAWID_MODEL || "claude-sonnet-5-5";
 
 const SYSTEM = `Ты — Dawid, помощник проектанта кухонь GARNO (кухни на заказ, Варшава).
 Тебе дают карточку лида из CRM: строку заявки с сайта-калькулятора, переписку клиента с ботом Erika, заметки менеджера и фото/планы, которые прислал клиент.
-Твоя задача — НЕ считать цену, а точно описать кухню для расстановки шкафов. Заполни инструмент kitchen_params.
+Твоя задача — НЕ считать цену, а точно описать кухню для расстановки шкафов. Ответь ОДНИМ вызовом инструмента kitchen_params (обязательно, ровно один раз). Текстом не отвечай.
 
 Как читать данные:
 - Строка заявки: «Prosta / Narożna / W kształcie litery U / Z wyspą · 500 × 300 × 200 · материал · AGD». Числа — длины стен в см в этом порядке. Размеры бери у клиента: из заявки, переписки, плана. Если план явно противоречит заявке (например, клиент вписал размер из ванной), бери размеры с плана и добавь вопрос клиенту.
@@ -118,17 +118,26 @@ module.exports = async function handler(req, res) {
       method: "POST", signal: ac.signal,
       headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
-        model: MODEL, max_tokens: 3000, temperature: 0.2, system: SYSTEM,
-        tools: [TOOL], tool_choice: { type: "tool", name: "kitchen_params" },
+        // Claude Sonnet 5.5: принудительный tool_choice ("tool"/"any") и temperature запрещены,
+        // мышление включено по умолчанию и входит в max_tokens → auto + явная просьба вызвать инструмент.
+        model: MODEL, max_tokens: 16000, system: SYSTEM,
+        output_config: { effort: process.env.DAWID_EFFORT || "medium" },
+        tools: [TOOL], tool_choice: { type: "auto" },
         messages: [{ role: "user", content }],
       }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return res.status(502).json({ error: "CLAUDE", message: (j.error && j.error.message) || `Claude HTTP ${r.status}` });
-    const use = (j.content || []).find(c => c.type === "tool_use" && c.name === "kitchen_params");
-    if (!use) return res.status(502).json({ error: "CLAUDE_EMPTY", message: "Claude не вернул параметры" });
-    return res.status(200).json({ params: use.input, model: j.model || MODEL, usage: j.usage || null, files: files.map(f => f.name) });
+    const blocks = j.content || [];
+    let input = (blocks.find(c => c.type === "tool_use" && c.name === "kitchen_params") || {}).input;
+    if (!input) { // запасной путь: модель ответила текстом — ищем JSON в тексте
+      const txt = blocks.filter(c => c.type === "text").map(c => c.text).join("\n");
+      const m = txt.match(/\{[\s\S]*\}/); try { input = m ? JSON.parse(m[0]) : null; } catch (e) { input = null; }
+      if (input && !input.walls) input = null;
+    }
+    if (!input) return res.status(502).json({ error: "CLAUDE_EMPTY", message: `Claude не вернул параметры (stop: ${j.stop_reason || "?"})` });
+    return res.status(200).json({ params: input, model: j.model || MODEL, usage: j.usage || null, files: files.map(f => f.name) });
   } catch (e) {
-    return res.status(504).json({ error: e.name === "AbortError" ? "TIMEOUT" : "NET", message: e.name === "AbortError" ? "Claude думал дольше 55 с" : String(e.message || e) });
+    return res.status(504).json({ error: e.name === "AbortError" ? "TIMEOUT" : "NET", message: e.name === "AbortError" ? "Claude думал дольше 55 с — попробуйте ещё раз" : String(e.message || e) });
   } finally { clearTimeout(t); }
 };
