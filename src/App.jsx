@@ -7042,7 +7042,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     const ctx={CALC_BY_CODE,calcPriceOf,planWalls,planBad,calcTotals};let params=null,meta={},note="";
     try{const r=await askDawid({lead:form,leadFileUrl,auth:SB_HDR.Authorization,term:String(formTerm(form)||""),onStep:st=>setDw(d=>({...d,step:st}))});
       params=r.params;meta={model:r.model,files:r.files,source:"api"};if(r.skipped&&r.skipped.length)note=(pl?"Pominięte pliki: ":"Не смог прочитать файлы: ")+r.skipped.join(", ");}
-    catch(e){if(!["AUTH","AUTH_NET"].includes(e.code)){params=paramsFromNotes(form.notes);meta={source:"notes"};note=(pl?"AI niedostępne — wycena tylko ze zgłoszenia, bez zdjęć. ":"ИИ недоступен — просчёт только по строке заявки, без фото. ")+(e.message||"");}
+    catch(e){if(!["AUTH","AUTH_NET"].includes(e.code)){params=paramsFromNotes(form.notes);if(e.message&&Array.isArray(params.assumptions)&&params.assumptions.length)params.assumptions=[params.assumptions[0]+" · причина: "+e.message,...params.assumptions.slice(1)];meta={source:"notes"};note=(pl?"AI niedostępne — wycena tylko ze zgłoszenia, bez zdjęć. ":"ИИ недоступен — просчёт только по строке заявки, без фото. ")+(e.message||"");}
       else{setDw({busy:false,step:"",err:(pl?"Dawid: ":"Dawid: ")+(e.message||String(e)),note:""});return;}}
     try{const c=buildDawidCalc(params,ctx,meta);setDw({busy:false,step:"",err:"",note});setCalcOpen({calc:c,fresh:true});}
     catch(e){console.error(e);setDw({busy:false,step:"",err:(pl?"Błąd wyceny Dawida: ":"Ошибка расчёта Dawid: ")+(e.message||e),note:""});}};
