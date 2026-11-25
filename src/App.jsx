@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
+// 🤖 Dawid — автопросчёт кухни (src/dawid)
+import { buildDawidCalc, paramsFromNotes } from "./dawid/engine.js";
+import { askDawid } from "./dawid/client.js";
+import DawidTab from "./dawid/DawidTab.jsx";
 // Фото для КП. Импорт «целиком»: если в kpPhotos.js какого-то фото нет — сборка не падает, просто без этого фото.
 import * as KP_PHOTOS from "./kpPhotos.js";
 const IMG_KRONOSPAN=KP_PHOTOS.IMG_KRONOSPAN||"",IMG_FRONTY=KP_PHOTOS.IMG_FRONTY||"",IMG_HETTICH=KP_PHOTOS.IMG_HETTICH||"",IMG_HANDSHAKE=KP_PHOTOS.IMG_HANDSHAKE||"",IMG_SHOWROOM1=KP_PHOTOS.IMG_SHOWROOM1||"",IMG_TEAM=KP_PHOTOS.IMG_TEAM||"",IMG_RODA=KP_PHOTOS.IMG_RODA||"",IMG_MAP=KP_PHOTOS.IMG_MAP||"",IMG_OLEH=KP_PHOTOS.IMG_OLEH||"",IMG_DMYTRO=KP_PHOTOS.IMG_DMYTRO||"",IMG_PATRYK=KP_PHOTOS.IMG_PATRYK||"";
@@ -417,21 +421,22 @@ function textLang(l){
 }
 function withLang(l){
   if(!l)return l;
-  const manual=l.clientLangAuto===false||((l.history||[]).some(h=>/^(Язык обслуживания|Język obsługi):/.test(String(h&&h.action||""))));
-  // выбран менеджером вручную — только нормализуем код
+  // Вручную = менеджер менял язык (запись в истории) или стоит старая ручная отметка. Наше авто-решение помечается clientLangBy:2
+  // и тоже пишется с clientLangAuto:false — чтобы вкладки со СТАРОЙ версией CRM считали его ручным и не переписывали обратно
+  // (иначе старая и новая версии бесконечно перебивают язык друг у друга и заваливают базу записями).
+  const byHist=(l.history||[]).some(h=>/^(Язык обслуживания|Język obsługi):/.test(String(h&&h.action||"")));
+  const manual=byHist||(l.clientLangAuto===false&&l.clientLangBy!==2);
   if(manual){if(!l.clientLang)return l;const n=normLang(l.clientLang);return n===l.clientLang?l:{...l,clientLang:n};}
-  // авто: каждый раз считаем заново из исходного языка (сайт/форма/лид-форма) → английский текст → источник/имя.
-  // Так же чинятся лиды, которым раньше ошибочно поставили UA по русским заметкам (исходный язык лежит в clientLangRaw).
   // исходный язык: что прислал сайт/форма. Если язык поменяли снаружи после нашего пересчёта — берём новый.
   let raw;
-  if(!l.clientLangAuto){raw=l.clientLang||null;if(l.clientLangRaw&&l.clientLang&&normLang(l.clientLangRaw)===l.clientLang)raw=l.clientLangRaw;}
+  if(l.clientLangBy===2){raw=l.clientLangRaw||null;if(l.clientLang&&l.clientLangCalc&&l.clientLang!==l.clientLangCalc)raw=l.clientLang;}
+  else if(!l.clientLangAuto){raw=l.clientLang||null;if(l.clientLangRaw&&l.clientLang&&normLang(l.clientLangRaw)===l.clientLang)raw=l.clientLangRaw;}
   else{raw=l.clientLangRaw||null;if(l.clientLangCalc&&l.clientLang&&l.clientLang!==l.clientLangCalc)raw=l.clientLang;}
   const base=raw?normLang(raw):null;
   const tl=textLang(l);const en=tl&&LANG_OPTS.some(o=>o[0]===tl)?tl:null;
   const det=detectLang(l); // источник → переписка с Эрикой → имя; только потом язык, который прислал сайт
   const g=en||(det?normLang(det):null)||base||LANG_OPTS[0][0];// нет сигнала → язык страны (так он и показывался флагом)
-  const auto=g!==base;
-  const want={clientLang:g,clientLangAuto:auto||undefined,clientLangCalc:auto?g:undefined,clientLangRaw:raw&&raw!==g?raw:undefined};
+  const want={clientLang:g,clientLangAuto:false,clientLangBy:2,clientLangCalc:g,clientLangRaw:raw||undefined};
   if(Object.keys(want).every(k=>(l[k]===undefined?undefined:l[k])===want[k]))return l;
   const o={...l};Object.keys(want).forEach(k=>{if(want[k]===undefined)delete o[k];else o[k]=want[k];});
   return o;
@@ -6015,7 +6020,7 @@ function WallElevation({items,wi,W,walls,sel,setSel,msel=[],onToggle,onDragStart
     </svg>);
 }
 
-function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
+function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP,fresh=false}){
   const pl=lang==="pl";const dk=C===DARK;const champ=dk?"#f6e0aa":C.accent;
   const blank={id:Date.now(),name:`${pl?"Wariant":"Вариант"} ${((lead.calcs||[]).length)+1}`,items:[],extras:{},custom:[],nonstd:[],discount:"",notes:"",plan:null};
   const [c,setC]=useState(()=>calc?JSON.parse(JSON.stringify(calc)):blank);
@@ -6028,7 +6033,7 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
   // выделение: клик — одна секция; Shift+ПКМ (или Shift+клик) — добавить/убрать из группы
   const pick=u=>{setSel(u);setMsel([]);};
   const toggleM=u=>{const base=msel.length?msel:(sel?[sel]:[]);const n=base.includes(u)?base.filter(x=>x!==u):[...base,u];if(n.length===1){setSel(n[0]);setMsel([]);}else{setSel(null);setMsel(n);}};
-  const selList=msel.length?msel:(sel?[sel]:[]);const init0=useRef(null);if(init0.current==null)init0.current=JSON.stringify(c);
+  const selList=msel.length?msel:(sel?[sel]:[]);const init0=useRef(null);if(init0.current==null)init0.current=fresh?"":JSON.stringify(c);
   const dirty=()=>JSON.stringify(c)!==init0.current;const closeArm=useRef(0);
   const tryClose=()=>{if(!dirty()||Date.now()-closeArm.current<3000){onClose();return;}closeArm.current=Date.now();setNote({m:pl?"Są niezapisane zmiany — Ctrl+S zapisze, ✕ jeszcze raz zamknie bez zapisu":"Есть несохранённые изменения — Ctrl+S сохранит, ✕ ещё раз закроет без сохранения",id:Date.now()});};
   const skApi=useRef(null);const [skOn,setSkOn]=useState(false);const [skDirty,setSkDirty]=useState(false);const [skSrc,setSkSrc]=useState(()=>calc&&calc.sketchData?calc.sketchData:null);const [busy,setBusy]=useState(false);const [copied,setCopied]=useState(false);
@@ -6145,14 +6150,14 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
     if(e.ctrlKey||e.metaKey||e.altKey)return;
     const k=e.key;
     if(k==="1"){setZone("low");setQ("");return;}if(k==="2"){setZone("tall");setQ("");return;}if(k==="3"){setZone("top");setQ("");return;}
-    if(k==="4"){go("extra");return;}if(k==="5"){go("sketch");return;}if(k==="6"){go("plan");return;}if(k==="7"){go("list");return;}
+    if(k==="4"){go("extra");return;}if(k==="5"){go("sketch");return;}if(k==="6"){go("plan");return;}if(k==="7"){go("list");return;}if(k==="8"&&c.dawid){go("dawid");return;}
     if(main==="sketch")return;
     if(selList.length&&(k==="Delete"||k==="Backspace")){e.preventDefault();delMany(selList);return;}
     if(sel&&(k==="ArrowLeft"||k==="ArrowRight")){e.preventDefault();const it=(c.items||[]).find(x=>x.uid===sel);const W=it&&walls[it.wall];const s=(e.shiftKey?10:1)*((k==="ArrowRight")?1:-1);nudge(sel,s);return;}
     if(sel&&(e.code==="KeyD")){dup(sel);return;}
   };
   useEffect(()=>{const h=e=>keyRef.current&&keyRef.current(e);window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);},[]);
-  const VIEWS=[["plan","📐",pl?"Plan":"План","6"],["list","📋",pl?"Specyfikacja":"Спецификация","7"],["extra","＋",pl?"Dodatki":"Доп.","4"],["sketch","✏️",pl?"Rysunek":"Рисунок","5"]];
+  const VIEWS=[["plan","📐",pl?"Plan":"План","6"],["list","📋",pl?"Specyfikacja":"Спецификация","7"],["extra","＋",pl?"Dodatki":"Доп.","4"],["sketch","✏️",pl?"Rysunek":"Рисунок","5"],...(c.dawid?[["dawid","🤖","Dawid","8"]]:[])];
   const shapeIcon=(k,on)=>{const s=on?"#e3b860":"rgba(214,232,255,.7)";const W=6;return <svg width="64" height="48" viewBox="0 0 64 48">{k==="I"&&<rect x="6" y="8" width="52" height={W} fill={s}/>}{k==="L"&&<><rect x="6" y="8" width="52" height={W} fill={s}/><rect x="52" y="8" width={W} height="34" fill={s}/></>}{k==="U"&&<><rect x="6" y="8" width={W} height="34" fill={s}/><rect x="6" y="8" width="52" height={W} fill={s}/><rect x="52" y="8" width={W} height="34" fill={s}/></>}{k==="II"&&<><rect x="6" y="8" width="52" height={W} fill={s}/><rect x="6" y="36" width="52" height={W} fill={s}/></>}</svg>;};
   const wizView=(
     <div style={{...glass,padding:22,display:"flex",flexDirection:"column",gap:18,maxWidth:760,margin:"10px auto",width:"100%",boxSizing:"border-box"}}>
@@ -6174,7 +6179,7 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
         <div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",borderBottom:`1px solid ${C.border}`,flexWrap:"wrap"}}>
           <div style={{fontSize:20}}>📐</div>
           <div style={{minWidth:0}}>
-            <div style={{fontSize:16}}>{pl?"Wycena kuchni":"Просчёт кухни"} · <span style={{color:champ}}>{lead.name||lead.phone||"—"}</span></div>
+            <div style={{fontSize:16}}>{pl?"Wycena kuchni":"Просчёт кухни"} · <span style={{color:champ}}>{lead.name||lead.phone||"—"}</span>{c.dawid&&<span onClick={()=>go("dawid")} title="Dawid" style={{marginLeft:8,fontSize:11,padding:"2px 8px",borderRadius:8,border:"1px solid rgba(227,184,96,.55)",color:"#f6e0aa",cursor:"pointer"}}>🤖 Dawid · {pl?"test":"тест"}</span>}</div>
             <input value={c.name||""} onChange={e=>upd({name:e.target.value})} style={{...inp,marginTop:5,width:220,padding:"4px 8px"}} placeholder={pl?"Nazwa wariantu":"Название варианта"}/>
           </div>
           <div style={{display:"flex",gap:10,marginLeft:12}}>
@@ -6190,7 +6195,7 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
             {tot.disc>0&&<div style={{fontSize:11,color:C.muted,textDecoration:"line-through"}}>{fmtM(tot.total)}</div>}
           </div>
           <div style={{display:"flex",gap:8}}>
-            {onKP&&<button className="calc-b" onClick={()=>onKP({...c,...calcTotals(c)})} disabled={!tot.total} style={{...btn(false),opacity:tot.total?1:.4}}>📄 {pl?"Oferta":"КП"}</button>}
+            {onKP&&!c.dawid&&<button className="calc-b" onClick={()=>onKP({...c,...calcTotals(c)})} disabled={!tot.total} style={{...btn(false),opacity:tot.total?1:.4}}>📄 {pl?"Oferta":"КП"}</button>}
             <button className="calc-b" onClick={save} disabled={busy} title="Ctrl+S" style={{...btn(true),opacity:busy?.6:1}}>{busy?"…":"✓"} {busy?(pl?"Zapisuję":"Сохраняю"):(pl?"Zapisz w leadzie":"Сохранить в лид")}</button>
             <button className="calc-b" onClick={tryClose} style={{...btn(false),width:38,padding:0,justifyContent:"center"}}>✕</button>
           </div>
@@ -6380,6 +6385,8 @@ function CalcModal({lead,calc,onSave,onClose,lang="ru",currentUser,onKP}){
                 <textarea value={c.notes||""} onChange={e=>upd({notes:e.target.value})} placeholder={pl?"Np. wyspa, złote uchwyty, blat kamienny, bez górnych szafek…":"Напр. остров, золотые ручки, каменная столешница, без верхних шкафов…"} style={{...inp,width:"100%",boxSizing:"border-box",minHeight:80,resize:"vertical",fontSize:12.5,lineHeight:1.45}}/>
               </div>
             </div>}
+            {/* DAWID */}
+            {main==="dawid"&&c.dawid&&<DawidTab c={c} tot={tot} T={C} fmtM={fmtM} pl={pl}/>}
             {/* РИСУНОК */}
             {skOn&&<div style={{flex:1,minHeight:0,display:main==="sketch"?"block":"none"}}><SketchPad apiRef={skApi} initialSrc={skSrc} lang={lang} onDirty={setSkDirty}/></div>}
             <div style={{fontSize:10,color:C.dim,display:"flex",gap:12,flexWrap:"wrap"}}><span>1–3 {pl?"sekcje":"секции"}</span><span>4 {pl?"dodatki":"доп."}</span><span>5 {pl?"rysunek":"рисунок"}</span><span>6 {pl?"plan":"план"}</span><span>7 {pl?"specyfikacja":"спецификация"}</span><span>Del · D · ← → · Shift+{pl?"PPM":"ПКМ"} · Ctrl+A · Ctrl+Z / Ctrl+Shift+Z · Ctrl+C / Ctrl+V · Ctrl+S · Esc</span></div>
@@ -6518,12 +6525,12 @@ function LeadCalcs({lead,lang,onOpen,onKP,onDup,onDel}){
   if(!list.length)return null;
   return(<div style={{display:"flex",flexDirection:"column",gap:6}}>
     {list.slice().reverse().map(c=>(<div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:10,border:`1px solid ${C.border}`,background:"rgba(227,184,96,.05)"}}>
-      {(c.sketchData||c.sketchFile)?<CalcSketchThumb c={c}/>:<span style={{fontSize:16}}>{c.kind==="szafa"?"🚪":"📐"}</span>}
+      {(c.sketchData||c.sketchFile)?<CalcSketchThumb c={c}/>:<span style={{fontSize:16}}>{c.dawid?"🤖":c.kind==="szafa"?"🚪":"📐"}</span>}
       <div style={{minWidth:0,flex:1,cursor:"pointer"}} onClick={()=>onOpen(c)}>
         <div style={{fontSize:12.5,color:C.text}}>{c.name||"—"} · <b style={{color:C.accent}}>{fmtM(c.disc?c.totalDisc:c.total)}</b>{c.disc?<span style={{fontSize:10.5,color:C.muted}}> (−{c.disc}%)</span>:null}</div>
         <div style={{fontSize:10.5,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.kind==="szafa"?`${(c.units||[]).length} ${pl?"szaf":"шкаф."}`:`${(c.items||[]).reduce((a,x)=>a+x.qty,0)} ${pl?"sekcji":"секций"}`} · {c.by||"—"} · {new Date(c.updatedAt||c.at||Date.now()).toLocaleDateString(pl?"pl-PL":"ru-RU")}{c.notes?` · ${c.notes}`:""}</div>
       </div>
-      <button onClick={()=>onKP(c)} title={pl?"Oferta":"КП"} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"3px 7px",cursor:"pointer",fontSize:11}}>📄</button>
+      {!c.dawid&&<button onClick={()=>onKP(c)} title={pl?"Oferta":"КП"} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"3px 7px",cursor:"pointer",fontSize:11}}>📄</button>}
       <button onClick={()=>onDup(c)} title={pl?"Kopia":"Копия"} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"3px 7px",cursor:"pointer",fontSize:11}}>⧉</button>
       <button onClick={()=>{if(arm===c.id){setArm(null);onDel(c);}else{setArm(c.id);setTimeout(()=>setArm(a=>a===c.id?null:a),3000);}}} title={pl?"Usuń (kliknij 2 razy)":"Удалить (нажми 2 раза)"} style={{background:arm===c.id?"rgba(239,68,68,.18)":"transparent",border:`1px solid ${arm===c.id?"#ef4444":C.border}`,color:arm===c.id?"#ef4444":C.muted,borderRadius:7,padding:"3px 7px",cursor:"pointer",fontSize:11}}>{arm===c.id?(pl?"Usunąć?":"Удалить?"):"✕"}</button>
     </div>))}
@@ -7022,6 +7029,17 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
     if(sketchNew){const now=Date.now();setForm(fm=>({...fm,files:[...(fm.files||[]),sketchNew]}));updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,files:[...(l.files||[]),sketchNew],updatedAt:now}:l)}),true);}
     saveCalcs(list=>list.some(x=>x.id===c.id)?list.map(x=>x.id===c.id?c:x):[...list,c],`📐 ${pl?"Wycena":"Просчёт"} «${c.name}»: ${fmtM(c.disc?c.totalDisc:c.total)}${(c.sketchData||c.sketchFile)?(pl?" + szkic":" + набросок"):""}`);setCalcOpen(null);};
   const kpLangOf=()=>{const cl=form.clientLang||"pl";return cl==="ua"?"ua":cl==="en"?"en":"pl";};
+  // 🤖 Dawid: читает карточку (заявка, переписка с Erika, фото/планы клиента) → параметры кухни → просчёт по правилам менеджеров.
+  // Результат открывается в конструкторе и НЕ сохраняется сам — менеджер проверяет и жмёт «Сохранить в лид». КП для Dawid пока не делаем.
+  const [dw,setDw]=useState({busy:false,step:"",err:"",note:""});
+  const runDawid=async()=>{if(dw.busy)return;const pl=lang==="pl";setDw({busy:true,step:"",err:"",note:""});
+    const ctx={CALC_BY_CODE,calcPriceOf,planWalls,planBad,calcTotals};let params=null,meta={},note="";
+    try{const r=await askDawid({lead:form,leadFileUrl,auth:SB_HDR.Authorization,term:String(formTerm(form)||""),onStep:st=>setDw(d=>({...d,step:st}))});
+      params=r.params;meta={model:r.model,files:r.files,source:"api"};if(r.skipped&&r.skipped.length)note=(pl?"Pominięte pliki: ":"Не смог прочитать файлы: ")+r.skipped.join(", ");}
+    catch(e){if(!["AUTH","AUTH_NET"].includes(e.code)){params=paramsFromNotes(form.notes);meta={source:"notes"};note=(pl?"AI niedostępne — wycena tylko ze zgłoszenia, bez zdjęć. ":"ИИ недоступен — просчёт только по строке заявки, без фото. ")+(e.message||"");}
+      else{setDw({busy:false,step:"",err:(pl?"Dawid: ":"Dawid: ")+(e.message||String(e)),note:""});return;}}
+    try{const c=buildDawidCalc(params,ctx,meta);setDw({busy:false,step:"",err:"",note});setCalcOpen({calc:c,fresh:true});}
+    catch(e){console.error(e);setDw({busy:false,step:"",err:(pl?"Błąd wyceny Dawida: ":"Ошибка расчёта Dawid: ")+(e.message||e),note:""});}};
   const addStickerLD=(text)=>{
     const st={id:Date.now()+Math.floor(Math.random()*1000),text,by:currentUser||"—",at:Date.now()};
     const nStickers=[...(form.stickers||[]),st];
@@ -7176,8 +7194,12 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
         <div style={{padding:22}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:18,paddingBottom:16,borderBottom:"1px solid rgba(191,164,126,0.2)"}}>
           <div style={{display:"flex",alignItems:"center",gap:14}}><div style={{position:"relative"}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={56} noMedal/><div style={{position:"absolute",right:-3,bottom:-3,width:14,height:14,borderRadius:"50%",background:QUAL_COLOR[form.qualification]||C.accent,border:"2px solid #00132f"}}/></div><div><div style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:0.2}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowTask(true)} title={lang==="pl"?"Nowe zadanie":"Новая задача"} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#ef4444",cursor:"pointer"}}>☰ {leadTasks.length>0?leadTasks.length:"+"}</button><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
-          <div style={{display:"flex",gap:8}}>{CALC_ON&&<Btn onClick={()=>setCalcOpen({})} variant="ghost" small>📐 {lang==="pl"?"Wycena":"Просчёт"}{(form.calcs||[]).length?` (${(form.calcs||[]).length})`:""}</Btn>}{CALC_ON&&<Btn onClick={()=>setCalcOpen({kind:"szafa"})} variant="ghost" small>🚪 {lang==="pl"?"Szafy":"Шкафы"}</Btn>}{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(inline&&autoEdit);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}{!inline&&<Btn onClick={onClose} variant="ghost" small>✕</Btn>}</div>
+          <div style={{display:"flex",gap:8}}>{CALC_ON&&<Btn onClick={()=>setCalcOpen({})} variant="ghost" small>📐 {lang==="pl"?"Wycena":"Просчёт"}{(form.calcs||[]).length?` (${(form.calcs||[]).length})`:""}</Btn>}{CALC_ON&&<Btn onClick={runDawid} variant="ghost" small disabled={dw.busy}>🤖 {dw.busy?(lang==="pl"?"Dawid liczy…":"Dawid считает…"):(lang==="pl"?"Wycena Dawid":"Просчёт Dawid")}</Btn>}{CALC_ON&&<Btn onClick={()=>setCalcOpen({kind:"szafa"})} variant="ghost" small>🚪 {lang==="pl"?"Szafy":"Шкафы"}</Btn>}{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(inline&&autoEdit);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}{!inline&&<Btn onClick={onClose} variant="ghost" small>✕</Btn>}</div>
         </div>
+        {(dw.busy||dw.err||dw.note)&&<div style={{display:"flex",alignItems:"center",gap:10,margin:"-8px 0 14px",padding:"8px 12px",borderRadius:10,border:`1px solid ${dw.err?"rgba(239,68,68,.45)":"rgba(227,184,96,.4)"}`,background:dw.err?"rgba(239,68,68,.08)":"rgba(227,184,96,.07)",fontSize:12,color:dw.err?"#ff7d8c":C.text}}>
+          <span>🤖</span><span style={{flex:1}}>{dw.busy?`${lang==="pl"?"Dawid liczy":"Dawid считает"}${dw.step?` · ${dw.step}`:""}… ${lang==="pl"?"(do minuty)":"(до минуты)"}`:(dw.err||dw.note)}</span>
+          {!dw.busy&&<button onClick={()=>setDw({busy:false,step:"",err:"",note:""})} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}>✕</button>}
+        </div>}
         {(()=>{const pl=lang==="pl";const arr=leadArrivalMs(form);const fc=firstContactMs(form);const d=arr!=null&&fc!=null?fc-arr:null;const waiting=arr!=null&&fc==null?Date.now()-arr:null;
           return <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:"6px 16px",marginTop:-6,marginBottom:14,fontSize:12,color:C.muted}}>
             <span style={{display:"inline-flex",alignItems:"center",gap:3}}>{pl?"Język obsługi":"Язык обслуживания"}:{LANG_OPTS.map(([v,fl])=>{const cur=form.clientLang||LANG_OPTS[0][0];const on=cur===v;return <button key={v} title={v.toUpperCase()} onClick={()=>{if(on)return;const now=Date.now();setForm(f=>({...f,clientLang:v,clientLangAuto:false}));updateDb(p=>({...p,leads:(p.leads||[]).map(l=>l.id===lead.id?{...l,clientLang:v,clientLangAuto:false,updatedAt:now,history:[...(l.history||[]),{date:nowStr(),action:`${pl?"Język obsługi":"Язык обслуживания"}: ${(l.clientLang||LANG_OPTS[0][0]).toUpperCase()} → ${v.toUpperCase()}`,by:currentUser||"—"}]}:l)}),true);}} style={{fontSize:15,lineHeight:1,padding:"1px 4px",borderRadius:6,border:`1.5px solid ${on?C.accent:"transparent"}`,background:on?C.accentDim:"transparent",cursor:on?"default":"pointer",opacity:on?1:0.55}}>{fl}</button>;})}{form.clientLangAuto&&<span style={{fontSize:9,color:C.dim}}>({pl?"auto":"авто"})</span>}</span>
@@ -7321,7 +7343,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
       onConfirm={confirmVisit}
       onCancel={()=>{setShowVisit(false);setForm(p=>({...p,score:4,qualification:"qualified"}));}}/>}
     {calcOpen&&(calcOpen.kind==="szafa"||(calcOpen.calc&&calcOpen.calc.kind==="szafa"))&&<WardrobeCalcModal lead={form} calc={calcOpen.calc||null} lang={lang} currentUser={currentUser} onSave={onCalcSave} onClose={()=>setCalcOpen(null)}/>}
-    {calcOpen&&!(calcOpen.kind==="szafa"||(calcOpen.calc&&calcOpen.calc.kind==="szafa"))&&<CalcModal lead={form} calc={calcOpen.calc||null} lang={lang} currentUser={currentUser} onSave={onCalcSave} onClose={()=>setCalcOpen(null)} onKP={c=>setCalcKP({amount:c.disc?c.totalDisc:c.total,stone:c.stone&&c.stone.on?calcNum(c.stone.amt):0})}/>}
+    {calcOpen&&!(calcOpen.kind==="szafa"||(calcOpen.calc&&calcOpen.calc.kind==="szafa"))&&<CalcModal lead={form} calc={calcOpen.calc||null} fresh={!!calcOpen.fresh} lang={lang} currentUser={currentUser} onSave={onCalcSave} onClose={()=>setCalcOpen(null)} onKP={c=>setCalcKP({amount:c.disc?c.totalDisc:c.total,stone:c.stone&&c.stone.on?calcNum(c.stone.amt):0})}/>}
     {calcKP&&<KPModal lead={form} amount={calcKP.amount} stoneAmt={calcKP.stone||0} lang={kpLangOf()} vatOn={true} onClose={()=>setCalcKP(null)}/>}
     {showStickers&&<StickerModal lead={form} t={t} currentUser={currentUser} onSave={addStickerLD} onDelete={deleteStickerLD} onClose={()=>setShowStickers(false)}/>}
     {showTask&&<TaskModal task={{status:"todo",assignee:creatorLD||"—"}} onSave={addTaskForLead} onClose={()=>setShowTask(false)} t={t} taskTypes={taskTypes} leads={[]} onAddType={addTypeLD} presetLead={lead} lang={lang}/>}

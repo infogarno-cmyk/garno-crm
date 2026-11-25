@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "api/dawid.js": { "maxDuration": 60 }
+  }
+}
