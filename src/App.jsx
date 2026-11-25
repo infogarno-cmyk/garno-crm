@@ -4799,7 +4799,7 @@ function dzPeople(){return [...new Set([...DZ_EXTRA,...MANAGERS])];}
 // кому можно назначить лида: менеджеры + дожимщики (Robert)
 function leadAssignees(){return [...new Set([...MANAGERS,...DZ_EXTRA])];}
 // последнее действие основного менеджера (всё в истории, кроме строк дожима 🦅)
-function dzLastMain(l){const hs=(l.history||[]).filter(h=>h&&!/^🦅/.test(String(h.action||"")));
+function dzLastMain(l){const hs=(l.history||[]).filter(h=>h&&!/^🦅/.test(String(h.action||""))&&!isDawidHist(h));
   for(let i=hs.length-1;i>=0;i--){const ms=parseHistMs(hs[i].date);if(ms!=null)return {ms,h:hs[i]};}return null;}
 function dzIdleDays(l,now){const x=dzLastMain(l);const last=x?x.ms:(leadArrivalMs(l)||null);return last==null?null:Math.floor((now-last)/DUTY_DAY);}
 function dzAgeDays(l,now){const a=leadArrivalMs(l)||leadCreatedMsSafe(l);return a?Math.floor((now-a)/DUTY_DAY):null;}
@@ -5025,7 +5025,7 @@ function DozhimMode({leads,updateDb,currentUser,onOpen,lang="ru"}){const pl=lang
                     <button className="duty-b" onClick={addNote} disabled={!note.trim()} style={{alignSelf:"stretch",padding:"0 12px",borderRadius:10,border:"none",background:note.trim()?"linear-gradient(135deg,#f6e0aa,#e3b860)":"rgba(255,255,255,.06)",color:note.trim()?"#08153a":C.dim,cursor:note.trim()?"pointer":"default",fontSize:12}}>＋ {L("Добавить","Dodaj")}</button></div></div>
                 <div style={{borderRadius:16,padding:"12px 14px",border:`1px solid ${C.border}`,background:dk?"rgba(2,10,30,.35)":C.bg}}>
                   <div style={{...lbl,marginBottom:6}}>{L("история","historia")}</div>
-                  <div style={{display:"flex",flexDirection:"column",gap:5,fontSize:11,color:C.muted,borderLeft:"1px solid rgba(227,184,96,.28)",paddingLeft:10}}>{(l.history||[]).slice(-4).reverse().map((h,i)=><div key={i} style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}><span style={{color:C.text}}>{h.action}</span> · {h.date}{h.by?` · ${h.by}`:""}</div>)}{!(l.history||[]).length&&<span>—</span>}</div></div>
+                  <div style={{display:"flex",flexDirection:"column",gap:5,fontSize:11,color:C.muted,borderLeft:"1px solid rgba(227,184,96,.28)",paddingLeft:10}}>{visHist(l.history).slice(-4).reverse().map((h,i)=><div key={i} style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}><span style={{color:C.text}}>{h.action}</span> · {h.date}{h.by?` · ${h.by}`:""}</div>)}{!(l.history||[]).length&&<span>—</span>}</div></div>
               </div></div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               {handled?<><button className="duty-b" onClick={()=>go(()=>setCur(queue[0]?queue[0].l.id:null))} style={btn(true)}>→ {L("Следующий лид","Następny lead")}</button><button className="duty-b" onClick={A.open} style={btn(false)}>↗ {L("Открыть карточку","Otwórz kartę")}</button></>
@@ -5630,7 +5630,7 @@ function DutyMode({leads,updateDb,t,mgr,currentUser,lang="ru",ldp={},onOpen,abTe
                 </div>
                 <div style={{borderRadius:16,padding:"12px 14px",border:`1px solid ${C.border}`,background:dk?"rgba(2,10,30,.35)":C.bg}}>
                   <div style={{...lbl,marginBottom:6}}>{pl?"historia":"история"}</div>
-                  <div style={{display:"flex",flexDirection:"column",gap:5,fontSize:11,color:C.muted,borderLeft:"1px solid rgba(227,184,96,.28)",paddingLeft:10}}>{(l.history||[]).slice(-4).reverse().map((h,i)=><div key={i} style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}><span style={{color:C.text}}>{h.action}</span> · {h.date}{h.by?` · ${h.by}`:""}</div>)}{!(l.history||[]).length&&<span>—</span>}</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:5,fontSize:11,color:C.muted,borderLeft:"1px solid rgba(227,184,96,.28)",paddingLeft:10}}>{visHist(l.history).slice(-4).reverse().map((h,i)=><div key={i} style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}><span style={{color:C.text}}>{h.action}</span> · {h.date}{h.by?` · ${h.by}`:""}</div>)}{!(l.history||[]).length&&<span>—</span>}</div>
                 </div>
               </div>
             </div>
@@ -5686,6 +5686,12 @@ const CALC_IMG={
 // – ширина (30/45/60/80/90) – особенности (A — 1 ящик, E — 2 ящика, K — 3 ящика, i — Atira, w — внутренний ящик, S — доводчик).
 // Просчёт сохраняется в лиде: lead.calcs = [{id,name,items,extras,custom,nonstd,discount,notes,total,totalDisc,by,at,updatedAt}]
 const CALC_ON=true;
+// 🤖 Dawid (тест) виден только этим аккаунтам. Остальным — ни кнопки, ни сохранённых просчётов Dawid, ни записей о них в истории.
+const DAWID_USERS=["Danya","Ilya","Illia"];
+const dawidOK=u=>DAWID_USERS.includes(u&&u!=="—"?u:whoNow());
+const isDawidHist=h=>/«Dawid · /.test(String(h&&h.action||""));
+const visCalcs=(calcs,u)=>dawidOK(u)?(calcs||[]):(calcs||[]).filter(c=>!(c&&c.dawid));
+const visHist=(hist,u)=>dawidOK(u)?(hist||[]):(hist||[]).filter(h=>!isDawidHist(h));
 const CALC_ZONES=[
   {k:"low", e:"▭",ru:"Низ",      pl:"Dół"},
   {k:"tall",e:"▯",ru:"Пеналы",   pl:"Słupki"},
@@ -7194,7 +7200,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
         <div style={{padding:22}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:18,paddingBottom:16,borderBottom:"1px solid rgba(191,164,126,0.2)"}}>
           <div style={{display:"flex",alignItems:"center",gap:14}}><div style={{position:"relative"}}><Avatar name={lead.name||lead.phone} color={QUAL_COLOR[form.qualification]} size={56} noMedal/><div style={{position:"absolute",right:-3,bottom:-3,width:14,height:14,borderRadius:"50%",background:QUAL_COLOR[form.qualification]||C.accent,border:"2px solid #00132f"}}/></div><div><div style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:0.2}}>{lead.name||lead.phone}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:C.muted}}>{lead.phone}</span><button onClick={()=>setShowTask(true)} title={lang==="pl"?"Nowe zadanie":"Новая задача"} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#ef4444",cursor:"pointer"}}>☰ {leadTasks.length>0?leadTasks.length:"+"}</button><button onClick={()=>setShowStickers(true)} title={t.addSticker} style={{display:"inline-flex",alignItems:"center",gap:3,background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:700,color:"#f0c040",cursor:"pointer"}}>📝 {(form.stickers&&form.stickers.length)||0}</button></div></div><Badge label={t[form.qualification]} color={QUAL_COLOR[form.qualification]}/></div>
-          <div style={{display:"flex",gap:8}}>{CALC_ON&&<Btn onClick={()=>setCalcOpen({})} variant="ghost" small>📐 {lang==="pl"?"Wycena":"Просчёт"}{(form.calcs||[]).length?` (${(form.calcs||[]).length})`:""}</Btn>}{CALC_ON&&<Btn onClick={runDawid} variant="ghost" small disabled={dw.busy}>🤖 {dw.busy?(lang==="pl"?"Dawid liczy…":"Dawid считает…"):(lang==="pl"?"Wycena Dawid":"Просчёт Dawid")}</Btn>}{CALC_ON&&<Btn onClick={()=>setCalcOpen({kind:"szafa"})} variant="ghost" small>🚪 {lang==="pl"?"Szafy":"Шкафы"}</Btn>}{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(inline&&autoEdit);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}{!inline&&<Btn onClick={onClose} variant="ghost" small>✕</Btn>}</div>
+          <div style={{display:"flex",gap:8}}>{CALC_ON&&<Btn onClick={()=>setCalcOpen({})} variant="ghost" small>📐 {lang==="pl"?"Wycena":"Просчёт"}{visCalcs(form.calcs,currentUser).length?` (${visCalcs(form.calcs,currentUser).length})`:""}</Btn>}{CALC_ON&&dawidOK(currentUser)&&<Btn onClick={runDawid} variant="ghost" small disabled={dw.busy}>🤖 {dw.busy?(lang==="pl"?"Dawid liczy…":"Dawid считает…"):(lang==="pl"?"Wycena Dawid":"Просчёт Dawid")}</Btn>}{CALC_ON&&<Btn onClick={()=>setCalcOpen({kind:"szafa"})} variant="ghost" small>🚪 {lang==="pl"?"Szafy":"Шкафы"}</Btn>}{!editing?<Btn onClick={()=>setEditing(true)} small>✎ {t.edit}</Btn>:<><Btn onClick={save} small>✓ {t.save}</Btn><Btn onClick={()=>{setEditing(inline&&autoEdit);setForm({...lead});}} variant="ghost" small>{t.cancel}</Btn></>}{!inline&&<Btn onClick={onClose} variant="ghost" small>✕</Btn>}</div>
         </div>
         {(dw.busy||dw.err||dw.note)&&<div style={{display:"flex",alignItems:"center",gap:10,margin:"-8px 0 14px",padding:"8px 12px",borderRadius:10,border:`1px solid ${dw.err?"rgba(239,68,68,.45)":"rgba(227,184,96,.4)"}`,background:dw.err?"rgba(239,68,68,.08)":"rgba(227,184,96,.07)",fontSize:12,color:dw.err?"#ff7d8c":C.text}}>
           <span>🤖</span><span style={{flex:1}}>{dw.busy?`${lang==="pl"?"Dawid liczy":"Dawid считает"}${dw.step?` · ${dw.step}`:""}… ${lang==="pl"?"(do minuty)":"(до минуты)"}`:(dw.err||dw.note)}</span>
@@ -7227,9 +7233,9 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
               ?<a key={i} href={f.url} target="_blank" rel="noreferrer" title={f.name}><img src={f.url} alt={f.name} style={{width:96,height:96,objectFit:"cover",borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",display:"block"}}/></a>
               :<a key={i} href={f.url} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 10px",borderRadius:9,border:"1px solid rgba(255,255,255,0.15)",color:"#38bdf8",fontSize:12,textDecoration:"none",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📄 {f.name}</a>)}</div>}
           </div>);})()}
-        {CALC_ON&&(form.calcs||[]).length>0&&<div className="ld-sec" style={{marginBottom:14}}>
-          <div>📐 {lang==="pl"?"Wyceny":"Просчёты"} ({(form.calcs||[]).length})<button onClick={()=>setCalcOpen({})} style={{marginLeft:"auto",background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:8,padding:"3px 10px",fontSize:10.5,cursor:"pointer",letterSpacing:0,textTransform:"none"}}>＋ {lang==="pl"?"Nowa wycena":"Новый просчёт"}</button><button onClick={()=>setCalcOpen({kind:"szafa"})} style={{marginLeft:6,background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:8,padding:"3px 10px",fontSize:10.5,cursor:"pointer",letterSpacing:0,textTransform:"none"}}>＋ {lang==="pl"?"Szafy":"Шкафы"}</button></div>
-          <LeadCalcs lead={form} lang={lang} onOpen={c=>setCalcOpen({calc:c})} onKP={c=>setCalcKP({amount:c.disc?c.totalDisc:c.total,stone:c.stone&&c.stone.on?calcNum(c.stone.amt):0})}
+        {CALC_ON&&visCalcs(form.calcs,currentUser).length>0&&<div className="ld-sec" style={{marginBottom:14}}>
+          <div>📐 {lang==="pl"?"Wyceny":"Просчёты"} ({visCalcs(form.calcs,currentUser).length})<button onClick={()=>setCalcOpen({})} style={{marginLeft:"auto",background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:8,padding:"3px 10px",fontSize:10.5,cursor:"pointer",letterSpacing:0,textTransform:"none"}}>＋ {lang==="pl"?"Nowa wycena":"Новый просчёт"}</button><button onClick={()=>setCalcOpen({kind:"szafa"})} style={{marginLeft:6,background:"transparent",border:`1px solid ${C.borderMd}`,color:C.accent,borderRadius:8,padding:"3px 10px",fontSize:10.5,cursor:"pointer",letterSpacing:0,textTransform:"none"}}>＋ {lang==="pl"?"Szafy":"Шкафы"}</button></div>
+          <LeadCalcs lead={{...form,calcs:visCalcs(form.calcs,currentUser)}} lang={lang} onOpen={c=>setCalcOpen({calc:c})} onKP={c=>setCalcKP({amount:c.disc?c.totalDisc:c.total,stone:c.stone&&c.stone.on?calcNum(c.stone.amt):0})}
             onDup={c=>{const pl=lang==="pl";const n={...JSON.parse(JSON.stringify(c)),id:Date.now(),name:`${c.name} (${pl?"kopia":"копия"})`,at:Date.now(),updatedAt:Date.now(),by:currentUser||"—"};saveCalcs(list=>[...list,n],`📐 ${pl?"Kopia wyceny":"Копия просчёта"} «${n.name}»`);}}
             onDel={c=>{const pl=lang==="pl";saveCalcs(list=>list.filter(x=>x.id!==c.id),`📐 ${pl?"Usunięto wycenę":"Удалён просчёт"} «${c.name}»`);}}/>
         </div>}
@@ -7333,7 +7339,7 @@ function LeadDetail({lead,setLeads,updateDb,srcList,t,lang,onClose,onAddSale,cur
           </div>
           <div className="ld-sec">
             <div style={{fontSize:10,color:C.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>◷ {t.history}</div>
-            {(form.history||[]).length===0?<div style={{color:C.dim,fontSize:12}}>—</div>:[...(form.history||[])].reverse().map((h,i)=>(<div key={i} style={{display:"flex",gap:8,marginBottom:8}}><div style={{width:2,background:C.accentBorder,borderRadius:1}}/><div><div style={{fontSize:11,color:C.text}}>{h.action}</div><div style={{fontSize:10,color:C.muted}}>{histDateShown(form,(form.history||[]).length-1-i)} · <span style={{color:MGR_COLOR[h.by]||C.accent,fontWeight:600}}>{h.by}</span></div></div></div>))}
+            {visHist(form.history,currentUser).length===0?<div style={{color:C.dim,fontSize:12}}>—</div>:[...visHist(form.history,currentUser)].reverse().map((h,i)=>(<div key={i} style={{display:"flex",gap:8,marginBottom:8}}><div style={{width:2,background:C.accentBorder,borderRadius:1}}/><div><div style={{fontSize:11,color:C.text}}>{h.action}</div><div style={{fontSize:10,color:C.muted}}>{histDateShown(form,(form.history||[]).length-1-i)} · <span style={{color:MGR_COLOR[h.by]||C.accent,fontWeight:600}}>{h.by}</span></div></div></div>))}
           </div>
         </div>
         </div>
@@ -7827,7 +7833,7 @@ function KPWizard({leads,onGenerate,onClose,t,lang}){
         <div style={{marginBottom:14}}>
           <div style={{fontSize:10,color:"rgba(191,164,126,0.7)",marginBottom:6,textTransform:"uppercase",letterSpacing:0.8}}>{t.furnAmount}</div>
           <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="23250" style={ins}/>
-          {CALC_ON&&selLead&&(selLead.calcs||[]).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:7}}>{(selLead.calcs||[]).slice().reverse().map(c=><button key={c.id} type="button" onClick={()=>setAmount(String(c.disc?c.totalDisc:c.total))} style={{background:"rgba(227,184,96,0.12)",border:"1px solid rgba(227,184,96,0.45)",color:"#f6e0aa",borderRadius:8,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>📐 {c.name}: {fmtM(c.disc?c.totalDisc:c.total)}</button>)}</div>}
+          {CALC_ON&&selLead&&visCalcs(selLead.calcs).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:7}}>{visCalcs(selLead.calcs).slice().reverse().map(c=><button key={c.id} type="button" onClick={()=>setAmount(String(c.disc?c.totalDisc:c.total))} style={{background:"rgba(227,184,96,0.12)",border:"1px solid rgba(227,184,96,0.45)",color:"#f6e0aa",borderRadius:8,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>📐 {c.name}: {fmtM(c.disc?c.totalDisc:c.total)}</button>)}</div>}
         </div>
 
         {/* Каменная столешница */}

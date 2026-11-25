@@ -336,8 +336,13 @@ export function paramsFromNotes(notes) {
   else if (/(naro[żz]n|litery\s*l|кутов|углов|\bL\b)/i.test(head)) shape = "L";
   const island = /(wysp|остров|ostr[uů]v)/i.test(head);
   if (island && shape === "I") shape = "L";
-  const m = head.match(/(\d{2,3})\s*[x×хX]\s*(\d{2,3})(?:\s*[x×хX]\s*(\d{2,3}))?/);
-  const nums = m ? [m[1], m[2], m[3]].filter(Boolean).map(Number) : (head.match(/\b(\d{3})\b/) ? [Number(head.match(/\b(\d{3})\b/)[1])] : []);
+  // размеры: «300 x 250» (см), «3000 x 2500» (мм), «3 x 2,5» / «3.2 x 2» (м) — всё переводим в см
+  const toCm = s => { const v = parseFloat(String(s).replace(",", ".")); if (!isFinite(v) || v <= 0) return null;
+    if (/[.,]/.test(s) || v < 10) return Math.round(v * 100); if (v >= 1000) return Math.round(v / 10); return v >= 100 ? Math.round(v) : null; };
+  const U = "\\s*(?:mm|мм|cm|см|m|м)?\\s*", N = "(\\d+(?:[.,]\\d+)?)";
+  const m = head.match(new RegExp(`(?<![\\d.,])${N}${U}[x×хX*]${U}${N}(?:${U}[x×хX*]${U}${N})?`));
+  const one = head.match(/(?<![\d.,])(\d{3,4})(?![\d.,])/);
+  const nums = (m ? [m[1], m[2], m[3]].filter(Boolean).map(toCm) : one ? [toCm(one[1])] : []).filter(Boolean);
   const need = { I: 1, L: 2, U: 3 }[shape];
   const walls = [];
   for (let i = 0; i < need; i++) walls.push({ len_cm: nums[i] && nums[i] >= 100 ? nums[i] : 240 });
